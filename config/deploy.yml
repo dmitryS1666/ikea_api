@@ -21,6 +21,9 @@ servers:
     # Kamal автоматически публикует порт 3000
     # Healthcheck настроен через Docker HEALTHCHECK в Dockerfile
     # Nginx НЕ обязателен - Kamal использует kamal-proxy для маршрутизации
+    # Указываем порт для kamal-proxy
+    proxy:
+      port: 3000
 
 # Docker registry (требуется для Kamal)
 # Docker Hub registry
