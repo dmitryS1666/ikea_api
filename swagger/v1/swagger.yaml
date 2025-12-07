@@ -1,0 +1,455 @@
+openapi: '3.0.1'
+info:
+  title: IKEA API
+  version: v1
+  description: |
+    API для работы с данными IKEA парсера.
+    
+    ## Аутентификация
+    Большинство endpoints требуют JWT токен в заголовке:
+    ```
+    Authorization: Bearer <token>
+    ```
+    
+    Получить токен можно через `/api/v1/auth/login`
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+  - url: https://api.ikeya.by
+    description: Production server
+
+paths:
+  /api/v1/products:
+    get:
+      summary: Список товаров
+      tags:
+        - Products
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: category_id
+          in: query
+          schema:
+            type: string
+        - name: is_bestseller
+          in: query
+          schema:
+            type: boolean
+        - name: is_popular
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Список товаров
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+
+  /api/v1/products/{id}:
+    get:
+      summary: Получить товар по SKU
+      tags:
+        - Products
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Данные товара
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Product'
+        '404':
+          description: Товар не найден
+
+  /api/v1/products/bestsellers:
+    get:
+      summary: Хиты продаж
+      tags:
+        - Products
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Список хитов продаж
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+
+  /api/v1/products/popular:
+    get:
+      summary: Популярные товары
+      tags:
+        - Products
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Список популярных товаров
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+
+  /api/v1/categories:
+    get:
+      summary: Список категорий
+      tags:
+        - Categories
+      parameters:
+        - name: is_popular
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Список категорий
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+
+  /api/v1/categories/{id}:
+    get:
+      summary: Получить категорию по ID
+      tags:
+        - Categories
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Данные категории
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Category'
+
+  /api/v1/categories/popular:
+    get:
+      summary: Популярные категории
+      tags:
+        - Categories
+      responses:
+        '200':
+          description: Список популярных категорий
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+
+  /api/v1/categories/tree:
+    get:
+      summary: Дерево категорий
+      tags:
+        - Categories
+      responses:
+        '200':
+          description: Иерархическое дерево категорий
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CategoryTree'
+
+  /api/v1/auth/login:
+    post:
+      summary: Вход в систему
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Неверные учетные данные
+
+  /api/v1/auth/register:
+    post:
+      summary: Регистрация
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                password_confirmation:
+                  type: string
+      responses:
+        '201':
+          description: Пользователь создан
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '422':
+          description: Ошибка валидации
+
+components:
+  schemas:
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        attributes:
+          type: object
+          properties:
+            sku:
+              type: string
+            unique_id:
+              type: integer
+            item_no:
+              type: string
+            url:
+              type: string
+            name:
+              type: string
+            name_ru:
+              type: string
+            collection:
+              type: string
+            price:
+              type: number
+            quantity:
+              type: integer
+            weight:
+              type: number
+            net_weight:
+              type: number
+            package_volume:
+              type: number
+            package_dimensions:
+              type: string
+            dimensions:
+              type: string
+            is_parcel:
+              type: boolean
+            is_bestseller:
+              type: boolean
+            is_popular:
+              type: boolean
+            category_id:
+              type: string
+            delivery_type:
+              type: string
+            delivery_name:
+              type: string
+            delivery_cost:
+              type: number
+            delivery_reason:
+              type: string
+            variants:
+              type: array
+              items:
+                type: string
+            images:
+              type: array
+              items:
+                type: string
+            local_images:
+              type: array
+              items:
+                type: string
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        attributes:
+          type: object
+          properties:
+            ikea_id:
+              type: string
+            unique_id:
+              type: integer
+            name:
+              type: string
+            translated_name:
+              type: string
+            url:
+              type: string
+            remote_image_url:
+              type: string
+            local_image_path:
+              type: string
+            is_deleted:
+              type: boolean
+            is_important:
+              type: boolean
+            is_popular:
+              type: boolean
+            parent_ids:
+              type: array
+              items:
+                type: string
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+
+    CategoryTree:
+      allOf:
+        - $ref: '#/components/schemas/Category'
+        - type: object
+          properties:
+            children:
+              type: array
+              items:
+                $ref: '#/components/schemas/CategoryTree'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [user, admin]
+
+    Meta:
+      type: object
+      properties:
+        total:
+          type: integer
+        page:
+          type: integer
+        per_page:
+          type: integer
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+

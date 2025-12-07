@@ -1,0 +1,97 @@
+# Kamal (MRSK) конфигурация для деплоя
+# Документация: https://kamal-deploy.org
+
+service: ikea_api
+
+# Docker образ
+image: ikea_api
+
+# Серверы для деплоя
+servers:
+  web:
+    hosts:
+      - 45.135.234.22
+    user: deploy
+    options:
+      healthcheck:
+        path: /up
+        port: 3000
+      # Kamal автоматически публикует порт 3000
+      # Nginx будет проксировать на localhost:3000
+
+# Docker registry (опционально, можно использовать локальный образ)
+# registry:
+#   username: ${REGISTRY_USERNAME}
+#   password:
+#     - KAMAL_REGISTRY_PASSWORD
+
+# Builder конфигурация
+builder:
+  context: .
+  dockerfile: Dockerfile
+
+# Переменные окружения
+env:
+  clear:
+    RAILS_ENV: production
+    DB_HOST: postgres
+    DB_PORT: 5432
+    REDIS_URL: redis://redis:6379/0
+    MONGODB_URI: mongodb://mongodb:27017/ikea
+  secret:
+    - RAILS_MASTER_KEY
+    - DB_USERNAME
+    - DB_PASSWORD
+    - REDIS_PASSWORD
+    - JWT_SECRET
+    - POSTGRES_PASSWORD
+
+# Volumes для хранения данных
+volumes:
+  - storage:/rails/storage
+
+# Дополнительные сервисы (accessories)
+accessories:
+  postgres:
+    image: postgres:16
+    host: 45.135.234.22
+    port: 5432
+    env:
+      clear:
+        POSTGRES_DB: ikea_api_production
+      secret:
+        - POSTGRES_PASSWORD
+    directories:
+      - postgres-data:/var/lib/postgresql/data
+    options:
+      healthcheck:
+        test: pg_isready -U postgres
+        interval: 10s
+        timeout: 5s
+        retries: 5
+
+  redis:
+    image: redis:7-alpine
+    host: 45.135.234.22
+    port: 6379
+    directories:
+      - redis-data:/data
+    options:
+      healthcheck:
+        test: redis-cli ping
+        interval: 10s
+        timeout: 5s
+        retries: 5
+
+  mongodb:
+    image: mongo:7
+    host: 45.135.234.22
+    port: 27017
+    directories:
+      - mongodb-data:/data/db
+    options:
+      healthcheck:
+        test: mongosh --eval "db.adminCommand('ping')"
+        interval: 10s
+        timeout: 5s
+        retries: 5
