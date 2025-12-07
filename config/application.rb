@@ -47,7 +47,9 @@ module IkeaApi
       key: '_ikea_api_session',
       secret: Rails.application.credentials.secret_key_base || ENV['SECRET_KEY_BASE'] || 'development_secret_key_change_in_production',
       same_site: :lax,
-      secure: Rails.env.production?
+      # В production отключаем secure, т.к. используем HTTP через kamal-proxy
+      # SSL будет настроен на уровне proxy при привязке домена
+      secure: Rails.env.production? && ENV['FORCE_SSL_COOKIES'] == 'true'
     config.middleware.use ActionDispatch::Flash
     
     # Redis для кэширования

@@ -1,6 +1,10 @@
 class SwaggerController < ActionController::Base
   # Включаем защиту от CSRF для формы авторизации
-  protect_from_forgery with: :exception
+  # Но пропускаем проверку для GET запросов (они не требуют CSRF токена)
+  protect_from_forgery with: :exception, prepend: true
+  
+  # Пропускаем проверку CSRF для GET запросов
+  skip_before_action :verify_authenticity_token, if: -> { request.get? }
   
   # Используем layout
   layout 'application'
