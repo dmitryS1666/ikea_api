@@ -247,54 +247,71 @@ curl http://localhost:3000/api/v1/products \
 
 ## 🚀 Деплой
 
-### Деплой через Kamal
-
 Проект настроен для деплоя через [Kamal](https://kamal-deploy.org).
 
-#### Предварительные требования
+### Быстрый старт
 
-1. Установите Kamal:
-```bash
-gem install kamal
-```
+**Полная последовательность действий для первого деплоя:**
 
-2. Настройте сервер (см. [DEPLOY_KAMAL.md](./DEPLOY_KAMAL.md))
+1. **Настройка сервера** (один раз)
+   ```bash
+   chmod +x scripts/setup_server.sh
+   ./scripts/setup_server.sh
+   ```
 
-3. Настройте доступ к GitHub репозиторию:
-```bash
-chmod +x scripts/setup_github_access.sh
-./scripts/setup_github_access.sh
-```
+2. **Настройка SSH ключей**
+   ```bash
+   ssh-copy-id deploy@45.135.234.22
+   ```
 
-#### Деплой
+3. **Настройка доступа к GitHub**
+   ```bash
+   chmod +x scripts/setup_github_access.sh
+   ./scripts/setup_github_access.sh
+   # Добавьте ключ в GitHub
+   ```
 
-```bash
-# Настройка секретов
-mkdir -p .kamal
-cat > .kamal/secrets << EOL
-RAILS_MASTER_KEY=$(rails secret)
-DB_USERNAME=postgres
-DB_PASSWORD=your_password
-JWT_SECRET=$(ruby -e "require 'securerandom'; puts SecureRandom.hex(64)")
-POSTGRES_PASSWORD=your_postgres_password
-EOL
+4. **Настройка Nginx**
+   ```bash
+   chmod +x scripts/setup_nginx.sh
+   ./scripts/setup_nginx.sh
+   ```
 
-# Деплой
-kamal deploy
-```
+5. **Подготовка секретов**
+   ```bash
+   mkdir -p .kamal
+   cat > .kamal/secrets << EOF
+   RAILS_MASTER_KEY=$(rails secret)
+   DB_USERNAME=postgres
+   DB_PASSWORD=your_secure_password_here
+   REDIS_PASSWORD=
+   JWT_SECRET=$(ruby -e "require 'securerandom'; puts SecureRandom.hex(64)")
+   POSTGRES_PASSWORD=your_secure_postgres_password_here
+   EOF
+   ```
 
-Подробная инструкция: [DEPLOY_KAMAL.md](./DEPLOY_KAMAL.md)
+6. **Установка Kamal**
+   ```bash
+   gem install kamal
+   ```
 
-### Настройка Nginx
+7. **Деплой**
+   ```bash
+   kamal deploy
+   ```
 
-После деплоя настройте Nginx для работы с API и фронтендом:
+8. **Настройка базы данных**
+   ```bash
+   kamal app exec "rails db:create"
+   kamal app exec "rails db:migrate"
+   kamal app exec "rails db:seed"
+   ```
 
-```bash
-chmod +x scripts/setup_nginx.sh
-./scripts/setup_nginx.sh
-```
+### Документация по деплою
 
-Подробная инструкция: [NGINX_SETUP.md](./NGINX_SETUP.md)
+- **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** - Полное руководство с последовательностью действий
+- **[DEPLOY_KAMAL.md](./DEPLOY_KAMAL.md)** - Детальная инструкция по Kamal
+- **[NGINX_SETUP.md](./NGINX_SETUP.md)** - Настройка Nginx
 
 ## 🏗️ Архитектура
 
@@ -368,12 +385,19 @@ rails log:clear
 
 ## 📖 Дополнительная документация
 
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - Архитектура приложения
-- [DATA_SCHEMA.md](./DATA_SCHEMA.md) - Схемы данных
-- [DEPLOY_KAMAL.md](./DEPLOY_KAMAL.md) - Деплой через Kamal
+### Основная документация
+- [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) - **Полное руководство по деплою и настройке сервера**
+- [DEPLOY_KAMAL.md](./DEPLOY_KAMAL.md) - Детальная инструкция по деплою через Kamal
 - [NGINX_SETUP.md](./NGINX_SETUP.md) - Настройка Nginx
-- [RAILS_API_SETUP.md](./RAILS_API_SETUP.md) - Настройка Rails API
-- [README_DOCKER.md](./README_DOCKER.md) - Работа с Docker
+- [README_DOCKER.md](./README_DOCKER.md) - Работа с Docker (локальная разработка)
+
+### Техническая документация
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - Архитектура приложения
+- [DATA_SCHEMA.md](./DATA_SCHEMA.md) - Схемы данных MongoDB
+
+### Специфичные инструкции
+- [SWAGGER_AUTH.md](./SWAGGER_AUTH.md) - Авторизация Swagger
+- [TROUBLESHOOTING_SWAGGER.md](./TROUBLESHOOTING_SWAGGER.md) - Решение проблем с Swagger
 
 ## 🤝 Вклад в проект
 
