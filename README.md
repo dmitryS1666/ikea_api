@@ -417,17 +417,15 @@ rails log:clear
 
 ### Основная документация
 - [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) - **Полное руководство по деплою и настройке сервера**
-- [DEPLOY_KAMAL.md](./DEPLOY_KAMAL.md) - Детальная инструкция по деплою через Kamal
-- [NGINX_SETUP.md](./NGINX_SETUP.md) - Настройка Nginx
-- [README_DOCKER.md](./README_DOCKER.md) - Работа с Docker (локальная разработка)
+- [DEPLOYMENT_SUMMARY.md](./DEPLOYMENT_SUMMARY.md) - Краткая сводка по деплою
+- [SECRETS_GUIDE.md](./SECRETS_GUIDE.md) - Управление секретами и паролями
+- [DOMAIN_SETUP.md](./DOMAIN_SETUP.md) - Настройка домена для Kamal
+- [NGINX_SETUP.md](./NGINX_SETUP.md) - Настройка Nginx (опционально, если не используете kamal-proxy)
 
 ### Техническая документация
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Архитектура приложения
-- [DATA_SCHEMA.md](./DATA_SCHEMA.md) - Схемы данных MongoDB
-
-### Специфичные инструкции
-- [SWAGGER_AUTH.md](./SWAGGER_AUTH.md) - Авторизация Swagger
-- [TROUBLESHOOTING_SWAGGER.md](./TROUBLESHOOTING_SWAGGER.md) - Решение проблем с Swagger
+- [DATA_SCHEMA.md](./DATA_SCHEMA.md) - Схемы данных MongoDB и PostgreSQL
+- [ADMIN_PANEL_OPTIONS.md](./ADMIN_PANEL_OPTIONS.md) - Варианты админ-панелей для проекта
 
 ## 🤝 Вклад в проект
 
