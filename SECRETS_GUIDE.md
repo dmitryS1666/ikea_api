@@ -59,7 +59,7 @@ DB_PASSWORD=ВАШ_ПАРОЛЬ_POSTGRES
 REDIS_PASSWORD=
 JWT_SECRET=$(ruby -e "require 'securerandom'; puts SecureRandom.hex(64)")
 POSTGRES_PASSWORD=ВАШ_ПАРОЛЬ_POSTGRES
-KAMAL_REGISTRY_PASSWORD=dckr_pat_KF9EGlww0KtGDD_nuJC5huQBKiQ
+KAMAL_REGISTRY_PASSWORD=ВАШ_DOCKER_HUB_ТОКЕН_ЗДЕСЬ
 EOF
 ```
 
