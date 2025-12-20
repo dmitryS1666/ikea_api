@@ -5,7 +5,8 @@ ruby "3.3.0"
 gem "rails", "~> 7.1.6"
 gem "pg", "~> 1.1"
 # Use the Puma web server [https://github.com/puma/puma]
-gem "puma", ">= 5.0"
+# Puma 6+ required for Rack 3 compatibility
+gem "puma", ">= 6.0"
 gem "redis", ">= 4.0.1"
 
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
@@ -63,6 +64,6 @@ group :development do
   # Capistrano для деплоя
   gem "capistrano", "~> 3.18"
   gem "capistrano-rails", "~> 1.6"
-  gem "capistrano3-puma", "~> 5.2"
+  gem "capistrano3-puma", "~> 6.0"
 end
 
