@@ -12,6 +12,7 @@ require "action_controller/railtie"
 # require "action_text/engine"
 require "action_view/railtie"
 require "action_cable/engine"
+require "sprockets/railtie"
 # require "rails/test_unit/railtie"
 
 # Require the gems listed in Gemfile, including any gems
@@ -39,7 +40,13 @@ module IkeaApi
     # Only loads a smaller set of middleware suitable for API only apps.
     # Middleware like session, flash, cookies can be added back manually.
     # Skip views, helpers and assets when generating a new resource.
-    config.api_only = true
+    # ВАЖНО: api_only = false для поддержки ActiveAdmin
+    # API-only функциональность обеспечивается через namespace :api в routes
+    config.api_only = false
+    
+    # Для ActiveAdmin нужны helpers и views
+    config.force_ssl = false
+    config.action_controller.include_all_helpers = true
     
     # Добавляем middleware для сессий (нужно для Swagger авторизации)
     config.middleware.use ActionDispatch::Cookies

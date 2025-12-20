@@ -2,22 +2,10 @@ source "https://rubygems.org"
 
 ruby "3.3.0"
 
-# Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 7.1.6"
-
-# Use postgresql as the database for Active Record
 gem "pg", "~> 1.1"
-
 # Use the Puma web server [https://github.com/puma/puma]
 gem "puma", ">= 5.0"
-
-# Build JSON APIs with ease [https://github.com/rails/jbuilder]
-# gem "jbuilder"
-
-# Use Kredis to get higher-level data types in Redis [https://github.com/rails/kredis]
-# gem "kredis"
-
-# Redis для кэширования и Sidekiq
 gem "redis", ">= 4.0.1"
 
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
@@ -55,6 +43,11 @@ gem "kaminari"
 gem "rswag"
 gem "rswag-api"
 gem "rswag-ui"
+
+# Trestle Admin Panel
+gem "trestle", "~> 0.9"
+gem "trestle-auth", "~> 0.4"
+gem "sprockets-rails", "~> 3.4"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem

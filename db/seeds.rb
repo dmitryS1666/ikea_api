@@ -30,3 +30,32 @@ else
     puts "   - #{message}"
   end
 end
+
+# Создание дефолтного менеджера
+manager_username = 'manager'
+manager_password = ENV['MANAGER_PASSWORD'] || 'manager123'
+manager_email = ENV['MANAGER_EMAIL'] || 'manager@ikea_api.local'
+
+manager = User.find_or_initialize_by(username: manager_username)
+manager.assign_attributes(
+  email: manager_email,
+  password: manager_password,
+  password_confirmation: manager_password,
+  role: 'manager',
+  is_active: true
+)
+
+if manager.save
+  puts "✅ Менеджер создан/обновлен:"
+  puts "   Username: #{manager.username}"
+  puts "   Email: #{manager.email}"
+  puts "   Role: #{manager.role}"
+  puts ""
+  puts "⚠️  ВНИМАНИЕ: Измените пароль по умолчанию в production!"
+  puts "   Для изменения пароля используйте переменную окружения MANAGER_PASSWORD"
+else
+  puts "❌ Ошибка при создании менеджера:"
+  manager.errors.full_messages.each do |message|
+    puts "   - #{message}"
+  end
+end

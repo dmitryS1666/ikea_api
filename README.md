@@ -426,6 +426,7 @@ rails log:clear
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Архитектура приложения
 - [DATA_SCHEMA.md](./DATA_SCHEMA.md) - Схемы данных MongoDB и PostgreSQL
 - [ADMIN_PANEL_OPTIONS.md](./ADMIN_PANEL_OPTIONS.md) - Варианты админ-панелей для проекта
+- [SEO_SOLUTIONS.md](./SEO_SOLUTIONS.md) - Решения для SEO-оптимизации
 
 ## 🤝 Вклад в проект
 
