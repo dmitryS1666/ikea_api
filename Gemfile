@@ -74,5 +74,9 @@ group :development do
   gem "capistrano", "~> 3.18"
   gem "capistrano-rails", "~> 1.6"
   gem "capistrano3-puma", "~> 6.0"
+  
+  # Поддержка SSH ключей ed25519 для net-ssh
+  gem "ed25519", "~> 1.2"
+  gem "bcrypt_pbkdf", "~> 1.1"
 end
 
