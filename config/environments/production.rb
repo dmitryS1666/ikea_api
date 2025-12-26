@@ -22,7 +22,8 @@ Rails.application.configure do
   # Enable serving static files from `public/` for Trestle admin assets
   # NGINX will also serve static files, but Rails needs to serve them for admin panel
   config.public_file_server.enabled = true
-  config.public_file_server.headers = { 'Cache-Control' => 'public, max-age=31536000' }
+  # Уменьшаем кеширование для assets админки, чтобы изменения применялись быстрее
+  config.public_file_server.headers = { 'Cache-Control' => 'public, max-age=3600' }
 
   # Enable serving of images, stylesheets, and JavaScripts from an asset server.
   # config.asset_host = "http://assets.example.com"
