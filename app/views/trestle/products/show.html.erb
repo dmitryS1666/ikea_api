@@ -15,44 +15,54 @@
               <th>SKU:</th>
               <td><%= @product.sku %></td>
             </tr>
-            <tr>
-              <th>Item No:</th>
-              <td><%= @product.item_no %></td>
-            </tr>
-            <tr>
-              <th>URL:</th>
-              <td>
-                <% if @product.url.present? %>
+            <% if @product.item_no.present? %>
+              <tr>
+                <th>Item No:</th>
+                <td><%= @product.item_no %></td>
+              </tr>
+            <% end %>
+            <% if @product.url.present? %>
+              <tr>
+                <th>URL:</th>
+                <td>
                   <%= link_to @product.url, @product.url, target: '_blank' %>
-                <% else %>
-                  <em class="text-muted">Нет URL</em>
-                <% end %>
-              </td>
-            </tr>
+                </td>
+              </tr>
+            <% end %>
             <tr>
               <th>Название (PL):</th>
               <td><%= @product.name %></td>
             </tr>
-            <tr>
-              <th>Название (RU):</th>
-              <td><%= @product.name_ru || content_tag(:em, "Нет перевода", class: "text-muted") %></td>
-            </tr>
-            <tr>
-              <th>Коллекция:</th>
-              <td><%= @product.collection || content_tag(:em, "Нет", class: "text-muted") %></td>
-            </tr>
-            <tr>
-              <th>Категория:</th>
-              <td><%= @product.category&.name || 'Без категории' %></td>
-            </tr>
-            <tr>
-              <th>Цена:</th>
-              <td><%= @product.price ? number_to_currency(@product.price, unit: 'Zl', format: '%n %u') : content_tag(:em, "Нет", class: "text-muted") %></td>
-            </tr>
-            <tr>
-              <th>В наличии:</th>
-              <td><%= @product.quantity %></td>
-            </tr>
+            <% if @product.name_ru.present? %>
+              <tr>
+                <th>Название (RU):</th>
+                <td><%= @product.name_ru %></td>
+              </tr>
+            <% end %>
+            <% if @product.collection.present? %>
+              <tr>
+                <th>Коллекция:</th>
+                <td><%= @product.collection %></td>
+              </tr>
+            <% end %>
+            <% if @product.category.present? %>
+              <tr>
+                <th>Категория:</th>
+                <td><%= @product.category.name %></td>
+              </tr>
+            <% end %>
+            <% if @product.price.present? %>
+              <tr>
+                <th>Цена:</th>
+                <td><%= number_to_currency(@product.price, unit: 'Zl', format: '%n %u') %></td>
+              </tr>
+            <% end %>
+            <% if @product.quantity.present? %>
+              <tr>
+                <th>В наличии:</th>
+                <td><%= @product.quantity %></td>
+              </tr>
+            <% end %>
             <tr>
               <th>Хит продаж:</th>
               <td>
@@ -81,26 +91,36 @@
         </div>
         <div class="card-body">
           <table class="table">
-            <tr>
-              <th>Вес:</th>
-              <td><%= @product.weight ? "#{@product.weight} кг" : content_tag(:em, "Нет", class: "text-muted") %></td>
-            </tr>
-            <tr>
-              <th>Чистый вес:</th>
-              <td><%= @product.net_weight ? "#{@product.net_weight} кг" : content_tag(:em, "Нет", class: "text-muted") %></td>
-            </tr>
-            <tr>
-              <th>Объём упаковки:</th>
-              <td><%= @product.package_volume ? "#{@product.package_volume} л" : content_tag(:em, "Нет", class: "text-muted") %></td>
-            </tr>
-            <tr>
-              <th>Размеры упаковки:</th>
-              <td><%= @product.package_dimensions || content_tag(:em, "Нет", class: "text-muted") %></td>
-            </tr>
-            <tr>
-              <th>Размеры:</th>
-              <td><%= @product.dimensions || content_tag(:em, "Нет", class: "text-muted") %></td>
-            </tr>
+            <% if @product.weight.present? %>
+              <tr>
+                <th>Вес:</th>
+                <td><%= "#{@product.weight} кг" %></td>
+              </tr>
+            <% end %>
+            <% if @product.net_weight.present? %>
+              <tr>
+                <th>Чистый вес:</th>
+                <td><%= "#{@product.net_weight} кг" %></td>
+              </tr>
+            <% end %>
+            <% if @product.package_volume.present? %>
+              <tr>
+                <th>Объём упаковки:</th>
+                <td><%= "#{@product.package_volume} л" %></td>
+              </tr>
+            <% end %>
+            <% if @product.package_dimensions.present? %>
+              <tr>
+                <th>Размеры упаковки:</th>
+                <td><%= @product.package_dimensions %></td>
+              </tr>
+            <% end %>
+            <% if @product.dimensions.present? %>
+              <tr>
+                <th>Размеры:</th>
+                <td><%= @product.dimensions %></td>
+              </tr>
+            <% end %>
             <tr>
               <th>Посылка:</th>
               <td>
@@ -109,10 +129,60 @@
                 </span>
               </td>
             </tr>
-            <tr>
-              <th>Оисание:</th>
-              <td><%= @product.content_ru&.html_safe || content_tag(:em, "Нет описания", class: "text-muted") %></td>
-            </tr>
+            <% if @product.content_ru.present? %>
+              <tr>
+                <th>Описание:</th>
+                <td><%= @product.content_ru.html_safe %></td>
+              </tr>
+            <% end %>
+            <% if @product.materials.present? %>
+              <tr>
+                <th>Материалы:</th>
+                <td><%= @product.materials %></td>
+              </tr>
+            <% end %>
+            <% if @product.features.present? %>
+              <tr>
+                <th>Особенности:</th>
+                <td><%= @product.features %></td>
+              </tr>
+            <% end %>
+            <% if @product.care_instructions.present? %>
+              <tr>
+                <th>Инструкции по уходу:</th>
+                <td><%= @product.care_instructions %></td>
+              </tr>
+            <% end %>
+            <% if @product.environmental_info.present? %>
+              <tr>
+                <th>Экологическая информация:</th>
+                <td><%= @product.environmental_info %></td>
+              </tr>
+            <% end %>
+            <% if @product.short_description.present? %>
+              <tr>
+                <th>Краткое описание:</th>
+                <td><%= @product.short_description %></td>
+              </tr>
+            <% end %>
+            <% if @product.designer.present? %>
+              <tr>
+                <th>Дизайнер:</th>
+                <td><%= @product.designer %></td>
+              </tr>
+            <% end %>
+            <% if @product.safety_info.present? %>
+              <tr>
+                <th>Информация о безопасности:</th>
+                <td><%= @product.safety_info %></td>
+              </tr>
+            <% end %>
+            <% if @product.good_to_know.present? %>
+              <tr>
+                <th>Полезно знать:</th>
+                <td><%= @product.good_to_know %></td>
+              </tr>
+            <% end %>
           </table>
         </div>
       </div>
@@ -387,22 +457,30 @@
           </div>
           <div class="card-body">
             <table class="table">
-              <tr>
-                <th>Тип доставки:</th>
-                <td><%= @product.delivery_type || content_tag(:em, "Нет", class: "text-muted") %></td>
-              </tr>
-              <tr>
-                <th>Название доставки:</th>
-                <td><%= @product.delivery_name || content_tag(:em, "Нет", class: "text-muted") %></td>
-              </tr>
-              <tr>
-                <th>Стоимость доставки:</th>
-                <td><%= @product.delivery_cost ? number_to_currency(@product.delivery_cost, unit: 'Zl', format: '%n %u') : content_tag(:em, "Нет", class: "text-muted") %></td>
-              </tr>
-              <tr>
-                <th>Причина доставки:</th>
-                <td><%= @product.delivery_reason || content_tag(:em, "Нет", class: "text-muted") %></td>
-              </tr>
+              <% if @product.delivery_type.present? %>
+                <tr>
+                  <th>Тип доставки:</th>
+                  <td><%= @product.delivery_type %></td>
+                </tr>
+              <% end %>
+              <% if @product.delivery_name.present? %>
+                <tr>
+                  <th>Название доставки:</th>
+                  <td><%= @product.delivery_name %></td>
+                </tr>
+              <% end %>
+              <% if @product.delivery_cost.present? %>
+                <tr>
+                  <th>Стоимость доставки:</th>
+                  <td><%= number_to_currency(@product.delivery_cost, unit: 'Zl', format: '%n %u') %></td>
+                </tr>
+              <% end %>
+              <% if @product.delivery_reason.present? %>
+                <tr>
+                  <th>Причина доставки:</th>
+                  <td><%= @product.delivery_reason %></td>
+                </tr>
+              <% end %>
             </table>
           </div>
         </div>
