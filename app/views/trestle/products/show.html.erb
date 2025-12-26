@@ -171,9 +171,7 @@
           %>
 
           <% if remote_images.any? || local_images.any? %>
-            <%
-=begin%>
- <% if remote_images.any? %>
+            <% if remote_images.any? %>
               <h6 class="mt-3">Удалённые картинки (<%= remote_images.length %>)</h6>
               <div class="row mb-4">
                 <% remote_images.each do |image_url| %>
@@ -187,16 +185,23 @@
                   </div>
                 <% end %>
               </div>
-            <% end %> 
-<%
-=end%>
+            <% end %>
 
             <% if local_images.any? %>
               <h6 class="mt-3">Локальные картинки (<%= local_images.length %>)</h6>
               <div class="row mb-4">
                 <% local_images.each do |image_path| %>
-                  <% next unless image_path.present? && image_path.is_a?(String) %>
-                  <% full_path = image_path.start_with?('/') ? image_path : "/#{image_path}" %>
+                  <% 
+                    # Обрабатываем image_path - может быть строкой или массивом
+                    if image_path.is_a?(Array)
+                      image_path = image_path.first
+                    end
+                    next unless image_path.present? && image_path.is_a?(String)
+                    # Убираем кавычки и скобки, если они есть
+                    image_path = image_path.gsub(/^["\[\]]+|["\[\]]+$/, '')
+                    next if image_path.blank?
+                    full_path = image_path.start_with?('/') ? image_path : "/#{image_path}"
+                  %>
                   <div class="col-sm-3 col-md-2 mb-3">
                     <div class="product-image-thumbnail" style="border: 1px solid #ddd; border-radius: 4px; padding: 5px; text-align: center;">
                       <%= link_to full_path, target: '_blank', title: image_path do %>
