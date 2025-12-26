@@ -112,12 +112,5 @@ Trestle.resource :cron_schedules, model: CronSchedule do
   routes do
     post :sync, on: :collection
   end
-
-  # Вспомогательные методы
-  def enabled_badge(enabled)
-    color = enabled ? 'success' : 'secondary'
-    text = enabled ? 'Да' : 'Нет'
-    content_tag(:span, text, class: "badge badge-#{color}")
-  end
 end
 
