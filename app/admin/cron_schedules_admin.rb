@@ -23,7 +23,19 @@ Trestle.resource :cron_schedules, model: CronSchedule do
   form do |schedule|
     row do
       col(sm: 6) do
-        select :task_type, CronSchedule::TASK_TYPES.map { |t| [task_type_label(t), t] }
+        task_types_options = CronSchedule::TASK_TYPES.map do |t|
+          label = case t
+                  when 'categories' then 'Категории'
+                  when 'products' then 'Продукты'
+                  when 'bestsellers' then 'Хиты продаж'
+                  when 'popular_categories' then 'Популярные категории'
+                  when 'category_images' then 'Картинки категорий'
+                  when 'product_images' then 'Картинки продуктов'
+                  else t
+                  end
+          [label, t]
+        end
+        select :task_type, task_types_options
       end
       col(sm: 6) { check_box :enabled }
     end
