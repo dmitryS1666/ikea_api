@@ -197,20 +197,29 @@
               <div class="row mb-4">
                 <% local_images.each do |image_path| %>
                   <% 
-                    # Обрабатываем image_path - может быть строкой или массивом
+                    # Строгая обработка image_path - гарантируем, что это строка
+                    # Если это массив, берем первый элемент
                     if image_path.is_a?(Array)
                       image_path = image_path.first
                     end
-                    next unless image_path.present? && image_path.is_a?(String)
-                    # Убираем кавычки и скобки, если они есть
-                    image_path = image_path.gsub(/^["\[\]]+|["\[\]]+$/, '')
-                    next if image_path.blank?
+                    
+                    # Преобразуем в строку и убираем кавычки и скобки
+                    image_path = image_path.to_s.strip
+                    image_path = image_path.gsub(/^["\[\]]+|["\[\]]+$/, '').strip
+                    
+                    # Пропускаем если пусто или не строка
+                    next if image_path.blank? || !image_path.is_a?(String)
+                    
+                    # Формируем полный путь
                     full_path = image_path.start_with?('/') ? image_path : "/#{image_path}"
+                    
+                    # Финальная проверка - full_path должен быть строкой
+                    next unless full_path.is_a?(String) && full_path.present?
                   %>
                   <div class="col-sm-3 col-md-2 mb-3">
                     <div class="product-image-thumbnail" style="border: 1px solid #ddd; border-radius: 4px; padding: 5px; text-align: center;">
-                      <%= link_to full_path, target: '_blank', title: image_path do %>
-                        <%= image_tag(full_path, class: 'img-fluid', style: 'max-width: 100%; height: auto;', onerror: "this.style.display='none'; this.parentElement.innerHTML='<em class=\\'text-muted\\'>Ошибка загрузки</em>';") %>
+                      <%= link_to full_path.to_s, target: '_blank', title: image_path do %>
+                        <%= image_tag(full_path.to_s, class: 'img-fluid', style: 'max-width: 100%; height: auto;', onerror: "this.style.display='none'; this.parentElement.innerHTML='<em class=\\'text-muted\\'>Ошибка загрузки</em>';") %>
                       <% end %>
                     </div>
                   </div>
