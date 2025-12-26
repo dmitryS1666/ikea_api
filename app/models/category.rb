@@ -12,13 +12,12 @@ class Category < ApplicationRecord
   scope :active, -> { where(is_deleted: [false, nil]) }
   scope :not_deleted, -> { where(is_deleted: [false, nil]) }
   # Верхнеуровневые категории (без родительских категорий)
-  # parent_ids хранится как текст (JSON), поэтому проверяем на nil или пустой массив
-  # В БД может храниться как строка "[]" (JSON-строка) или как NULL
-  # После десериализации это может быть массив [] или строка "[]" или ""
+  # Используем поле is_important для определения верхнеуровневых категорий
+  # Также проверяем parent_ids на nil или пустой массив для совместимости
   scope :top_level, -> {
     where(
-      "parent_ids IS NULL OR parent_ids::text = ? OR parent_ids::text = ? OR parent_ids::text = ?",
-      '[]', '""', ''
+      "is_important = ? OR parent_ids IS NULL OR parent_ids::text = ? OR parent_ids::text = ? OR parent_ids::text = ?",
+      true, '[]', '""', ''
     )
   }
   
