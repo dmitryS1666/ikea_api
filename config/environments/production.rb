@@ -23,7 +23,13 @@ Rails.application.configure do
   # NGINX will also serve static files, but Rails needs to serve them for admin panel
   config.public_file_server.enabled = true
   # Уменьшаем кеширование для assets админки, чтобы изменения применялись быстрее
-  config.public_file_server.headers = { 'Cache-Control' => 'public, max-age=3600' }
+  # Отключаем кеширование для development-like обновлений
+  config.public_file_server.headers = { 'Cache-Control' => 'public, max-age=0, must-revalidate' }
+  
+  # Принудительное обновление assets при каждом запросе (для отладки)
+  # В production можно вернуть кеширование после проверки
+  config.assets.digest = true
+  config.assets.version = '1.0'
 
   # Enable serving of images, stylesheets, and JavaScripts from an asset server.
   # config.asset_host = "http://assets.example.com"
