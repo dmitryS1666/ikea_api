@@ -5,7 +5,7 @@ Trestle.resource(:categories, model: Category) do
 
   scopes do
     scope :all, default: true
-    scope :top_level, -> { Category.is_important }, label: "Верхнеуровневые"
+    scope :top_level, -> { Category.top_level }, label: "Верхнеуровневые"
     scope :popular, -> { Category.popular }, label: "Популярные"
     scope :active, -> { Category.active }, label: "Активные"
   end
