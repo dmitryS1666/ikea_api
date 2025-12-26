@@ -162,17 +162,21 @@
                            else
                              []
                            end
-            # Фильтруем и нормализуем пути
-            local_images = Array(local_images).flatten.compact.reject { |path| 
-              path.blank? || 
-              path == false || 
-              path == 'false' || 
-              !path.is_a?(String) ||
-              path.to_s.downcase == 'false'
-            }.map { |path|
+            # Фильтруем и нормализуем пути - гарантируем, что каждый элемент это строка
+            local_images = Array(local_images).flatten.compact.map { |path|
+              # Преобразуем в строку
+              path_str = path.to_s.strip
               # Убираем кавычки и скобки, если они есть
-              path.to_s.gsub(/^["\[\]]+|["\[\]]+$/, '').strip
-            }.reject(&:blank?)
+              path_str = path_str.gsub(/^["\[\]]+|["\[\]]+$/, '').strip
+              path_str
+            }.reject { |path_str|
+              # Отфильтровываем пустые, false, 'false'
+              path_str.blank? || 
+              path_str == false || 
+              path_str == 'false' || 
+              path_str.to_s.downcase == 'false' ||
+              !path_str.is_a?(String)
+            }
           %>
 
           <% if remote_images.any? || local_images.any? %>
