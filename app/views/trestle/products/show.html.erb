@@ -166,16 +166,29 @@
             local_images = Array(local_images).flatten.compact.map { |path|
               # Преобразуем в строку
               path_str = path.to_s.strip
-              # Убираем кавычки и скобки, если они есть
-              path_str = path_str.gsub(/^["\[\]]+|["\[\]]+$/, '').strip
-              path_str
-            }.reject { |path_str|
+              # Если это JSON-строка с массивом, парсим её
+              if path_str.start_with?('[') && path_str.end_with?(']')
+                begin
+                  parsed = JSON.parse(path_str)
+                  parsed.is_a?(Array) ? parsed : [path_str]
+                rescue
+                  # Если не JSON, убираем кавычки и скобки
+                  path_str = path_str.gsub(/^["\[\]]+|["\[\]]+$/, '').strip
+                  [path_str]
+                end
+              else
+                # Убираем кавычки и скобки, если они есть
+                path_str = path_str.gsub(/^["\[\]]+|["\[\]]+$/, '').strip
+                [path_str]
+              end
+            }.flatten.reject { |path_str|
               # Отфильтровываем пустые, false, 'false'
               path_str.blank? || 
               path_str == false || 
               path_str == 'false' || 
               path_str.to_s.downcase == 'false' ||
-              !path_str.is_a?(String)
+              !path_str.is_a?(String) ||
+              path_str.include?(',') # Отфильтровываем строки с запятыми (вероятно, это массив в строке)
             }
           %>
 
