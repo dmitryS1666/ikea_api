@@ -18,6 +18,8 @@ append :linked_files, "config/master.key", ".env"
 
 # Linked directories (shared between deployments)
 append :linked_dirs, "log", "tmp/pids", "tmp/cache", "tmp/sockets", "storage"
+# НЕ линкуем public/assets - они должны компилироваться в каждом release
+# append :linked_dirs, "public/assets"
 
 # Ruby version (asdf)
 # asdf автоматически управляет PATH через shims
