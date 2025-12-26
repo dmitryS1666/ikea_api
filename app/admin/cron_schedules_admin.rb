@@ -19,7 +19,10 @@ Trestle.resource :cron_schedules, model: CronSchedule do
     end
     column :schedule, header: "Расписание"
     column :enabled, header: "Включено" do |schedule|
-      enabled_badge(schedule.enabled?)
+      enabled = schedule.enabled?
+      color = enabled ? 'success' : 'secondary'
+      text = enabled ? 'Да' : 'Нет'
+      content_tag(:span, text, class: "badge badge-#{color}")
     end
     column :last_run_at, header: "Последний запуск"
     column :next_run_at, header: "Следующий запуск"
