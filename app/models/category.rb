@@ -14,7 +14,13 @@ class Category < ApplicationRecord
   # Верхнеуровневые категории (без родительских категорий)
   # parent_ids хранится как текст (JSON), поэтому проверяем на nil или пустой массив
   # Используем ::text для приведения к тексту в PostgreSQL и правильное экранирование
-  scope :top_level, -> { where("parent_ids IS NULL OR parent_ids::text = '[]' OR parent_ids::text = ''") }
+  # Также проверяем через десериализацию в Ruby для надежности
+  scope :top_level, -> {
+    where(
+      "parent_ids IS NULL OR parent_ids::text = ? OR parent_ids::text = ?",
+      '[]', ''
+    )
+  }
   
   # Подсчет дочерних категорий (категории, у которых текущая категория в parent_ids)
   def children_count
