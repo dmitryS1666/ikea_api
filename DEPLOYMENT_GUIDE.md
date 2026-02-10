@@ -1,0 +1,381 @@
+# 🚀 Руководство по деплою и настройке продакшн-сервера
+
+## ⚠️ Важно
+
+**Все скрипты и команды выполняются на локальной машине** (ваш компьютер), а не на сервере. Скрипты сами подключаются к серверу через SSH и выполняют необходимые команды.
+
+## 📋 Очередность действий
+
+### Часть 1: Настройка продакшн-сервера (один раз)
+
+#### Шаг 1: Подготовка сервера
+
+**Важно:** Скрипт запускается с **локальной машины**, он сам подключается к серверу через SSH.
+
+```bash
+# На локальной машине (в директории проекта)
+# Установите sshpass (если еще не установлен)
+sudo apt-get install sshpass
+
+# Запуск автоматической настройки сервера
+chmod +x scripts/setup_server.sh
+./scripts/setup_server.sh
+```
+
+**Что делает скрипт:**
+- Подключается к серверу через SSH (root / f8RpYS53tYgLPwnk)
+- Устанавливает Docker и Docker Compose
+- Создает пользователя `deploy`
+- Настраивает SSH директорию для пользователя `deploy`
+- Предоставляет права Docker для пользователя `deploy`
+- Настраивает sudo без пароля для `deploy`
+
+#### Шаг 2: Настройка SSH ключей
+
+**После выполнения шага 1**, нужно настроить SSH ключи для пользователя `deploy`.
+
+Пользователь `deploy` создан без пароля, поэтому нужно добавить ключ через `root`:
+
+```bash
+# На локальной машине
+# 1. Просмотр вашего публичного SSH ключа
+cat ~/.ssh/id_ed25519.pub
+# Если ключа нет, создайте его:
+# ssh-keygen -t ed25519 -C "deploy@ikea_back"
+
+# 2. Копирование ключа на сервер через root
+cat ~/.ssh/id_ed25519.pub | ssh root@45.135.234.22 \
+  "mkdir -p /home/deploy/.ssh && \
+   cat >> /home/deploy/.ssh/authorized_keys && \
+   chown -R deploy:deploy /home/deploy/.ssh && \
+   chmod 700 /home/deploy/.ssh && \
+   chmod 600 /home/deploy/.ssh/authorized_keys"
+
+# Пароль для root: f8RpYS53tYgLPwnk
+
+# 3. Проверка подключения
+ssh deploy@45.135.234.22
+```
+
+**Альтернативный способ (если предыдущий не работает):**
+```bash
+# Подключение к серверу через root
+ssh root@45.135.234.22
+# Пароль: f8RpYS53tYgLPwnk
+
+# На сервере выполните:
+mkdir -p /home/deploy/.ssh
+# Вставьте ваш публичный ключ (скопируйте из cat ~/.ssh/id_ed25519.pub)
+echo "ВАШ_ПУБЛИЧНЫЙ_КЛЮЧ_ЗДЕСЬ" >> /home/deploy/.ssh/authorized_keys
+chown -R deploy:deploy /home/deploy/.ssh
+chmod 700 /home/deploy/.ssh
+chmod 600 /home/deploy/.ssh/authorized_keys
+exit
+```
+
+#### Шаг 3: Настройка доступа к GitHub
+
+**Важно:** Скрипт запускается с **локальной машины**, но требует SSH доступ к пользователю `deploy` (настроен в шаге 2).
+
+```bash
+# На локальной машине (в директории проекта)
+chmod +x scripts/setup_github_access.sh
+./scripts/setup_github_access.sh
+
+# Скрипт покажет публичный SSH ключ
+# Скопируйте его и добавьте в GitHub: https://github.com/settings/keys
+# Нажмите "New SSH key" → вставьте ключ → Save
+
+# Добавление GitHub в known_hosts (если еще не добавлен)
+ssh deploy@45.135.234.22 "mkdir -p ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts"
+
+# Проверка доступа
+ssh deploy@45.135.234.22 'ssh -T git@github.com'
+# Должно вернуть: Hi dmitryS1666! You've successfully authenticated...
+```
+
+#### Шаг 4: Настройка Nginx
+
+**Важно:** Скрипт запускается с **локальной машины**, но требует SSH доступ к пользователю `deploy`.
+
+```bash
+# На локальной машине (в директории проекта)
+chmod +x scripts/setup_nginx.sh
+./scripts/setup_nginx.sh
+```
+
+**Что делает скрипт:**
+- Подключается к серверу через SSH (пользователь `deploy`)
+- Устанавливает Nginx
+- Копирует конфигурацию `config/nginx/ikea_api.conf` на сервер
+- Создает директорию для фронтенда
+- Настраивает и перезапускает Nginx
+
+**Или вручную (если скрипт не работает):**
+```bash
+# На локальной машине
+scp config/nginx/ikea_api.conf deploy@45.135.234.22:/tmp/ikea_api.conf
+
+# На сервере
+ssh deploy@45.135.234.22
+sudo apt-get update
+sudo apt-get install -y nginx
+sudo mv /tmp/ikea_api.conf /etc/nginx/sites-available/ikea_api
+sudo ln -sf /etc/nginx/sites-available/ikea_api /etc/nginx/sites-enabled/ikea_api
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo mkdir -p /var/www/ikea_frontend/dist
+sudo chown -R deploy:deploy /var/www/ikea_frontend
+sudo nginx -t
+sudo systemctl restart nginx
+sudo systemctl enable nginx
+exit
+```
+
+---
+
+### Часть 2: Деплой приложения (каждый раз при обновлении)
+
+#### Шаг 1: Подготовка секретов
+
+**Важно:** Все пароли и токены нужно создать/сгенерировать самостоятельно!
+
+```bash
+# На локальной машине
+mkdir -p .kamal
+
+# 1. Генерация паролей
+DB_PASSWORD=$(openssl rand -base64 32)
+POSTGRES_PASSWORD=$DB_PASSWORD  # Можно использовать один пароль
+JWT_SECRET=$(ruby -e "require 'securerandom'; puts SecureRandom.hex(64)")
+RAILS_MASTER_KEY=$(rails secret)
+
+# 2. Создание файла с секретами
+cat > .kamal/secrets << EOF
+RAILS_MASTER_KEY=$RAILS_MASTER_KEY
+DB_USERNAME=postgres
+DB_PASSWORD=$DB_PASSWORD
+REDIS_PASSWORD=
+JWT_SECRET=$JWT_SECRET
+POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+KAMAL_REGISTRY_PASSWORD=ВАШ_DOCKER_HUB_ТОКЕН_ЗДЕСЬ
+EOF
+
+# 3. Убедитесь, что файл не попадет в git
+echo ".kamal/secrets" >> .gitignore
+```
+
+**Где взять значения:**
+
+1. **`DB_PASSWORD` и `POSTGRES_PASSWORD`** - сгенерированы выше командой `openssl rand -base64 32`
+2. **`JWT_SECRET`** - сгенерирован выше командой `ruby -e "require 'securerandom'; puts SecureRandom.hex(64)"`
+3. **`RAILS_MASTER_KEY`** - сгенерирован выше командой `rails secret`
+4. **`KAMAL_REGISTRY_PASSWORD`** - нужно получить вручную:
+   - Перейдите: https://hub.docker.com/settings/security
+   - Создайте "New Access Token"
+   - Скопируйте токен и вставьте вместо `ВАШ_DOCKER_HUB_ТОКЕН_ЗДЕСЬ`
+
+**Подробная инструкция:** см. [SECRETS_GUIDE.md](./SECRETS_GUIDE.md)
+
+#### Шаг 2: Установка Kamal (если еще не установлен)
+```bash
+gem install kamal
+kamal version
+```
+
+#### Шаг 3: Проверка конфигурации
+```bash
+# Просмотр конфигурации
+kamal config
+
+# Проверка подключения к серверу
+kamal app details
+```
+
+#### Шаг 4: Первый деплой
+```bash
+# Деплой всех сервисов (PostgreSQL, Redis, MongoDB, приложение)
+kamal deploy
+
+# Или по отдельности:
+kamal accessory boot all  # PostgreSQL, Redis, MongoDB
+kamal app deploy          # Приложение
+```
+
+#### Шаг 5: Настройка базы данных (только при первом деплое)
+```bash
+# Создание базы данных
+kamal app exec "rails db:create"
+
+# Применение миграций
+kamal app exec "rails db:migrate"
+
+# Загрузка начальных данных (создание админа)
+kamal app exec "rails db:seed"
+```
+
+#### Шаг 6: Проверка работы
+```bash
+# Health check
+curl http://45.135.234.22/up
+
+# API endpoints
+curl http://45.135.234.22/api/v1/products
+
+# Swagger (требует авторизации)
+curl http://45.135.234.22/api-docs
+```
+
+---
+
+### Часть 3: Обновление приложения (при изменениях в коде)
+
+```bash
+# 1. Обновление кода локально
+git pull origin main
+
+# 2. Деплой обновлений
+kamal deploy
+
+# 3. При необходимости выполните миграции
+kamal app exec "rails db:migrate"
+```
+
+---
+
+## 📊 Полная последовательность для первого деплоя
+
+### На локальной машине:
+
+1. **Клонирование репозитория** (если еще не клонирован)
+   ```bash
+   git clone https://github.com/dmitryS1666/ikea_api.git
+   cd ikea_api
+   ```
+
+2. **Настройка сервера** (один раз)
+   ```bash
+   chmod +x scripts/setup_server.sh
+   ./scripts/setup_server.sh
+   ```
+
+3. **Настройка SSH ключей**
+   ```bash
+   ssh-copy-id deploy@45.135.234.22
+   ```
+
+4. **Настройка доступа к GitHub**
+   ```bash
+   chmod +x scripts/setup_github_access.sh
+   ./scripts/setup_github_access.sh
+   # Добавьте ключ в GitHub
+   ```
+
+5. **Настройка Nginx**
+   ```bash
+   chmod +x scripts/setup_nginx.sh
+   ./scripts/setup_nginx.sh
+   ```
+
+6. **Подготовка секретов**
+   ```bash
+   mkdir -p .kamal
+   cat > .kamal/secrets << EOF
+   RAILS_MASTER_KEY=$(rails secret)
+   DB_USERNAME=postgres
+   DB_PASSWORD=your_secure_password_here
+   REDIS_PASSWORD=
+   JWT_SECRET=$(ruby -e "require 'securerandom'; puts SecureRandom.hex(64)")
+   POSTGRES_PASSWORD=your_secure_postgres_password_here
+   EOF
+   ```
+
+7. **Установка Kamal**
+   ```bash
+   gem install kamal
+   ```
+
+8. **Первый деплой**
+   ```bash
+   kamal deploy
+   ```
+
+9. **Настройка базы данных**
+   ```bash
+   kamal app exec "rails db:create"
+   kamal app exec "rails db:migrate"
+   kamal app exec "rails db:seed"
+   ```
+
+10. **Проверка работы**
+    ```bash
+    curl http://45.135.234.22/up
+    ```
+
+---
+
+## 🔄 Последующие деплои
+
+```bash
+# 1. Обновление кода
+git pull origin main
+
+# 2. Деплой
+kamal deploy
+
+# 3. Миграции (если есть)
+kamal app exec "rails db:migrate"
+```
+
+---
+
+## 🛠️ Полезные команды
+
+### Управление приложением
+```bash
+# Статус
+kamal app details
+
+# Логи
+kamal app logs -f
+
+# Rails консоль
+kamal app exec "rails console"
+
+# Перезапуск
+kamal app restart
+```
+
+### Управление сервисами
+```bash
+# Статус всех сервисов
+kamal accessory details all
+
+# Логи PostgreSQL
+kamal accessory logs postgres
+
+# Логи Redis
+kamal accessory logs redis
+
+# Логи MongoDB
+kamal accessory logs mongodb
+```
+
+---
+
+## 📚 Дополнительная документация
+
+- **DEPLOY_KAMAL.md** - Детальная инструкция по деплою через Kamal
+- **NGINX_SETUP.md** - Подробная настройка Nginx
+- **README.md** - Общая информация о проекте
+- **README_DOCKER.md** - Работа с Docker локально
+
+---
+
+## ⚠️ Важные замечания
+
+1. **Секреты**: Файл `.kamal/secrets` содержит конфиденциальную информацию и не должен попадать в git
+2. **Пароли**: Обязательно измените все пароли по умолчанию в production
+3. **Firewall**: Настройте firewall для ограничения доступа к портам
+4. **SSL**: В будущем настройте SSL сертификат для домена
+5. **Резервное копирование**: Настройте регулярное резервное копирование базы данных
+

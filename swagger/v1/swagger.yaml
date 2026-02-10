@@ -1,0 +1,1868 @@
+openapi: '3.0.1'
+info:
+  title: IKEA API
+  version: v1
+  description: |
+    API для работы с данными IKEA парсера.
+    
+    ## Аутентификация
+    Большинство эндпоинтов для получения данных (товары, категории, главная страница) являются **публичными** и не требуют токена.
+    
+    JWT токен в заголовке `Authorization: Bearer <token>` требуется только для действий, связанных с пользователем (отзывы, личный кабинет).
+    
+    **Публичные эндпоинты (Без токена):**
+    - `GET /api/v1/products` — Список товаров
+    - `GET /api/v1/products/{sku}` — Карточка товара
+    - `GET /api/v1/products/bestsellers` — Бестселлеры
+    - `GET /api/v1/products/popular` — Популярные товары
+    - `GET /api/v1/categories` — Категории
+    - `GET /api/v1/homepage/slider/main` — Слайдер на главной
+    - `POST /api/v1/auth/login` — Вход
+    - `POST /api/v1/auth/register` — Регистрация
+    
+    **Приватные эндпоинты (Требуется Bearer Token):**
+    - `POST /api/v1/products/{sku}/reviews` — Оставить отзыв
+    - `GET /api/v1/account/reviews` — Мои отзывы
+    - `PATCH/DELETE /api/v1/reviews/{id}` — Управление своими отзывами
+    
+    Получить токен можно через `/api/v1/auth/login`
+
+
+servers:
+  - url: http://45.135.234.22
+    description: Production server (IP)
+  - url: http://localhost:3000
+    description: Development server
+
+paths:
+  /api/v1/products:
+    get:
+      summary: Список товаров
+      tags:
+        - Products
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: category_id
+          in: query
+          schema:
+            type: string
+        - name: is_bestseller
+          in: query
+          schema:
+            type: boolean
+        - name: is_popular
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Список товаров
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+
+  /api/v1/products/{sku}:
+    get:
+      summary: Получить товар по SKU
+      tags:
+        - Products
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Данные товара в подробной форме, включая breadcrumbs, если они доступны
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Product'
+        '404':
+          description: Товар не найден
+
+  /api/v1/products/bestsellers:
+    get:
+      summary: Хиты продаж
+      tags:
+        - Products
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Список хитов продаж
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+
+  /api/v1/products/popular:
+    get:
+      summary: Популярные товары
+      tags:
+        - Products
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Список популярных товаров
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+
+  /api/v1/categories:
+    get:
+      summary: Список категорий
+      tags:
+        - Categories
+      parameters:
+        - name: is_popular
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Список категорий
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+
+  /api/v1/categories/{id}:
+    get:
+      summary: Получить категорию по ID
+      tags:
+        - Categories
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Данные категории
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Category'
+
+  /api/v1/categories/popular:
+    get:
+      summary: Популярные категории
+      tags:
+        - Categories
+      responses:
+        '200':
+          description: Список популярных категорий
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+
+  /api/v1/categories/tree:
+    get:
+      summary: Дерево категорий
+      tags:
+        - Categories
+      responses:
+        '200':
+          description: Иерархическое дерево категорий
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CategoryTree'
+
+  /api/v1/auth/login:
+    post:
+      summary: Вход в систему (JWT)
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Неверные учетные данные
+
+  /api/v1/auth/phone/send:
+    post:
+      summary: Отправить код подтверждения на телефон
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+              properties:
+                phone:
+                  type: string
+                  example: "375291234567"
+      responses:
+        '200':
+          description: Код отправлен
+
+  /api/v1/auth/phone/verify:
+    post:
+      summary: Проверить код и войти/зарегистрироваться
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+                - code
+              properties:
+                phone:
+                  type: string
+                code:
+                  type: string
+                cart_token:
+                  type: string
+                  description: Опциональный токен гостевой корзины для привязки к пользователю
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+
+  /api/v1/auth/register:
+    post:
+      summary: Регистрация
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                password_confirmation:
+                  type: string
+      responses:
+        '201':
+          description: Пользователь создан
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '422':
+          description: Ошибка валидации
+
+  /api/v1/cart:
+    get:
+      summary: Получить содержимое корзины
+      tags:
+        - Cart
+      parameters:
+        - name: cart_token
+          in: query
+          schema:
+            type: string
+        - name: promo_code
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Данные корзины
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+    delete:
+      summary: Полная очистка корзины
+      tags:
+        - Cart
+      parameters:
+        - name: cart_token
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Пустая корзина
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+
+  /api/v1/cart_items:
+    post:
+      summary: Добавить товар в корзину
+      tags:
+        - Cart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sku
+                - quantity
+              properties:
+                sku:
+                  type: string
+                quantity:
+                  type: integer
+                cart_token:
+                  type: string
+      responses:
+        '200':
+          description: Обновленная корзина
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+    delete:
+      summary: Массовое удаление товаров из корзины
+      tags:
+        - Cart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                skus:
+                  type: array
+                  items:
+                    type: string
+                delete_all:
+                  type: boolean
+                cart_token:
+                  type: string
+      responses:
+        '200':
+          description: Обновленная корзина
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+
+  /api/v1/cart_items/{sku}:
+    patch:
+      summary: Изменить количество товара в корзине
+      tags:
+        - Cart
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - quantity
+              properties:
+                quantity:
+                  type: integer
+                cart_token:
+                  type: string
+      responses:
+        '200':
+          description: Обновленная корзина
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+    delete:
+      summary: Удалить один товар из корзины
+      tags:
+        - Cart
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cart_token
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Обновленная корзина
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+
+  /api/v1/cart/promo/apply:
+    post:
+      summary: Применить промокод
+      tags:
+        - Cart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+              properties:
+                code:
+                  type: string
+                cart_token:
+                  type: string
+      responses:
+        '200':
+          description: Промокод применен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+        '422':
+          description: Неверный промокод
+
+  /api/v1/cart/promo/remove:
+    delete:
+      summary: Удалить промокод
+      tags:
+        - Cart
+      parameters:
+        - name: cart_token
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Промокод удален
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+
+  /api/v1/checkout:
+    post:
+      summary: Оформить заказ
+      tags:
+        - Checkout
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - full_name
+                - phone
+                - delivery_type
+                - payment_method
+              properties:
+                full_name:
+                  type: string
+                phone:
+                  type: string
+                delivery_type:
+                  type: string
+                  enum: [pickup, courier]
+                payment_method:
+                  type: string
+                  enum: [card, cash, erip]
+                pickup_point_id:
+                  type: integer
+                a1_verification_id:
+                  type: integer
+                address:
+                  type: object
+                  properties:
+                    city:
+                      type: string
+                    street:
+                      type: string
+                    house:
+                      type: string
+                    apartment:
+                      type: string
+                passport:
+                  type: object
+                services:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Заказ создан
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  order_id:
+                    type: integer
+        '401':
+          description: Необходима авторизация
+        '422':
+          description: Ошибка валидации
+
+  /api/v1/account/orders:
+    get:
+      summary: Список заказов пользователя
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Список заказов
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+
+  /api/v1/account/orders/{id}:
+    get:
+      summary: Детали заказа
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Данные заказа
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Order'
+                  included:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrderItem'
+
+  /api/v1/homepage/slider/main:
+    get:
+      summary: Баннеры основной секции главной страницы
+      description: |
+        Возвращает активные баннеры секции "Основная информация" для главной страницы.
+        Баннеры фильтруются по активному статусу (active = true) и отсортированы по позиции.
+        Доступные варианты размеров: 1500×516, 572×594
+      tags:
+        - Homepage
+      responses:
+        '200':
+          description: Список активных баннеров основной секции
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/HomeBanner'
+        '500':
+          description: Внутренняя ошибка сервера
+
+  /api/v1/homepage/slider/banners:
+    get:
+      summary: Баннеры дополнительной секции главной страницы
+      description: |
+        Возвращает активные баннеры секции "Баннеры" для главной страницы.
+        Баннеры фильтруются по активному статусу (active = true) и отсортированы по позиции.
+        Доступные варианты размеров: 1500×256, 742×256
+      tags:
+        - Homepage
+      responses:
+        '200':
+          description: Список активных баннеров дополнительной секции
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/HomeBanner'
+        '500':
+          description: Внутренняя ошибка сервера
+
+  /api/v1/search/suggest:
+    get:
+      summary: Умные подсказки и результаты поиска
+      tags:
+        - Search
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Список подсказок, категорий, товаров и популярных запросов
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  suggestions:
+                    type: array
+                    items:
+                      type: string
+                  categories:
+                    type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Category'
+                  products:
+                    type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Product'
+                  popular_queries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PopularSearchQuery'
+
+  /api/v1/content/articles:
+    get:
+      summary: Список статей Tips & Ideas и News
+      tags:
+        - Content
+      parameters:
+        - name: content_type
+          in: query
+          schema:
+            type: string
+            enum: [tips_ideas, news]
+          description: Тип контента, по умолчанию возвращаются оба
+        - name: tag
+          in: query
+          schema:
+            type: string
+          description: Фильтр по тегу
+        - name: component
+          in: query
+          schema:
+            type: string
+          description: Фильтр по компоненту
+        - name: project
+          in: query
+          schema:
+            type: string
+          description: Фильтр по проекту
+        - name: pinned_only
+          in: query
+          schema:
+            type: boolean
+          description: Отображать только закрепленные статьи
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Пагинируемый список активных и опубликованных статей
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ContentArticle'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+
+  /api/v1/content/articles/{slug}:
+    get:
+      summary: Подробная статья по slug
+      tags:
+        - Content
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Полный контент статьи
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ContentArticle'
+        '404':
+          description: Статья не найдена
+
+
+  /api/v1/account/reviews/available:
+    get:
+      summary: Товары, доступные для отзыва
+      tags:
+        - Reviews
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Список SKU, названий и изображений для доступных товаров
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        sku:
+                          type: string
+                        name:
+                          type: string
+                        images:
+                          type: array
+                          items:
+                            type: string
+                        local_images:
+                          type: array
+                          items:
+                            type: string
+
+  /api/v1/account/reviews:
+    get:
+      summary: Отзывы пользователя
+      tags:
+        - Reviews
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, published, rejected, hidden]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Пагинируемый список отзывов пользователя
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Review'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+
+  /api/v1/products/{product_sku}/reviews:
+    post:
+      summary: Создать отзыв на купленный товар
+      tags:
+        - Reviews
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: product_sku
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReviewInput'
+      responses:
+        '201':
+          description: Отзыв отправлен на модерацию
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+        '422':
+          description: Ошибка валидации (например, товар не куплен или рейтинг вне диапазона)
+
+  /api/v1/reviews/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    patch:
+      summary: Обновить отзыв до модерации
+      tags:
+        - Reviews
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReviewUpdateInput'
+      responses:
+        '200':
+          description: Отзыв отредактирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+        '422':
+          description: Редактирование после модерации недоступно
+    delete:
+      summary: Удалить отзыв (soft delete после публикации)
+      tags:
+        - Reviews
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Отзыв скрыт или удалён
+
+  /api/v1/reviews/{id}/helpful:
+    post:
+      summary: Поставить полезность опубликованному отзыву
+      tags:
+        - Reviews
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Количество голосов "полезно"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewHelpfulResponse'
+        '404':
+          description: Отзыв не найден или не опубликован
+    delete:
+      summary: Убрать полезность отзыва
+      tags:
+        - Reviews
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Голос удалён
+
+  /reviews/export:
+    get:
+      summary: Экспорт отзывов (CSV/JSON)
+      tags:
+        - Reviews
+      security:
+        - BearerAuth: []
+      description: |
+        Доступны форматы CSV и JSON. JSON отдаёт массив объектов, CSV содержит перечисленные поля в шапке.
+      responses:
+        '200':
+          description: Экспортированные отзывы
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReviewExportEntry'
+        '403':
+          description: Недостаточно прав (только для админов)
+
+components:
+  schemas:
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        attributes:
+          type: object
+          properties:
+            sku:
+              type: string
+            unique_id:
+              type: integer
+            item_no:
+              type: string
+            url:
+              type: string
+            name:
+              type: string
+            name_ru:
+              type: string
+            collection:
+              type: string
+            price:
+              type: number
+            quantity:
+              type: integer
+            weight:
+              type: number
+            net_weight:
+              type: number
+            package_volume:
+              type: number
+            package_dimensions:
+              type: string
+            dimensions:
+              type: string
+            is_parcel:
+              type: boolean
+            is_bestseller:
+              type: boolean
+            is_popular:
+              type: boolean
+            category_id:
+              type: string
+            delivery_type:
+              type: string
+            delivery_name:
+              type: string
+            delivery_cost:
+              type: number
+            delivery_reason:
+              type: string
+            breadcrumbs:
+              type: array
+              description: Сформированные на основе primary_category цепочки для детального представления
+              items:
+                $ref: '#/components/schemas/Breadcrumb'
+            variants:
+              type: array
+              items:
+                type: string
+            images:
+              type: array
+              items:
+                type: string
+            local_images:
+              type: array
+              items:
+                type: string
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+
+    Breadcrumb:
+      type: object
+      properties:
+        title:
+          type: string
+        url:
+          type: string
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        attributes:
+          type: object
+          properties:
+            ikea_id:
+              type: string
+            unique_id:
+              type: integer
+            name:
+              type: string
+            translated_name:
+              type: string
+            url:
+              type: string
+            remote_image_url:
+              type: string
+            local_image_path:
+              type: string
+            is_deleted:
+              type: boolean
+            is_important:
+              type: boolean
+            is_popular:
+              type: boolean
+            parent_ids:
+              type: array
+              items:
+                type: string
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+
+    CategoryTree:
+      allOf:
+        - $ref: '#/components/schemas/Category'
+        - type: object
+          properties:
+            children:
+              type: array
+              items:
+                $ref: '#/components/schemas/CategoryTree'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [user, admin]
+
+    Meta:
+      type: object
+      properties:
+        total:
+          type: integer
+        page:
+          type: integer
+        per_page:
+          type: integer
+
+    PopularSearchQuery:
+      type: object
+      properties:
+        query:
+          type: string
+        weight:
+          type: integer
+        active:
+          type: boolean
+
+    ContentArticle:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        attributes:
+          type: object
+          properties:
+            title:
+              type: string
+            slug:
+              type: string
+            excerpt:
+              type: string
+              nullable: true
+            content_type:
+              type: string
+              enum: [tips_ideas, news]
+            status:
+              type: string
+              enum: [draft, published, archived]
+            published_at:
+              type: string
+              format: date-time
+              nullable: true
+            body_blocks:
+              type: array
+              items:
+                type: object
+            tile_blocks:
+              type: array
+              items:
+                type: object
+            components:
+              type: array
+              items:
+                type: string
+            projects:
+              type: array
+              items:
+                type: string
+            tags:
+              type: array
+              items:
+                type: string
+            pinned:
+              type: boolean
+            pinned_position:
+              type: integer
+            active:
+              type: boolean
+            linked_products:
+              type: array
+              items:
+                type: object
+                properties:
+                  sku:
+                    type: string
+                  name:
+                    type: string
+                  price:
+                    type: number
+                  images:
+                    type: array
+                    items:
+                      type: string
+                  local_images:
+                    type: array
+                    items:
+                      type: string
+              nullable: true
+            linked_categories:
+              type: array
+              items:
+                type: object
+                properties:
+                  ikea_id:
+                    type: string
+                  name:
+                    type: string
+              nullable: true
+
+    HomeBanner:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          example: "home_banner"
+        attributes:
+          type: object
+          properties:
+            section:
+              type: string
+              enum: [main, secondary]
+              description: Секция баннера - main (Основная информация) или secondary (Баннеры)
+            variant:
+              type: string
+              enum: [main_1500x516, main_572x594, secondary_1500x256, secondary_742x256]
+              description: Вариант размера изображения
+            title:
+              type: string
+              nullable: true
+              description: Заголовок баннера
+            subtitle:
+              type: string
+              nullable: true
+              description: Подзаголовок баннера
+            position:
+              type: integer
+              description: Позиция для сортировки
+            active:
+              type: boolean
+              description: Активен ли баннер
+            image_url:
+              type: string
+              nullable: true
+              description: URL изображения баннера
+            link_url:
+              type: string
+              nullable: true
+              description: URL ссылки на категорию
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+        relationships:
+          type: object
+          properties:
+            category:
+              type: object
+              properties:
+                data:
+                  type: object
+                  nullable: true
+                  properties:
+                    id:
+                      type: string
+                    type:
+                      type: string
+                      example: "category"
+
+
+    Review:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        attributes:
+          type: object
+          properties:
+            product_sku:
+              type: string
+            rating:
+              type: integer
+              minimum: 1
+              maximum: 5
+            body:
+              type: string
+            status:
+              type: string
+              enum: [pending, published, rejected, hidden]
+            pinned:
+              type: boolean
+            excluded_from_rating:
+              type: boolean
+            admin_note:
+              type: string
+              nullable: true
+            helpful_count:
+              type: integer
+            created_at:
+              type: string
+              format: date-time
+            published_at:
+              type: string
+              format: date-time
+              nullable: true
+            photos:
+              type: array
+              items:
+                type: string
+            product:
+              type: object
+              properties:
+                sku:
+                  type: string
+                name:
+                  type: string
+                images:
+                  type: array
+                  items:
+                    type: string
+                local_images:
+                  type: array
+                  items:
+                    type: string
+
+    ReviewInput:
+      type: object
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        body:
+          type: string
+        photos:
+          type: array
+          items:
+            type: string
+            format: binary
+      required:
+        - rating
+        - body
+
+    ReviewUpdateInput:
+      allOf:
+        - $ref: '#/components/schemas/ReviewInput'
+      properties:
+        photos:
+          type: array
+          items:
+            type: string
+            format: binary
+
+    ReviewHelpfulResponse:
+      type: object
+      properties:
+        helpful_count:
+          type: integer
+
+    ReviewExportEntry:
+      type: object
+      properties:
+        review_id:
+          type: integer
+        product_sku:
+          type: string
+        user_id:
+          type: integer
+        rating:
+          type: integer
+        body:
+          type: string
+        status:
+          type: string
+        helpful_count:
+          type: integer
+        excluded_from_rating:
+          type: boolean
+        pinned:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        photos_urls:
+          type: array
+          items:
+            type: string
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        attributes:
+          type: object
+          properties:
+            id:
+              type: integer
+            status:
+              type: string
+            total_amount:
+              type: number
+            delivery_price:
+              type: number
+            delivery_type:
+              type: string
+            payment_method:
+              type: string
+            full_name:
+              type: string
+            phone:
+              type: string
+            track_number:
+              type: string
+              nullable: true
+            created_at:
+              type: string
+              format: date-time
+            address:
+              type: object
+            tracking_info:
+              type: object
+              nullable: true
+
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        attributes:
+          type: object
+          properties:
+            id:
+              type: integer
+            product_sku:
+              type: string
+            quantity:
+              type: integer
+            price_byn:
+              type: number
+            name:
+              type: string
+            image_url:
+              type: string
+
+    CartResponse:
+      type: object
+      properties:
+        cart:
+          type: object
+          properties:
+            token:
+              type: string
+            expires_at:
+              type: string
+              format: date-time
+            items_count:
+              type: integer
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/CartItem'
+            recommendations:
+              type: array
+              items:
+                $ref: '#/components/schemas/CartProductPayload'
+            totals:
+              type: object
+              properties:
+                subtotal_old_byn:
+                  type: string
+                subtotal_new_byn:
+                  type: string
+                discount_total_byn:
+                  type: string
+                total_weight_kg:
+                  type: number
+            rules:
+              type: object
+              properties:
+                min_order_amount_byn:
+                  type: string
+                free_delivery_threshold_byn:
+                  type: string
+            flags:
+              type: object
+              properties:
+                checkout_allowed:
+                  type: boolean
+                min_order_missing_byn:
+                  type: string
+                free_delivery_eligible:
+                  type: boolean
+                free_delivery_missing_byn:
+                  type: string
+
+    CartItem:
+      type: object
+      properties:
+        sku:
+          type: string
+        quantity:
+          type: integer
+        available:
+          type: boolean
+        issue_reason:
+          type: string
+          nullable: true
+        product:
+          $ref: '#/components/schemas/CartProductPayload'
+        pricing:
+          type: object
+          properties:
+            unit_price_old_byn:
+              type: string
+            unit_price_new_byn:
+              type: string
+            unit_discount_byn:
+              type: string
+            line_total_old_byn:
+              type: string
+            line_total_new_byn:
+              type: string
+            line_discount_byn:
+              type: string
+            promo_applied:
+              type: boolean
+            promo_code:
+              type: string
+              nullable: true
+        similar_products:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartProductPayload'
+
+    CartProductPayload:
+      type: object
+      properties:
+        sku:
+          type: string
+        name:
+          type: string
+        price_byn:
+          type: string
+        quantity:
+          type: integer
+        category_id:
+          type: string
+        collection:
+          type: string
+        images:
+          type: object
+          properties:
+            local_images:
+              type: array
+              items:
+                type: string
+            images:
+              type: array
+              items:
+                type: string
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        attributes:
+          type: object
+          properties:
+            id:
+              type: integer
+            status:
+              type: string
+            total_amount:
+              type: number
+            delivery_price:
+              type: number
+            delivery_type:
+              type: string
+            payment_method:
+              type: string
+            full_name:
+              type: string
+            phone:
+              type: string
+            track_number:
+              type: string
+              nullable: true
+            created_at:
+              type: string
+              format: date-time
+            address:
+              type: object
+            tracking_info:
+              type: object
+              nullable: true
+
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        attributes:
+          type: object
+          properties:
+            id:
+              type: integer
+            product_sku:
+              type: string
+            quantity:
+              type: integer
+            price_byn:
+              type: number
+            name:
+              type: string
+            image_url:
+              type: string
+
+    CartResponse:
+      type: object
+      properties:
+        cart:
+          type: object
+          properties:
+            token:
+              type: string
+            expires_at:
+              type: string
+              format: date-time
+            items_count:
+              type: integer
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/CartItem'
+            recommendations:
+              type: array
+              items:
+                $ref: '#/components/schemas/CartProductPayload'
+            totals:
+              type: object
+              properties:
+                subtotal_old_byn:
+                  type: string
+                subtotal_new_byn:
+                  type: string
+                discount_total_byn:
+                  type: string
+                total_weight_kg:
+                  type: number
+            rules:
+              type: object
+              properties:
+                min_order_amount_byn:
+                  type: string
+                free_delivery_threshold_byn:
+                  type: string
+            flags:
+              type: object
+              properties:
+                checkout_allowed:
+                  type: boolean
+                min_order_missing_byn:
+                  type: string
+                free_delivery_eligible:
+                  type: boolean
+                free_delivery_missing_byn:
+                  type: string
+
+    CartItem:
+      type: object
+      properties:
+        sku:
+          type: string
+        quantity:
+          type: integer
+        available:
+          type: boolean
+        issue_reason:
+          type: string
+          nullable: true
+        product:
+          $ref: '#/components/schemas/CartProductPayload'
+        pricing:
+          type: object
+          properties:
+            unit_price_old_byn:
+              type: string
+            unit_price_new_byn:
+              type: string
+            unit_discount_byn:
+              type: string
+            line_total_old_byn:
+              type: string
+            line_total_new_byn:
+              type: string
+            line_discount_byn:
+              type: string
+            promo_applied:
+              type: boolean
+            promo_code:
+              type: string
+              nullable: true
+        similar_products:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartProductPayload'
+
+    CartProductPayload:
+      type: object
+      properties:
+        sku:
+          type: string
+        name:
+          type: string
+        price_byn:
+          type: string
+        quantity:
+          type: integer
+        category_id:
+          type: string
+        collection:
+          type: string
+        images:
+          type: object
+          properties:
+            local_images:
+              type: array
+              items:
+                type: string
+            images:
+              type: array
+              items:
+                type: string
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+

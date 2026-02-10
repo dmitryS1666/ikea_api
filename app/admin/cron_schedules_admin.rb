@@ -1,0 +1,120 @@
+# Админ-панель для управления cron расписаниями
+Trestle.resource :cron_schedules, model: CronSchedule do
+  menu do
+    item :cron_schedules, icon: "fa fa-clock", priority: 2, label: "Cron расписания", group: "Parser"
+  end
+
+  # Таблица
+  table do
+    column :task_type, header: "Тип задачи" do |schedule|
+      case schedule.task_type
+      when 'categories' then 'Категории'
+      when 'products' then 'Продукты'
+      when 'bestsellers' then 'Хиты продаж'
+      when 'popular_categories' then 'Популярные категории'
+      when 'category_images' then 'Картинки категорий'
+      when 'product_images' then 'Картинки продуктов'
+      when 'extended_attributes' then 'Расширенные атрибуты продуктов'
+      when 'currency_rates' then 'Курсы валют'
+      else schedule.task_type
+      end
+    end
+    column :schedule, header: "Расписание"
+    column :enabled, header: "Включено" do |schedule|
+      enabled = schedule.enabled?
+      color = enabled ? 'success' : 'secondary'
+      text = enabled ? 'Да' : 'Нет'
+      content_tag(:span, text, class: "badge badge-#{color}")
+    end
+    column :last_run_at, header: "Последний запуск"
+    column :next_run_at, header: "Следующий запуск"
+    column :created_at, header: "Создано"
+    actions
+  end
+
+  # Форма
+  form do |schedule|
+    row do
+      col(sm: 6) do
+        task_types_options = CronSchedule::TASK_TYPES.map do |t|
+          label = case t
+                  when 'categories' then 'Категории'
+                  when 'products' then 'Продукты'
+                  when 'bestsellers' then 'Хиты продаж'
+                  when 'popular_categories' then 'Популярные категории'
+                  when 'category_images' then 'Картинки категорий'
+                  when 'product_images' then 'Картинки продуктов'
+                  when 'extended_attributes' then 'Расширенные атрибуты продуктов'
+                  when 'currency_rates' then 'Курсы валют'
+                  else t
+                  end
+          [label, t]
+        end
+        select :task_type, task_types_options
+      end
+      col(sm: 6) { check_box :enabled }
+    end
+    
+    text_field :schedule, placeholder: "0 2 * * * (каждый день в 2:00)", 
+               help: "Cron выражение. Примеры: '0 2 * * *' (каждый день в 2:00), '0 */6 * * *' (каждые 6 часов)"
+    
+    row do
+      col(sm: 6) { datetime_field :last_run_at, readonly: true }
+      col(sm: 6) { datetime_field :next_run_at, readonly: true }
+    end
+  end
+
+  # Действия
+  controller do
+    def create
+      schedule = CronSchedule.new(cron_schedule_params)
+      
+      if schedule.save
+        CronManagerService.setup_cron_schedule(schedule) if schedule.enabled?
+        flash[:message] = "Cron расписание создано"
+        redirect_to admin.instance_path(schedule)
+      else
+        flash[:error] = "Ошибка: #{schedule.errors.full_messages.join(', ')}"
+        render :new
+      end
+    end
+
+    def update
+      schedule = admin.find_instance(params)
+      
+      if schedule.update(cron_schedule_params)
+        if schedule.enabled?
+          CronManagerService.setup_cron_schedule(schedule)
+        else
+          CronManagerService.remove_cron_schedule(schedule)
+        end
+        flash[:message] = "Cron расписание обновлено"
+        redirect_to admin.instance_path(schedule)
+      else
+        flash[:error] = "Ошибка: #{schedule.errors.full_messages.join(', ')}"
+        render :edit
+      end
+    end
+
+    def sync
+      begin
+        CronManagerService.sync_all_schedules
+        flash[:message] = "Все cron расписания синхронизированы"
+      rescue => e
+        flash[:error] = "Ошибка синхронизации: #{e.message}"
+      end
+      redirect_to admin.collection_path
+    end
+
+    private
+
+    def cron_schedule_params
+      params.require(:cron_schedule).permit(:task_type, :schedule, :enabled)
+    end
+  end
+
+  routes do
+    post :sync, on: :collection
+  end
+end
+

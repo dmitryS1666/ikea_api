@@ -1,0 +1,214 @@
+# 🔐 Руководство по секретам и паролям
+
+## 📋 Два типа конфигурации
+
+### 1. `.env` - для локальной разработки (Docker Compose)
+
+**Расположение:** `/home/sushi/Documents/ikea_api/.env`
+
+**Назначение:** Переменные окружения для локальной разработки через Docker Compose.
+
+**Создание:**
+```bash
+# Скопируйте пример файла
+cp .env.example .env
+
+# Отредактируйте при необходимости
+nano .env
+```
+
+**Содержимое `.env` для локальной разработки:**
+```env
+# Порты (дефолтные значения уже в docker-compose.yml)
+POSTGRES_PORT=55432
+REDIS_PORT=6479
+MONGODB_PORT=27017
+RAILS_PORT=3000
+
+# JWT Secret (можно сгенерировать)
+JWT_SECRET=change_me_to_secret_key_please
+
+# Redis пароль (опционально, можно оставить пустым)
+REDIS_PASSWORD=
+
+# Максимальное количество потоков Rails
+RAILS_MAX_THREADS=5
+```
+
+**Генерация JWT_SECRET:**
+```bash
+ruby -e "require 'securerandom'; puts SecureRandom.hex(64)"
+```
+
+---
+
+### 2. `.kamal/secrets` - для production деплоя (Kamal)
+
+**Расположение:** `/home/sushi/Documents/ikea_api/.kamal/secrets`
+
+**Назначение:** Секреты для деплоя на production сервер через Kamal.
+
+**Создание:**
+```bash
+mkdir -p .kamal
+
+cat > .kamal/secrets << EOF
+RAILS_MASTER_KEY=$(rails secret)
+DB_USERNAME=postgres
+DB_PASSWORD=ВАШ_ПАРОЛЬ_POSTGRES
+REDIS_PASSWORD=
+JWT_SECRET=$(ruby -e "require 'securerandom'; puts SecureRandom.hex(64)")
+POSTGRES_PASSWORD=ВАШ_ПАРОЛЬ_POSTGRES
+KAMAL_REGISTRY_PASSWORD=ВАШ_DOCKER_HUB_ТОКЕН_ЗДЕСЬ
+EOF
+```
+
+---
+
+## 🔑 Где взять пароли и токены?
+
+### 1. `DB_PASSWORD` и `POSTGRES_PASSWORD`
+
+**Это пароли для PostgreSQL базы данных.**
+
+Вы должны **придумать их сами** - это произвольные уникальные пароли, которые вы создаете.
+
+**Рекомендации:**
+- Минимум 16 символов (рекомендуется 32+)
+- Используйте буквы, цифры, специальные символы
+- Не используйте простые пароли типа "password123"
+- Пароли должны быть уникальными (не используйте одинаковые пароли для разных сервисов)
+
+**Генерация безопасного пароля (рекомендуется):**
+```bash
+# Через openssl (генерирует случайный пароль)
+openssl rand -base64 32
+
+# Или через Ruby
+ruby -e "require 'securerandom'; puts SecureRandom.hex(32)"
+```
+
+**Пример создания паролей:**
+```bash
+# Генерация уникальных паролей
+DB_PASSWORD=$(openssl rand -base64 32)
+POSTGRES_PASSWORD=$(openssl rand -base64 32)  # Можно использовать один пароль или разные
+
+# Или можно использовать один пароль для обоих (проще, но менее безопасно)
+# DB_PASSWORD=$(openssl rand -base64 32)
+# POSTGRES_PASSWORD=$DB_PASSWORD
+```
+
+**Важно:** 
+- Пароли должны быть **произвольными** (случайными)
+- Пароли должны быть **уникальными** для каждого сервиса
+- **Сохраните пароли в безопасном месте** - они понадобятся для доступа к базе данных
+
+---
+
+### 2. `KAMAL_REGISTRY_PASSWORD`
+
+**Это токен для Docker Hub (или пароль).**
+
+#### Вариант 1: Docker Hub Personal Access Token (рекомендуется)
+
+1. Перейдите: https://hub.docker.com/settings/security
+2. Нажмите "New Access Token"
+3. Создайте токен с правами "Read, Write, Delete"
+4. Скопируйте токен (он показывается только один раз!)
+5. Используйте этот токен как `KAMAL_REGISTRY_PASSWORD`
+
+#### Вариант 2: Docker Hub пароль
+
+Можно использовать ваш пароль от Docker Hub, но это менее безопасно.
+
+**Ваш Docker Hub username:** `dmitryS1666` (из конфигурации)
+
+---
+
+### 3. `RAILS_MASTER_KEY`
+
+**Это автоматически генерируется командой:**
+```bash
+rails secret
+```
+
+Просто выполните команду и скопируйте результат.
+
+---
+
+### 4. `JWT_SECRET`
+
+**Генерируется командой:**
+```bash
+ruby -e "require 'securerandom'; puts SecureRandom.hex(64)"
+```
+
+---
+
+### 5. `REDIS_PASSWORD`
+
+**Опционально.** Если Redis не требует пароль, можно оставить пустым:
+```env
+REDIS_PASSWORD=
+```
+
+Или создать пароль:
+```bash
+openssl rand -base64 32
+```
+
+---
+
+## 📝 Полный пример создания `.kamal/secrets`
+
+```bash
+# 1. Создайте директорию
+mkdir -p .kamal
+
+# 2. Генерируйте пароли
+DB_PASSWORD=$(openssl rand -base64 32)
+POSTGRES_PASSWORD=$DB_PASSWORD
+JWT_SECRET=$(ruby -e "require 'securerandom'; puts SecureRandom.hex(64)")
+RAILS_MASTER_KEY=$(rails secret)
+
+# 3. Создайте файл (замените YOUR_DOCKER_HUB_TOKEN на реальный токен)
+cat > .kamal/secrets << EOF
+RAILS_MASTER_KEY=$RAILS_MASTER_KEY
+DB_USERNAME=postgres
+DB_PASSWORD=$DB_PASSWORD
+REDIS_PASSWORD=
+JWT_SECRET=$JWT_SECRET
+POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+KAMAL_REGISTRY_PASSWORD=YOUR_DOCKER_HUB_TOKEN
+EOF
+
+# 4. Убедитесь, что файл не попадет в git
+echo ".kamal/secrets" >> .gitignore
+```
+
+---
+
+## ⚠️ Важно
+
+1. **`.env`** - для локальной разработки, можно коммитить примеры (`.env.example`)
+2. **`.kamal/secrets`** - НИКОГДА не коммитьте в git! Это секретные данные
+3. **Пароли** - придумайте сами, используйте генераторы
+4. **Docker Hub токен** - создайте на https://hub.docker.com/settings/security
+
+---
+
+## 🔍 Проверка файлов
+
+```bash
+# Проверка .env (локальная разработка)
+ls -la .env
+
+# Проверка .kamal/secrets (production)
+ls -la .kamal/secrets
+
+# Просмотр содержимого (будьте осторожны!)
+cat .env
+cat .kamal/secrets
+```
+

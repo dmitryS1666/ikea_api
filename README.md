@@ -1,0 +1,443 @@
+# 🏪 IKEA API
+
+[![Ruby](https://img.shields.io/badge/Ruby-3.3.0-red.svg)](https://www.ruby-lang.org/)
+[![Rails](https://img.shields.io/badge/Rails-7.1.6-red.svg)](https://rubyonrails.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)](https://www.postgresql.org/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+RESTful API для работы с данными товаров IKEA. Приложение предоставляет JSON API для управления товарами, категориями, фильтрами и расчета доставки.
+
+## 📋 Оглавление
+
+- [Возможности](#-возможности)
+- [Технологический стек](#-технологический-стек)
+- [Быстрый старт](#-быстрый-старт)
+- [Установка](#-установка)
+- [Конфигурация](#-конфигурация)
+- [API Документация](#-api-документация)
+- [Деплой](#-деплой)
+- [Архитектура](#-архитектура)
+- [Разработка](#-разработка)
+
+## ✨ Возможности
+
+- 🔍 **Управление товарами** - CRUD операции для товаров IKEA
+- 📂 **Категории** - Иерархическая структура категорий
+- 🔎 **Фильтры** - Система фильтрации товаров
+- 🚚 **Расчет доставки** - Автоматический расчет стоимости доставки
+- 🔐 **Аутентификация** - JWT-based авторизация
+- 📊 **Swagger документация** - Интерактивная документация API
+- 🐳 **Docker поддержка** - Готовые конфигурации для разработки и production
+- 🚀 **Kamal деплой** - Автоматический деплой через Kamal (MRSK)
+
+## 🛠 Технологический стек
+
+### Backend
+- **Ruby** 3.3.0
+- **Rails** 7.1.6 (API mode)
+- **PostgreSQL** 16 - основная база данных
+- **Redis** - кэширование и очереди
+- **MongoDB** - синхронизация данных из парсера
+- **Sidekiq** - фоновые задачи
+
+### Инструменты
+- **Fast JSON API** - сериализация JSON
+- **JWT** - аутентификация
+- **Kaminari** - пагинация
+- **Rswag** - Swagger документация
+- **Kamal** - деплой
+
+## 🚀 Быстрый старт
+
+### Через Docker (рекомендуется)
+
+```bash
+# 1. Клонирование репозитория
+git clone https://github.com/dmitryS1666/ikea_api.git
+cd ikea_api
+
+# 2. Запуск всех сервисов
+docker compose up -d
+
+# 3. Настройка базы данных
+docker compose exec app rails db:create db:migrate
+
+# 4. Проверка работы
+curl http://localhost:3000/up
+```
+
+### Локальная установка
+
+```bash
+# 1. Клонирование репозитория
+git clone https://github.com/dmitryS1666/ikea_api.git
+cd ikea_api
+
+# 2. Установка зависимостей
+bundle install
+
+# 3. Настройка базы данных
+rails db:create db:migrate
+
+# 4. Запуск сервера
+rails server
+```
+
+## 📦 Установка
+
+### Требования
+
+- Ruby 3.3.0
+- PostgreSQL 16+
+- Redis (опционально)
+- Docker и Docker Compose (для Docker варианта)
+
+### Шаг 1: Клонирование репозитория
+
+```bash
+git clone https://github.com/dmitryS1666/ikea_api.git
+cd ikea_api
+```
+
+### Шаг 2: Установка зависимостей
+
+```bash
+# Установка гемов
+bundle install
+```
+
+### Шаг 3: Настройка базы данных
+
+```bash
+# Создание базы данных
+rails db:create
+
+# Применение миграций
+rails db:migrate
+
+# Загрузка начальных данных (опционально)
+rails db:seed
+```
+
+### Шаг 4: Настройка переменных окружения
+
+Создайте файл `.env`:
+
+```env
+# База данных
+DB_USERNAME=postgres
+DB_PASSWORD=postgres
+DB_HOST=localhost
+DB_PORT=5432
+
+# Redis
+REDIS_URL=redis://localhost:6379/0
+
+# MongoDB (для синхронизации)
+MONGODB_URI=mongodb://localhost:27017/ikea
+
+# JWT
+JWT_SECRET=your_jwt_secret_here
+```
+
+Генерация JWT_SECRET:
+```bash
+ruby -e "require 'securerandom'; puts SecureRandom.hex(64)"
+```
+
+### Шаг 5: Запуск сервера
+
+```bash
+rails server
+```
+
+Приложение будет доступно по адресу: `http://localhost:3000`
+
+## ⚙️ Конфигурация
+
+### Переменные окружения
+
+| Переменная | Описание | Обязательно |
+|-----------|----------|-------------|
+| `DB_USERNAME` | Имя пользователя PostgreSQL | Да |
+| `DB_PASSWORD` | Пароль PostgreSQL | Да |
+| `DB_HOST` | Хост базы данных | Да |
+| `DB_PORT` | Порт базы данных | Нет (по умолчанию: 5432) |
+| `REDIS_URL` | URL подключения к Redis | Нет |
+| `MONGODB_URI` | URI подключения к MongoDB | Нет |
+| `JWT_SECRET` | Секретный ключ для JWT | Да |
+
+### База данных
+
+Конфигурация базы данных находится в `config/database.yml`.
+
+## 📚 API Документация
+
+### Swagger UI
+
+После запуска приложения документация доступна по адресу:
+- **Swagger UI**: `http://localhost:3000/api-docs`
+- **Swagger JSON**: `http://localhost:3000/api-docs/v1/swagger.yaml`
+
+### Основные endpoints
+
+#### Товары
+
+```http
+GET    /api/v1/products              # Список товаров
+GET    /api/v1/products/:id          # Детали товара
+GET    /api/v1/products/bestsellers   # Хиты продаж
+GET    /api/v1/products/popular       # Популярные товары
+```
+
+#### Категории
+
+```http
+GET    /api/v1/categories            # Список категорий
+GET    /api/v1/categories/:id         # Детали категории
+GET    /api/v1/categories/popular     # Популярные категории
+GET    /api/v1/categories/tree        # Дерево категорий
+```
+
+#### Аутентификация
+
+```http
+POST   /api/v1/auth/login             # Вход
+POST   /api/v1/auth/register          # Регистрация
+```
+
+#### Доставка
+
+```http
+GET    /api/v1/delivery/types         # Типы доставки
+POST   /api/v1/delivery/calculate     # Расчет стоимости
+```
+
+#### Health Check
+
+```http
+GET    /up                            # Проверка работоспособности
+```
+
+### Примеры запросов
+
+#### Получение списка товаров
+
+```bash
+curl http://localhost:3000/api/v1/products
+```
+
+#### Вход в систему
+
+```bash
+curl -X POST http://localhost:3000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "user",
+    "password": "password"
+  }'
+```
+
+#### Использование токена
+
+```bash
+curl http://localhost:3000/api/v1/products \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+## 🚀 Деплой
+
+Проект настроен для деплоя через [Kamal](https://kamal-deploy.org).
+
+### Быстрый старт
+
+**Полная последовательность действий для первого деплоя:**
+
+> ⚠️ **Важно:** Все команды выполняются на **локальной машине** (ваш компьютер), скрипты сами подключаются к серверу через SSH.
+
+1. **Настройка сервера** (один раз)
+   ```bash
+   # На локальной машине (в директории проекта)
+   sudo apt-get install sshpass  # Если еще не установлен
+   chmod +x scripts/setup_server.sh
+   ./scripts/setup_server.sh  # Скрипт сам подключится к серверу
+   ```
+
+2. **Настройка SSH ключей**
+   ```bash
+   # На локальной машине
+   # Пользователь deploy создан без пароля, добавляем ключ через root:
+   cat ~/.ssh/id_ed25519.pub | ssh root@45.135.234.22 \
+     "mkdir -p /home/deploy/.ssh && \
+      cat >> /home/deploy/.ssh/authorized_keys && \
+      chown -R deploy:deploy /home/deploy/.ssh && \
+      chmod 700 /home/deploy/.ssh && \
+      chmod 600 /home/deploy/.ssh/authorized_keys"
+   # Пароль для root: f8RpYS53tYgLPwnk
+   ```
+
+3. **Настройка доступа к GitHub**
+   ```bash
+   # На локальной машине
+   chmod +x scripts/setup_github_access.sh
+   ./scripts/setup_github_access.sh
+   # Добавьте показанный ключ в GitHub: https://github.com/settings/keys
+   ```
+
+4. **Настройка Nginx**
+   ```bash
+   # На локальной машине
+   chmod +x scripts/setup_nginx.sh
+   ./scripts/setup_nginx.sh  # Скрипт сам подключится к серверу
+   ```
+
+5. **Подготовка секретов**
+   ```bash
+   mkdir -p .kamal
+   
+   # Генерация паролей
+   DB_PASSWORD=$(openssl rand -base64 32)
+   POSTGRES_PASSWORD=$DB_PASSWORD
+   JWT_SECRET=$(ruby -e "require 'securerandom'; puts SecureRandom.hex(64)")
+   RAILS_MASTER_KEY=$(rails secret)
+   
+   # Создание файла (замените YOUR_DOCKER_HUB_TOKEN на реальный токен)
+   cat > .kamal/secrets << EOF
+   RAILS_MASTER_KEY=$RAILS_MASTER_KEY
+   DB_USERNAME=postgres
+   DB_PASSWORD=$DB_PASSWORD
+   REDIS_PASSWORD=
+   JWT_SECRET=$JWT_SECRET
+   POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+   KAMAL_REGISTRY_PASSWORD=YOUR_DOCKER_HUB_TOKEN
+   EOF
+   ```
+   
+   **Где взять Docker Hub токен:**
+   - Перейдите: https://hub.docker.com/settings/security
+   - Создайте "New Access Token"
+   - Скопируйте токен и используйте как `KAMAL_REGISTRY_PASSWORD`
+   
+   **Подробная инструкция:** см. [SECRETS_GUIDE.md](./SECRETS_GUIDE.md)
+
+6. **Установка Kamal**
+   ```bash
+   gem install kamal
+   ```
+
+7. **Деплой**
+   ```bash
+   kamal deploy
+   ```
+
+8. **Настройка базы данных**
+   ```bash
+   kamal app exec "rails db:create"
+   kamal app exec "rails db:migrate"
+   kamal app exec "rails db:seed"
+   ```
+
+### Документация по деплою
+
+- **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** - Полное руководство с последовательностью действий
+
+## 🏗️ Архитектура
+
+### Структура проекта
+
+```
+ikea_api/
+├── app/
+│   ├── controllers/      # API контроллеры
+│   ├── models/           # ActiveRecord модели
+│   ├── serializers/      # JSON сериализаторы
+│   └── services/         # Бизнес-логика
+├── config/
+│   ├── deploy.yml        # Конфигурация Kamal
+│   ├── database.yml      # Конфигурация БД
+│   └── routes.rb         # Маршруты API
+├── db/
+│   └── migrate/          # Миграции базы данных
+├── scripts/              # Скрипты для деплоя
+└── config/nginx/         # Конфигурация Nginx
+```
+
+### Поток данных
+
+```
+MongoDB (парсер) → PostgreSQL (API) → JSON API → Frontend
+```
+
+## 💻 Разработка
+
+### Запуск тестов
+
+```bash
+# Все тесты
+rspec
+
+# Конкретный файл
+rspec spec/models/product_spec.rb
+```
+
+### Генерация миграций
+
+```bash
+rails generate migration CreateTableName
+```
+
+### Rails консоль
+
+```bash
+rails console
+```
+
+### Полезные команды
+
+```bash
+# Просмотр маршрутов
+rails routes
+
+# Просмотр логов
+tail -f log/development.log
+
+# Очистка логов
+rails log:clear
+```
+
+## 📖 Дополнительная документация
+
+### Основная документация
+- [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) - **Полное руководство по деплою и настройке сервера**
+- [SECRETS_GUIDE.md](./SECRETS_GUIDE.md) - Управление секретами и паролями
+- [DOMAIN_SETUP.md](./DOMAIN_SETUP.md) - Настройка домена для Kamal
+
+### Техническая документация
+- [ADMIN_PANEL_OPTIONS.md](./ADMIN_PANEL_OPTIONS.md) - Варианты админ-панелей для проекта
+- [SEO_SOLUTIONS.md](./SEO_SOLUTIONS.md) - Решения для SEO-оптимизации
+
+## 🤝 Вклад в проект
+
+1. Fork проекта
+2. Создайте feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit изменения (`git commit -m 'Add some AmazingFeature'`)
+4. Push в branch (`git push origin feature/AmazingFeature`)
+5. Откройте Pull Request
+
+## 📝 Лицензия
+
+Этот проект распространяется под лицензией MIT. См. файл `LICENSE` для подробностей.
+
+## 👥 Авторы
+
+- **dmitryS1666** - [GitHub](https://github.com/dmitryS1666)
+
+## 🙏 Благодарности
+
+- Rails команда за отличный фреймворк
+- Сообщество Kamal за инструменты деплоя
+- Всем контрибьюторам проекта
+
+---
+
+**Сделано с ❤️ для работы с данными IKEA**
