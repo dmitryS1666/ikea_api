@@ -34,6 +34,7 @@ RSpec.configure do |config|
           - `GET /api/v1/products/bestsellers` — Бестселлеры
           - `GET /api/v1/products/popular` — Популярные товары
           - `GET /api/v1/categories` — Категории
+          - `GET /api/v1/categories/{id}/products` — Товары в категории
           - `GET /api/v1/homepage/slider/main` — Слайдер на главной
           - `POST /api/v1/auth/login` — Вход
           - `POST /api/v1/auth/register` — Регистрация

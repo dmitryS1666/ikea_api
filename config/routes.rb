@@ -53,6 +53,9 @@ Rails.application.routes.draw do
           get :tree
           get :map
         end
+        member do
+          get :products
+        end
       end
       
       # Filters

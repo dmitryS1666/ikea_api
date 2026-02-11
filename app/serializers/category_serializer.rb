@@ -12,7 +12,5 @@ class CategorySerializer
   attribute :parent_ids do |category|
     category.parent_ids || []
   end
-  
-  has_many :products, serializer: ProductSerializer
 end
 

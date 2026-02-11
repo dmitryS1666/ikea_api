@@ -12,6 +12,25 @@ module Api
         category = Category.find_by(ikea_id: params[:id])
         render json: CategorySerializer.new(category)
       end
+
+      def products
+        category = Category.find_by(ikea_id: params[:id])
+        return render json: { error: 'Category not found' }, status: :not_found unless category
+
+        products = category.products
+                           .includes(:category)
+                           .page(params[:page])
+                           .per(params[:per_page] || 50)
+
+        render json: ProductSerializer.new(products, {
+          include: [:category],
+          meta: {
+            total: products.total_count,
+            page: params[:page] || 1,
+            per_page: params[:per_page] || 50
+          }
+        })
+      end
       
       def popular
         categories = Category.popular

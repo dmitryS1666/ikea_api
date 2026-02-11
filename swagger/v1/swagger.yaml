@@ -16,6 +16,7 @@ info:
     - `GET /api/v1/products/bestsellers` — Бестселлеры
     - `GET /api/v1/products/popular` — Популярные товары
     - `GET /api/v1/categories` — Категории
+    - `GET /api/v1/categories/{id}/products` — Товары в категории
     - `GET /api/v1/homepage/slider/main` — Слайдер на главной
     - `POST /api/v1/auth/login` — Вход
     - `POST /api/v1/auth/register` — Регистрация
@@ -204,6 +205,45 @@ paths:
                 properties:
                   data:
                     $ref: '#/components/schemas/Category'
+
+  /api/v1/categories/{id}/products:
+    get:
+      summary: Список товаров в категории
+      tags:
+        - Categories
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: IKEA ID категории
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Список товаров категории
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '404':
+          description: Категория не найдена
 
   /api/v1/categories/popular:
     get:
