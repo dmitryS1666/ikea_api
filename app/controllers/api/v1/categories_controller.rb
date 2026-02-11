@@ -36,6 +36,11 @@ module Api
         categories = Category.popular
         render json: CategorySerializer.new(categories)
       end
+
+      def header_menu
+        categories = Category.in_header_menu
+        render json: CategorySerializer.new(categories)
+      end
       
       def tree
         # Простая реализация дерева категорий

@@ -7,7 +7,9 @@ class CategorySerializer
              :local_image_path, 
              :is_deleted,
              :is_important, 
-             :is_popular
+             :is_popular,
+             :header_menu,
+             :header_menu_position
   
   attribute :parent_ids do |category|
     category.parent_ids || []

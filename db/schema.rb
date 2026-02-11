@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_02_08_150400) do
+ActiveRecord::Schema[7.1].define(version: 2026_02_11_202910) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -111,6 +111,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_08_150400) do
     t.boolean "is_popular"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "header_menu"
+    t.integer "header_menu_position"
     t.index "to_tsvector('simple'::regconfig, COALESCE(parent_ids, ''::text))", name: "index_categories_on_parent_ids_text", where: "((parent_ids IS NOT NULL) AND (parent_ids <> '[]'::text) AND (parent_ids <> ''::text))", using: :gin
     t.index ["ikea_id"], name: "index_categories_on_ikea_id", unique: true
     t.index ["is_popular"], name: "index_categories_on_is_popular"

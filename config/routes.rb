@@ -50,6 +50,7 @@ Rails.application.routes.draw do
       resources :categories, only: [:index, :show] do
         collection do
           get :popular
+          get :header_menu
           get :tree
           get :map
         end

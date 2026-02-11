@@ -2,29 +2,53 @@
   Категории
 <% end %>
 
-<div class="categories-tree-container">
-  <div class="tree-controls mb-3">
-    <button type="button" class="btn btn-sm btn-secondary" onclick="expandAll()">
-      <i class="fa fa-plus-circle"></i> Развернуть все
-    </button>
-    <button type="button" class="btn btn-sm btn-secondary" onclick="collapseAll()">
-      <i class="fa fa-minus-circle"></i> Свернуть все
-    </button>
+<div class="row">
+  <div class="col-md-2">
+    <div class="sidebar-section card">
+      <div class="card-header">Фильтры</div>
+      <div class="list-group list-group-flush">
+        <%= link_to "Все", { scope: 'all' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'all'}" %>
+        <%= link_to "Верхнеуровневые", { scope: 'top_level' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'top_level'}" %>
+        <%= link_to "Популярные", { scope: 'popular' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'popular'}" %>
+        <%= link_to "Активные", { scope: 'active' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'active'}" %>
+        <%= link_to "В хедере", { scope: 'in_header_menu' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'in_header_menu'}" %>
+      </div>
+    </div>
   </div>
 
-  <div class="categories-tree">
-    <% if @categories_tree.any? %>
-      <%= render partial: 'trestle/categories/category_node', collection: @categories_tree, as: :node %>
-    <% else %>
-      <div class="alert alert-info">Категории не найдены</div>
-    <% end %>
+  <div class="col-md-10">
+    <div class="categories-tree-container card">
+      <div class="card-body">
+        <div class="tree-controls mb-3">
+          <button type="button" class="btn btn-sm btn-secondary" onclick="expandAll()">
+            <i class="fa fa-plus-circle"></i> Развернуть все
+          </button>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="collapseAll()">
+            <i class="fa fa-minus-circle"></i> Свернуть все
+          </button>
+        </div>
+
+        <div class="categories-tree">
+          <% if @categories_tree.any? %>
+            <%= render partial: 'trestle/categories/category_node', collection: @categories_tree, as: :node %>
+          <% else %>
+            <div class="alert alert-info">Категории не найдены</div>
+          <% end %>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
 <style>
   .categories-tree-container {
-    padding: 20px;
+    padding: 0;
   }
+  .sidebar-section {
+    position: sticky;
+    top: 20px;
+  }
+  /* ... существующие стили ... */
 
   .tree-controls {
     display: flex;

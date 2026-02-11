@@ -56,19 +56,6 @@ Trestle.resource(:content_articles, model: ContentArticle) do
           render "trestle/content_articles/body_block_builder", article: article
         end
       end
-      row do
-        col(sm: 12) do
-          value = (article.serialized_body_blocks.presence || []).dup
-          concat content_tag(:label, "JSON страницы", class: "form-label")
-          concat text_area_tag(
-            "page_rendered_blocks",
-            JSON.pretty_generate(value),
-            rows: 10,
-            readonly: true,
-            class: "form-control"
-          )
-        end
-      end
     end
 
     tab :filters do

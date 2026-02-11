@@ -8,11 +8,15 @@ Trestle.resource(:categories, model: Category) do
     scope :top_level, -> { Category.top_level }, label: "Верхнеуровневые"
     scope :popular, -> { Category.popular }, label: "Популярные"
     scope :active, -> { Category.active }, label: "Активные"
+    scope :in_header_menu, -> { Category.in_header_menu }, label: "В хедере"
   end
 
   # Используем кастомный index view с древовидной структурой
   controller do
     def index
+      # Получаем текущий scope из параметров
+      @current_scope = params[:scope] || 'all'
+      
       # В development режиме отключаем кэширование для упрощения отладки
       if Rails.env.development?
         # Без кэширования - всегда свежие данные
@@ -34,12 +38,25 @@ Trestle.resource(:categories, model: Category) do
         @_product_counts_cache = @product_counts
         @_children_counts_cache = @children_counts
         
+        # Применяем фильтрацию в зависимости от выбранного scope
+        base_query = Category.all
+        case @current_scope
+        when 'top_level'
+          base_query = Category.top_level
+        when 'popular'
+          base_query = Category.popular
+        when 'active'
+          base_query = Category.active
+        when 'in_header_menu'
+          base_query = Category.in_header_menu
+        end
+
         # Дерево категорий без кэша
-        categories = Category.select(:ikea_id, :name, :translated_name, :parent_ids, :is_popular, :is_deleted, :is_important)
+        categories = base_query.select(:ikea_id, :name, :translated_name, :parent_ids, :is_popular, :is_deleted, :is_important, :header_menu, :header_menu_position)
                              .order(:name)
                              .to_a
         @categories_tree = Category.build_tree(categories)
-        Rails.logger.info "CategoriesAdmin: Built tree with #{@categories_tree.count} top-level categories (DEV: no cache)"
+        Rails.logger.info "CategoriesAdmin: Built tree with #{@categories_tree.count} top-level categories (DEV: no cache, scope: #{@current_scope})"
       else
         # В production/staging используем кэширование для производительности
         # Кэшируем счетчики продуктов отдельно для быстрого доступа (увеличено до 30 минут)
@@ -69,19 +86,32 @@ Trestle.resource(:categories, model: Category) do
         @_children_counts_cache = @children_counts
         
         # Кэшируем дерево категорий на 30 минут (увеличено с 5 минут)
-        # Ключ кэша включает максимальное время обновления категорий
+        # Ключ кэша включает максимальное время обновления категорий и текущий scope
         max_updated_at = Rails.cache.fetch("categories_max_updated_at", expires_in: 30.minutes) do
           Category.maximum(:updated_at)
         end
-        cache_key = "categories_tree_#{max_updated_at&.to_i || 0}"
+        cache_key = "categories_tree_#{@current_scope}_#{max_updated_at&.to_i || 0}"
         
         @categories_tree = Rails.cache.fetch(cache_key, expires_in: 30.minutes) do
+          # Применяем фильтрацию в зависимости от выбранного scope
+          base_query = Category.all
+          case @current_scope
+          when 'top_level'
+            base_query = Category.top_level
+          when 'popular'
+            base_query = Category.popular
+          when 'active'
+            base_query = Category.active
+          when 'in_header_menu'
+            base_query = Category.in_header_menu
+          end
+
           # Оптимизированный запрос - загружаем только нужные поля
-          categories = Category.select(:ikea_id, :name, :translated_name, :parent_ids, :is_popular, :is_deleted, :is_important)
+          categories = base_query.select(:ikea_id, :name, :translated_name, :parent_ids, :is_popular, :is_deleted, :is_important, :header_menu, :header_menu_position)
                                .order(:name)
                                .to_a
           tree = Category.build_tree(categories)
-          Rails.logger.info "CategoriesAdmin: Built tree with #{tree.count} top-level categories"
+          Rails.logger.info "CategoriesAdmin: Built tree with #{tree.count} top-level categories (scope: #{@current_scope})"
           tree
         end
       end
@@ -142,6 +172,10 @@ Trestle.resource(:categories, model: Category) do
     column :is_popular do |category|
       status_tag(category.is_popular? ? 'Да' : 'Нет', 
                  category.is_popular? ? :success : :secondary)
+    end
+    column :header_menu, label: "В хедере" do |category|
+      status_tag(category.header_menu? ? 'Да' : 'Нет', 
+                 category.header_menu? ? :success : :secondary)
     end
     column :is_deleted do |category|
       status_tag(category.is_deleted? ? 'Удалена' : 'Активна', 
@@ -209,6 +243,8 @@ Trestle.resource(:categories, model: Category) do
     text_field :name
     text_field :translated_name
     check_box :is_popular
+    check_box :header_menu
     check_box :is_deleted
+    number_field :header_menu_position
   end
 end

@@ -16,6 +16,7 @@ class Category < ApplicationRecord
   scope :popular, -> { where(is_popular: true) }
   scope :active, -> { where(is_deleted: [false, nil]) }
   scope :not_deleted, -> { where(is_deleted: [false, nil]) }
+  scope :in_header_menu, -> { where(header_menu: true).order(header_menu_position: :asc) }
   # Категории с цифровым кодом (ikea_id состоит только из цифр)
   scope :with_numeric_id, -> { where("ikea_id ~ '^[0-9]+$'") }
   # Верхнеуровневые категории (без родительских категорий)
