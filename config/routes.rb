@@ -94,8 +94,8 @@ Rails.application.routes.draw do
       get 'homepage/slider/banners', to: 'homepage#slider_banners'
 
       # Cart
-      resource :cart, only: [:show] do
-        delete :clear, on: :collection
+      resource :cart, controller: 'cart', only: [:show] do
+        delete '/', action: :clear, on: :member
       end
 
       resources :cart_items, only: [:create] do
