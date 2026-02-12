@@ -17,8 +17,9 @@ class Review < ApplicationRecord
 
   validates :product_sku, presence: true
   validates :rating, presence: true, inclusion: { in: 1..5 }
-  validates :body, presence: true, length: { minimum: 10, maximum: 2000 }
   validates :user, presence: true
+  validate :body_length_within_limits
+  validate :photos_count_within_limits
   validate :product_must_be_purchased_by_user
 
   before_validation :assign_order_for_review, on: :create
@@ -30,17 +31,40 @@ class Review < ApplicationRecord
 
   scope :published_reviews, -> { published.where(excluded_from_rating: false) }
 
-  def helpful_count
-    review_helpful_votes.size
-  end
-
   def photos_urls(host:)
     photos.map { |photo| Rails.application.routes.url_helpers.rails_blob_url(photo, host: host) }
   rescue ArgumentError
     photos.map { |photo| Rails.application.routes.url_helpers.rails_blob_path(photo, only_path: true) }
   end
 
+  def helpful_count
+    review_helpful_votes.size
+  end
+
   private
+
+  def body_length_within_limits
+    settings = ReviewSetting.instance
+    min = settings.min_body_length || 10
+    max = settings.max_body_length || 2000
+
+    if body.blank?
+      errors.add(:body, :blank)
+    elsif body.length < min
+      errors.add(:body, "слишком короткий (минимум #{min} символов)")
+    elsif body.length > max
+      errors.add(:body, "слишком длинный (максимум #{max} символов)")
+    end
+  end
+
+  def photos_count_within_limits
+    settings = ReviewSetting.instance
+    max = settings.max_photos_count || 5
+    
+    if photos.size > max
+      errors.add(:photos, "нельзя загрузить более #{max} фото")
+    end
+  end
 
   def assign_order_for_review
     return if order_id.present? || product_sku.blank? || user.blank?

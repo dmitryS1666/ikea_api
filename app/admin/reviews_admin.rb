@@ -63,24 +63,75 @@ Trestle.resource(:reviews, model: Review) do
 
     if review.photos.attached?
       row do
-        col(sm: 12) do
-          review.photos.each do |photo|
-            concat(
-              link_to(
-                photo.filename.to_s,
-                Rails.application.routes.url_helpers.rails_blob_path(photo, only_path: true)
-              )
-            )
-            concat(tag(:br))
+        col do
+          form_group :existing_photos, label: "Текущие фотографии" do
+            content_tag(:div, class: "row") do
+              review.photos.each do |photo|
+                concat(
+                  content_tag(:div, class: "col-xs-3 col-sm-2", style: "margin-bottom: 20px;") do
+                    content_tag(:div, class: "thumbnail", style: "margin-bottom: 5px;") do
+                      image_tag(main_app.rails_blob_path(photo, only_path: true), style: "width: 100%; height: 100px; object-fit: cover;")
+                    end +
+                    link_to("Удалить", admin.instance_path(review, action: :delete_photo, photo_id: photo.id), 
+                      class: "btn btn-danger btn-xs btn-block", 
+                      data: { confirm: "Удалить это фото?" })
+                  end
+                )
+              end
+            end
           end
         end
       end
     end
 
     row do
-      col(sm: 12) do
-        file_field :photos, multiple: true
+      col do
+        file_field :photos, multiple: true, label: "Добавить фото (макс. 5)", id: "js-review-photos-input"
+        content_tag(:div, id: "js-photos-preview", class: "row", style: "margin-top: 10px;") do
+          # Сюда JS будет вставлять превью
+        end
       end
+    end
+  end
+
+  # Используем хук для вставки JS кода. 
+  # Хук "resource.form.footer" вставит контент сразу после формы.
+  hook("resource.form.footer") do
+    content_tag(:script) do
+      <<-JS.html_safe
+        $(function() {
+          $(document).on('change', '#js-review-photos-input', function() {
+            var $preview = $('#js-photos-preview');
+            $preview.empty();
+            if (this.files) {
+              $.each(this.files, function(i, file) {
+                if (!file.type.match('image.*')) return;
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                  var html = '<div class="col-xs-3 col-sm-2"><div class="thumbnail">' +
+                             '<img src="' + e.target.result + '" style="height: 80px; width: 100%; object-fit: cover;">' +
+                             '</div></div>';
+                  $preview.append(html);
+                }
+                reader.readAsDataURL(file);
+              });
+            }
+          });
+        });
+      JS
+    end
+  end
+
+  routes do
+    get :delete_photo, on: :member
+  end
+
+  controller do
+    def delete_photo
+      review = admin.find_instance(params)
+      photo = review.photos.find(params[:photo_id])
+      photo.purge
+      redirect_to admin.instance_path(review, action: :edit), notice: "Фото удалено"
     end
   end
 

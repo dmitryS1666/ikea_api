@@ -15,10 +15,14 @@
               <th>IKEA ID:</th>
               <td><%= @category.ikea_id %></td>
             </tr>
-            <tr>
+            <%
+=begin%>
+ <tr>
               <th>Unique ID:</th>
               <td><%= @category.unique_id || content_tag(:em, "Нет", class: "text-muted") %></td>
-            </tr>
+            </tr> 
+<%
+=end%>
             <tr>
               <th>URL:</th>
               <td>
@@ -159,7 +163,11 @@
                   <th>Название</th>
                   <th>Название (RU)</th>
                   <th>Цена</th>
-                  <th>Действия</th>
+                  <%
+=begin%>
+ <th>Действия</th> 
+<%
+=end%>
                 </tr>
               </thead>
               <tbody>
@@ -169,9 +177,13 @@
                     <td><%= product.name %></td>
                     <td><%= product.name_ru || content_tag(:em, "Нет", class: "text-muted") %></td>
                     <td><%= product.price ? number_to_currency(product.price, unit: 'Zl', format: '%n %u') : '-' %></td>
-                    <td>
+                    <%
+=begin%>
+ <td>
                       <%= link_to 'Просмотр', admin.instance_path(product), class: 'btn btn-sm btn-primary' %>
-                    </td>
+                    </td> 
+<%
+=end%>
                   </tr>
                 <% end %>
               </tbody>

@@ -68,24 +68,24 @@ Trestle.resource(:products, model: Product) do
 
   form do |product|
     tab :basic, label: "Основная информация" do
-      text_field :sku
-      text_field :unique_id
-      text_field :item_no
-      text_field :url
-      text_field :name
-      text_field :name_ru
-      text_field :collection
-      select :category_id, Category.all.map { |c| [c.name, c.ikea_id] }, { label: "Категория", include_blank: "Без категории" }
+      text_field :sku, label: "Артикул (SKU)"
+      text_field :unique_id, label: "Уникальный ID (Unique ID)"
+      text_field :item_no, label: "Номер позиции (Item No)"
+      text_field :url, label: "Ссылка (URL)"
+      text_field :name, label: "Название (Name)"
+      text_field :name_ru, label: "Название RU (Name RU)"
+      text_field :collection, label: "Коллекция (Collection)"
+      select :category_id, Category.all.map { |c| [c.name, c.ikea_id] }, { label: "Категория (Category)", include_blank: "Без категории" }
       
-      form_group :categories, label: "Дополнительные категории" do
+      form_group :categories, label: "Дополнительные категории (Additional Categories)" do
         select :category_ids, Category.all.map { |c| [c.name, c.ikea_id] }, { label: "Категории" }, { multiple: true, data: { ui: "select2" } }
       end
     end
 
     tab :pricing, label: "Цена и наличие" do
-      number_field :price
-      number_field :quantity
-      text_field :home_delivery
+      number_field :price, label: "Цена (Price)"
+      number_field :quantity, label: "Количество (Quantity)"
+      text_field :home_delivery, label: "Доставка на дом (Home Delivery)"
       
       static_field :calculated_duty_info, label: "Таможенная пошлина (BYN)" do
         if product.price && product.weight
@@ -105,28 +105,28 @@ Trestle.resource(:products, model: Product) do
     end
 
     tab :specs, label: "Характеристики" do
-      number_field :weight
-      number_field :net_weight
-      number_field :package_volume
-      text_field :package_dimensions
-      text_field :dimensions
-      check_box :is_parcel
+      number_field :weight, label: "Вес (Weight)"
+      number_field :net_weight, label: "Чистый вес (Net Weight)"
+      number_field :package_volume, label: "Объем упаковки (Package Volume)"
+      text_field :package_dimensions, label: "Размеры упаковки (Package Dimensions)"
+      text_field :dimensions, label: "Размеры (Dimensions)"
+      check_box :is_parcel, label: "Посылка (Is Parcel)"
     end
 
     tab :flags, label: "Флаги" do
-      check_box :is_bestseller
-      check_box :is_popular
-      check_box :translated
-      number_field :popularity_score
-      number_field :views_count
-      number_field :sales_count
+      check_box :is_bestseller, label: "Хит продаж (Is Bestseller)"
+      check_box :is_popular, label: "Популярный (Is Popular)"
+      check_box :translated, label: "Переведено (Translated)"
+      number_field :popularity_score, label: "Оценка популярности (Popularity Score)"
+      number_field :views_count, label: "Количество просмотров (Views Count)"
+      number_field :sales_count, label: "Количество продаж (Sales Count)"
     end
 
     tab :delivery, label: "Доставка" do
-      text_field :delivery_type
-      text_field :delivery_name
-      number_field :delivery_cost
-      text_field :delivery_reason
+      select :delivery_type, [['Курьер', 'courier'], ['Самовывоз', 'pickup']], { label: "Тип доставки (Delivery Type)" }
+      text_field :delivery_name, label: "Название доставки (Delivery Name)"
+      number_field :delivery_cost, label: "Стоимость доставки (Delivery Cost)"
+      text_field :delivery_reason, label: "Причина доставки (Delivery Reason)"
     end
   end
 

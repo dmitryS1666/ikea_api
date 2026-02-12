@@ -42,13 +42,26 @@ Trestle.resource(:review_settings, model: ReviewSetting) do
       end
     end
     row do
-      col(sm: 6) do
+      col(sm: 4) do
         number_field :helpful_weight_factor, step: 0.01, label: "Вес полезности"
       end
-      col(sm: 6) do
+      col(sm: 4) do
         number_field :base_weight, step: 0.01, label: "Базовый вес"
       end
+      col(sm: 4) do
+        number_field :max_photos_count, label: "Макс. количество фото"
+      end
     end
+
+    row do
+      col(sm: 6) do
+        number_field :min_body_length, label: "Мин. длина текста"
+      end
+      col(sm: 6) do
+        number_field :max_body_length, label: "Макс. длина текста"
+      end
+    end
+
     row do
       col(sm: 12) do
         concat button_to "Пересчитать рейтинги вручную", recalculate_review_settings_admin_index_path, method: :post, class: "btn btn-sm btn-outline-primary"
@@ -57,6 +70,6 @@ Trestle.resource(:review_settings, model: ReviewSetting) do
   end
 
   params do |params|
-    params.require(:review_setting).permit(:helpful_weight_factor, :base_weight)
+    params.require(:review_setting).permit(:helpful_weight_factor, :base_weight, :min_body_length, :max_body_length, :max_photos_count)
   end
 end

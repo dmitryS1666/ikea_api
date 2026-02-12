@@ -1420,6 +1420,17 @@ components:
             updated_at:
               type: string
               format: date-time
+            rating_avg:
+              type: number
+              format: float
+              description: Средний рейтинг товара
+            rating_weighted:
+              type: number
+              format: float
+              description: Взвешенный рейтинг товара (с учетом полезности отзывов)
+            rating_count:
+              type: integer
+              description: Общее количество опубликованных отзывов
             display_blocks:
               type: object
               description: Настройки отображения функциональных блоков в карточке товара
