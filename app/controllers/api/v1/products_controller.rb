@@ -1,7 +1,7 @@
 module Api
   module V1
     class ProductsController < ApplicationController
-      before_action :authenticate_user, except: [:index, :show, :bestsellers, :popular]
+      before_action :authenticate_user, except: [:index, :show, :bestsellers, :popular, :categories]
       
       def index
         products = Product.includes(:category)
@@ -55,6 +55,18 @@ module Api
             page: params[:page] || 1
           }
         })
+      end
+
+      def categories
+        collection_name = params[:collection]
+        return render json: { error: 'Collection parameter is required' }, status: :bad_request if collection_name.blank?
+
+        categories = Category.active
+                             .joins(:products_through_categories)
+                             .where(products: { collection: collection_name })
+                             .distinct
+
+        render json: CategorySerializer.new(categories)
       end
     end
   end

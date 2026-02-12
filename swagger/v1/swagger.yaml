@@ -15,6 +15,7 @@ info:
     - `GET /api/v1/products/{sku}` — Карточка товара
     - `GET /api/v1/products/bestsellers` — Бестселлеры
     - `GET /api/v1/products/popular` — Популярные товары
+    - `GET /api/v1/products/categories` — Категории по коллекции
     - `GET /api/v1/categories` — Категории
     - `GET /api/v1/categories/header_menu` — Категории для верхнего меню
     - `GET /api/v1/categories/{id}/products` — Товары в категории
@@ -161,6 +162,33 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Product'
+
+  /api/v1/products/categories:
+    get:
+      summary: Получить список категорий по названию коллекции
+      tags:
+        - Products
+      parameters:
+        - name: collection
+          in: query
+          required: true
+          description: Название коллекции (например, MALM)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Список категорий
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+        '400':
+          description: Ошибка в параметрах (отсутствует collection)
 
   /api/v1/categories:
     get:

@@ -21,6 +21,7 @@ Rails.application.routes.draw do
         collection do
           get :bestsellers
           get :popular
+          get :categories
         end
 
         resources :reviews, only: [:create]
