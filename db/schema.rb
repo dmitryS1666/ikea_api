@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_02_12_133414) do
+ActiveRecord::Schema[7.1].define(version: 2026_02_12_144045) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -639,6 +639,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_12_133414) do
     t.string "phone"
     t.text "encrypted_passport_json"
     t.datetime "passport_verified_at"
+    t.boolean "gdpr_consent"
+    t.boolean "newsletter_consent"
+    t.string "country_code"
     t.index ["email"], name: "index_users_on_email", unique: true, where: "(email IS NOT NULL)"
     t.index ["phone"], name: "index_users_on_phone", unique: true
     t.index ["username"], name: "index_users_on_username", unique: true

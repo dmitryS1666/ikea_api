@@ -39,7 +39,12 @@ Rails.application.routes.draw do
             get :available
           end
         end
-        resources :orders, only: [:index, :show]
+        resources :orders, only: [:index, :show] do
+          member do
+            post :reorder
+          end
+        end
+        resource :profile, only: [:show, :update], controller: 'profile'
 
         resources :purchases, only: [:index]
         resources :returns, only: [:index, :create]
@@ -69,6 +74,7 @@ Rails.application.routes.draw do
           post :calculate
           get :pickup_points
           get :pickup_points_search
+          get :europost_offices
         end
       end
       

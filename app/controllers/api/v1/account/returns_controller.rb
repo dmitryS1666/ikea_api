@@ -29,6 +29,7 @@ module Api
           end
 
           render json: { return_request: payload_for(req) }, status: :created
+          CrmIntegrationService.notify_return(req)
         end
 
         private

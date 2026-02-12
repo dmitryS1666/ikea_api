@@ -795,6 +795,24 @@ paths:
                     items:
                       $ref: '#/components/schemas/PickupPoint'
 
+  /api/v1/delivery/europost_offices:
+    get:
+      summary: Получить список отделений Европочты напрямую из API
+      tags:
+        - Delivery
+      responses:
+        '200':
+          description: Список отделений Европочты
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  offices:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EuropostOffice'
+
   /api/v1/delivery/calculate:
     post:
       summary: Расчет стоимости и доступности доставки
@@ -967,6 +985,148 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/OrderItem'
+  /api/v1/account/orders/{id}/reorder:
+    post:
+      summary: Повторить заказ (добавить товары в корзину)
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Результат добавления товаров
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  added_skus: { type: array, items: { type: string } }
+                  missing_skus: { type: array, items: { type: string } }
+                  has_missing: { type: boolean }
+
+  /api/v1/account/profile:
+    get:
+      summary: Получить профиль пользователя
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Данные профиля
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+    patch:
+      summary: Обновить профиль пользователя
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdate'
+      responses:
+        '200':
+          description: Профиль обновлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+
+  /api/v1/account/purchases:
+    get:
+      summary: Список покупок (товаров из завершенных заказов)
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [newest, oldest, price_asc, price_desc]
+        - name: page
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Список купленных товаров
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  purchases:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PurchaseItem'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+
+  /api/v1/account/receipts:
+    get:
+      summary: Список электронных чеков
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Список чеков по заказам
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  receipts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrderReceipts'
+
+  /api/v1/account/returns:
+    get:
+      summary: Список запросов на возврат
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Список возвратов
+    post:
+      summary: Создать запрос на возврат
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [order_id, reason]
+              properties:
+                order_id: { type: integer }
+                reason: { type: string }
+                comment: { type: string }
+                attachments:
+                  type: array
+                  items: { type: string, format: binary }
+      responses:
+        '201':
+          description: Запрос создан
 
   /api/v1/homepage/slider/main:
     get:
@@ -1539,6 +1699,53 @@ components:
         role:
           type: string
           enum: [user, admin]
+
+    UserProfile:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        country_code: { type: string, enum: [RB, РФ, РК] }
+        gdpr_consent: { type: boolean }
+        newsletter_consent: { type: boolean }
+        passport_verified: { type: boolean }
+
+    UserProfileUpdate:
+      type: object
+      properties:
+        username: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        country_code: { type: string, enum: [RB, РФ, РК] }
+        gdpr_consent: { type: boolean }
+        newsletter_consent: { type: boolean }
+
+    PurchaseItem:
+      type: object
+      properties:
+        order_id: { type: integer }
+        status: { type: string }
+        purchased_at: { type: string, format: date-time }
+        product_sku: { type: string }
+        quantity: { type: integer }
+        price_byn: { type: string }
+        product:
+          $ref: '#/components/schemas/CartProductPayload'
+
+    OrderReceipts:
+      type: object
+      properties:
+        order_id: { type: integer }
+        purchased_at: { type: string, format: date-time }
+        receipts:
+          type: array
+          items:
+            type: object
+            properties:
+              filename: { type: string }
+              url: { type: string }
 
     Meta:
       type: object
@@ -2201,6 +2408,19 @@ components:
         lat: { type: number }
         lon: { type: number }
         priority: { type: boolean }
+
+    EuropostOffice:
+      type: object
+      properties:
+        external_id: { type: string, example: "70130010" }
+        name: { type: string, example: "Отделение №1 г. Минск" }
+        city: { type: string, example: "Минск" }
+        address: { type: string, example: "ул. Монтажников, 2" }
+        phone: { type: string, nullable: true }
+        working_hours: { type: string }
+        lat: { type: string }
+        lon: { type: string }
+        provider: { type: string, example: "europost" }
 
   securitySchemes:
     BearerAuth:

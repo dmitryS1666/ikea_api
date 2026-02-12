@@ -15,13 +15,18 @@ end
 
 class EuropostTracker
   def self.track(track_number)
-    # Stub: Europost API typically requires a key and specific request structure.
-    # We provide a link and a mock status.
+    events = EuropostApiService.postal_tracking(number: track_number)
+    return nil if events.empty?
+
+    # По доке последние события обычно в конце или имеют статус
+    last_event = events.last
+
     {
-      status: 'В пути (заглушка)',
-      last_update: Time.current.strftime('%d.%m.%Y %H:%M'),
+      status: last_event['Out_StatusName'] || last_event['InfoTrack'] || 'В пути',
+      last_update: last_event['Out_DateStatus'] || Time.current.strftime('%d.%m.%Y %H:%M'),
       provider: 'Европочта',
-      tracking_url: "https://evropochta.by/tracking/?number=#{track_number}"
+      tracking_url: "https://evropochta.by/tracking/?number=#{track_number}",
+      history: events
     }
   end
 end

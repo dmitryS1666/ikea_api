@@ -62,6 +62,26 @@ module Api
         render json: { pickup_points: points.limit(50).map { |p| pickup_point_payload(p) } }
       end
 
+      # GET /api/v1/delivery/europost_offices
+      def europost_offices
+        offices = EuropostApiService.offices_out
+        render json: { 
+          offices: offices.map { |o|
+            {
+              external_id: o['WarehouseId'],
+              name: o['WarehouseName'],
+              city: o['Address7Name'],
+              address: o['Info1'].presence || "#{o['Address5Name']}, #{o['Address4Name']} #{o['Address3Name']}",
+              phone: nil, # В ответе OfficesOut нет телефона
+              working_hours: o['Info1'],
+              lat: o['Latitude'],
+              lon: o['Longitude'],
+              provider: 'europost'
+            }
+          }
+        }
+      end
+
       private
 
       def calculation_basis

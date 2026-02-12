@@ -8,6 +8,7 @@ class User < ApplicationRecord
   validates :email, uniqueness: true, allow_nil: true
   validates :phone, uniqueness: true, allow_nil: true
   validates :role, inclusion: { in: %w[user admin manager] }
+  validates :country_code, inclusion: { in: %w[RB РФ РК] }, allow_blank: true
   validates :password, presence: true, on: :create, unless: -> { phone.present? }
   
   scope :active, -> { where(is_active: true) }
