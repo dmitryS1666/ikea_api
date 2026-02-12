@@ -1,6 +1,6 @@
 Trestle.resource(:product_title_templates, model: ProductTitleTemplate) do
   menu do
-    item :product_title_templates, icon: "fa fa-heading", label: "SEO шаблоны", group: "Catalog"
+    item :product_title_templates, icon: "fa fa-heading", label: "SEO шаблоны", group: "SEO"
   end
 
   table do

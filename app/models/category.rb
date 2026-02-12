@@ -13,6 +13,13 @@ class Category < ApplicationRecord
   
   serialize :parent_ids, coder: JSON
   
+  enum :default_sort, {
+    popular: 'popular',
+    newest: 'newest',
+    cheapest: 'cheapest',
+    expensive: 'expensive'
+  }
+
   scope :popular, -> { where(is_popular: true) }
   scope :active, -> { where(is_deleted: [false, nil]) }
   scope :not_deleted, -> { where(is_deleted: [false, nil]) }

@@ -17,17 +17,45 @@ module Api
         category = Category.find_by(ikea_id: params[:id])
         return render json: { error: 'Category not found' }, status: :not_found unless category
 
-        products = category.products
-                           .includes(:category)
+        search_params = {
+          min_price: params[:min_price],
+          max_price: params[:max_price],
+          sort: params[:sort],
+          filters: params[:filters] # Ожидаем Hash: { color: ['red', 'blue'], material: 'wood' }
+        }
+
+        products_scope = Products::SearchService.new(category, search_params).call
+        
+        products = products_scope
+                           .includes(:categories, :filter_values)
                            .page(params[:page])
                            .per(params[:per_page] || 50)
 
+        # Собираем доступные фильтры для текущей категории
+        # Это поможет фронтенду отображать только актуальные значения
+        available_filters_data = category.products_through_categories
+                                    .joins(filter_values: :filter)
+                                    .select('filters.parameter, filters.name_ru as filter_name, filter_values.value_id, filter_values.name_ru as value_name')
+                                    .distinct
+
+        # Группируем фильтры для удобства фронтенда
+        filters_meta = available_filters_data.group_by(&:parameter).map do |param, values|
+          {
+            parameter: param,
+            name: values.first.filter_name,
+            values: values.map { |v| { id: v.value_id, name: v.value_name } }
+          }
+        end
+
         render json: ProductSerializer.new(products, {
-          include: [:category],
+          include: [:categories],
           meta: {
             total: products.total_count,
-            page: params[:page] || 1,
-            per_page: params[:per_page] || 50
+            page: (params[:page] || 1).to_i,
+            per_page: (params[:per_page] || 50).to_i,
+            total_pages: products.total_pages,
+            default_sort: category.default_sort,
+            available_filters: filters_meta
           }
         })
       end

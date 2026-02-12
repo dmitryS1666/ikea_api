@@ -103,6 +103,15 @@ class CalculatorSetting < ApplicationRecord
     # GLS пункт отбора
     set('gls_pickup_free_weight', 30.0, setting_type: 'decimal',
         description: 'Бесплатный вес для GLS пункта отбора (кг)')
+
+    # Срок доставки по умолчанию
+    set('default_delivery_days', 30, setting_type: 'integer',
+        description: 'Срок доставки по умолчанию (дней)')
+
+    # Глобальные флаги отображения блоков
+    set('show_delivery_block_global', 1, setting_type: 'integer', description: 'Глобально: Показывать блок доставки (1 - да, 0 - нет)')
+    set('show_reviews_block_global', 1, setting_type: 'integer', description: 'Глобально: Показывать блок отзывов (1 - да, 0 - нет)')
+    set('show_tips_block_global', 1, setting_type: 'integer', description: 'Глобально: Показывать блок советов (1 - да, 0 - нет)')
   end
 end
 

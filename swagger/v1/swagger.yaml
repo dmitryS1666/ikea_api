@@ -247,6 +247,33 @@ paths:
           schema:
             type: integer
             default: 50
+        - name: min_price
+          in: query
+          description: Минимальная цена
+          schema:
+            type: number
+        - name: max_price
+          in: query
+          description: Максимальная цена
+          schema:
+            type: number
+        - name: sort
+          in: query
+          description: Сортировка (popular, newest, cheapest, expensive)
+          schema:
+            type: string
+            enum: [popular, newest, cheapest, expensive]
+        - name: filters
+          in: query
+          description: Динамические фильтры в формате filters[parameter][]=value
+          style: deepObject
+          explode: true
+          schema:
+            type: object
+            additionalProperties:
+              type: array
+              items:
+                type: string
       responses:
         '200':
           description: Список товаров категории
@@ -1198,6 +1225,26 @@ components:
             updated_at:
               type: string
               format: date-time
+            display_blocks:
+              type: object
+              description: Настройки отображения функциональных блоков в карточке товара
+              properties:
+                delivery:
+                  type: boolean
+                  description: Показывать блок доставки
+                reviews:
+                  type: boolean
+                  description: Показывать блок отзывов
+                tips:
+                  type: boolean
+                  description: Показывать блок советов
+                is_bulky:
+                  type: boolean
+                  description: Является ли товар крупногабаритным
+                delivery_info:
+                  type: string
+                  nullable: true
+                  description: Дополнительная информация о доставке (например, для не крупногабаритных товаров)
 
     Breadcrumb:
       type: object
@@ -1237,6 +1284,18 @@ components:
               type: boolean
             is_popular:
               type: boolean
+            is_bulky:
+              type: boolean
+              description: Флаг крупногабаритного товара
+            show_delivery_block:
+              type: boolean
+              description: Флаг отображения блока доставки
+            show_reviews_block:
+              type: boolean
+              description: Флаг отображения блока отзывов
+            show_tips_block:
+              type: boolean
+              description: Флаг отображения блока советов
             header_menu:
               type: boolean
             header_menu_position:

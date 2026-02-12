@@ -243,8 +243,23 @@ Trestle.resource(:categories, model: Category) do
     text_field :name
     text_field :translated_name
     check_box :is_popular
+    select :default_sort, Category.default_sorts.keys.map { |s| [s.humanize, s] }
     check_box :header_menu
     check_box :is_deleted
     number_field :header_menu_position
+    number_field :delivery_days, help: "Срок доставки в днях (если не задано, используется значение по умолчанию)"
+
+    divider 
+    h3 "Отображение блоков в карточке товара"
+    divider 
+    
+    row do
+      col(sm: 6) { check_box :is_bulky, label: "Крупногабаритный товар (Блок услуг)" }
+      col(sm: 6) { check_box :show_delivery_block, label: "Показывать доставку" }
+    end
+    row do
+      col(sm: 6) { check_box :show_reviews_block, label: "Показывать отзывы" }
+      col(sm: 6) { check_box :show_tips_block, label: "Показывать советы" }
+    end
   end
 end

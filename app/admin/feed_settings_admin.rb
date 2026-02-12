@@ -1,6 +1,6 @@
 FeedSettingsAdmin = Trestle.resource :feed_setting, model: FeedSetting, singleton: true do
   menu do
-    item :feed_settings, icon: "fa fa-rss", label: "Фиды", group: "Catalog"
+    item :feed_settings, icon: "fa fa-rss", label: "Фиды", group: "SEO"
   end
 
   controller do

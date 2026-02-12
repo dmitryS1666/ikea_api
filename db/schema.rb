@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_02_11_202910) do
+ActiveRecord::Schema[7.1].define(version: 2026_02_11_214711) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -113,7 +113,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_11_202910) do
     t.datetime "updated_at", null: false
     t.boolean "header_menu"
     t.integer "header_menu_position"
+    t.string "default_sort", default: "popular"
+    t.integer "delivery_days"
+    t.boolean "is_bulky", default: false
+    t.boolean "show_delivery_block", default: true
+    t.boolean "show_reviews_block", default: true
+    t.boolean "show_tips_block", default: true
     t.index "to_tsvector('simple'::regconfig, COALESCE(parent_ids, ''::text))", name: "index_categories_on_parent_ids_text", where: "((parent_ids IS NOT NULL) AND (parent_ids <> '[]'::text) AND (parent_ids <> ''::text))", using: :gin
+    t.index ["default_sort"], name: "index_categories_on_default_sort"
     t.index ["ikea_id"], name: "index_categories_on_ikea_id", unique: true
     t.index ["is_popular"], name: "index_categories_on_is_popular"
     t.index ["parent_ids"], name: "index_categories_on_parent_ids_btree", where: "((parent_ids IS NOT NULL) AND (parent_ids <> '[]'::text) AND (parent_ids <> ''::text))"
@@ -498,12 +505,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_11_202910) do
     t.decimal "rating_weighted", precision: 5, scale: 2, default: "0.0", null: false
     t.integer "rating_count", default: 0, null: false
     t.datetime "rating_updated_at"
+    t.integer "popularity_score", default: 0
+    t.integer "views_count", default: 0
+    t.integer "sales_count", default: 0
     t.index ["category_id"], name: "index_products_on_category_id"
     t.index ["is_bestseller"], name: "index_products_on_is_bestseller"
     t.index ["is_popular"], name: "index_products_on_is_popular"
+    t.index ["popularity_score"], name: "index_products_on_popularity_score"
+    t.index ["price"], name: "index_products_on_price"
     t.index ["sku"], name: "index_products_on_sku", unique: true
     t.index ["unique_id"], name: "index_products_on_unique_id", unique: true, where: "(unique_id IS NOT NULL)"
     t.index ["updated_at"], name: "index_products_on_updated_at"
+    t.index ["views_count"], name: "index_products_on_views_count"
   end
 
   create_table "promo_code_products", force: :cascade do |t|

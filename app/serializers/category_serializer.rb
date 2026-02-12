@@ -9,7 +9,12 @@ class CategorySerializer
              :is_important, 
              :is_popular,
              :header_menu,
-             :header_menu_position
+             :header_menu_position,
+             :delivery_days,
+             :is_bulky,
+             :show_delivery_block,
+             :show_reviews_block,
+             :show_tips_block
   
   attribute :parent_ids do |category|
     category.parent_ids || []

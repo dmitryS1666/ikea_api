@@ -33,7 +33,10 @@ Trestle.resource(:products, model: Product) do
                  product.is_popular? ? :success : :secondary)
     end
     column :created_at, align: :center
-    actions
+    actions do |toolbar, instance, admin|
+      toolbar.edit if admin.actions.include?(:edit)
+      toolbar.delete if admin.actions.include?(:destroy)
+    end
   end
 
   hook("resource.index.header") do
@@ -72,13 +75,33 @@ Trestle.resource(:products, model: Product) do
       text_field :name
       text_field :name_ru
       text_field :collection
-      select :category_id, Category.all.map { |c| [c.name, c.ikea_id] }, label: "Категория"
+      select :category_id, Category.all.map { |c| [c.name, c.ikea_id] }, { label: "Категория", include_blank: "Без категории" }
+      
+      form_group :categories, label: "Дополнительные категории" do
+        select :category_ids, Category.all.map { |c| [c.name, c.ikea_id] }, { label: "Категории" }, { multiple: true, data: { ui: "select2" } }
+      end
     end
 
     tab :pricing, label: "Цена и наличие" do
       number_field :price
       number_field :quantity
       text_field :home_delivery
+      
+      static_field :calculated_duty_info, label: "Таможенная пошлина (BYN)" do
+        if product.price && product.weight
+          eur_rate = ExchangeRate.fetch_or_create('EUR', Date.today)&.rate_per_unit
+          pln_rate = ExchangeRate.fetch_or_create('PLN', Date.today)&.rate_per_unit
+          if eur_rate && pln_rate
+            price_eur = (product.price * pln_rate / eur_rate).round(2)
+            calculation = CustomsDutyService.calculate(price_eur, product.weight, eur_rate)
+            "#{calculation[:total_byn]} BYN (Пошлина: #{calculation[:duty_byn]} + Сбор: #{calculation[:fee_byn]})"
+          else
+            "Курсы валют не найдены"
+          end
+        else
+          "Недостаточно данных для расчета"
+        end
+      end
     end
 
     tab :specs, label: "Характеристики" do
@@ -94,6 +117,9 @@ Trestle.resource(:products, model: Product) do
       check_box :is_bestseller
       check_box :is_popular
       check_box :translated
+      number_field :popularity_score
+      number_field :views_count
+      number_field :sales_count
     end
 
     tab :delivery, label: "Доставка" do

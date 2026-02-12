@@ -19,6 +19,7 @@ class Product < ApplicationRecord
   has_many :filter_values, through: :product_filter_values
   
   # Scopes
+  scope :active, -> { all } # Placeholder if you want to add logic like where(is_deleted: false)
   scope :bestsellers, -> { where(is_bestseller: true) }
   scope :popular, -> { where(is_popular: true) }
   scope :with_category, -> { where.not(category_id: nil) }
