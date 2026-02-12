@@ -35,8 +35,13 @@ class User < ApplicationRecord
   end
 
   # Passport storage (encrypted locally; CRM integration is skipped for now)
+  encrypts :encrypted_passport_json, deterministic: false
+
   def passport_data
-    UserPassportService.read(self)
+    return nil if encrypted_passport_json.blank?
+    JSON.parse(encrypted_passport_json)
+  rescue JSON::ParserError
+    nil
   end
 
   def passport_verified?

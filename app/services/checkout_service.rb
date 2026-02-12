@@ -89,7 +89,8 @@ class CheckoutService
     end
 
     if order&.persisted?
-      # Здесь можно отправить email/sms/telegram
+      # Отправка уведомлений
+      OrderNotificationService.call(order)
       { success: true, order: order }
     else
       { error: order&.errors&.full_messages&.join(', ') || 'Ошибка создания заказа' }

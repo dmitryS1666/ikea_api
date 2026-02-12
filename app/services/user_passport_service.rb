@@ -2,27 +2,16 @@ class UserPassportService
   # Encrypt/decrypt passport data using app secret.
   # NOTE: This is local storage only. CRM integration is intentionally skipped.
 
-  def self.encryptor
-    secret = Rails.application.secret_key_base
-    key = ActiveSupport::KeyGenerator.new(secret).generate_key('passport', 32)
-    ActiveSupport::MessageEncryptor.new(key)
-  end
-
   def self.write!(user:, passport_hash:)
     # Validate passport number (relaxed format) if present
     number = passport_hash['passport_number'] || passport_hash[:passport_number] || passport_hash['number'] || passport_hash[:number]
     PassportNumberValidator.validate!(number) if number.present?
 
-    json = passport_hash.to_json
-    user.update!(encrypted_passport_json: encryptor.encrypt_and_sign(json))
+    user.update!(encrypted_passport_json: passport_hash.to_json)
   end
 
   def self.read(user)
-    return nil if user.encrypted_passport_json.blank?
-    json = encryptor.decrypt_and_verify(user.encrypted_passport_json)
-    JSON.parse(json)
-  rescue StandardError
-    nil
+    user.passport_data
   end
 
   def self.same?(a, b)

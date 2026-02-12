@@ -668,18 +668,23 @@ paths:
               properties:
                 full_name:
                   type: string
+                  example: "Иван Иванов"
                 phone:
                   type: string
+                  example: "375291234567"
                 delivery_type:
                   type: string
                   enum: [pickup, courier]
                 payment_method:
                   type: string
-                  enum: [card, cash, erip]
+                  enum: [card, installment, qr, erip, oplati]
+                  description: "card (карта онлайн), installment (рассрочка), qr (QR-код), erip (ЕРИП), oplati (Оплати)"
                 pickup_point_id:
                   type: integer
+                  description: "ID ПВЗ (обязательно для delivery_type=pickup)"
                 a1_verification_id:
                   type: integer
+                  description: "ID верификации A1 (обязательно при изменении паспорта)"
                 address:
                   type: object
                   properties:
@@ -693,10 +698,20 @@ paths:
                       type: string
                 passport:
                   type: object
+                  properties:
+                    passport_number:
+                      type: string
+                      example: "MP1234567"
+                    full_name:
+                      type: string
+                    issue_date:
+                      type: string
+                      format: date
                 services:
                   type: array
                   items:
                     type: string
+                  example: ["Сборка", "Подъем на этаж"]
       responses:
         '201':
           description: Заказ создан
@@ -713,6 +728,186 @@ paths:
           description: Необходима авторизация
         '422':
           description: Ошибка валидации
+
+  /api/v1/delivery/types:
+    get:
+      summary: Получить доступные типы доставки и провайдеров
+      tags:
+        - Delivery
+      responses:
+        '200':
+          description: Список типов и провайдеров
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  types:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key: { type: string }
+                        name: { type: string }
+                  providers:
+                    type: array
+                    items: { type: string }
+
+  /api/v1/delivery/pickup_points:
+    get:
+      summary: Список всех активных ПВЗ
+      tags:
+        - Delivery
+      responses:
+        '200':
+          description: Список ПВЗ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pickup_points:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PickupPoint'
+
+  /api/v1/delivery/pickup_points_search:
+    get:
+      summary: Поиск ПВЗ по адресу/городу
+      tags:
+        - Delivery
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Результаты поиска
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pickup_points:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PickupPoint'
+
+  /api/v1/delivery/calculate:
+    post:
+      summary: Расчет стоимости и доступности доставки
+      tags:
+        - Delivery
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cart_token:
+                  type: string
+                delivery_type:
+                  type: string
+                  enum: [pickup, courier]
+                pickup_point_id:
+                  type: integer
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      sku: { type: string }
+                      quantity: { type: integer }
+      responses:
+        '200':
+          description: Результат расчета
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  basis:
+                    type: object
+                    properties:
+                      total_weight_kg: { type: number }
+                      total_volume_m3: { type: number }
+                      subtotal_byn: { type: string }
+                  delivery:
+                    type: object
+                    properties:
+                      type: { type: string }
+                      base_cost_byn: { type: string }
+                      free_delivery_eligible: { type: boolean }
+                  pickup_point:
+                    allOf:
+                      - $ref: '#/components/schemas/PickupPoint'
+                      - type: object
+                        properties:
+                          eligible: { type: boolean }
+                          reasons:
+                            type: array
+                            items: { type: string }
+
+  /api/v1/a1/request:
+    post:
+      summary: Запросить обратный звонок для верификации (A1)
+      tags:
+        - Verification
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+              properties:
+                phone:
+                  type: string
+                  example: "375291234567"
+                context:
+                  type: string
+                  default: "passport_update"
+      responses:
+        '201':
+          description: Запрос создан
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verification_id: { type: integer }
+                  display_message: { type: string }
+                  caller_number_masked: { type: string }
+
+  /api/v1/a1/verify:
+    post:
+      summary: Проверить код (последние 4 цифры)
+      tags:
+        - Verification
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - verification_id
+                - last4
+              properties:
+                verification_id: { type: integer }
+                last4: { type: string }
+      responses:
+        '200':
+          description: Верификация успешна
+        '422':
+          description: Неверный код или ошибка
 
   /api/v1/account/orders:
     get:
@@ -1981,6 +2176,20 @@ components:
               type: array
               items:
                 type: string
+
+    PickupPoint:
+      type: object
+      properties:
+        id: { type: integer }
+        provider: { type: string, enum: [ikea, europost, autolight] }
+        name: { type: string }
+        city: { type: string }
+        address: { type: string }
+        phone: { type: string }
+        working_hours: { type: string }
+        lat: { type: number }
+        lon: { type: number }
+        priority: { type: boolean }
 
   securitySchemes:
     BearerAuth:
