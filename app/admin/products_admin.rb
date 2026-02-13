@@ -5,12 +5,8 @@ Trestle.resource(:products, model: Product) do
 
   routes do
     get :by_category, on: :collection
-  end
-
-  scopes do
-    scope :all, default: true
-    scope :bestsellers, -> { Product.bestsellers }
-    scope :popular, -> { Product.popular }
+    get :export_extended_attrs_input, on: :collection
+    post :import_extended_attrs, on: :collection
   end
 
   table do
@@ -40,7 +36,7 @@ Trestle.resource(:products, model: Product) do
   end
 
   hook("resource.index.header") do
-    render partial: "trestle/products/smart_search_panel"
+    render partial: "trestle/products/smart_search_panel", locals: { admin: admin }
   end
 
   controller do
@@ -64,6 +60,110 @@ Trestle.resource(:products, model: Product) do
         { sku: p.sku, name: (p.name_ru.presence || p.sku) }
       }
     end
+
+    def export_extended_attrs_input
+      scope = Product.where.not(url: [nil, ""]).where("url <> ''")
+    
+      # Если хочешь выгружать только те, кому реально нужны расширенные атрибуты — оставь этот фильтр:
+      scope = scope.where(
+        "materials IS NULL OR materials = '' OR care_instructions IS NULL OR care_instructions = '' OR safety_info IS NULL OR safety_info = ''"
+      )
+    
+      items = scope
+        .select(:sku, :url)
+        .limit(50_000)
+        .map { |p| { sku: p.sku, url: p.url } }
+    
+      json = JSON.pretty_generate({ products: items })
+      filename = "products_input_extended_attrs_#{Time.zone.now.strftime('%Y%m%d_%H%M%S')}.json"
+      send_data json, filename: filename, type: "application/json"
+    end
+    
+    def import_extended_attrs
+      file = params[:file]
+      unless file.respond_to?(:read)
+        flash[:error] = "Не выбран JSON-файл."
+        return redirect_to admin.path(:index)
+      end
+    
+      raw = file.read
+      data = JSON.parse(raw)
+    
+      items =
+        if data.is_a?(Hash) && data["products"].is_a?(Array)
+          data["products"]
+        elsif data.is_a?(Array)
+          data
+        else
+          []
+        end
+    
+      allowed = %w[
+        sku
+        content
+        short_description
+        materials
+        features
+        care_instructions
+        environmental_info
+        designer
+        safety_info
+        good_to_know
+        assembly_documents
+      ]
+    
+      updated = 0
+      skipped = 0
+      errors = 0
+    
+      items.each do |item|
+        sku = item["sku"].to_s.strip
+        if sku.blank?
+          skipped += 1
+          next
+        end
+    
+        product = Product.find_by(sku: sku)
+        unless product
+          skipped += 1
+          next
+        end
+    
+        attrs = item.slice(*allowed)
+    
+        # нормализация типов (чтобы update был стабильным)
+        if attrs["materials"].is_a?(Array)
+          attrs["materials"] = attrs["materials"].join("\n")
+        end
+    
+        # features в модели сериализован как JSON — ок и Array, и Hash
+        # если вдруг прилетит строка, превращаем в массив строк:
+        if attrs["features"].is_a?(String)
+          attrs["features"] = attrs["features"].split("\n").map(&:strip).reject(&:blank?)
+        end
+    
+        # assembly_documents сериализован как JSON — ожидаем Array<Hash>
+        if attrs["assembly_documents"].is_a?(String)
+          begin
+            parsed_docs = JSON.parse(attrs["assembly_documents"])
+            attrs["assembly_documents"] = parsed_docs if parsed_docs.is_a?(Array)
+          rescue
+            # оставим как есть, чтобы увидеть проблему
+          end
+        end
+    
+        begin
+          product.update!(attrs.except("sku"))
+          updated += 1
+        rescue => e
+          Rails.logger.error("[TRESTLE] import_extended_attrs sku=#{sku} error=#{e.class}: #{e.message}")
+          errors += 1
+        end
+      end
+    
+      flash[:message] = "Импорт завершен: обновлено=#{updated}, пропущено=#{skipped}, ошибок=#{errors}"
+      redirect_to admin.path(:index)
+    end    
   end
 
   form do |product|

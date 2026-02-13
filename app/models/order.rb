@@ -8,30 +8,39 @@ class Order < ApplicationRecord
   has_many_attached :receipts
 
   enum status: {
-    processing: 0,
-    awaiting_payment: 1,
-    created: 2,
-    received_poland: 3,
-    picking: 4,
-    customs_poland: 5,
-    customs_belarus: 6,
-    in_delivery_pvz: 7,
-    arrived_pvz: 8,
-    completed: 9,
-    cancelled: 10
+    created: 81585318,         # Новый (Новый)
+    processing: 81585322,      # В обработке (В работе)
+    confirmed: 81585326,       # Заказ подтвержден (Подтвержден)
+    paid: 83329494,            # Оплачен (Оплачен)
+    purchased: 83329498,       # Ожидается (Выкуплен)
+    received_poland: 83329502, # Получен на склад (Получен на склад)
+    export_eu: 83329506,       # Реестр (Экспорт из ЕС)
+    customs_poland: 83329510,  # ТАМОЖНЯ ПОЛЬШИ (Экспорт из ЕС)
+    on_border: 83329514,       # ПРОХОД ГРАНИЦЫ (На границе)
+    customs_belarus: 83329518, # ТАМОЖНЯ БЕЛАРУСЬ (Прибыл на таможню)
+    shipped: 83329522,         # ПЕРЕДАНО В ЕВРОПОЧТА (Передано в доставку)
+    arrived_pvz: 83329526,     # Прибыло в отделение (Прибыло в отделение)
+    handed_to_courier: 83329530, # Выдано курьеру (Выдано курьеру)
+    completed: 142,            # Успешно реализовано (Доставлено)
+    cancelled: 143             # Закрыто и не реализовано (Отменен)
   }
 
-  PURCHASED_STATUSES = %w[arrived_pvz completed].freeze
+  PURCHASED_STATUSES = %w[arrived_pvz handed_to_courier completed].freeze
 
   scope :purchased, -> { where(status: PURCHASED_STATUSES) }
 
   before_save :set_purchased_at
+  after_update :notify_status_change, if: :saved_change_to_status?
 
   def purchased?
     status.in?(PURCHASED_STATUSES)
   end
 
   private
+
+  def notify_status_change
+    OrderNotificationService.call(self, status_changed: true)
+  end
 
   def set_purchased_at
     return unless transitioning_to_purchased?

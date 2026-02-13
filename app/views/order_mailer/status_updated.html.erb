@@ -1,0 +1,15 @@
+<h1>Обновление статуса заказа №<%= @order.id %></h1>
+<p>Здравствуйте, <%= @order.full_name %>!</p>
+<p>Статус вашего заказа был изменен на: <strong><%= @status_text %></strong></p>
+
+<p>Детали заказа:</p>
+<ul>
+  <li>Сумма: <%= @order.total_amount %> BYN</li>
+  <li>Способ доставки: <%= @order.delivery_type %></li>
+  <% if @order.track_number.present? %>
+    <li>Трек-номер: <%= @order.track_number %></li>
+  <% end %>
+</ul>
+
+<p>Вы можете следить за состоянием заказа в вашем личном кабинете.</p>
+<p>Спасибо, что выбрали нас!</p>

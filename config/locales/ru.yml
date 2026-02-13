@@ -1,6 +1,23 @@
 ru:
   activerecord:
     attributes:
+      order:
+        status:
+          created: "Новый"
+          processing: "В работе"
+          confirmed: "Подтвержден"
+          paid: "Оплачен"
+          purchased: "Выкуплен"
+          received_poland: "Получен на склад"
+          export_eu: "Экспорт из ЕС"
+          customs_poland: "Экспорт из ЕС"
+          on_border: "На границе"
+          customs_belarus: "Прибыл на таможню"
+          shipped: "Передано в доставку"
+          arrived_pvz: "Прибыло в отделение"
+          handed_to_courier: "Выдано курьеру"
+          completed: "Доставлено"
+          cancelled: "Отменен"
       content_article:
         content_type:
           tips_ideas: "Советы и идеи"

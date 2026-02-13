@@ -41,6 +41,22 @@ class ContentArticle < ApplicationRecord
         { name: "left_image", label: "Левое изображение" },
         { name: "right_image", label: "Правое изображение" }
       ]
+    },
+    {
+      id: "products_grid",
+      label: "Сетка товаров",
+      slider_enabled: false,
+      button_enabled: false,
+      products_grid_enabled: true,
+      image_slots: []
+    },
+    {
+      id: "categories_grid",
+      label: "Сетка категорий",
+      slider_enabled: false,
+      button_enabled: false,
+      categories_grid_enabled: true,
+      image_slots: []
     }
   ].freeze
   enum content_type: { tips_ideas: 0, news: 1 }
@@ -148,7 +164,7 @@ class ContentArticle < ApplicationRecord
   end
 
   def serialized_body_blocks
-    all_category_ids = (button_category_ids + slider_category_ids).compact.uniq
+    all_category_ids = (button_category_ids + slider_category_ids + grid_category_ids).compact.uniq
     categories = Category.where(ikea_id: all_category_ids).index_by(&:ikea_id)
   
     body_blocks.map do |block|
@@ -156,9 +172,11 @@ class ContentArticle < ApplicationRecord
   
       button_id = block_data["button_category_id"]
       slider_id = block_data["slider_category_id"]
+      g_category_ids = Array.wrap(block_data["grid_category_ids"])
   
       block_data["button_category"] = category_payload(categories[button_id])
       block_data["slider_category"] = category_payload(categories[slider_id])
+      block_data["grid_categories"] = g_category_ids.map { |id| category_payload(categories[id]) }.compact
   
       # ✅ гарантируем тип массива (на случай старых записей)
       block_data["slider_product_skus"] = Array.wrap(block_data["slider_product_skus"]).map(&:to_s)
@@ -173,6 +191,10 @@ class ContentArticle < ApplicationRecord
 
   def slider_category_ids
     body_blocks.map { |block| block["slider_category_id"] }.compact
+  end
+
+  def grid_category_ids
+    body_blocks.flat_map { |block| block["grid_category_ids"] }.compact
   end
 
   private
@@ -225,8 +247,15 @@ class ContentArticle < ApplicationRecord
       end
   
     slider_product_skus =
-      if template[:slider_enabled]
+      if template[:slider_enabled] || template[:products_grid_enabled]
         Array.wrap(raw_block&.fetch("slider_product_skus", [])).map(&:to_s).map(&:strip).reject(&:blank?).uniq
+      else
+        []
+      end
+
+    grid_category_ids =
+      if template[:categories_grid_enabled]
+        Array.wrap(raw_block&.fetch("grid_category_ids", [])).map(&:to_s).map(&:strip).reject(&:blank?).uniq
       else
         []
       end
@@ -238,9 +267,12 @@ class ContentArticle < ApplicationRecord
       "button_category_id" => raw_block&.fetch("button_category_id", nil).presence,
       "slider_enabled" => template[:slider_enabled],
       "button_enabled" => template[:button_enabled],
+      "products_grid_enabled" => template[:products_grid_enabled] || false,
+      "categories_grid_enabled" => template[:categories_grid_enabled] || false,
   
       "slider_category_id" => slider_category_id,
       "slider_product_skus" => slider_product_skus,
+      "grid_category_ids" => grid_category_ids,
   
       "images" => images,
       "position" => index

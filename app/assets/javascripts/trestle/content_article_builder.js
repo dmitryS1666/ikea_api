@@ -85,8 +85,11 @@
         button_category_id: existing.button_category_id || null,
         slider_enabled: template.slider_enabled,
         button_enabled: template.button_enabled,
+        products_grid_enabled: template.products_grid_enabled,
+        categories_grid_enabled: template.categories_grid_enabled,
         slider_category_id: existing.slider_category_id || null,
-        slider_product_skus: Array.isArray(existing.slider_product_skus) ? existing.slider_product_skus : [],      
+        slider_product_skus: Array.isArray(existing.slider_product_skus) ? existing.slider_product_skus : [],
+        grid_category_ids: Array.isArray(existing.grid_category_ids) ? existing.grid_category_ids : [],      
         images: template.image_slots.map(slot => {
           const matched = (existing.images || []).find(image => image.slot === slot.name);
           return {
@@ -132,10 +135,16 @@
       if (block.slider_enabled) {
         const sliderSettings = this.buildSliderSettings(block, index);
         blockWrapper.appendChild(sliderSettings);
+      } else if (block.products_grid_enabled) {
+        const gridSettings = this.buildSliderSettings(block, index, { title: "Настройки сетки товаров", hint: "Выберите категорию и товары для сетки." });
+        blockWrapper.appendChild(gridSettings);
+      } else if (block.categories_grid_enabled) {
+        const categoriesSettings = this.buildCategoriesGridSettings(block, index);
+        blockWrapper.appendChild(categoriesSettings);
       } else {
         const sliderNote = document.createElement("p");
         sliderNote.className = "block-slider-note";
-        sliderNote.textContent = "Этот блок не отображает слайдер товаров.";
+        sliderNote.textContent = "Этот блок не отображает слайдер или сетку товаров/категорий.";
         blockWrapper.appendChild(sliderNote);
       }
 
@@ -183,7 +192,7 @@
       return products;
     }
     
-    buildSliderSettings(block, index) {
+    buildSliderSettings(block, index, options = {}) {
       const container = document.createElement("div");
       container.className = "block-slider-settings";
       container.style.marginTop = "12px";
@@ -193,7 +202,7 @@
       container.style.background = "#fafafa";
     
       const title = document.createElement("strong");
-      title.textContent = "Настройки слайдера товаров";
+      title.textContent = options.title || "Настройки слайдера товаров";
       container.appendChild(title);
     
       // --- CATEGORY SELECT ---
@@ -234,14 +243,14 @@
       productsWrap.style.marginTop = "12px";
     
       const productsLabel = document.createElement("label");
-      productsLabel.textContent = "Товары в слайдере";
+      productsLabel.textContent = "Товары";
       productsWrap.appendChild(productsLabel);
     
       const hint = document.createElement("div");
       hint.className = "text-muted";
       hint.style.fontSize = "12px";
       hint.style.marginBottom = "6px";
-      hint.textContent = "Сначала выберите категорию, затем начните вводить название или SKU и добавляйте товары.";
+      hint.textContent = options.hint || "Сначала выберите категорию, затем начните вводить название или SKU и добавляйте товары.";
       productsWrap.appendChild(hint);
     
       const searchInput = document.createElement("input");
@@ -435,6 +444,108 @@
     
       return container;
     }    
+
+    buildCategoriesGridSettings(block, index) {
+      const container = document.createElement("div");
+      container.className = "block-categories-grid-settings";
+      container.style.marginTop = "12px";
+      container.style.padding = "12px";
+      container.style.border = "1px solid #e5e5e5";
+      container.style.borderRadius = "6px";
+      container.style.background = "#fafafa";
+
+      const title = document.createElement("strong");
+      title.textContent = "Настройки сетки категорий";
+      container.appendChild(title);
+
+      const gridWrap = document.createElement("div");
+      gridWrap.className = "block-field";
+      gridWrap.style.marginTop = "10px";
+
+      const label = document.createElement("label");
+      label.textContent = "Выберите категории для отображения";
+      gridWrap.appendChild(label);
+
+      const selectedIds = new Set(Array.isArray(block.grid_category_ids) ? block.grid_category_ids : []);
+
+      const selectedWrap = document.createElement("div");
+      selectedWrap.style.display = "flex";
+      selectedWrap.style.flexWrap = "wrap";
+      selectedWrap.style.gap = "6px";
+      selectedWrap.style.marginTop = "10px";
+      selectedWrap.style.marginBottom = "10px";
+
+      const renderSelected = () => {
+        selectedWrap.innerHTML = "";
+        if (selectedIds.size === 0) {
+          selectedWrap.textContent = "Категории не выбраны";
+          return;
+        }
+
+        selectedIds.forEach(id => {
+          const ctg = this.categories.find(c => String(c.ikea_id) === String(id));
+          const chip = document.createElement("span");
+          chip.style.display = "inline-flex";
+          chip.style.alignItems = "center";
+          chip.style.gap = "6px";
+          chip.style.padding = "4px 8px";
+          chip.style.background = "#fff";
+          chip.style.border = "1px solid #ddd";
+          chip.style.borderRadius = "4px";
+          chip.style.fontSize = "12px";
+
+          chip.textContent = ctg ? ctg.name : id;
+
+          const removeBtn = document.createElement("button");
+          removeBtn.type = "button";
+          removeBtn.textContent = "×";
+          removeBtn.style.border = "none";
+          removeBtn.style.background = "transparent";
+          removeBtn.style.cursor = "pointer";
+          removeBtn.addEventListener("click", () => {
+            selectedIds.delete(id);
+            this.blocks[index].grid_category_ids = Array.from(selectedIds);
+            this.syncHiddenField();
+            renderSelected();
+          });
+          chip.appendChild(removeBtn);
+          selectedWrap.appendChild(chip);
+        });
+      };
+
+      const select = document.createElement("select");
+      select.className = "form-control";
+      select.style.maxWidth = "420px";
+      const emptyOpt = document.createElement("option");
+      emptyOpt.value = "";
+      emptyOpt.textContent = "Добавить категорию...";
+      select.appendChild(emptyOpt);
+
+      this.categories.forEach(ctg => {
+        const opt = document.createElement("option");
+        opt.value = ctg.ikea_id;
+        opt.textContent = ctg.name;
+        select.appendChild(opt);
+      });
+
+      select.addEventListener("change", (e) => {
+        const id = e.target.value;
+        if (id && !selectedIds.has(id)) {
+          selectedIds.add(id);
+          this.blocks[index].grid_category_ids = Array.from(selectedIds);
+          this.syncHiddenField();
+          renderSelected();
+        }
+        e.target.value = "";
+      });
+
+      gridWrap.appendChild(selectedWrap);
+      gridWrap.appendChild(select);
+      container.appendChild(gridWrap);
+
+      renderSelected();
+      return container;
+    }
 
     buildBlockHeader(block, index) {
       const header = document.createElement("div");

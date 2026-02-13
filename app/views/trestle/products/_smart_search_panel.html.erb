@@ -1,5 +1,27 @@
 <div id="trestle-smart-search-panel" class="card mb-4">
   <div class="card-body">
+    <div class="d-flex gap-2 flex-wrap">
+      <%= link_to "⬇️ Выгрузить JSON для парсера расширенных атрибутов",
+                  admin.path(:export_extended_attrs_input),
+                  class: "btn btn-outline-primary",
+                  data: { turbo: false } %>
+
+      <%= form_tag admin.path(:import_extended_attrs),
+                  method: :post,
+                  multipart: true,
+                  class: "d-flex gap-2 align-items-center",
+                  data: { turbo: false } do %>
+        <%= file_field_tag :file, accept: "application/json", class: "form-control", style: "max-width: 340px;" %>
+        <%= submit_tag "⬆️ Загрузить атрибуты (JSON)",
+                      class: "btn btn-success",
+                      data: { confirm: "Загрузить и обновить продукты из JSON файла?" } %>
+      <% end %>
+    </div>
+  </div>
+
+  <hr>
+
+  <div class="card-body">
     <div class="d-flex justify-content-between align-items-center mb-2">
       <h3 class="h5 m-0">Умный поиск</h3>
       <span class="text-muted small">Algolia-like</span>
