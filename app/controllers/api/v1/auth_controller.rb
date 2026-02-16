@@ -44,7 +44,13 @@ module Api
       end
       
       def send_phone_code
-        result = PhoneAuthService.send_code(phone: params[:phone])
+        result = PhoneAuthService.send_code(
+          phone: params[:phone],
+          metadata: {
+            ip_address: request.remote_ip,
+            user_agent: request.user_agent
+          }
+        )
         
         if result[:success]
           render json: { message: result[:message] }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_02_15_000002) do
+ActiveRecord::Schema[7.1].define(version: 2026_02_16_060005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -391,6 +391,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_15_000002) do
     t.index ["status"], name: "index_parser_tasks_on_status"
     t.index ["task_type", "status"], name: "index_parser_tasks_on_task_type_and_status"
     t.index ["task_type"], name: "index_parser_tasks_on_task_type"
+  end
+
+  create_table "phone_verification_requests", force: :cascade do |t|
+    t.string "phone"
+    t.string "status"
+    t.text "error_message"
+    t.string "ip_address"
+    t.string "user_agent"
+    t.jsonb "metadata"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "code"
   end
 
   create_table "pickup_points", force: :cascade do |t|

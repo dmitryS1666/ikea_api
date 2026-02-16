@@ -161,15 +161,9 @@
                 <td><%= @product.features_ru %></td>
               </tr>
             <% end %>
-            <% if @product.care_instructions.present? %>
-              <tr>
-                <th>Инструкции по уходу:</th>
-                <td><%= @product.care_instructions %></td>
-              </tr>
-            <% end %>
             <% if @product.care_instructions_ru.present? %>
               <tr>
-                <th>Инструкции по уходу (RU):</th>
+                <th>Инструкции по уходу:</th>
                 <td><%= @product.care_instructions_ru %></td>
               </tr>
             <% end %>
@@ -197,24 +191,6 @@
                 <td><%= @product.designer %></td>
               </tr>
             <% end %>
-            <% if @product.designer_ru.present? %>
-              <tr>
-                <th>Дизайнер (RU):</th>
-                <td><%= @product.designer_ru %></td>
-              </tr>
-            <% end %>
-            <% if @product.safety_info.present? %>
-              <tr>
-                <th>Информация о безопасности:</th>
-                <td><%= @product.safety_info %></td>
-              </tr>
-            <% end %>
-            <% if @product.safety_info_ru.present? %>
-              <tr>
-                <th>Информация о безопасности (RU):</th>
-                <td><%= @product.safety_info_ru %></td>
-              </tr>
-            <% end %>
             <% if @product.good_info.present? %>
               <tr>
                 <th>Полезно знать:</th>
@@ -223,7 +199,7 @@
             <% end %>
             <% if @product.good_info_ru.present? %>
               <tr>
-                <th>Полезно знать (RU):</th>
+                <th>Полезно знать:</th>
                 <td><%= @product.good_info_ru %></td>
               </tr>
             <% end %>

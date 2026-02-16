@@ -1,0 +1,2 @@
+class PhoneVerificationRequest < ApplicationRecord
+end
