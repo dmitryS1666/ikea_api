@@ -91,6 +91,10 @@ class CheckoutService
     if order&.persisted?
       # Отправка уведомлений
       OrderNotificationService.call(order)
+      
+      # Синхронизация с CRM
+      CrmIntegrationService.sync_order(order)
+      
       { success: true, order: order }
     else
       { error: order&.errors&.full_messages&.join(', ') || 'Ошибка создания заказа' }

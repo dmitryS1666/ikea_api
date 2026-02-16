@@ -71,7 +71,7 @@ group :development, :test do
   gem "factory_bot_rails"
   gem "shoulda-matchers", "~> 6.0"
   # Загрузка переменных окружения из .env файла
-  gem "dotenv-rails"
+gem "webmock", "~> 3.19"
 end
 
 group :development do

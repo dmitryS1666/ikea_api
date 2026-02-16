@@ -440,4 +440,142 @@ rails log:clear
 
 ---
 
+# Тестовые сценарии
+# 1. Конфигурация
+TEST_EMAIL = "prod_test_#{Time.now.to_i}@example.com"
+SKU_TO_TEST = Product.where('price > 0').first&.sku
+
+unless SKU_TO_TEST
+  puts "❌ Ошибка: Товары с ценой не найдены"
+else
+  puts "--- ЗАПУСК ПРОВЕРКИ (V3) ---"
+  
+  begin
+    # 2. Создание пользователя
+    user = User.create!(
+      email: TEST_EMAIL,
+      username: "test_#{Time.now.to_i}",
+      password: SecureRandom.hex(10),
+      phone: "+7#{rand(10**9..10**10-1)}"
+    )
+    puts "✅ 1. Пользователь создан"
+
+    # 3. Создание заказа
+    order = Order.create!(
+      user: user,
+      status: :completed,
+      purchased_at: Time.current,
+      total_amount: 10.0,
+      full_name: "Final Check"
+    )
+    order.order_items.create!(product_sku: SKU_TO_TEST, quantity: 1, price: 10.0)
+    puts "✅ 2. Заказ создан"
+
+    # 4. Создание и публикация отзыва
+    review = Review.create!(
+      user: user,
+      product_sku: SKU_TO_TEST,
+      rating: 5,
+      body: "Проверка системы отзывов. Все системы работают штатно."
+    )
+    review.published!
+    puts "✅ 3. Отзыв опубликован"
+
+    # 5. Проверка рейтинга
+    product = Product.find_by(sku: SKU_TO_TEST)
+    puts "📊 4. Рейтинг товара: #{product.rating_avg} (Отзывов: #{product.rating_count})"
+
+  ensure
+  
+    # 6. ГАРАНТИРОВАННАЯ ОЧИСТКА В ПРАВИЛЬНОМ ПОРЯДКЕ
+    puts "--- ОЧИСТКА ДАННЫХ ---"
+    
+    if defined?(review) && review&.persisted?
+      review.destroy!
+      puts "🗑️ Отзыв удален"
+    end
+
+    if defined?(user) && user&.persisted?
+      # ВАЖНО: Удаляем заказы ПЕРЕД пользователем, чтобы не нарушить NOT NULL constraint
+      user.orders.destroy_all
+      user.destroy!
+      puts "🗑️ Заказы и пользователь удалены"
+    end
+
+    ProductRatingCalculator.recalculate!(SKU_TO_TEST)
+    final_p = Product.find_by(sku: SKU_TO_TEST)
+    puts "✅ 5. Рейтинг восстановлен: #{final_p.rating_avg}"
+    puts "--- ТЕСТ ЗАВЕРШЕН ---"
+  end
+end
+
+# 1. Настройка
+TEST_EMAIL = "cart_test_#{Time.now.to_i}@example.com"
+SKU_1 = Product.where('price > 0').first&.sku
+SKU_2 = Product.where('price > 0').last&.sku
+
+puts "--- ЗАПУСК ТЕСТА КОРЗИНЫ (V3) ---"
+
+begin
+  # --- ШАГ 1: ГОСТЕВАЯ КОРЗИНА ---
+  guest_token = SecureRandom.hex(24)
+  guest_cart = Cart.create!(guest_token: guest_token)
+  guest_cart.cart_items.create!(product_sku: SKU_1, quantity: 2)
+  puts "✅ 1. Гостевая корзина создана (SKU: #{SKU_1}, Кол-во: 2)"
+
+  # --- ШАГ 2: ПОЛЬЗОВАТЕЛЬ И ЕГО КОРЗИНА ---
+  user = User.create!(
+    email: TEST_EMAIL,
+    username: "cart_user_#{Time.now.to_i}",
+    password: "password123"
+  )
+  user_cart = user.create_cart!(guest_token: SecureRandom.hex(24))
+  # Специально добавляем ТОТ ЖЕ SKU_1, чтобы проверить логику объединения
+  user_cart.cart_items.create!(product_sku: SKU_1, quantity: 1)
+  user_cart.cart_items.create!(product_sku: SKU_2, quantity: 1)
+  puts "✅ 2. Корзина пользователя создана (SKU: #{SKU_1} (1шт), #{SKU_2} (1шт))"
+
+  # --- ШАГ 3: ПРАВИЛЬНОЕ СЛИЯНИЕ (с учетом уникальности) ---
+  puts "--- СЛИЯНИЕ ---"
+  guest_cart.cart_items.each do |g_item|
+    u_item = user_cart.cart_items.find_by(product_sku: g_item.product_sku)
+    if u_item
+      # Если товар уже есть, суммируем количество
+      u_item.update!(quantity: u_item.quantity + g_item.quantity)
+      g_item.destroy!
+    else
+      # Если товара нет, просто перепривязываем корзину
+      g_item.update!(cart: user_cart)
+    end
+  end
+  guest_cart.destroy!
+
+  # --- ШАГ 4: ПРОВЕРКА ---
+  user_cart.reload
+  item_1 = user_cart.cart_items.find_by(product_sku: SKU_1)
+  item_2 = user_cart.cart_items.find_by(product_sku: SKU_2)
+  
+  puts "📊 Итого в корзине:"
+  user_cart.cart_items.each { |i| puts "   - SKU: #{i.product_sku}, Кол-во: #{i.quantity}" }
+
+  if item_1&.quantity == 3 && item_2&.quantity == 1
+    puts "🚀 ТЕСТ ПРОЙДЕН: Количества просуммированы, товары сохранены"
+  else
+    puts "❌ ТЕСТ ПРОВАЛЕН: Ошибка в расчете количества или потере данных"
+  end
+
+ensure
+  # --- ОЧИСТКА ---
+  puts "--- ОЧИСТКА ---"
+  if defined?(user) && user&.persisted?
+    user.cart&.destroy
+    user.destroy!
+    puts "🗑️ Тестовые данные удалены"
+  end
+  Cart.find_by(guest_token: guest_token)&.destroy
+  puts "--- ЗАВЕРШЕНО ---"
+end
+
+---
+
 **Сделано с ❤️ для работы с данными IKEA**
