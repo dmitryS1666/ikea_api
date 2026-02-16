@@ -29,6 +29,7 @@ Trestle.resource(:products, model: Product) do
                  product.is_popular? ? :success : :secondary)
     end
     column :created_at, align: :center
+    column :updated_at, align: :center
     actions do |toolbar, instance, admin|
       toolbar.edit if admin.actions.include?(:edit)
       toolbar.delete if admin.actions.include?(:destroy)
@@ -82,85 +83,192 @@ Trestle.resource(:products, model: Product) do
     def import_extended_attrs
       file = params[:file]
       unless file.respond_to?(:read)
-        flash[:error] = "Не выбран JSON-файл."
+        flash[:error] = "Не выбран файл."
         return redirect_to admin.path(:index)
       end
-    
+
       raw = file.read
-      data = JSON.parse(raw)
-    
-      items =
-        if data.is_a?(Hash) && data["products"].is_a?(Array)
-          data["products"]
-        elsif data.is_a?(Array)
-          data
-        else
-          []
-        end
-    
-      allowed = %w[
-        sku
-        content
-        short_description
-        materials
-        features
-        care_instructions
-        environmental_info
-        designer
-        safety_info
-        good_to_know
-        assembly_documents
-      ]
-    
+      lines = raw.split("\n")
+      
       updated = 0
       skipped = 0
       errors = 0
-    
-      items.each do |item|
+
+      lines.each do |line|
+        next if line.blank?
+        begin
+          item = JSON.parse(line)
+        rescue JSON::ParserError
+          errors += 1
+          next
+        end
+
         sku = item["sku"].to_s.strip
         if sku.blank?
           skipped += 1
           next
         end
-    
+
         product = Product.find_by(sku: sku)
         unless product
           skipped += 1
           next
         end
-    
-        attrs = item.slice(*allowed)
-    
-        # нормализация типов (чтобы update был стабильным)
-        if attrs["materials"].is_a?(Array)
-          attrs["materials"] = attrs["materials"].join("\n")
+
+        # Собираем все атрибуты
+        raw_attributes = item["attributes"] || {}
+        
+        # Маппинг известных полей
+        mapped_attrs = {}
+        
+        # 1. Описание (Opis) -> short_description
+        opis = item["short_description"] || raw_attributes["Opis"]
+        if opis.is_a?(Array)
+          mapped_attrs["short_description"] = opis.join("\n")
+        elsif opis.is_a?(String)
+          mapped_attrs["short_description"] = opis
         end
-    
-        # features в модели сериализован как JSON — ок и Array, и Hash
-        # если вдруг прилетит строка, превращаем в массив строк:
-        if attrs["features"].is_a?(String)
-          attrs["features"] = attrs["features"].split("\n").map(&:strip).reject(&:blank?)
-        end
-    
-        # assembly_documents сериализован как JSON — ожидаем Array<Hash>
-        if attrs["assembly_documents"].is_a?(String)
-          begin
-            parsed_docs = JSON.parse(attrs["assembly_documents"])
-            attrs["assembly_documents"] = parsed_docs if parsed_docs.is_a?(Array)
-          rescue
-            # оставим как есть, чтобы увидеть проблему
+
+        # 2. Материалы и уход
+        mat_and_care = raw_attributes["Materiały i pielęgnacja"] || {}
+        if mat_and_care.is_a?(Hash)
+          materials = mat_and_care["Materiały"]
+          if materials.is_a?(Hash)
+            mapped_attrs["materials"] = materials.map { |k, v| "#{k}: #{v}" }.join("\n")
+          elsif materials.is_a?(String)
+            mapped_attrs["materials"] = materials
+          end
+          
+          care = mat_and_care["Pielęgnacja"]
+          if care.is_a?(Hash)
+            mapped_attrs["care_instructions"] = care.map do |k, v|
+              vals = v.is_a?(Array) ? v.join(", ") : v
+              "#{k}: #{vals}"
+            end.join("\n")
+          elsif care.is_a?(Array)
+            mapped_attrs["care_instructions"] = care.join("\n")
+          elsif care.is_a?(String)
+            mapped_attrs["care_instructions"] = care
           end
         end
-    
+
+        # 3. Безопасность
+        mapped_attrs["safety_info"] = raw_attributes["Bezpieczeństwo i zgodność z przepisami"] if raw_attributes["Bezpieczeństwo i zgodność z przepisami"]
+
+        # 4. Хорошо знать
+        mapped_attrs["good_to_know"] = raw_attributes["Dobrze wiedzieć"] if raw_attributes["Dobrze wiedzieć"]
+
+        # 5. Дизайнер
+        mapped_attrs["designer"] = raw_attributes["Projektant"] if raw_attributes["Projektant"]
+
+        # 6. Документы для сборки
+        if raw_attributes["Montaż i dokumenty"].is_a?(Array)
+          mapped_attrs["assembly_documents"] = raw_attributes["Montaż i dokumenty"].map do |doc|
+            title = doc["Tytuł"] || doc["Tytuл"]
+            url = doc["Link"]
+            # Загружаем документ локально через прокси
+            local_url = DocumentDownloader.download(url, product_sku: sku)
+            { "title" => title, "url" => local_url || url }
+          end
+        end
+
+        # 7. Размеры (все что с cm, kg, inch)
+        dimensions_data = {}
+        # Ищем размеры в основном словаре атрибутов
+        dimension_keys = raw_attributes.keys.select { |k| k =~ /Szerokość|Głębokość|Wysokość|Długość|Waga|Obciążenie|Siedzisko|Łóżko/ }
+        dimension_keys.each { |k| dimensions_data[k] = raw_attributes[k] }
+        
+        # Также проверяем внутри Opakowanie -> Szczegóły (там часто лежат размеры упаковок)
+        if raw_attributes["Opakowanie"].is_a?(Hash) && raw_attributes["Opakowanie"]["Szczegóły"].is_a?(Array)
+          raw_attributes["Opakowanie"]["Szczegóły"].each_with_index do |pkg, idx|
+            pkg.each do |pk, pv|
+              next if pk == "Paczka(i)"
+              dimensions_data["Упаковка #{idx+1} #{pk}"] = pv
+            end
+          end
+        end
+
+        mapped_attrs["dimensions"] = dimensions_data.to_json if dimensions_data.present?
+
+        # Перевод размеров
+        if dimensions_data.present?
+          translated_dimensions = {}
+          dimensions_data.each do |k, v|
+            # Если ключ содержит "Упаковка X", переводим только польскую часть
+            if k =~ /^(Упаковка \d+)\s+(.+)$/
+              prefix = $1
+              polish_part = $2
+              translated_part = TranslationService.translate(polish_part)
+              translated_key = "#{prefix} #{translated_part}"
+            else
+              translated_key = TranslationService.translate(k)
+            end
+            translated_dimensions[translated_key] = v
+          end
+          mapped_attrs["dimensions_ru"] = translated_dimensions.to_json
+        end
+
+        # 8. Упаковка
+        mapped_attrs["packaging"] = raw_attributes["Opakowanie"] if raw_attributes["Opakowanie"]
+
+        # 9. Все атрибуты в JSONB
+        mapped_attrs["full_attributes"] = raw_attributes
+
+        # Перевод на русский
+        translated_attrs = {}
+        mapped_attrs.each do |key, value|
+          next if %w[assembly_documents dimensions dimensions_ru packaging full_attributes care_instructions].include?(key)
+          next if value.blank?
+          
+          # Переводим только если это строка (контент атрибута)
+          if value.is_a?(String)
+            begin
+              translated_attrs["#{key}_ru"] = TranslationService.translate(value)
+            rescue => e
+              Rails.logger.error("[TRESTLE] Translation error for #{sku} field #{key}: #{e.message}")
+            end
+          end
+        end
+
+        # Инструкции по уходу (не переводим, оставляем как есть)
+        translated_attrs["care_instructions_ru"] = mapped_attrs["care_instructions"] if mapped_attrs["care_instructions"]
+
+        # Размеры переводим всегда (ключи)
+        if dimensions_data.present?
+          translated_dimensions = {}
+          dimensions_data.each do |k, v|
+            # Если ключ содержит "Упаковка X", переводим только польскую часть
+            if k =~ /^(Упаковка \d+)\s+(.+)$/
+              prefix = $1
+              polish_part = $2.strip
+              # Принудительно используем MyMemory для коротких слов
+              begin
+                translated_part = TranslationService.translate_with_my_memory(polish_part)
+              rescue
+                translated_part = TranslationService.translate(polish_part)
+              end
+              translated_key = "#{prefix} #{translated_part}"
+            else
+              translated_key = TranslationService.translate(k)
+            end
+            translated_dimensions[translated_key] = v
+          end
+          mapped_attrs["dimensions_ru"] = translated_dimensions.to_json
+        end
+
         begin
-          product.update!(attrs.except("sku"))
+          # Объединяем все атрибуты и переводы
+          final_attrs = mapped_attrs.merge(translated_attrs)
+          
+          # Принудительно обновляем колонки, минуя dirty tracking Rails
+          product.update_columns(final_attrs.slice("dimensions_ru", "short_description_ru", "materials_ru", "care_instructions_ru", "full_attributes", "dimensions"))
           updated += 1
         rescue => e
           Rails.logger.error("[TRESTLE] import_extended_attrs sku=#{sku} error=#{e.class}: #{e.message}")
           errors += 1
         end
       end
-    
+
       flash[:message] = "Импорт завершен: обновлено=#{updated}, пропущено=#{skipped}, ошибок=#{errors}"
       redirect_to admin.path(:index)
     end    
@@ -210,6 +318,7 @@ Trestle.resource(:products, model: Product) do
       number_field :package_volume, label: "Объем упаковки (Package Volume)"
       text_field :package_dimensions, label: "Размеры упаковки (Package Dimensions)"
       text_field :dimensions, label: "Размеры (Dimensions)"
+      text_field :dimensions_ru, label: "Размеры RU (Dimensions RU)"
       check_box :is_parcel, label: "Посылка (Is Parcel)"
     end
 
@@ -227,6 +336,40 @@ Trestle.resource(:products, model: Product) do
       text_field :delivery_name, label: "Название доставки (Delivery Name)"
       number_field :delivery_cost, label: "Стоимость доставки (Delivery Cost)"
       text_field :delivery_reason, label: "Причина доставки (Delivery Reason)"
+    end
+
+    tab :extended, label: "Расширенные данные" do
+      row do
+        col(sm: 6) { text_area :short_description, label: "Описание (PL)" }
+        col(sm: 6) { text_area :short_description_ru, label: "Описание (RU)" }
+      end
+      row do
+        col(sm: 6) { text_area :materials, label: "Материалы (PL)" }
+        col(sm: 6) { text_area :materials_ru, label: "Материалы (RU)" }
+      end
+      row do
+        col(sm: 6) { text_area :care_instructions, label: "Инструкции по уходу (PL)" }
+        col(sm: 6) { text_area :care_instructions_ru, label: "Инструкции по уходу (RU)" }
+      end
+
+      static_field :assembly_documents, label: "Инструкции (PDF)" do
+        if product.assembly_documents.is_a?(Array)
+          content_tag(:ul) do
+            product.assembly_documents.map do |doc|
+              next if doc["url"].blank?
+              content_tag(:li) do
+                link_to(doc["url"], doc["url"], target: "_blank")
+              end
+            end.compact.join.html_safe
+          end
+        else
+          "Инструкции отсутствуют"
+        end
+      end
+
+      static_field :full_attributes_json, label: "Все атрибуты (JSON)" do
+        content_tag(:pre, JSON.pretty_generate(product.full_attributes)) if product.full_attributes.present?
+      end
     end
   end
 

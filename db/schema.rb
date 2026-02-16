@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_02_12_144045) do
+ActiveRecord::Schema[7.1].define(version: 2026_02_15_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -508,6 +508,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_12_144045) do
     t.integer "popularity_score", default: 0
     t.integer "views_count", default: 0
     t.integer "sales_count", default: 0
+    t.jsonb "full_attributes", default: {}
+    t.jsonb "packaging", default: {}
+    t.text "dimensions_ru"
     t.index ["category_id"], name: "index_products_on_category_id"
     t.index ["is_bestseller"], name: "index_products_on_is_bestseller"
     t.index ["is_popular"], name: "index_products_on_is_popular"

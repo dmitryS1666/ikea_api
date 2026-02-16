@@ -37,6 +37,10 @@ class Product < ApplicationRecord
   serialize :features, coder: JSON
   serialize :assembly_documents, coder: JSON
   
+  # Динамические атрибуты (JSONB поля в PostgreSQL не требуют serialize)
+  # serialize :full_attributes, coder: JSON
+  # serialize :packaging, coder: JSON
+  
   # Callbacks
   before_save :calculate_delivery, if: :weight_changed?
   
