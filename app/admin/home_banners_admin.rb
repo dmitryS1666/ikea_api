@@ -14,9 +14,21 @@ Trestle.resource(:home_banners, model: HomeBanner) do
     column :id
     column :image, align: :center do |banner|
       if banner.image.attached?
-        image_tag Rails.application.routes.url_helpers.rails_blob_path(banner.image, only_path: true), style: "max-width: 80px; max-height: 60px;"
+        begin
+          # rails_storage_proxy_path вместо rails_blob_path для исключения редиректа
+          image_path = Rails.application.routes.url_helpers.rails_storage_proxy_path(banner.image, only_path: true)
+          
+          link_to image_path, target: '_blank', title: "Открыть в полном размере" do
+            image_tag(image_path, 
+                      class: 'img-fluid', 
+                      style: 'max-width: 80px; max-height: 60px; border: 1px solid #eee;', 
+                      onerror: "this.style.display='none'; this.parentElement.innerHTML='<em class=\\'text-muted\\' style=\\'font-size: 10px;\\'>404</em>';")
+          end
+        rescue => e
+          content_tag :span, "Ошибка", class: "text-danger", title: e.message
+        end
       else
-        content_tag :span, "Нет изображения", class: "text-muted"
+        content_tag :span, "Нет", class: "text-muted"
       end
     end
     column :section do |banner|

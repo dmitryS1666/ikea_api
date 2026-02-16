@@ -12,6 +12,50 @@ class CrmIntegrationService
     }
   end
 
+  def self.exchange_code_for_tokens(code)
+    url = "#{base_url}/oauth2/access_token"
+    payload = {
+      client_id: ENV['AMO_CRM_CLIENT_ID'],
+      client_secret: ENV['AMO_CRM_CLIENT_SECRET'],
+      grant_type: 'authorization_code',
+      code: code,
+      redirect_uri: ENV['AMO_CRM_REDIRECT_URI'] || 'https://localhost'
+    }
+
+    response = post(url, body: payload.to_json, headers: { 'Content-Type' => 'application/json' })
+    
+    if response.success?
+      tokens = response.parsed_response
+      Rails.logger.info "[AmoCRM] Tokens received successfully"
+      # В идеале здесь нужно сохранить токены в БД или Redis
+      # Для теста просто выведем их (в продакшене так делать нельзя!)
+      tokens
+    else
+      Rails.logger.error "[AmoCRM] Token exchange failed: #{response.body}"
+      nil
+    end
+  end
+
+  def self.refresh_access_token(refresh_token)
+    url = "#{base_url}/oauth2/access_token"
+    payload = {
+      client_id: ENV['AMO_CRM_CLIENT_ID'],
+      client_secret: ENV['AMO_CRM_CLIENT_SECRET'],
+      grant_type: 'refresh_token',
+      refresh_token: refresh_token,
+      redirect_uri: ENV['AMO_CRM_REDIRECT_URI'] || 'https://localhost'
+    }
+
+    response = post(url, body: payload.to_json, headers: { 'Content-Type' => 'application/json' })
+    
+    if response.success?
+      response.parsed_response
+    else
+      Rails.logger.error "[AmoCRM] Token refresh failed: #{response.body}"
+      nil
+    end
+  end
+
   def self.sync_user(user)
     # Поиск контакта по телефону или email
     contact_id = find_contact(user)
@@ -20,17 +64,7 @@ class CrmIntegrationService
     return false if contact_id == :error
 
     payload = {
-      name: user.username || user.email,
-      custom_fields_values: [
-        {
-          field_id: 'PHONE',
-          values: [{ value: user.phone }]
-        },
-        {
-          field_id: 'EMAIL',
-          values: [{ value: user.email }]
-        }
-      ]
+      name: user.username || user.email
     }
 
     if contact_id
@@ -61,11 +95,7 @@ class CrmIntegrationService
 
     unless contact_id
       contact_payload = {
-        name: order.full_name.presence || order.user.username || order.user.email,
-        custom_fields_values: [
-          { field_id: 'PHONE', values: [{ value: order.phone || order.user.phone }] },
-          { field_id: 'EMAIL', values: [{ value: order.user.email }] }
-        ]
+        name: order.full_name.presence || order.user.username || order.user.email
       }
       contact_id = create_contact_with_id(contact_payload)
     end

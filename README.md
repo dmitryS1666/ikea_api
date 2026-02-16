@@ -576,6 +576,71 @@ ensure
   puts "--- ЗАВЕРШЕНО ---"
 end
 
+Проверка работы АМО
+
+bundle exec rails runner "
+# 1. Загружаем окружение
+File.readlines('.env').each { |l| k, v = l.strip.split('=', 2); ENV[k] = v if k && v } if File.exist?('.env')
+
+puts '🚀 ЗАПУСК ФИНАЛЬНОЙ ПРОВЕРКИ ИНТЕГРАЦИИ'
+puts '--------------------------------------'
+
+# 2. Берем последнего пользователя
+user = User.all.last
+unless user
+  puts '❌ Ошибка: В базе нет пользователей'
+  return
+end
+puts \"👤 Пользователь: #{user.email || user.username}\"
+
+# 3. Создаем тестовый заказ с товаром
+order = Order.transaction do
+  o = Order.create!(
+    user: user,
+    status: :created,
+    total_amount: rand(100..500).to_f,
+    full_name: 'Тест Проверки',
+    phone: '+37529' + rand(1000000..9999999).to_s,
+    delivery_type: 'pickup',
+    payment_method: 'cash',
+    address_json: { city: 'Minsk', note: 'Тестовая проверка интеграции' }
+  )
+  
+  OrderItem.create!(
+    order: o,
+    product_sku: 'TEST.SKU.001',
+    quantity: 1,
+    price: o.total_amount
+  )
+  o
+end
+puts \"📦 Создан заказ №#{order.id} на сумму #{order.total_amount} BYN\"
+
+# 4. Синхронизация
+puts '--- Синхронизация с AmoCRM ---'
+begin
+  # Синхронизируем пользователя (создаем/обновляем контакт)
+  user_sync = CrmIntegrationService.sync_user(user)
+  print user_sync ? '✅ Контакт: OK | ' : '❌ Контакт: FAIL | '
+
+  # Синхронизируем заказ (создаем сделку)
+  order_sync = CrmIntegrationService.sync_order(order)
+  if order_sync
+    order.reload
+    puts \"✅ Сделка: OK (ID: #{order.crm_external_id})\"
+    puts '--------------------------------------'
+    puts \"🎉 ПРОВЕРКА ЗАВЕРШЕНА УСПЕШНО!\"
+    puts \"Проверьте сделку в AmoCRM по ссылке: https://#{ENV['AMO_CRM_SUBDOMAIN']}.amocrm.ru/leads/detail/#{order.crm_external_id}\"
+  else
+    puts '❌ Сделка: FAIL'
+    puts 'Проверьте log/development.log или log/production.log для деталей.'
+  end
+rescue => e
+  puts \"💥 Произошла ошибка: #{e.message}\"
+  puts e.backtrace.first
+end
+"
+
 ---
 
 **Сделано с ❤️ для работы с данными IKEA**
