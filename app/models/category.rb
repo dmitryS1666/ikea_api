@@ -1,6 +1,8 @@
 class Category < ApplicationRecord
   self.primary_key = 'ikea_id'
   
+  has_one_attached :icon
+  
   validates :ikea_id, presence: true, uniqueness: true
   validates :name, presence: true
   
@@ -10,6 +12,9 @@ class Category < ApplicationRecord
   # Новая связь many-to-many
   has_many :category_products, foreign_key: :category_id, primary_key: :ikea_id, dependent: :destroy
   has_many :products_through_categories, through: :category_products, source: :product
+  
+  has_one :seo_meta, as: :seoable, class_name: 'SeoMetum', dependent: :destroy
+  accepts_nested_attributes_for :seo_meta, allow_destroy: true
   
   serialize :parent_ids, coder: JSON
   

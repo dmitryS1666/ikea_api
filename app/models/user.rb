@@ -4,12 +4,12 @@ class User < ApplicationRecord
   
   has_secure_password(validations: false)
   
-  validates :username, presence: true, uniqueness: true
-  validates :email, uniqueness: true, allow_nil: true
-  validates :phone, uniqueness: true, allow_nil: true
+  validates :username, presence: true
+  validates :phone, presence: true, uniqueness: true
+  validates :email, uniqueness: true, allow_nil: true, allow_blank: true
   validates :role, inclusion: { in: %w[user admin manager] }
   validates :country_code, inclusion: { in: %w[RB РФ РК] }, allow_blank: true
-  validates :password, presence: true, on: :create, unless: -> { phone.present? }
+  validates :password, presence: true, on: :create, if: -> { role == 'admin' || role == 'manager' }
   
   scope :active, -> { where(is_active: true) }
 

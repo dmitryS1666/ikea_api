@@ -11,6 +11,9 @@ class Product < ApplicationRecord
   has_many :category_products, dependent: :destroy
   has_many :categories, through: :category_products, source: :category
   
+  has_one :seo_meta, as: :seoable, class_name: 'SeoMetum', dependent: :destroy
+  accepts_nested_attributes_for :seo_meta, allow_destroy: true
+  
   def primary_category
     category || categories.order(:name).first
   end

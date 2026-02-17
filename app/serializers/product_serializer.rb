@@ -99,5 +99,9 @@ class ProductSerializer
   attribute :breadcrumbs, if: ->(_record, params) { params&.dig(:detail) } do |product|
     Seo::BreadcrumbsBuilder.for_product(product)
   end
+
+  attribute :seo do |product|
+    SeoHelper.meta_for(product)
+  end
 end
 

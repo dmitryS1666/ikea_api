@@ -14,10 +14,25 @@ class CategorySerializer
              :is_bulky,
              :show_delivery_block,
              :show_reviews_block,
-             :show_tips_block
+             :show_tips_block,
+             :icon_url
   
+  attribute :icon_url do |category|
+    if category.icon.attached?
+      begin
+        Rails.application.routes.url_helpers.rails_blob_url(category.icon, only_path: true)
+      rescue
+        nil
+      end
+    end
+  end
+
   attribute :parent_ids do |category|
     category.parent_ids || []
+  end
+
+  attribute :seo do |category|
+    SeoHelper.meta_for(category)
   end
 end
 

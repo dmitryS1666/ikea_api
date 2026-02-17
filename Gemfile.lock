@@ -376,6 +376,8 @@ GEM
       httpclient (~> 2.7)
     thor (1.4.0)
     timeout (0.4.4)
+    tinymce-rails (6.8.6.1)
+      railties (>= 3.1.1)
     trestle (0.10.1)
       activemodel (>= 6.0.0)
       kaminari (>= 1.1.0)
@@ -383,6 +385,9 @@ GEM
       turbo-rails (>= 2.0.6)
     trestle-auth (0.5.0)
       bcrypt (~> 3.1.7)
+      trestle (~> 0.10.0)
+    trestle-tinymce (0.4.0)
+      tinymce-rails (>= 5.1, < 7)
       trestle (~> 0.10.0)
     tsort (0.2.0)
     turbo-rails (2.0.20)
@@ -449,6 +454,7 @@ DEPENDENCIES
   telegram-bot
   trestle (~> 0.9)
   trestle-auth (~> 0.4)
+  trestle-tinymce (~> 0.4.0)
   tzinfo-data
   webmock (~> 3.19)
 

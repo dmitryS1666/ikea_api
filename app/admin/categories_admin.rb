@@ -157,6 +157,24 @@ Trestle.resource(:categories, model: Category) do
       # Очищаем кэш счетчиков дочерних категорий (старый формат для совместимости)
       Rails.cache.delete_matched("category_*_children_count")
     end
+
+    def categories_admin_params
+      params.require(:category).permit(
+        :ikea_id, :name, :translated_name, :is_popular, :default_sort, 
+        :header_menu, :is_deleted, :header_menu_position, :delivery_days,
+        :is_bulky, :show_delivery_block, :show_reviews_block, :show_tips_block,
+        :icon
+      )
+    end
+  end
+
+  params do |params|
+    params.require(:category).permit(
+      :ikea_id, :name, :translated_name, :is_popular, :default_sort, 
+      :header_menu, :is_deleted, :header_menu_position, :delivery_days,
+      :is_bulky, :show_delivery_block, :show_reviews_block, :show_tips_block,
+      :icon
+    )
   end
 
   routes do
@@ -249,6 +267,73 @@ Trestle.resource(:categories, model: Category) do
     number_field :header_menu_position
     number_field :delivery_days, help: "Срок доставки в днях (если не задано, используется значение по умолчанию)"
 
+    divider
+    h3 "Иконка категории"
+    divider
+
+    row do
+      col(sm: 12) do
+        concat(content_tag(:div, id: "category-icon-preview-container", style: "margin-bottom: 15px;") do
+          content = +""
+          if category.persisted? && category.icon.attached?
+            content << content_tag(:div, class: "current-icon-preview", style: "margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px; display: inline-block;") do
+              image_tag(Rails.application.routes.url_helpers.rails_blob_path(category.icon, only_path: true),
+                       style: "max-width: 100px; max-height: 100px; display: block; margin: 0 auto; border: 1px solid #ddd; border-radius: 4px;",
+                       id: "current-icon-preview") +
+              content_tag(:p, "Текущая иконка", style: "text-align: center; margin-top: 10px; color: #666; font-size: 12px;")
+            end
+          end
+          content << content_tag(:div, id: "new-icon-preview", style: "display: none; margin-bottom: 15px; padding: 10px; background: #e8f5e9; border-radius: 4px; display: inline-block;") do
+            content_tag(:img, "", id: "icon-preview", style: "max-width: 100px; max-height: 100px; display: block; margin: 0 auto; border: 1px solid #4caf50; border-radius: 4px;") +
+            content_tag(:p, "Предпросмотр новой иконки", style: "text-align: center; margin-top: 10px; color: #2e7d32; font-size: 12px; font-weight: bold;")
+          end
+          content.html_safe
+        end)
+
+        file_field :icon, label: "Иконка (SVG, PNG, WebP)"
+        
+        # JavaScript для предпросмотра иконки
+        concat(content_tag(:script, type: "text/javascript") do
+          raw <<-JS.strip_heredoc
+            (function() {
+              function initIconPreview() {
+                var fileInput = document.querySelector('input[type="file"][name*="[icon]"]');
+                if (!fileInput) return;
+
+                var preview = document.getElementById('icon-preview');
+                var container = document.getElementById('new-icon-preview');
+                var currentPreview = document.querySelector('.current-icon-preview');
+
+                fileInput.addEventListener('change', function(e) {
+                  if (e.target.files && e.target.files[0]) {
+                    var reader = new FileReader();
+
+                    reader.onload = function(event) {
+                      if (preview) preview.src = event.target.result;
+                      if (container) container.style.display = 'inline-block';
+                      if (currentPreview) currentPreview.style.display = 'none';
+                    };
+
+                    reader.readAsDataURL(e.target.files[0]);
+                  } else {
+                    if (container) container.style.display = 'none';
+                    if (currentPreview) currentPreview.style.display = 'inline-block';
+                  }
+                });
+              }
+
+              document.addEventListener('turbo:load', initIconPreview);
+              if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initIconPreview);
+              } else {
+                initIconPreview();
+              }
+            })();
+          JS
+        end)
+      end
+    end
+
     divider 
     h3 "Отображение блоков в карточке товара"
     divider 
@@ -261,5 +346,24 @@ Trestle.resource(:categories, model: Category) do
       col(sm: 6) { check_box :show_reviews_block, label: "Показывать отзывы" }
       col(sm: 6) { check_box :show_tips_block, label: "Показывать советы" }
     end
+
+    tab :seo, label: "SEO" do
+      fields_for :seo_meta, category.seo_meta || category.build_seo_meta do |seo|
+        seo.text_field :title, label: "SEO Title"
+        seo.text_area :description, label: "SEO Description"
+        seo.text_field :keywords, label: "SEO Keywords"
+        seo.text_field :robots, label: "SEO Robots"
+        seo.tinymce :seo_text, label: "SEO Текст"
+      end
+    end
+  end
+
+  params do |params|
+    params.require(:category).permit(
+      :ikea_id, :name, :translated_name, :is_popular, :default_sort,
+      :header_menu, :is_deleted, :header_menu_position, :delivery_days,
+      :is_bulky, :show_delivery_block, :show_reviews_block, :show_tips_block,
+      seo_meta_attributes: [:id, :title, :description, :keywords, :robots, :seo_text, :_destroy]
+    )
   end
 end

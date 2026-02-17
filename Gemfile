@@ -88,3 +88,5 @@ group :development do
   gem "bcrypt_pbkdf", "~> 1.1"
 end
 
+
+gem "trestle-tinymce", "~> 0.4.0"

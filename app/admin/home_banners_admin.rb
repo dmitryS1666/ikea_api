@@ -5,8 +5,8 @@ Trestle.resource(:home_banners, model: HomeBanner) do
 
   scopes do
     scope :all, default: true
-    scope :main, -> { HomeBanner.main }, label: "Основная информация"
-    scope :secondary, -> { HomeBanner.secondary }, label: "Баннеры"
+    scope :main, -> { HomeBanner.main }, label: "Главный баннер"
+    scope :secondary, -> { HomeBanner.secondary }, label: "Горизонтальынй баннер"
     scope :active, -> { HomeBanner.active }, label: "Активные"
   end
 
@@ -40,9 +40,9 @@ Trestle.resource(:home_banners, model: HomeBanner) do
     column :section do |banner|
       case banner.section
       when 'main'
-        status_tag('Основная', :info)
+        status_tag('Главный баннер', :info)
       when 'secondary'
-        status_tag('Баннеры', :success)
+        status_tag('Горизонтальынй баннер', :success)
       else
         banner.section
       end
@@ -93,8 +93,8 @@ Trestle.resource(:home_banners, model: HomeBanner) do
     row do
       col(sm: 6) do
         select :section, {
-          'Основная информация' => 'main',
-          'Баннеры' => 'secondary'
+          'Главный баннер' => 'main',
+          'Горизонтальынй баннер' => 'secondary'
         }, label: "Секция", html: { id: "home_banner_section", data: { variants: section_variants.to_json } }
       end
       col(sm: 6) do

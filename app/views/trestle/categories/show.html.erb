@@ -7,7 +7,7 @@
     <div class="col-md-6">
       <div class="card">
         <div class="card-header">
-          <h5>Основная информация</h5>
+          <h5>Главный баннер</h5>
         </div>
         <div class="card-body">
           <table class="table">
@@ -96,6 +96,26 @@
     </div>
 
     <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5>Иконка категории</h5>
+        </div>
+        <div class="card-body text-center">
+          <% if @category.icon.attached? %>
+            <%= image_tag main_app.rails_storage_proxy_path(@category.icon, only_path: true), 
+                          class: 'img-fluid', 
+                          style: 'max-width: 128px; max-height: 128px; border: 1px solid #eee; padding: 10px; border-radius: 8px; background: #f9f9f9;' %>
+            <p class="text-muted small mt-2">Эта иконка отображается в меню и списках</p>
+          <% else %>
+            <div class="py-4">
+              <i class="fa fa-image text-muted" style="font-size: 48px; opacity: 0.3;"></i>
+              <p class="text-muted mt-2">Иконка не установлена</p>
+              <%= link_to "Установить иконку", edit_categories_admin_path(@category), class: "btn btn-sm btn-outline-primary" %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header">
           <h5>Картинка категории</h5>

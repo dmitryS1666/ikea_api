@@ -10,7 +10,11 @@ module Api
         Product.find_by!(sku: sku)
 
         cart_item = cart.cart_items.find_or_initialize_by(product_sku: sku)
-        cart_item.quantity = cart_item.quantity.to_i + quantity
+        if cart_item.new_record?
+          cart_item.quantity = quantity
+        else
+          cart_item.quantity = cart_item.quantity.to_i + quantity
+        end
         cart_item.save!
 
         cart.touch_expiration!

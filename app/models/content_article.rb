@@ -72,6 +72,9 @@ class ContentArticle < ApplicationRecord
   has_many :linked_categories, through: :content_article_categories, source: :category
   has_many_attached :body_block_images
 
+  has_one :seo_meta, as: :seoable, class_name: 'SeoMetum', dependent: :destroy
+  accepts_nested_attributes_for :seo_meta, allow_destroy: true
+
   validates :title, :slug, presence: true
   validates :slug, uniqueness: true
 

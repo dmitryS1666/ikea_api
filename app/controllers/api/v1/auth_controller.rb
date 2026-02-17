@@ -2,45 +2,24 @@ module Api
   module V1
     class AuthController < ApplicationController
       def login
-        user = User.find_by(username: params[:username])
+        # Для обычных пользователей вход теперь только по номеру телефона
+        # Для админов и менеджеров оставляем вход по паролю
+        user = User.find_by(username: params[:username]) || User.find_by(email: params[:username]) || User.find_by(phone: params[:username].to_s.gsub(/\D/, ''))
         
-        if user&.authenticate(params[:password]) && user.is_active?
-          # Merge guest cart if present
-          guest_token = request.headers['X-Cart-Token'].presence || params[:cart_token].presence
-          if guest_token
-            CartMergeService.call(guest_token: guest_token, user: user)
+        if user && (user.admin? || user.manager?)
+          if user.authenticate(params[:password]) && user.is_active?
+            return render_login_success(user)
+          else
+            return render json: { error: 'Неверные учетные данные' }, status: :unauthorized
           end
+        end
 
-          token = JwtService.encode({ user_id: user.id })
-          render json: {
-            token: token,
-            user: {
-              id: user.id,
-              username: user.username,
-              role: user.role
-            }
-          }
-        else
-          render json: { error: 'Неверные учетные данные' }, status: :unauthorized
-        end
+        render json: { error: 'Для входа используйте подтверждение по номеру телефона' }, status: :forbidden
       end
-      
+
       def register
-        user = User.new(user_params)
-        
-        if user.save
-          token = JwtService.encode({ user_id: user.id })
-          render json: {
-            token: token,
-            user: {
-              id: user.id,
-              username: user.username,
-              role: user.role
-            }
-          }, status: :created
-        else
-          render json: { errors: user.errors.full_messages }, status: :unprocessable_entity
-        end
+        # Регистрация теперь происходит через verify_phone_code
+        render json: { error: 'Используйте подтверждение по телефону для регистрации' }, status: :method_not_allowed
       end
       
       def send_phone_code
@@ -60,10 +39,20 @@ module Api
       end
       
       def verify_phone_code
-        result = PhoneAuthService.verify_code(phone: params[:phone], code: params[:code])
+        result = PhoneAuthService.verify_code(
+          phone: params[:phone], 
+          code: params[:code],
+          username: params[:username],
+          email: params[:email]
+        )
         
         if result[:success]
           user = result[:user]
+          
+          # Если пользователь уже существовал, но передано новое имя, обновляем его
+          if !result[:is_new] && params[:username].present?
+            user.update(username: params[:username])
+          end
           
           # Merge guest cart if present
           guest_token = request.headers['X-Cart-Token'].presence || params[:cart_token].presence
@@ -81,7 +70,8 @@ module Api
               id: user.id,
               username: user.username,
               role: user.role,
-              phone: user.phone
+              phone: user.phone,
+              email: user.email
             },
             is_new: result[:is_new]
           }, status: status
@@ -91,6 +81,25 @@ module Api
       end
 
       private
+
+      def render_login_success(user)
+        # Merge guest cart if present
+        guest_token = request.headers['X-Cart-Token'].presence || params[:cart_token].presence
+        if guest_token
+          CartMergeService.call(guest_token: guest_token, user: user)
+        end
+
+        token = JwtService.encode({ user_id: user.id })
+        render json: {
+          token: token,
+          user: {
+            id: user.id,
+            username: user.username,
+            role: user.role,
+            phone: user.phone
+          }
+        }
+      end
       
       def user_params
         params.require(:user).permit(:username, :email, :password, :password_confirmation)
@@ -98,4 +107,3 @@ module Api
     end
   end
 end
-

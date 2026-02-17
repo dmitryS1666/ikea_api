@@ -20,8 +20,9 @@ info:
     - `GET /api/v1/categories/header_menu` — Категории для верхнего меню
     - `GET /api/v1/categories/{id}/products` — Товары в категории
     - `GET /api/v1/homepage/slider/main` — Слайдер на главной
-    - `POST /api/v1/auth/login` — Вход
-    - `POST /api/v1/auth/register` — Регистрация
+    - `POST /api/v1/auth/login` — Вход (только для админов/менеджеров)
+    - `POST /api/v1/auth/phone/send` — Запрос звонка для входа/регистрации
+    - `POST /api/v1/auth/phone/verify` — Подтверждение кода из звонка (вход/регистрация)
     
     **Приватные эндпоинты (Требуется Bearer Token):**
     - `POST /api/v1/products/{sku}/reviews` — Оставить отзыв
@@ -357,7 +358,8 @@ paths:
 
   /api/v1/auth/login:
     post:
-      summary: Вход в систему (JWT)
+      summary: Вход в систему (JWT) — только для персонала
+      description: Вход по паролю разрешен только пользователям с ролями admin или manager. Обычные пользователи должны использовать вход по номеру телефона.
       tags:
         - Authentication
       requestBody:
@@ -372,6 +374,7 @@ paths:
               properties:
                 username:
                   type: string
+                  description: Username, Email или Телефон
                 password:
                   type: string
       responses:
@@ -388,10 +391,13 @@ paths:
                     $ref: '#/components/schemas/User'
         '401':
           description: Неверные учетные данные
+        '403':
+          description: Доступ запрещен (для обычных пользователей)
 
   /api/v1/auth/phone/send:
     post:
-      summary: Отправить код подтверждения на телефон
+      summary: Запросить звонок для подтверждения телефона
+      description: Инициирует звонок на указанный номер. Кодом подтверждения являются последние 4 цифры входящего номера.
       tags:
         - Authentication
       requestBody:
@@ -408,11 +414,19 @@ paths:
                   example: "375291234567"
       responses:
         '200':
-          description: Код отправлен
+          description: Звонок инициирован
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
 
   /api/v1/auth/phone/verify:
     post:
-      summary: Проверить код и войти/зарегистрироваться
+      summary: Подтвердить код и войти/зарегистрироваться
+      description: Если пользователь с таким телефоном не существует, он будет создан. В этом случае поле username обязательно.
       tags:
         - Authentication
       requestBody:
@@ -429,6 +443,13 @@ paths:
                   type: string
                 code:
                   type: string
+                  description: Последние 4 цифры номера входящего звонка
+                username:
+                  type: string
+                  description: Имя пользователя (обязательно при регистрации)
+                email:
+                  type: string
+                  description: Email пользователя (необязательно)
                 cart_token:
                   type: string
                   description: Опциональный токен гостевой корзины для привязки к пользователю
@@ -444,33 +465,10 @@ paths:
                     type: string
                   user:
                     $ref: '#/components/schemas/User'
-
-  /api/v1/auth/register:
-    post:
-      summary: Регистрация
-      tags:
-        - Authentication
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - username
-                - password
-              properties:
-                username:
-                  type: string
-                email:
-                  type: string
-                password:
-                  type: string
-                password_confirmation:
-                  type: string
-      responses:
+                  is_new:
+                    type: boolean
         '201':
-          description: Пользователь создан
+          description: Пользователь успешно зарегистрирован
           content:
             application/json:
               schema:
@@ -480,8 +478,23 @@ paths:
                     type: string
                   user:
                     $ref: '#/components/schemas/User'
+                  is_new:
+                    type: boolean
+        '401':
+          description: Неверный или просроченный код
         '422':
-          description: Ошибка валидации
+          description: Ошибка валидации (например, не указано имя при регистрации)
+
+  /api/v1/auth/register:
+    post:
+      summary: Регистрация (Устарело)
+      description: Данный метод отключен. Используйте подтверждение по телефону (/api/v1/auth/phone/verify) для регистрации.
+      deprecated: true
+      tags:
+        - Authentication
+      responses:
+        '405':
+          description: Метод не разрешен
 
   /api/v1/cart:
     get:
@@ -1160,7 +1173,7 @@ paths:
     get:
       summary: Баннеры основной секции главной страницы
       description: |
-        Возвращает активные баннеры секции "Основная информация" для главной страницы.
+        Возвращает активные баннеры секции "Главный баннер" для главной страницы.
         Баннеры фильтруются по активному статусу (active = true) и отсортированы по позиции.
         Доступные варианты размеров: 1500×516, 572×594
       tags:
@@ -1177,15 +1190,20 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/HomeBanner'
+                  meta:
+                    type: object
+                    properties:
+                      seo:
+                        $ref: '#/components/schemas/SeoMeta'
         '500':
           description: Внутренняя ошибка сервера
 
   /api/v1/homepage/slider/banners:
     get:
-      summary: Баннеры дополнительной секции главной страницы
+      summary: Горизонтальынй баннер дополнительной секции главной страницы
       description: |
-        Возвращает активные баннеры секции "Баннеры" для главной страницы.
-        Баннеры фильтруются по активному статусу (active = true) и отсортированы по позиции.
+        Возвращает активные Горизонтальынй баннер секции "Баннеры" для главной страницы.
+        Горизонтальынй баннер фильтруются по активному статусу (active = true) и отсортированы по позиции.
         Доступные варианты размеров: 1500×256, 742×256
       tags:
         - Homepage
@@ -1639,6 +1657,8 @@ components:
                   type: string
                   nullable: true
                   description: Дополнительная информация о доставке (например, для не крупногабаритных товаров)
+            seo:
+              $ref: '#/components/schemas/SeoMeta'
 
     Breadcrumb:
       type: object
@@ -1690,6 +1710,9 @@ components:
             show_tips_block:
               type: boolean
               description: Флаг отображения блока советов
+            icon_url:
+              type: string
+              description: URL иконки категории
             header_menu:
               type: boolean
             header_menu_position:
@@ -1704,6 +1727,8 @@ components:
             updated_at:
               type: string
               format: date-time
+            seo:
+              $ref: '#/components/schemas/SeoMeta'
 
     CategoryTree:
       allOf:
@@ -1848,6 +1873,8 @@ components:
               type: integer
             active:
               type: boolean
+            seo:
+              $ref: '#/components/schemas/SeoMeta'
             linked_products:
               type: array
               items:
@@ -1893,7 +1920,7 @@ components:
             section:
               type: string
               enum: [main, secondary]
-              description: Секция баннера - main (Основная информация) или secondary (Баннеры)
+              description: Секция баннера - main (Главный баннер) или secondary (Баннеры)
             variant:
               type: string
               enum: [main_1500x516, main_572x594, secondary_1500x256, secondary_742x256]
@@ -1999,6 +2026,26 @@ components:
                   type: array
                   items:
                     type: string
+
+    SeoMeta:
+      type: object
+      properties:
+        title:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        keywords:
+          type: string
+          nullable: true
+        robots:
+          type: string
+          nullable: true
+        seo_text:
+          type: string
+          nullable: true
+          description: HTML текст для SEO блока
 
     ReviewInput:
       type: object

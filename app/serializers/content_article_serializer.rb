@@ -43,4 +43,8 @@ class ContentArticleSerializer
       }
     end.compact
   end
+
+  attribute :seo do |article|
+    SeoHelper.meta_for(article)
+  end
 end

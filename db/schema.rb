@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_02_16_060005) do
+ActiveRecord::Schema[7.1].define(version: 2026_02_17_132541) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -255,6 +255,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_16_060005) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["parameter"], name: "index_filters_on_parameter", unique: true
+  end
+
+  create_table "global_seo_settings", force: :cascade do |t|
+    t.string "target_type"
+    t.string "title_template"
+    t.string "description_template"
+    t.string "keywords_template"
+    t.string "robots"
+    t.text "seo_text"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "home_banners", force: :cascade do |t|
@@ -629,6 +640,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_16_060005) do
     t.datetime "updated_at", null: false
     t.index ["customer_id"], name: "index_search_query_logs_on_customer_id"
     t.index ["query"], name: "index_search_query_logs_on_query"
+  end
+
+  create_table "seo_meta", force: :cascade do |t|
+    t.string "seoable_type", null: false
+    t.bigint "seoable_id", null: false
+    t.string "title"
+    t.text "description"
+    t.string "keywords"
+    t.string "robots"
+    t.text "seo_text"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["seoable_type", "seoable_id"], name: "index_seo_meta_on_seoable"
   end
 
   create_table "translation_caches", force: :cascade do |t|

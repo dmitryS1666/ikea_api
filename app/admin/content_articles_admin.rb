@@ -97,6 +97,16 @@ Trestle.resource(:content_articles, model: ContentArticle) do
         col(sm: 6) { check_box :active }
       end
     end
+
+    tab :seo, label: "SEO" do
+      fields_for :seo_meta, article.seo_meta || article.build_seo_meta do |seo|
+        seo.text_field :title, label: "SEO Title"
+        seo.text_area :description, label: "SEO Description"
+        seo.text_field :keywords, label: "SEO Keywords"
+        seo.text_field :robots, label: "SEO Robots"
+        seo.tinymce :seo_text, label: "SEO Текст"
+      end
+    end
   end
 
   params do |params|
@@ -116,7 +126,8 @@ Trestle.resource(:content_articles, model: ContentArticle) do
       :pinned,
       :pinned_position,
       :published_at,
-      :active
+      :active,
+      seo_meta_attributes: [:id, :title, :description, :keywords, :robots, :seo_text, :_destroy]
     )
   end
 end

@@ -275,7 +275,7 @@ Trestle.resource(:products, model: Product) do
   end
 
   form do |product|
-    tab :basic, label: "Основная информация" do
+    tab :basic, label: "Главный баннер" do
       text_field :sku, label: "Артикул (SKU)"
       text_field :unique_id, label: "Уникальный ID (Unique ID)"
       text_field :item_no, label: "Номер позиции (Item No)"
@@ -368,10 +368,33 @@ Trestle.resource(:products, model: Product) do
       end
 
       static_field :full_attributes_json, label: "Все атрибуты (JSON)" do
-        content_tag(:pre, JSON.pretty_generate(product.full_attributes)) if product.full_attributes.present?
+        content_tag :pre, JSON.pretty_generate(product.full_attributes) if product.full_attributes.present?
+      end
+    end
+
+    tab :seo, label: "SEO" do
+      fields_for :seo_meta, product.seo_meta || product.build_seo_meta do |seo|
+        seo.text_field :title, label: "SEO Title"
+        seo.text_area :description, label: "SEO Description"
+        seo.text_field :keywords, label: "SEO Keywords"
+        seo.text_field :robots, label: "SEO Robots"
+        seo.tinymce :seo_text, label: "SEO Текст"
       end
     end
   end
 
+  params do |params|
+    params.require(:product).permit(
+      :sku, :unique_id, :item_no, :url, :name, :name_ru, :collection, :category_id,
+      :price, :quantity, :home_delivery, :weight, :net_weight, :package_volume,
+      :package_dimensions, :dimensions, :dimensions_ru, :is_parcel,
+      :is_bestseller, :is_popular, :translated, :popularity_score, :views_count, :sales_count,
+      :delivery_type, :delivery_name, :delivery_cost, :delivery_reason,
+      :short_description, :short_description_ru, :materials, :materials_ru,
+      :care_instructions, :care_instructions_ru,
+      category_ids: [],
+      seo_meta_attributes: [:id, :title, :description, :keywords, :robots, :seo_text, :_destroy]
+    )
+  end
 end
 
