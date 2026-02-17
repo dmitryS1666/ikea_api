@@ -72,5 +72,8 @@ module IkeaApi
       namespace: 'ikea_api',
       expires_in: 1.hour
     }
+
+    # Переносим маршруты ActiveStorage под префикс /admin, который уже проброшен в NPM
+    config.active_storage.routes_prefix = '/admin/storage'
   end
 end

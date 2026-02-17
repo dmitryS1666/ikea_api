@@ -15,13 +15,19 @@ Trestle.resource(:home_banners, model: HomeBanner) do
     column :image, align: :center do |banner|
       if banner.image.attached?
         begin
-          # rails_storage_proxy_path вместо rails_blob_path для исключения редиректа
-          image_path = Rails.application.routes.url_helpers.rails_storage_proxy_path(banner.image, only_path: true)
+          # Генерируем путь через прокси
+          path = main_app.rails_storage_proxy_path(banner.image, only_path: true)
           
-          link_to image_path, target: '_blank', title: "Открыть в полном размере" do
-            image_tag(image_path, 
+          # Если NPM не пускает /rails, но пускает /images, 
+          # мы можем попробовать подменить начало пути, 
+          # но это сработает только если в Rails есть такой маршрут.
+          # Поэтому просто используем proxy_path и надеемся, что вы сможете 
+          # починить NPM или добавить локацию /rails позже.
+          
+          link_to path, target: '_blank', title: "Открыть оригинал" do
+            image_tag(path, 
                       class: 'img-fluid', 
-                      style: 'max-width: 80px; max-height: 60px; border: 1px solid #eee;', 
+                      style: 'max-width: 80px; max-height: 60px; border: 1px solid #eee; border-radius: 4px;', 
                       onerror: "this.style.display='none'; this.parentElement.innerHTML='<em class=\\'text-muted\\' style=\\'font-size: 10px;\\'>404</em>';")
           end
         rescue => e
