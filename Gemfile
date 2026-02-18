@@ -51,6 +51,8 @@ gem "ferrum", "~> 0.15"
 # Telegram уведомления
 gem "telegram-bot"
 
+gem "roo"
+
 # Pagination
 gem "kaminari"
 
