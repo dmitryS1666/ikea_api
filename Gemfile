@@ -61,6 +61,8 @@ gem "rswag"
 gem "rswag-api"
 gem "rswag-ui"
 
+gem "dotenv"
+
 # Trestle Admin Panel
 gem "trestle", "~> 0.9"
 gem "trestle-auth", "~> 0.4"
