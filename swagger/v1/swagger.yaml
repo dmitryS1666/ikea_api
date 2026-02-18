@@ -2029,23 +2029,27 @@ components:
 
     SeoMeta:
       type: object
+      description: SEO метаданные страницы. Если поля title/description не заполнены вручную в админке, они генерируются автоматически на основе шаблонов с учетом города пользователя.
       properties:
         title:
           type: string
           nullable: true
+          example: "SONGESAND шкаф платяной купить в Минске | Интернет-магазин IKEYA"
         description:
           type: string
           nullable: true
+          example: "Купить SONGESAND шкаф платяной в Минске по доступной цене в интернет-магазине IKEYA. Доставка по всей Беларуси. Самовывоз. Заказывайте в интернет-магазине IKEYA."
         keywords:
           type: string
           nullable: true
         robots:
           type: string
           nullable: true
+          example: "index, follow"
         seo_text:
           type: string
           nullable: true
-          description: HTML текст для SEO блока
+          description: HTML текст для SEO блока внизу страницы
 
     ReviewInput:
       type: object

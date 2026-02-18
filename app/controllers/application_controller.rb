@@ -23,6 +23,14 @@ class ApplicationController < ActionController::API
     nil
   end
   
+  def current_city
+    request.headers['X-User-City'] || params[:city] || 'minsk'
+  end
+
+  def current_city_in
+    Seo::CityMapper.call(current_city)
+  end
+
   def current_user
     @current_user
   end

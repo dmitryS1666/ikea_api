@@ -20,10 +20,10 @@ module Api
       end
       
       def show
-        product = Product.find_by(sku: params[:sku])
+        product = Product.includes(:seo_meta).find_by(sku: params[:sku])
         render json: ProductSerializer.new(product, {
           include: [:category],
-          params: { detail: true }
+          params: { detail: true, city: current_city }
         })
       end
       

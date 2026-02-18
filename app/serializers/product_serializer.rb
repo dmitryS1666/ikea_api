@@ -100,8 +100,8 @@ class ProductSerializer
     Seo::BreadcrumbsBuilder.for_product(product)
   end
 
-  attribute :seo do |product|
-    SeoHelper.meta_for(product)
+  attribute :seo do |product, params|
+    SeoHelper.meta_for(product, params[:city])
   end
 end
 

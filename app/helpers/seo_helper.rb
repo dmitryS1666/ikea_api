@@ -1,5 +1,5 @@
 module SeoHelper
-  def self.meta_for(record)
+  def self.meta_for(record, city_code = nil)
     personal = record.seo_meta
     target_type = case record
                   when Product then 'product'
@@ -9,11 +9,12 @@ module SeoHelper
                   end
 
     global = GlobalSeoSetting.find_by(target_type: target_type) if target_type
+    city_in = Seo::CityMapper.call(city_code)
 
     {
-      title: personal&.title.presence || build_global_title(global, record),
-      description: personal&.description.presence || build_global_description(global, record),
-      keywords: personal&.keywords.presence || global&.keywords_template,
+      title: render_template(personal&.title.presence || build_global_title(global, record, city_in), record, city_in),
+      description: render_template(personal&.description.presence || build_global_description(global, record, city_in), record, city_in),
+      keywords: render_template(personal&.keywords.presence || global&.keywords_template, record, city_in),
       robots: personal&.robots.presence || global&.robots,
       seo_text: personal&.seo_text.presence || global&.seo_text
     }
@@ -21,15 +22,35 @@ module SeoHelper
 
   private
 
-  def self.build_global_title(global, record)
-    return nil unless global&.title_template.present?
-    name = record.respond_to?(:translated_name) ? record.translated_name : record.title
-    global.title_template.gsub('{{name}}', name.to_s)
+  def self.render_template(template_string, record, city_in)
+    return nil if template_string.blank?
+
+    name = if record.is_a?(Product)
+             record.name_ru.presence || record.name
+           elsif record.is_a?(Category)
+             record.translated_name.presence || record.name
+           else
+             record.respond_to?(:translated_name) ? record.translated_name : (record.respond_to?(:title) ? record.title : record.name)
+           end
+
+    sanitize_meta(
+      template_string.to_s
+        .gsub('{{name}}', name.to_s)
+        .gsub('{{city}}', city_in.to_s)
+        .gsub('{{store_name}}', "Интернет-магазин IKEYA")
+    )
   end
 
-  def self.build_global_description(global, record)
-    return nil unless global&.description_template.present?
-    name = record.respond_to?(:translated_name) ? record.translated_name : record.title
-    global.description_template.gsub('{{name}}', name.to_s)
+  def self.sanitize_meta(text)
+    return nil if text.blank?
+    ActionController::Base.helpers.strip_tags(text).squish
+  end
+
+  def self.build_global_title(global, record, city_in)
+    global&.title_template
+  end
+
+  def self.build_global_description(global, record, city_in)
+    global&.description_template
   end
 end

@@ -373,12 +373,21 @@ Trestle.resource(:products, model: Product) do
     end
 
     tab :seo, label: "SEO" do
-      fields_for :seo_meta, product.seo_meta || product.build_seo_meta do |seo|
-        seo.text_field :title, label: "SEO Title"
-        seo.text_area :description, label: "SEO Description"
-        seo.text_field :keywords, label: "SEO Keywords"
-        seo.text_field :robots, label: "SEO Robots"
-        seo.tinymce :seo_text, label: "SEO Текст"
+      seo_obj = product.seo_meta || product.build_seo_meta
+      fields_for :seo_meta, seo_obj do |seo|
+        row do
+          col(sm: 12) { seo.text_field :title, label: "SEO Title", help: "Если пусто, будет сгенерировано автоматически" }
+        end
+        row do
+          col(sm: 12) { seo.text_area :description, label: "SEO Description", help: "Если пусто, будет сгенерировано автоматически" }
+        end
+        row do
+          col(sm: 6) { seo.text_field :keywords, label: "SEO Keywords" }
+          col(sm: 6) { seo.text_field :robots, label: "SEO Robots", placeholder: "index, follow" }
+        end
+        row do
+          col(sm: 12) { seo.tinymce :seo_text, label: "SEO Текст" }
+        end
       end
     end
   end

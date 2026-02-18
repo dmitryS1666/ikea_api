@@ -31,8 +31,8 @@ class CategorySerializer
     category.parent_ids || []
   end
 
-  attribute :seo do |category|
-    SeoHelper.meta_for(category)
+  attribute :seo do |category, params|
+    SeoHelper.meta_for(category, params[:city])
   end
 end
 

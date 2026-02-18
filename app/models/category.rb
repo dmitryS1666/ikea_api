@@ -14,7 +14,7 @@ class Category < ApplicationRecord
   has_many :products_through_categories, through: :category_products, source: :product
   
   has_one :seo_meta, as: :seoable, class_name: 'SeoMetum', dependent: :destroy
-  accepts_nested_attributes_for :seo_meta, allow_destroy: true
+  accepts_nested_attributes_for :seo_meta, allow_destroy: true, update_only: true
   
   serialize :parent_ids, coder: JSON
   

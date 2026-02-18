@@ -9,8 +9,10 @@ module Api
       end
       
       def show
-        category = Category.find_by(ikea_id: params[:id])
-        render json: CategorySerializer.new(category)
+        category = Category.includes(:seo_meta).find_by(ikea_id: params[:id])
+        render json: CategorySerializer.new(category, {
+          params: { city: current_city }
+        })
       end
 
       def products
