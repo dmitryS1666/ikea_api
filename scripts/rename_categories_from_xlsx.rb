@@ -70,7 +70,7 @@ puts "================================="
 xlsx = Roo::Excelx.new(file_path)
 sheet = xlsx.sheet(DEFAULT_SHEET)
 
-headers = sheet.row(1).map(&:to_s)
+sheet.row(1).map(&:to_s)
 # header_index = headers.each_with_index.to_h
 
 # missing = TREE_COLS.reject { |c| header_index.key?(c) }
