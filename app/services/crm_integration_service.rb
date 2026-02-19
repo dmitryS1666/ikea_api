@@ -61,46 +61,44 @@ class CrmIntegrationService
     # Если find_contact вернул :error, значит была ошибка API
     return { success: false, error: "API Error during contact search" } if contact_id == :error
 
+    custom_fields = [
+      {
+        field_id: contact_field_id('GDPR_CONSENT'),
+        values: [{ value: user.gdpr_consent }]
+      },
+      {
+        field_id: contact_field_id('NEWSLETTER_CONSENT'),
+        values: [{ value: user.newsletter_consent }]
+      },
+      {
+        field_id: contact_field_id('EXTERNAL_ID'),
+        values: [{ value: user.id.to_s }]
+      }
+    ]
+
+    # Добавляем телефон и email в правильном формате для multitext полей
+    if user.phone.present?
+      custom_fields << {
+        field_id: contact_field_id('PHONE'),
+        values: [{ value: user.phone, enum_code: 'MOB' }]
+      }
+    end
+
+    if user.email.present?
+      custom_fields << {
+        field_id: contact_field_id('EMAIL'),
+        values: [{ value: user.email, enum_code: 'WORK' }]
+      }
+    end
+
     payload = {
-      name: user.username || user.email,
-      custom_fields_values: [
-        {
-          field_id: contact_field_id('COUNTRY'),
-          values: [{ value: user.country_code }]
-        },
-        {
-          field_id: contact_field_id('GDPR_CONSENT'),
-          values: [{ value: user.gdpr_consent }]
-        },
-        {
-          field_id: contact_field_id('NEWSLETTER_CONSENT'),
-          values: [{ value: user.newsletter_consent }]
-        },
-        {
-          field_id: contact_field_id('EXTERNAL_ID'),
-          values: [{ value: user.id.to_s }]
-        },
-        {
-          field_id: contact_field_id('REGISTRATION_DATE'),
-          values: [{ value: user.created_at.to_i }]
-        }
-      ].compact
+      name: user.username.presence || user.email || user.phone,
+      custom_fields_values: custom_fields
     }
 
     response = if contact_id
       patch("#{base_url}/api/v4/contacts/#{contact_id}", body: payload.to_json, headers: headers)
     else
-      # Добавляем телефон и email при создании
-      payload[:custom_fields_values] << {
-        field_id: contact_field_id('PHONE'),
-        values: [{ value: user.phone }]
-      } if user.phone.present?
-      
-      payload[:custom_fields_values] << {
-        field_id: contact_field_id('EMAIL'),
-        values: [{ value: user.email }]
-      } if user.email.present?
-
       post("#{base_url}/api/v4/contacts", body: [payload].to_json, headers: headers)
     end
 
@@ -118,15 +116,9 @@ class CrmIntegrationService
     contact_id = find_contact(user)
     return unless contact_id && contact_id != :error
 
-    payload = {
-      custom_fields_values: [
-        {
-          field_id: contact_field_id('LAST_LOGIN'),
-          values: [{ value: Time.current.to_i }]
-        }
-      ]
-    }
-    patch("#{base_url}/api/v4/contacts/#{contact_id}", body: payload.to_json, headers: headers)
+    # В вашем списке нет явного поля LAST_LOGIN, 
+    # если нужно отслеживать, создайте поле и добавьте его ID в mapping
+    Rails.logger.info "[AmoCRM] Last login update for user #{user.id} (contact #{contact_id})"
   end
 
   def self.notify_return(return_request)
@@ -165,6 +157,9 @@ class CrmIntegrationService
 
     return { success: false, error: "Could not create or find contact" } unless contact_id
 
+    # Подготовка списка товаров для поля
+    items_text = order.order_items.map { |oi| "#{oi.product_sku} x #{oi.quantity}" }.join("\n")
+
     # 2. Создаем сделку (Lead)
     lead_payload = {
       name: "Заказ №#{order.id} от #{order.full_name}",
@@ -175,14 +170,45 @@ class CrmIntegrationService
           values: [{ value: order.payment_method }]
         },
         {
-          field_id: contact_field_id('DELIVERY_TYPE'),
-          values: [{ value: order.delivery_type }]
+          field_id: contact_field_id('ORDER_NUMBER'),
+          values: [{ value: order.id.to_s }]
+        },
+        {
+          field_id: contact_field_id('ORDER_DATE'),
+          values: [{ value: order.created_at.to_i }]
+        },
+        {
+          field_id: contact_field_id('ITEMS_LIST'),
+          values: [{ value: items_text }]
         }
       ],
       _embedded: {
         contacts: [{ id: contact_id }]
       }
     }
+
+    # Добавляем адрес, если есть
+    if order.address_json.present?
+      address_text = order.address_json.values.join(", ")
+      lead_payload[:custom_fields_values] << {
+        field_id: contact_field_id('ADDRESS'),
+        values: [{ value: address_text }]
+      }
+    end
+
+    # Маппинг типа доставки в select поле AmoCRM
+    delivery_enum_id = case order.delivery_type
+    when 'courier' then 831835 # Courier
+    when 'pickup'  then 831831 # Evropost
+    else nil
+    end
+
+    if delivery_enum_id
+      lead_payload[:custom_fields_values] << {
+        field_id: contact_field_id('DELIVERY_TYPE'),
+        values: [{ enum_id: delivery_enum_id }]
+      }
+    end
 
     response = post("#{base_url}/api/v4/leads", body: [lead_payload].to_json, headers: headers)
     
@@ -248,8 +274,20 @@ class CrmIntegrationService
   end
 
   def self.contact_field_id(code)
-    # В AmoCRM системные ID полей могут отличаться, обычно это:
-    # PHONE: 'PHONE', EMAIL: 'EMAIL' в API v4 можно использовать коды
-    code
+    mapping = {
+      'PHONE' => 145813,
+      'EMAIL' => 145815,
+      'GDPR_CONSENT' => 150883,
+      'EXTERNAL_ID' => 151485,
+      'NEWSLETTER_CONSENT' => 578785,
+      'VERIFIED' => 578787,
+      'PAYMENT_METHOD' => 573935,
+      'DELIVERY_TYPE' => 578791,
+      'ORDER_NUMBER' => 578801,
+      'ORDER_DATE' => 578799,
+      'ITEMS_LIST' => 578789,
+      'ADDRESS' => 578793
+    }
+    mapping[code] || code
   end
 end
