@@ -134,7 +134,7 @@ end
   row = sheet.row(r)
   catid  = string_id(row[idx[COL_CAT_ID]])
   status = norm(row[idx[COL_STATUS]])
-  link   = norm(row[idx[COL_LINK]])
+  norm(row[idx[COL_LINK]])
 
   next if catid.nil?
 

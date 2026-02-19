@@ -253,13 +253,13 @@ curl http://localhost:3000/api/v1/products \
 AmoCRM использует протокол OAuth2. Для работы интеграции необходимо настроить переменные окружения:
 
 1. **Создайте интеграцию** в AmoCRM (`Настройки -> Интеграции -> Создать интеграцию`).
-2. **Redirect URL**: `https://ваш-домен.com/api/v1/debug/amo_crm/exchange_token`.
+2. **Redirect URL**: `http://45.135.234.22/api/v1/debug/amo_crm/exchange_token`.
 3. **Настройте `.env`**:
    ```env
    AMO_CRM_SUBDOMAIN=ваш_поддомен // имя магазина в AMO CRM
    AMO_CRM_CLIENT_ID=ваш_client_id
    AMO_CRM_CLIENT_SECRET=ваш_client_secret
-   AMO_CRM_REDIRECT_URI=https://ваш-домен.com/api/v1/debug/amo_crm/exchange_token
+   AMO_CRM_REDIRECT_URI=http://45.135.234.22/api/v1/debug/amo_crm/exchange_token
    ```
 4. **Первичный обмен токена**:
    - Получите `code` от AmoCRM (через URL авторизации).
@@ -270,7 +270,7 @@ AmoCRM использует протокол OAuth2. Для работы инт�
 Для получения обновлений из CRM (например, смена статуса заказа):
 
 1. В AmoCRM перейдите в `Настройки -> Интеграции -> Webhooks`.
-2. Добавьте хук на URL: `https://ваш-домен.com/api/v1/webhooks/amo_crm`.
+2. Добавьте хук на URL: `http://45.135.234.22/api/v1/webhooks/amo_crm`.
 3. Подпишитесь на события: "Статус сделки изменен", "Сделка добавлена", "Контакт изменен".
 
 ### 3. Отладка и мониторинг
@@ -281,7 +281,7 @@ AmoCRM использует протокол OAuth2. Для работы инт�
 
 ## 🚀 Деплой
 
-Проект настроен для деплоя через [Kamal](https://kamal-deploy.org).
+Проект настроен для деплоя через Capistrano.
 
 ### Быстрый старт
 
