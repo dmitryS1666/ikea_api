@@ -47,8 +47,8 @@ Rails.application.configure do
   # Отключено для работы с kamal-proxy (SSL будет на уровне proxy)
   config.force_ssl = false
 
-  # Log to STDOUT by default
-  config.logger = ActiveSupport::Logger.new(STDOUT)
+  # Log to STDOUT and file
+  config.logger = ActiveSupport::Logger.new(Rails.root.join("log", "production.log"))
     .tap  { |logger| logger.formatter = ::Logger::Formatter.new }
     .then { |logger| ActiveSupport::TaggedLogging.new(logger) }
 

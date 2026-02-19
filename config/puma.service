@@ -3,32 +3,26 @@ Description=IKEA API Puma Server
 After=network.target postgresql.service redis-server.service
 
 [Service]
-Type=notify
+Type=simple
 User=deploy
 Group=deploy
-WorkingDirectory=/var/www/ikea_api/current
+WorkingDirectory=/home/deploy/apps/ikea_back/current
 Environment="RAILS_ENV=production"
 Environment="ASDF_DATA_DIR=/home/deploy/.asdf"
 Environment="PATH=/home/deploy/.asdf/shims:/home/deploy/.asdf/bin:/usr/local/bin:/usr/bin:/bin"
-EnvironmentFile=/var/www/ikea_api/shared/.env
+EnvironmentFile=/home/deploy/apps/ikea_back/shared/.env
 
 # Puma будет использовать конфигурацию из config/puma.rb
-# Socket будет создан в shared/tmp/sockets/puma.sock
-# Загружаем переменные из .env и устанавливаем PUMA_BIND для Unix socket
-ExecStart=/bin/bash -lc 'source $HOME/.asdf/asdf.sh && source /var/www/ikea_api/shared/.env && cd /var/www/ikea_api/current && export PUMA_BIND="tcp://0.0.0.0:3001" && export PUMA_STATE="/var/www/ikea_api/shared/tmp/pids/puma.state" && export PUMA_PID="/var/www/ikea_api/shared/tmp/pids/puma.pid" && bundle exec puma -C config/puma.rb'
+ExecStart=/bin/bash -lc 'source $HOME/.asdf/asdf.sh && source /home/deploy/apps/ikea_back/shared/.env && cd /home/deploy/apps/ikea_back/current && export PUMA_BIND="tcp://0.0.0.0:3001" && bundle exec puma -C config/puma.rb'
 ExecReload=/bin/kill -USR1 $MAINPID
 
 # Restart policy
 Restart=always
 RestartSec=10
 
-# Security
-NoNewPrivileges=true
-PrivateTmp=true
-
 # Logging
-StandardOutput=journal
-StandardError=journal
+StandardOutput=append:/home/deploy/apps/ikea_back/shared/log/production.log
+StandardError=append:/home/deploy/apps/ikea_back/shared/log/production.log
 SyslogIdentifier=ikea_api_puma
 
 [Install]
