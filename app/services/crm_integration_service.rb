@@ -14,9 +14,10 @@ class CrmIntegrationService
 
   def self.log_request(method, url, options)
     Rails.logger.info "[AmoCRM Request] #{method.upcase} #{url}"
-    Rails.logger.info "[AmoCRM Headers] #{options[:headers].except('Authorization')}" # Скрываем токен для безопасности
-    Rails.logger.info "[AmoCRM Body] #{options[:body]}" if options[:body]
-    Rails.logger.info "[AmoCRM Query] #{options[:query]}" if options[:query]
+    headers = options[:headers] || {}
+    Rails.logger.info "[AmoCRM Headers] #{headers.inspect}"
+    Rails.logger.info "[AmoCRM Body] #{options[:body].inspect}"
+    Rails.logger.info "[AmoCRM Query] #{options[:query].inspect}" if options[:query]
   end
 
   def self.post_with_log(url, options = {})
@@ -196,6 +197,7 @@ class CrmIntegrationService
     lead_payload = {
       name: "Заказ №#{order.id} от #{order.full_name}",
       price: order.total_amount.to_i,
+      status_id: 81585318,
       custom_fields_values: [
         {
           field_id: contact_field_id('PAYMENT_METHOD'),
