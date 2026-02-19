@@ -15,6 +15,7 @@ RESTful API для работы с данными товаров IKEA. Прил�
 - [Установка](#-установка)
 - [Конфигурация](#-конфигурация)
 - [API Документация](#-api-документация)
+- [Интеграция с AmoCRM](#-интеграция-с-amocrm)
 - [Деплой](#-деплой)
 - [Архитектура](#-архитектура)
 - [Разработка](#-разработка)
@@ -244,6 +245,39 @@ curl -X POST http://localhost:3000/api/v1/auth/login \
 curl http://localhost:3000/api/v1/products \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
+
+## 🔌 Интеграция с AmoCRM
+
+### 1. Настройка подключения (OAuth2)
+
+AmoCRM использует протокол OAuth2. Для работы интеграции необходимо настроить переменные окружения:
+
+1. **Создайте интеграцию** в AmoCRM (`Настройки -> Интеграции -> Создать интеграцию`).
+2. **Redirect URL**: `https://ваш-домен.com/api/v1/debug/amo_crm/exchange_token`.
+3. **Настройте `.env`**:
+   ```env
+   AMO_CRM_SUBDOMAIN=ваш_поддомен // имя магазина в AMO CRM
+   AMO_CRM_CLIENT_ID=ваш_client_id
+   AMO_CRM_CLIENT_SECRET=ваш_client_secret
+   AMO_CRM_REDIRECT_URI=https://ваш-домен.com/api/v1/debug/amo_crm/exchange_token
+   ```
+4. **Первичный обмен токена**:
+   - Получите `code` от AmoCRM (через URL авторизации).
+   - Выполните обмен через Swagger (**AmoCRM Debug -> exchange_token**) или через API.
+
+### 2. Настройка Webhooks
+
+Для получения обновлений из CRM (например, смена статуса заказа):
+
+1. В AmoCRM перейдите в `Настройки -> Интеграции -> Webhooks`.
+2. Добавьте хук на URL: `https://ваш-домен.com/api/v1/webhooks/amo_crm`.
+3. Подпишитесь на события: "Статус сделки изменен", "Сделка добавлена", "Контакт изменен".
+
+### 3. Отладка и мониторинг
+
+- Все запросы логируются с префиксом `[AmoCRM]`.
+- Для ручной проверки используйте раздел **AmoCRM Debug** в Swagger UI.
+- Подробная инструкция: [docs/AMO_CRM_INTEGRATION.md](./docs/AMO_CRM_INTEGRATION.md).
 
 ## 🚀 Деплой
 
