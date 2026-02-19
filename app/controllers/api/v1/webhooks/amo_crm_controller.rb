@@ -7,10 +7,15 @@ module Api
         # POST /api/v1/webhooks/amo_crm
         def receive
           # Log the incoming webhook for debugging
-          Rails.logger.info "[AmoCRM Webhook] Received: #{params.to_unsafe_h.inspect}"
+          raw_body = request.raw_post
+          Rails.logger.info "[AmoCRM Webhook] Params: #{params.to_unsafe_h.inspect}"
+          Rails.logger.info "[AmoCRM Webhook] Raw Body: #{raw_body}"
           
           # Handle specific events from AmoCRM
           # Documentation: https://www.amocrm.ru/developers/content/webhooks/webhooks
+          
+          # AmoCRM sends data in a nested format, e.g., leads[update][0][id]
+          # Rails might parse this into params[:leads][:update]...
           
           if params[:leads]
             handle_leads_webhook(params[:leads])

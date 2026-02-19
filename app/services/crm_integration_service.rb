@@ -12,6 +12,28 @@ class CrmIntegrationService
     }
   end
 
+  def self.log_request(method, url, options)
+    Rails.logger.info "[AmoCRM Request] #{method.upcase} #{url}"
+    Rails.logger.info "[AmoCRM Headers] #{options[:headers].except('Authorization')}" # Скрываем токен для безопасности
+    Rails.logger.info "[AmoCRM Body] #{options[:body]}" if options[:body]
+    Rails.logger.info "[AmoCRM Query] #{options[:query]}" if options[:query]
+  end
+
+  def self.post_with_log(url, options = {})
+    log_request('post', url, options)
+    post(url, options)
+  end
+
+  def self.patch_with_log(url, options = {})
+    log_request('patch', url, options)
+    patch(url, options)
+  end
+
+  def self.get_with_log(url, options = {})
+    log_request('get', url, options)
+    get(url, options)
+  end
+
   def self.exchange_code_for_tokens(code)
     url = "#{base_url}/oauth2/access_token"
     payload = {
@@ -22,7 +44,7 @@ class CrmIntegrationService
       redirect_uri: ENV['AMO_CRM_REDIRECT_URI'] || 'https://localhost'
     }
 
-    response = post(url, body: payload.to_json, headers: { 'Content-Type' => 'application/json' })
+    response = post_with_log(url, body: payload.to_json, headers: { 'Content-Type' => 'application/json' })
     
     if response.success?
       tokens = response.parsed_response
@@ -44,7 +66,7 @@ class CrmIntegrationService
       redirect_uri: ENV['AMO_CRM_REDIRECT_URI'] || 'https://localhost'
     }
 
-    response = post(url, body: payload.to_json, headers: { 'Content-Type' => 'application/json' })
+    response = post_with_log(url, body: payload.to_json, headers: { 'Content-Type' => 'application/json' })
     
     if response.success?
       { success: true, tokens: response.parsed_response }
@@ -73,6 +95,10 @@ class CrmIntegrationService
       {
         field_id: contact_field_id('EXTERNAL_ID'),
         values: [{ value: user.id.to_s }]
+      },
+      {
+        field_id: contact_field_id('COUNTRY'),
+        values: [{ value: user.country_code.to_s }]
       }
     ]
 
@@ -97,9 +123,9 @@ class CrmIntegrationService
     }
 
     response = if contact_id
-      patch("#{base_url}/api/v4/contacts/#{contact_id}", body: payload.to_json, headers: headers)
+      patch_with_log("#{base_url}/api/v4/contacts/#{contact_id}", body: payload.to_json, headers: headers)
     else
-      post("#{base_url}/api/v4/contacts", body: [payload].to_json, headers: headers)
+      post_with_log("#{base_url}/api/v4/contacts", body: [payload].to_json, headers: headers)
     end
 
     if response.success?
@@ -116,9 +142,15 @@ class CrmIntegrationService
     contact_id = find_contact(user)
     return unless contact_id && contact_id != :error
 
-    # В вашем списке нет явного поля LAST_LOGIN, 
-    # если нужно отслеживать, создайте поле и добавьте его ID в mapping
-    Rails.logger.info "[AmoCRM] Last login update for user #{user.id} (contact #{contact_id})"
+    payload = {
+      custom_fields_values: [
+        {
+          field_id: contact_field_id('LAST_LOGIN'),
+          values: [{ value: Time.current.strftime("%d.%m.%Y %H:%M:%S") }]
+        }
+      ]
+    }
+    patch_with_log("#{base_url}/api/v4/contacts/#{contact_id}", body: payload.to_json, headers: headers)
   end
 
   def self.notify_return(return_request)
@@ -137,7 +169,7 @@ class CrmIntegrationService
       task_type_id: 1 # Обычно 1 - это "Связаться с клиентом"
     }
 
-    response = post("#{base_url}/api/v4/tasks", body: [task_payload].to_json, headers: headers)
+    response = post_with_log("#{base_url}/api/v4/tasks", body: [task_payload].to_json, headers: headers)
     response.success?
   end
 
@@ -210,13 +242,13 @@ class CrmIntegrationService
       }
     end
 
-    response = post("#{base_url}/api/v4/leads", body: [lead_payload].to_json, headers: headers)
+    response = post_with_log("#{base_url}/api/v4/leads", body: [lead_payload].to_json, headers: headers)
     
     if response.success?
       lead_id = response.parsed_response.dig('_embedded', 'leads', 0, 'id')
       order.update_columns(crm_external_id: lead_id) if lead_id
       
-      # 3. Синхронизируем товары через примечания
+      # 3. Синхронизируем товары через примечания (дополнительно)
       sync_order_items(lead_id, order) if lead_id
       { success: true, lead_id: lead_id }
     else
@@ -235,7 +267,7 @@ class CrmIntegrationService
     return nil if query.blank?
 
     Rails.logger.info "[AmoCRM] Finding contact for #{query}"
-    response = get("#{base_url}/api/v4/contacts", query: { query: query }, headers: headers)
+    response = get_with_log("#{base_url}/api/v4/contacts", query: { query: query }, headers: headers)
     Rails.logger.info "[AmoCRM] Find contact response: #{response.code}"
     return :error if response.code >= 500
     return nil unless response.success? && response.parsed_response.present?
@@ -245,18 +277,18 @@ class CrmIntegrationService
 
   def self.create_contact(payload)
     Rails.logger.info "[AmoCRM] Creating contact: #{payload.inspect}"
-    response = post("#{base_url}/api/v4/contacts", body: [payload].to_json, headers: headers)
+    response = post_with_log("#{base_url}/api/v4/contacts", body: [payload].to_json, headers: headers)
     Rails.logger.info "[AmoCRM] Create contact response: #{response.code}"
     response.success?
   end
 
   def self.update_contact(contact_id, payload)
-    response = patch("#{base_url}/api/v4/contacts/#{contact_id}", body: payload.to_json, headers: headers)
+    response = patch_with_log("#{base_url}/api/v4/contacts/#{contact_id}", body: payload.to_json, headers: headers)
     response.success?
   end
 
   def self.create_contact_with_id(payload)
-    response = post("#{base_url}/api/v4/contacts", body: [payload].to_json, headers: headers)
+    response = post_with_log("#{base_url}/api/v4/contacts", body: [payload].to_json, headers: headers)
     return nil unless response.success?
     response.parsed_response.dig('_embedded', 'contacts', 0, 'id')
   end
@@ -270,7 +302,7 @@ class CrmIntegrationService
         text: "Состав заказа:\n#{items_text}"
       }
     }
-    post("#{base_url}/api/v4/leads/#{lead_id}/notes", body: [note_payload].to_json, headers: headers)
+    post_with_log("#{base_url}/api/v4/leads/#{lead_id}/notes", body: [note_payload].to_json, headers: headers)
   end
 
   def self.contact_field_id(code)
@@ -281,6 +313,8 @@ class CrmIntegrationService
       'EXTERNAL_ID' => 151485,
       'NEWSLETTER_CONSENT' => 578785,
       'VERIFIED' => 578787,
+      'COUNTRY' => 578899,
+      'LAST_LOGIN' => 578901,
       'PAYMENT_METHOD' => 573935,
       'DELIVERY_TYPE' => 578791,
       'ORDER_NUMBER' => 578801,
