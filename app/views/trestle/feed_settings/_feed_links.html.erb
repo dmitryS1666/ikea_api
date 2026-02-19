@@ -14,6 +14,10 @@
         <strong>Yandex:</strong>
         <%= link_to "#{base_url}/api/v1/feeds/yandex.yml#{token_query}", "#{base_url}/api/v1/feeds/yandex.yml#{token_query}", target: "_blank", rel: "noopener" %>
       </p>
+      <p>
+        <strong>Sitemap:</strong>
+        <%= link_to "#{base_url}/sitemap.xml", "#{base_url}/sitemap.xml", target: "_blank", rel: "noopener" %>
+      </p>
       <% if token_query.blank? && feed_setting.token_feed_access_mode? %>
         <p class="text-warning">
           Токен для защищенного доступа отсутствует — генерация фида будет недоступна.

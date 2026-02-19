@@ -10,6 +10,16 @@ module Api
         phone = params.require(:phone)
         context = params[:context].presence || 'passport_update'
 
+        # Throttle: 30 seconds between requests
+        last_verification = A1Verification.where(phone: phone).order(created_at: :desc).first
+        if last_verification && last_verification.created_at > 30.seconds.ago
+          seconds_left = (last_verification.created_at + 30.seconds - Time.current).to_i
+          return render json: { 
+            error: "Повторный запрос звонка возможен через #{seconds_left} сек.",
+            seconds_left: seconds_left
+          }, status: :too_many_requests
+        end
+
         payload = A1StubService.request_call(user: current_user, phone: phone, context: context)
         render json: payload, status: :created
       end

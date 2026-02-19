@@ -126,6 +126,20 @@ Rails.application.routes.draw do
       
       # Checkout
       post 'checkout', to: 'checkout#create'
+
+      # Debug & Integration (AmoCRM)
+      namespace :debug do
+        namespace :amo_crm do
+          post 'sync_order/:id', to: 'amo_crm#sync_order'
+          post 'sync_user/:id', to: 'amo_crm#sync_user'
+          post 'exchange_token', to: 'amo_crm#exchange_token'
+        end
+      end
+
+      # Webhooks
+      namespace :webhooks do
+        post 'amo_crm', to: 'amo_crm#receive'
+      end
     end
   end
 
@@ -133,4 +147,6 @@ Rails.application.routes.draw do
   get '/up', to: 'health#check'
   get '/feeds/google.xml', to: 'feeds#google'
   get '/feeds/yandex.yml', to: 'feeds#yandex'
+  get '/sitemap.xml', to: 'sitemaps#show'
+  get '/robots.txt', to: 'robots#show'
 end

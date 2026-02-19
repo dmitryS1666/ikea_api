@@ -968,6 +968,75 @@ paths:
         '422':
           description: Неверный код или ошибка
 
+  /api/v1/debug/amo_crm/sync_order/{id}:
+    post:
+      summary: Принудительная синхронизация заказа с AmoCRM
+      tags:
+        - AmoCRM Debug
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Заказ синхронизирован
+        '422':
+          description: Ошибка синхронизации
+
+  /api/v1/debug/amo_crm/sync_user/{id}:
+    post:
+      summary: Принудительная синхронизация пользователя с AmoCRM
+      tags:
+        - AmoCRM Debug
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Пользователь синхронизирован
+        '422':
+          description: Ошибка синхронизации
+
+  /api/v1/debug/amo_crm/exchange_token:
+    post:
+      summary: Обмен кода авторизации на токены (OAuth2)
+      tags:
+        - AmoCRM Debug
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+              properties:
+                code:
+                  type: string
+                  description: Код, полученный от AmoCRM после авторизации
+      responses:
+        '200':
+          description: Токены получены
+        '422':
+          description: Ошибка обмена
+
+  /api/v1/webhooks/amo_crm:
+    post:
+      summary: Прием вебхуков от AmoCRM
+      description: |
+        Эндпоинт для настройки в AmoCRM (Настройки -> Хуки).
+        Поддерживает события создания/изменения сделок и контактов.
+      tags:
+        - AmoCRM Webhooks
+      responses:
+        '200':
+          description: Вебхук успешно обработан
+
   /api/v1/account/orders:
     get:
       summary: Список заказов пользователя

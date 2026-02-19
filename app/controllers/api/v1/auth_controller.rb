@@ -59,6 +59,9 @@ module Api
           if guest_token
             CartMergeService.call(guest_token: guest_token, user: user)
           end
+
+          # Update last login in CRM
+          CrmIntegrationService.update_last_login(user)
           
           token = JwtService.encode({ user_id: user.id })
           
