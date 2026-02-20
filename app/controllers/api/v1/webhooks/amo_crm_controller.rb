@@ -30,18 +30,25 @@ module Api
 
         def handle_leads_webhook(leads_params)
           # Example: update order status when lead status changes in AmoCRM
-          # leads_params is usually a hash like {"status": [{"id": "123", "status_id": "456", ...}]}
           leads_params.each do |action, leads|
             leads.each do |lead_data|
               crm_id = lead_data[:id]
-              status_id = lead_data[:status_id]
+              status_id = lead_data[:status_id].to_i
               
               order = Order.find_by(crm_external_id: crm_id)
               next unless order
               
-              # Map AmoCRM status_id to internal order status if needed
-              # order.update(status: map_amo_status(status_id))
-              Rails.logger.info "[AmoCRM Webhook] Lead #{crm_id} action: #{action}, status: #{status_id}"
+              # Map AmoCRM status_id to internal order status
+              new_status = Order.statuses.key(status_id)
+              
+              if new_status
+                if order.status != new_status
+                  order.update(status: new_status)
+                  Rails.logger.info "[AmoCRM Webhook] Order #{order.id} status updated to #{new_status} (Amo ID: #{status_id})"
+                end
+              else
+                Rails.logger.warn "[AmoCRM Webhook] Unknown status_id #{status_id} for Lead #{crm_id}"
+              end
             end
           end
         end

@@ -197,7 +197,7 @@ class CrmIntegrationService
     lead_payload = {
       name: "Заказ №#{order.id} от #{order.full_name}",
       price: order.total_amount.to_i,
-      status_id: 81585318,
+      status_id: Order.statuses[order.status],
       custom_fields_values: [
         {
           field_id: contact_field_id('PAYMENT_METHOD'),
