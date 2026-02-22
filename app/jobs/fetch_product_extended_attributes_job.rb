@@ -165,14 +165,16 @@ class FetchProductExtendedAttributesJob < ApplicationJob
     
     # Видео и инструкции
     attributes[:videos] = pl_details[:videos] if pl_details[:videos]
-    attributes[:manuals] = pl_details[:manuals] if pl_details[:manuals]
+    if pl_details[:manuals].present?
+      attributes[:manuals] = download_documents(pl_details[:manuals], product.sku)
+    end
     
     # Данные из модального окна
     attributes[:designer] = pl_details[:designer] if pl_details[:designer]
     attributes[:safety_info] = pl_details[:safety_info] if pl_details[:safety_info]
     attributes[:good_to_know] = pl_details[:good_to_know] if pl_details[:good_to_know]
     if pl_details[:assembly_documents].present?
-      attributes[:assembly_documents] = pl_details[:assembly_documents]
+      attributes[:assembly_documents] = download_documents(pl_details[:assembly_documents], product.sku)
       Rails.logger.info "FetchProductExtendedAttributesJob: Found #{pl_details[:assembly_documents].length} assembly documents for #{product.sku}"
     end
     
@@ -389,6 +391,23 @@ class FetchProductExtendedAttributesJob < ApplicationJob
   def pl_headless_enabled?
     env_value = ENV.fetch('PL_FETCHER_ENABLE_HEADLESS', 'true').to_s.downcase
     %w[true 1 yes].include?(env_value)
+  end
+
+  def download_documents(documents, sku)
+    Array(documents).filter_map do |doc|
+      if doc.is_a?(Hash)
+        title = doc[:title] || doc["title"] || doc["Tytuł"] || doc["Tytul"] || doc[:name] || doc["name"]
+        url = doc[:url] || doc["url"] || doc["Link"] || doc["href"]
+      else
+        title = nil
+        url = doc.to_s
+      end
+
+      next if url.blank?
+
+      local_url = DocumentDownloader.download(url, product_sku: sku)
+      { "title" => title, "url" => url, "local_url" => local_url }.compact
+    end
   end
 end
 

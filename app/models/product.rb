@@ -11,6 +11,8 @@ class Product < ApplicationRecord
   has_many :category_products, dependent: :destroy
   has_many :categories, through: :category_products, source: :category
   
+  has_many :product_filter_values, dependent: :delete_all
+  
   has_one :seo_meta, as: :seoable, class_name: 'SeoMetum', dependent: :destroy
   accepts_nested_attributes_for :seo_meta, allow_destroy: true, update_only: true
   
@@ -43,11 +45,31 @@ class Product < ApplicationRecord
   
   # Callbacks
   before_save :calculate_delivery, if: :weight_changed?
+  after_commit :enqueue_filters_reindex, on: [:create, :update]
   
   private
   
   def calculate_delivery
     # Логика расчета доставки
     # Аналогично deliveryService.js
+  end
+
+  def enqueue_filters_reindex
+    return unless saved_change_to_full_attributes? ||
+                  saved_change_to_price? ||
+                  saved_change_to_rating_avg? ||
+                  saved_change_to_rating_weighted? ||
+                  saved_change_to_is_bestseller? ||
+                  saved_change_to_is_popular? ||
+                  saved_change_to_quantity? ||
+                  saved_change_to_collection? ||
+                  saved_change_to_features?
+
+    category_ids = categories.pluck(:ikea_id)
+    category_ids << category_id if category_id.present?
+    category_ids = category_ids.compact.uniq
+    return if category_ids.empty?
+
+    ReindexProductFiltersJob.perform_later(id, category_ids)
   end
 end

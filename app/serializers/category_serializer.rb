@@ -15,8 +15,8 @@ class CategorySerializer
              :show_delivery_block,
              :show_reviews_block,
              :show_tips_block,
-            :icon_url,
-            :available_filters
+             :icon_url,
+             :available_filters
   
   attribute :icon_url do |category|
     if category.icon.attached?

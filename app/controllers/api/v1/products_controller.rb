@@ -9,7 +9,6 @@ module Api
         products = products.page(params[:page]).per(params[:per_page] || 50)
         
         render json: ProductSerializer.new(products, {
-          include: [:category],
           meta: {
             total: products.total_count,
             page: params[:page] || 1,
@@ -22,7 +21,6 @@ module Api
       def show
         product = Product.includes(:seo_meta).find_by(sku: params[:sku])
         render json: ProductSerializer.new(product, {
-          include: [:category],
           params: { detail: true, city: current_city }
         })
       end
@@ -34,7 +32,6 @@ module Api
                          .per(params[:per_page] || 10)
         
         render json: ProductSerializer.new(products, {
-          include: [:category],
           meta: {
             total: products.total_count,
             page: params[:page] || 1
@@ -49,7 +46,6 @@ module Api
                          .per(params[:per_page] || 10)
         
         render json: ProductSerializer.new(products, {
-          include: [:category],
           meta: {
             total: products.total_count,
             page: params[:page] || 1

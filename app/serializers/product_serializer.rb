@@ -1,60 +1,53 @@
 class ProductSerializer
   include FastJsonapi::ObjectSerializer
   
-  attributes :sku, 
-             :item_no, 
+  attributes :sku,
              :name_ru,
-             :collection, 
              :price, 
              :quantity, 
-             :weight, 
-             :net_weight,
-             :package_volume, 
-             :package_dimensions, 
-             :dimensions,
-             :is_parcel, 
+             :weight,
              :is_bestseller, 
              :is_popular, 
              :category_id,
-             :delivery_type, 
-             :delivery_name, 
-             :delivery_cost,
-             :delivery_reason, 
-             :breadcrumbs, 
-             :seo_title, 
-             :seo_h1, 
              :rating_avg, 
              :rating_weighted,
              :rating_count, 
-             :rating_updated_at, 
-             :short_description_ru,
-             :content_ru
+             :rating_updated_at
   
   attribute :variants do |product|
-    product.variants || []
+    ProductSerializer.normalize_variants(product.variants)
   end
   
   attribute :local_images do |product|
     product.local_images || []
   end
+
+  attribute :related_products do |product|
+    raw = product.related_products
+    items = if raw.is_a?(Array)
+              raw
+            elsif raw.is_a?(String) && raw.present?
+              begin
+                JSON.parse(raw)
+              rescue JSON::ParserError
+                []
+              end
+            else
+              []
+            end
+
+    items.filter_map do |item|
+      if item.is_a?(Hash)
+        (item["sku"] || item[:sku] || item["item_no"] || item[:item_no]).presence
+      else
+        item.to_s.presence
+      end
+    end
+  end
   
   belongs_to :category, serializer: CategorySerializer, if: Proc.new { |record| record.category.present? }
   has_many :categories, serializer: CategorySerializer
   
-  attribute :customs_duty, if: ->(_record, params) { params&.dig(:detail) } do |product|
-    # Используем текущий курс евро
-    eur_rate = ExchangeRate.fetch_or_create('EUR', Date.today)&.rate_per_unit
-    pln_rate = ExchangeRate.fetch_or_create('PLN', Date.today)&.rate_per_unit
-    
-    if eur_rate && pln_rate && product.price && product.weight
-      # Конвертируем цену из PLN в EUR для расчета пошлины
-      price_eur = (product.price * pln_rate / eur_rate).round(2)
-      CustomsDutyService.calculate(price_eur, product.weight, eur_rate)
-    else
-      nil
-    end
-  end
-
   attribute :delivery_days do |product|
     # Приоритет: Категория -> Глобальная настройка -> 30 (fallback)
     product.primary_category&.delivery_days.presence || 
@@ -84,24 +77,106 @@ class ProductSerializer
     }
   end
 
-  attribute :category_name do |product|
-    product.category&.translated_name || product.category&.name || ''
-  end
-
-  attribute :seo_title, if: ->(_record, params) { params&.dig(:detail) } do |product|
-    Seo::ProductTitleBuilder.build(product, key: "default_title")
-  end
-
-  attribute :seo_h1, if: ->(_record, params) { params&.dig(:detail) } do |product|
-    Seo::ProductTitleBuilder.build(product, key: "default_h1")
-  end
-
-  attribute :breadcrumbs, if: ->(_record, params) { params&.dig(:detail) } do |product|
-    Seo::BreadcrumbsBuilder.for_product(product)
-  end
-
   attribute :seo do |product, params|
     SeoHelper.meta_for(product, params[:city])
+  end
+
+  attribute :full_attributes_ru do |product|
+    full = product.full_attributes_ru || {}
+    {
+      "description" => full["description"],
+      "size" => full["size"],
+      "materials" => full["materials"],
+      "instructions" => full["instructions"]
+    }.compact
+  end
+
+  def self.normalize_documents(documents)
+    Array(documents).filter_map do |doc|
+      if doc.is_a?(Hash)
+        url = doc["url"] || doc[:url]
+        local_url = doc["local_url"] || doc[:local_url]
+        title = doc["title"] || doc[:title]
+        next if url.blank? && local_url.blank?
+        final_url = local_url.presence || url
+        { title: title, url: final_url }.compact
+      else
+        url = doc.to_s
+        next if url.blank?
+
+        { url: url }
+      end
+    end
+  end
+
+  def self.normalize_variants(raw)
+    entries = case raw
+              when Array then raw
+              when Hash then [raw]
+              when String
+                begin
+                  JSON.parse(raw)
+                rescue JSON::ParserError
+                  []
+                end
+              else
+                []
+              end
+
+    entries.map do |entry|
+      if entry.is_a?(Hash)
+        {
+          sku: extract_variant_sku(entry),
+          name: extract_variant_name(entry),
+          price: extract_variant_price(entry),
+          images: extract_variant_images(entry),
+          quantity: extract_variant_quantity(entry)
+        }
+      else
+        {
+          name: entry.to_s.presence,
+          price: nil,
+          images: [],
+          quantity: nil
+        }
+      end
+    end
+  end
+
+  def self.extract_variant_name(entry)
+    entry["name_ru"] || entry[:name_ru]
+  end
+
+  def self.extract_variant_sku(entry)
+    entry["sku"] || entry[:sku]
+  end
+
+  def self.extract_variant_price(entry)
+    price = entry.dig("salesPrice", "numeral") ||
+            entry.dig(:salesPrice, :numeral) ||
+            entry.dig("price", "numeral") ||
+            entry.dig(:price, :numeral) ||
+            entry["price"] ||
+            entry[:price]
+
+    if price.is_a?(String)
+      price = price.gsub(/[^\d,.]/, "").gsub(",", ".").to_f
+    end
+
+    price
+  end
+
+  def self.extract_variant_images(entry)
+    images = entry["local_images"] || entry[:local_images]
+    Array(images).compact
+  end
+
+  def self.extract_variant_quantity(entry)
+    quantity = entry["quantity"] || entry[:quantity]
+    if quantity.is_a?(Hash)
+      quantity = quantity["quantity"] || quantity[:quantity]
+    end
+    quantity
   end
 end
 

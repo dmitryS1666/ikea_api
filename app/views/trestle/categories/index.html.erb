@@ -5,6 +5,27 @@
 <div class="row">
   <div class="col-md-2">
     <div class="card mb-3">
+      <div class="card-header">Переиндексация</div>
+      <div class="card-body">
+        <%= form_tag admin.path(:reindex_all_filters),
+                    method: :post,
+                    data: { turbo: false, confirm: "Переиндексировать фильтры для всех категорий?" } do %>
+          <%= submit_tag "Переиндексировать все",
+                        class: "btn btn-outline-success btn-sm w-100",
+                        disabled: @filters_reindex_running %>
+        <% end %>
+        <% if @filters_reindex_task %>
+          <div class="small text-muted mt-2">
+            Статус: <strong><%= @filters_reindex_task.status %></strong><br>
+            Начало: <%= @filters_reindex_task.started_at&.strftime('%Y-%m-%d %H:%M') || '-' %><br>
+            Завершение: <%= @filters_reindex_task.completed_at&.strftime('%Y-%m-%d %H:%M') || '-' %><br>
+            Обработано: <%= @filters_reindex_task.processed %><br>
+            Ошибок: <%= @filters_reindex_task.error_count %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    <div class="card mb-3">
       <div class="card-header">Импорт фильтров</div>
       <div class="card-body">
         <%= form_tag admin.path(:import_available_filters),

@@ -12,6 +12,7 @@ class Category < ApplicationRecord
   # Новая связь many-to-many
   has_many :category_products, foreign_key: :category_id, primary_key: :ikea_id, dependent: :destroy
   has_many :products_through_categories, through: :category_products, source: :product
+  has_many :product_filter_values, foreign_key: :category_id, primary_key: :ikea_id, dependent: :delete_all
   
   has_one :seo_meta, as: :seoable, class_name: 'SeoMetum', dependent: :destroy
   accepts_nested_attributes_for :seo_meta, allow_destroy: true, update_only: true

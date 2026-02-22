@@ -117,6 +117,10 @@ Trestle.resource(:categories, model: Category) do
       end
       
       Rails.logger.info "CategoriesAdmin: Rendering tree with #{@categories_tree.count} top-level categories"
+      @filters_reindex_task = ParserTask.by_type('category_filters').recent.first
+      @filters_reindex_running = ParserTask.by_type('category_filters')
+                                            .where(status: ['running', 'pending'])
+                                            .exists?
       render "trestle/categories/index"
     end
 
@@ -144,6 +148,26 @@ Trestle.resource(:categories, model: Category) do
       @category.update(is_deleted: true)
       clear_categories_cache
       redirect_to '/admin/categories', notice: "Категория отключена (мягкое удаление)"
+    end
+
+    def reindex_filters
+      @category = admin.find_instance(params)
+      ReindexCategoryFiltersJob.perform_later(@category.ikea_id)
+      redirect_back fallback_location: admin.path(:index),
+                    notice: "Запущена переиндексация фильтров для категории #{@category.ikea_id}."
+    end
+
+    def reindex_all_filters
+      if ParserTask.by_type('category_filters').where(status: ['running', 'pending']).exists?
+        redirect_to admin.path(:index), alert: "Переиндексация фильтров уже запущена."
+        return
+      end
+
+      task = ParserTask.create!(task_type: 'category_filters', status: 'pending')
+      job = ReindexAllCategoryFiltersJob.perform_later(task_id: task.id)
+      task.update!(job_id: job.job_id) if job.respond_to?(:job_id)
+
+      redirect_to admin.path(:index), notice: "Запущена переиндексация фильтров для всех категорий."
     end
 
     def import_available_filters
@@ -195,7 +219,9 @@ Trestle.resource(:categories, model: Category) do
     post :toggle_active, on: :member
     post :toggle_popular, on: :member
     post :soft_delete, on: :member
+    post :reindex_filters, on: :member
     post :import_available_filters, on: :collection
+    post :reindex_all_filters, on: :collection
   end
 
   table do

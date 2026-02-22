@@ -81,6 +81,18 @@
           <i class="fa fa-star<%= category.is_popular? ? '' : '-o' %>"></i>
         <% end %>
       <% end %>
+
+      <%= form_with url: reindex_filters_categories_admin_path(category.ikea_id),
+                    method: :post,
+                    local: true,
+                    data: { confirm: "Переиндексировать фильтры для категории '#{category.name}'?" },
+                    class: "d-inline" do |f| %>
+        <%= f.button type: :submit,
+                     class: "btn btn-sm btn-outline-success",
+                     title: "Переиндексировать фильтры" do %>
+          <i class="fa fa-refresh"></i>
+        <% end %>
+      <% end %>
       
       <%= form_with url: soft_delete_categories_admin_path(category.ikea_id), 
                     method: :post, 

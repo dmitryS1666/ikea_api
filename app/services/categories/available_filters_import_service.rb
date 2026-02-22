@@ -15,6 +15,7 @@ module Categories
       updated = 0
       skipped = 0
       errors = parse_errors
+      updated_category_ids = []
 
       entries.each do |entry|
         unless entry.is_a?(Hash)
@@ -38,12 +39,17 @@ module Categories
         if category.available_filters != filters
           category.update!(available_filters: filters)
           updated += 1
+          updated_category_ids << category.ikea_id
         else
           skipped += 1
         end
       rescue StandardError => e
         Rails.logger.error("[Categories::AvailableFiltersImportService] ikea_id=#{ikea_id} error=#{e.class}: #{e.message}")
         errors += 1
+      end
+
+      updated_category_ids.uniq.each do |category_id|
+        ReindexCategoryFiltersJob.perform_later(category_id)
       end
 
       Result.new(

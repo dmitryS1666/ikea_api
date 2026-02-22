@@ -4,8 +4,20 @@ module Api
       def index
         categories = Category.active
         categories = categories.popular if params[:is_popular] == 'true'
-        
-        render json: CategorySerializer.new(categories)
+
+        page = (params[:page] || 1).to_i
+        per_page = (params[:per_page] || 50).to_i
+
+        categories = categories.page(page).per(per_page)
+
+        render json: CategorySerializer.new(categories, {
+          meta: {
+            total: categories.total_count,
+            page: page,
+            per_page: per_page,
+            total_pages: categories.total_pages
+          }
+        })
       end
       
       def show
@@ -23,7 +35,7 @@ module Api
           min_price: params[:min_price],
           max_price: params[:max_price],
           sort: params[:sort],
-          filters: params[:filters] # Deprecated: server-side filter_values removed
+          filters: params[:filters]
         }
 
         products_scope = Products::SearchService.new(category, search_params).call
@@ -34,7 +46,6 @@ module Api
                            .per(params[:per_page] || 50)
 
         render json: ProductSerializer.new(products, {
-          include: [:categories],
           meta: {
             total: products.total_count,
             page: (params[:page] || 1).to_i,

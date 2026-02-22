@@ -82,211 +82,122 @@ Trestle.resource(:products, model: Product) do
     
     def import_extended_attrs
       file = params[:file]
+      force_full = params[:force_full].to_s == '1'
       unless file.respond_to?(:read)
         flash[:error] = "Не выбран файл."
         return redirect_to admin.path(:index)
       end
 
-      raw = file.read
-      lines = raw.split("\n")
-      
-      updated = 0
-      skipped = 0
-      errors = 0
-
-      lines.each do |line|
-        next if line.blank?
-        begin
-          item = JSON.parse(line)
-        rescue JSON::ParserError
-          errors += 1
-          next
-        end
-
-        sku = item["sku"].to_s.strip
-        if sku.blank?
-          skipped += 1
-          next
-        end
-
-        product = Product.find_by(sku: sku)
-        unless product
-          skipped += 1
-          next
-        end
-
-        # Собираем все атрибуты
-        raw_attributes = item["attributes"] || {}
-        
-        # Маппинг известных полей
-        mapped_attrs = {}
-        
-        # 1. Описание (Opis) -> short_description
-        opis = item["short_description"] || raw_attributes["Opis"]
-        if opis.is_a?(Array)
-          mapped_attrs["short_description"] = opis.join("\n")
-        elsif opis.is_a?(String)
-          mapped_attrs["short_description"] = opis
-        end
-
-        # 2. Материалы и уход
-        mat_and_care = raw_attributes["Materiały i pielęgnacja"] || {}
-        if mat_and_care.is_a?(Hash)
-          materials = mat_and_care["Materiały"]
-          if materials.is_a?(Hash)
-            mapped_attrs["materials"] = materials.map { |k, v| "#{k}: #{v}" }.join("\n")
-          elsif materials.is_a?(String)
-            mapped_attrs["materials"] = materials
-          end
-          
-          care = mat_and_care["Pielęgnacja"]
-          if care.is_a?(Hash)
-            mapped_attrs["care_instructions"] = care.map do |k, v|
-              vals = v.is_a?(Array) ? v.join(", ") : v
-              "#{k}: #{vals}"
-            end.join("\n")
-          elsif care.is_a?(Array)
-            mapped_attrs["care_instructions"] = care.join("\n")
-          elsif care.is_a?(String)
-            mapped_attrs["care_instructions"] = care
-          end
-        end
-
-        # 3. Безопасность
-        mapped_attrs["safety_info"] = raw_attributes["Bezpieczeństwo i zgodność z przepisami"] if raw_attributes["Bezpieczeństwo i zgodność z przepisami"]
-
-        # 4. Хорошо знать
-        mapped_attrs["good_to_know"] = raw_attributes["Dobrze wiedzieć"] if raw_attributes["Dobrze wiedzieć"]
-
-        # 5. Дизайнер
-        mapped_attrs["designer"] = raw_attributes["Projektant"] if raw_attributes["Projektant"]
-
-        # 6. Документы для сборки
-        if raw_attributes["Montaż i dokumenty"].is_a?(Array)
-          mapped_attrs["assembly_documents"] = raw_attributes["Montaż i dokumenty"].map do |doc|
-            title = doc["Tytuł"] || doc["Tytuл"]
-            url = doc["Link"]
-            # Загружаем документ локально через прокси
-            local_url = DocumentDownloader.download(url, product_sku: sku)
-            { "title" => title, "url" => local_url || url }
-          end
-        end
-
-        # 7. Размеры (все что с cm, kg, inch)
-        dimensions_data = {}
-        # Ищем размеры в основном словаре атрибутов
-        dimension_keys = raw_attributes.keys.select { |k| k =~ /Szerokość|Głębokość|Wysokość|Długość|Waga|Obciążenie|Siedzisko|Łóżko/ }
-        dimension_keys.each { |k| dimensions_data[k] = raw_attributes[k] }
-        
-        # Также проверяем внутри Opakowanie -> Szczegóły (там часто лежат размеры упаковок)
-        if raw_attributes["Opakowanie"].is_a?(Hash) && raw_attributes["Opakowanie"]["Szczegóły"].is_a?(Array)
-          raw_attributes["Opakowanie"]["Szczegóły"].each_with_index do |pkg, idx|
-            pkg.each do |pk, pv|
-              next if pk == "Paczka(i)"
-              dimensions_data["Упаковка #{idx+1} #{pk}"] = pv
-            end
-          end
-        end
-
-        mapped_attrs["dimensions"] = dimensions_data.to_json if dimensions_data.present?
-
-        # Перевод размеров
-        if dimensions_data.present?
-          translated_dimensions = {}
-          dimensions_data.each do |k, v|
-            # Если ключ содержит "Упаковка X", переводим только польскую часть
-            if k =~ /^(Упаковка \d+)\s+(.+)$/
-              prefix = $1
-              polish_part = $2
-              translated_part = TranslationService.translate(polish_part)
-              translated_key = "#{prefix} #{translated_part}"
-            else
-              translated_key = TranslationService.translate(k)
-            end
-            translated_dimensions[translated_key] = v
-          end
-          mapped_attrs["dimensions_ru"] = translated_dimensions.to_json
-        end
-
-        # 8. Упаковка
-        mapped_attrs["packaging"] = raw_attributes["Opakowanie"] if raw_attributes["Opakowanie"]
-
-        # 9. Все атрибуты в JSONB
-        mapped_attrs["full_attributes"] = raw_attributes
-
-        # Перевод на русский
-        translated_attrs = {}
-        mapped_attrs.each do |key, value|
-          next if %w[assembly_documents dimensions dimensions_ru packaging full_attributes care_instructions].include?(key)
-          next if value.blank?
-          
-          # Переводим только если это строка (контент атрибута)
-          if value.is_a?(String)
-            begin
-              translated_attrs["#{key}_ru"] = TranslationService.translate(value)
-            rescue => e
-              Rails.logger.error("[TRESTLE] Translation error for #{sku} field #{key}: #{e.message}")
-            end
-          end
-        end
-
-        # Инструкции по уходу (не переводим, оставляем как есть)
-        translated_attrs["care_instructions_ru"] = mapped_attrs["care_instructions"] if mapped_attrs["care_instructions"]
-
-        # Размеры переводим всегда (ключи)
-        if dimensions_data.present?
-          translated_dimensions = {}
-          dimensions_data.each do |k, v|
-            # Если ключ содержит "Упаковка X", переводим только польскую часть
-            if k =~ /^(Упаковка \d+)\s+(.+)$/
-              prefix = $1
-              polish_part = $2.strip
-              # Принудительно используем MyMemory для коротких слов
-              begin
-                translated_part = TranslationService.translate_with_my_memory(polish_part)
-              rescue
-                translated_part = TranslationService.translate(polish_part)
-              end
-              translated_key = "#{prefix} #{translated_part}"
-            else
-              translated_key = TranslationService.translate(k)
-            end
-            translated_dimensions[translated_key] = v
-          end
-          mapped_attrs["dimensions_ru"] = translated_dimensions.to_json
-        end
-
-        begin
-          # Объединяем все атрибуты и переводы
-          final_attrs = mapped_attrs.merge(translated_attrs)
-          
-          # Принудительно обновляем колонки, минуя dirty tracking Rails
-          product.update_columns(final_attrs.slice("dimensions_ru", "short_description_ru", "materials_ru", "care_instructions_ru", "full_attributes", "dimensions"))
-          updated += 1
-        rescue => e
-          Rails.logger.error("[TRESTLE] import_extended_attrs sku=#{sku} error=#{e.class}: #{e.message}")
-          errors += 1
-        end
+      import_path = prepare_import_file(file)
+      if import_path.blank?
+        flash[:error] = "Не удалось подготовить файл. Для больших файлов используйте JSONL."
+        return redirect_to admin.path(:index)
       end
 
-      flash[:message] = "Импорт завершен: обновлено=#{updated}, пропущено=#{skipped}, ошибок=#{errors}"
+      task = ParserTask.create!(
+        task_type: 'extended_attrs_import',
+        status: 'pending',
+        payload: {
+          file_path: import_path,
+          original_name: file.original_filename,
+          force_full: force_full,
+          cursor: 0
+        }
+      )
+
+      job = ImportExtendedAttributesFromFileJob.perform_later(task_id: task.id)
+      task.update!(job_id: job.job_id) if job.respond_to?(:job_id)
+
+      flash[:message] = "Импорт запущен в фоне. Статус смотрите в Управлении парсером."
       redirect_to admin.path(:index)
     end    
+
+    private
+
+    def download_documents(documents, sku)
+      Array(documents).filter_map do |doc|
+        if doc.is_a?(Hash)
+          title = doc["title"] || doc["Tytuł"] || doc["Tytul"] || doc["name"]
+          url = doc["url"] || doc["Link"] || doc["href"]
+        else
+          title = nil
+          url = doc.to_s
+        end
+
+        next if url.blank?
+
+        local_url = DocumentDownloader.download(url, product_sku: sku)
+        { "title" => title, "url" => url, "local_url" => local_url }.compact
+      end
+    end
+
+    def prepare_import_file(file)
+      FileUtils.mkdir_p(Rails.root.join("tmp", "imports"))
+      timestamp = Time.current.strftime("%Y%m%d_%H%M%S")
+      import_path = Rails.root.join("tmp", "imports", "extended_attrs_#{timestamp}_#{SecureRandom.hex(4)}.jsonl")
+
+      size = file.size.to_i
+      sample = file.read(2048).to_s
+      file.rewind
+      first_char = sample.lstrip[0]
+
+      if first_char == '['
+        return nil if size > 20.megabytes
+        parsed = JSON.parse(file.read)
+        write_jsonl(import_path, parsed)
+      elsif first_char == '{' && !sample.include?("\n")
+        begin
+          parsed = JSON.parse(file.read)
+          write_jsonl(import_path, parsed)
+        rescue JSON::ParserError
+          # Если это большой JSONL с длинными строками — просто копируем как есть
+          file.rewind
+          File.open(import_path, "wb") { |f| IO.copy_stream(file, f) }
+        end
+      else
+        File.open(import_path, "wb") { |f| IO.copy_stream(file, f) }
+      end
+
+      import_path.to_s
+    rescue JSON::ParserError
+      # На случай некорректного JSON — сохраняем как JSONL, пусть job обработает построчно
+      file.rewind
+      File.open(import_path, "wb") { |f| IO.copy_stream(file, f) }
+      import_path.to_s
+    ensure
+      file.rewind if file.respond_to?(:rewind)
+    end
+
+    def write_jsonl(path, parsed)
+      items = if parsed.is_a?(Array)
+                parsed
+              elsif parsed.is_a?(Hash) && parsed["products"].is_a?(Array)
+                parsed["products"]
+              elsif parsed.is_a?(Hash)
+                [parsed]
+              else
+                []
+              end
+
+      File.open(path, "wb") do |f|
+        items.each { |item| f.puts(item.to_json) }
+      end
+    end
   end
 
   form do |product|
     tab :basic, label: "Главный баннер" do
       text_field :sku, label: "Артикул (SKU)"
-      text_field :unique_id, label: "Уникальный ID (Unique ID)"
-      text_field :item_no, label: "Номер позиции (Item No)"
+      # text_field :unique_id, label: "Уникальный ID (Unique ID)"
+      # text_field :item_no, label: "Номер позиции (Item No)"
       text_field :url, label: "Ссылка (URL)"
       text_field :name, label: "Название (Name)"
-      text_field :name_ru, label: "Название RU (Name RU)"
-      text_field :collection, label: "Коллекция (Collection)"
-      select :category_id, Category.all.map { |c| [c.name, c.ikea_id] }, { label: "Категория (Category)", include_blank: "Без категории" }
+      text_field :name_ru, label: "Название RU"
+      # text_field :collection, label: "Коллекция (Collection)"
+      select :category_id, Category.all.map { |c| [c.translated_name, c.ikea_id] }, { label: "Категория (Category)", include_blank: "Без категории" }
       
       form_group :categories, label: "Дополнительные категории (Additional Categories)" do
-        select :category_ids, Category.all.map { |c| [c.name, c.ikea_id] }, { label: "Категории" }, { multiple: true, data: { ui: "select2" } }
+        select :category_ids, Category.all.map { |c| [c.translated_name, c.ikea_id] }, { label: "Категории" }, { multiple: true, data: { ui: "select2" } }
       end
     end
 
@@ -312,16 +223,6 @@ Trestle.resource(:products, model: Product) do
       end
     end
 
-    tab :specs, label: "Характеристики" do
-      number_field :weight, label: "Вес (Weight)"
-      number_field :net_weight, label: "Чистый вес (Net Weight)"
-      number_field :package_volume, label: "Объем упаковки (Package Volume)"
-      text_field :package_dimensions, label: "Размеры упаковки (Package Dimensions)"
-      text_field :dimensions, label: "Размеры (Dimensions)"
-      text_field :dimensions_ru, label: "Размеры RU (Dimensions RU)"
-      check_box :is_parcel, label: "Посылка (Is Parcel)"
-    end
-
     tab :flags, label: "Флаги" do
       check_box :is_bestseller, label: "Хит продаж (Is Bestseller)"
       check_box :is_popular, label: "Популярный (Is Popular)"
@@ -340,35 +241,198 @@ Trestle.resource(:products, model: Product) do
 
     tab :extended, label: "Расширенные данные" do
       row do
-        col(sm: 6) { text_area :short_description, label: "Описание (PL)" }
-        col(sm: 6) { text_area :short_description_ru, label: "Описание (RU)" }
+        # check_box :is_parcel, label: "Посылка (Is Parcel)" 
+
+        col(sm: 1) { number_field :weight, label: "Вес (Weight)" }
+        col(sm: 6) { }
       end
       row do
-        col(sm: 6) { text_area :materials, label: "Материалы (PL)" }
-        col(sm: 6) { text_area :materials_ru, label: "Материалы (RU)" }
+        col(sm: 4) { text_area :care_instructions, label: "Описание (PL)" }
+        col(sm: 8) { text_area :care_instructions_ru, label: "Описание (RU)" }
       end
       row do
-        col(sm: 6) { text_area :care_instructions, label: "Инструкции по уходу (PL)" }
-        col(sm: 6) { text_area :care_instructions_ru, label: "Инструкции по уходу (RU)" }
+        col(sm: 4) { text_area :short_description, label: "Краткое описание (PL)" }
+        col(sm: 8) { text_area :short_description_ru, label: "Краткое описание (RU)" }
+      end
+      row do
+        col(sm: 4) { text_area :materials, label: "Материалы (PL)" }
+        col(sm: 8) { text_area :materials_ru, label: "Материалы (RU)" }
+      end
+      row do
+        col(sm: 4) { text_area :care_instructions, label: "Инструкции по уходу (PL)" }
+        col(sm: 8) { text_area :care_instructions_ru, label: "Инструкции по уходу (RU)" }
       end
 
-      static_field :assembly_documents, label: "Инструкции (PDF)" do
-        if product.assembly_documents.is_a?(Array)
-          content_tag(:ul) do
-            product.assembly_documents.map do |doc|
-              next if doc["url"].blank?
-              content_tag(:li) do
-                link_to(doc["url"], doc["url"], target: "_blank")
-              end
-            end.compact.join.html_safe
-          end
-        else
-          "Инструкции отсутствуют"
+      static_field :full_attributes_json, label: "Документы и атрибуты" do
+        accordion_id = "product-full-attrs-#{product.id}"
+        assembly_collapse_id = "#{accordion_id}-assembly"
+        manuals_collapse_id = "#{accordion_id}-manuals"
+        json_collapse_id = "#{accordion_id}-json"
+        ru_collapse_id = "#{accordion_id}-ru"
+
+        content_tag(:div, class: "accordion", id: accordion_id) do
+          concat(
+            content_tag(:div, class: "accordion-item") do
+              header_id = "#{assembly_collapse_id}-header"
+              concat(
+                content_tag(:h2, class: "accordion-header", id: header_id) do
+                  content_tag(
+                    :button,
+                    "Инструкции (PDF)",
+                    class: "accordion-button collapsed",
+                    type: "button",
+                    data: { "bs-toggle": "collapse", "bs-target": "##{assembly_collapse_id}" },
+                    aria: { expanded: "false", controls: assembly_collapse_id }
+                  )
+                end
+              )
+              concat(
+                content_tag(
+                  :div,
+                  id: assembly_collapse_id,
+                  class: "accordion-collapse collapse",
+                  aria: { labelledby: header_id },
+                  data: { "bs-parent": "##{accordion_id}" }
+                ) do
+                  content_tag(:div, class: "accordion-body") do
+                    if product.assembly_documents.is_a?(Array)
+                      content_tag(:ul) do
+                        product.assembly_documents.map do |doc|
+                          url = doc["local_url"].presence || doc["url"]
+                          next if url.blank?
+                          content_tag(:li) do
+                            link_to(url, url, target: "_blank")
+                          end
+                        end.compact.join.html_safe
+                      end
+                    else
+                      "Инструкции отсутствуют"
+                    end
+                  end
+                end
+              )
+            end
+          )
+
+          concat(
+            content_tag(:div, class: "accordion-item") do
+              header_id = "#{manuals_collapse_id}-header"
+              concat(
+                content_tag(:h2, class: "accordion-header", id: header_id) do
+                  content_tag(
+                    :button,
+                    "Руководства (PDF)",
+                    class: "accordion-button collapsed",
+                    type: "button",
+                    data: { "bs-toggle": "collapse", "bs-target": "##{manuals_collapse_id}" },
+                    aria: { expanded: "false", controls: manuals_collapse_id }
+                  )
+                end
+              )
+              concat(
+                content_tag(
+                  :div,
+                  id: manuals_collapse_id,
+                  class: "accordion-collapse collapse",
+                  aria: { labelledby: header_id },
+                  data: { "bs-parent": "##{accordion_id}" }
+                ) do
+                  content_tag(:div, class: "accordion-body") do
+                    if product.manuals.is_a?(Array)
+                      content_tag(:ul) do
+                        product.manuals.map do |doc|
+                          url = doc["local_url"].presence || doc["url"]
+                          next if url.blank?
+                          content_tag(:li) do
+                            link_to(url, url, target: "_blank")
+                          end
+                        end.compact.join.html_safe
+                      end
+                    else
+                      "Руководства отсутствуют"
+                    end
+                  end
+                end
+              )
+            end
+          )
+
+          concat(
+            content_tag(:div, class: "accordion-item") do
+              header_id = "#{json_collapse_id}-header"
+              concat(
+                content_tag(:h2, class: "accordion-header", id: header_id) do
+                  content_tag(
+                    :button,
+                    "JSON",
+                    class: "accordion-button collapsed",
+                    type: "button",
+                    data: { "bs-toggle": "collapse", "bs-target": "##{json_collapse_id}" },
+                    aria: { expanded: "false", controls: json_collapse_id }
+                  )
+                end
+              )
+              concat(
+                content_tag(
+                  :div,
+                  id: json_collapse_id,
+                  class: "accordion-collapse collapse",
+                  aria: { labelledby: header_id },
+                  data: { "bs-parent": "##{accordion_id}" }
+                ) do
+                  content_tag(:div, class: "accordion-body") do
+                    if product.full_attributes.present?
+                      content_tag(:pre, JSON.pretty_generate(product.full_attributes))
+                    else
+                      "Нет данных"
+                    end
+                  end
+                end
+              )
+            end
+          )
+
+          concat(
+            content_tag(:div, class: "accordion-item") do
+              header_id = "#{ru_collapse_id}-header"
+              concat(
+                content_tag(:h2, class: "accordion-header", id: header_id) do
+                  content_tag(
+                    :button,
+                    "RU",
+                    class: "accordion-button collapsed",
+                    type: "button",
+                    data: { "bs-toggle": "collapse", "bs-target": "##{ru_collapse_id}" },
+                    aria: { expanded: "false", controls: ru_collapse_id }
+                  )
+                end
+              )
+              concat(
+                content_tag(
+                  :div,
+                  id: ru_collapse_id,
+                  class: "accordion-collapse collapse",
+                  aria: { labelledby: header_id },
+                  data: { "bs-parent": "##{accordion_id}" }
+                ) do
+                  content_tag(:div, class: "accordion-body") do
+                    if product.full_attributes_ru.present?
+                      ordered = {
+                        "description" => product.full_attributes_ru["description"],
+                        "size" => product.full_attributes_ru["size"],
+                        "materials" => product.full_attributes_ru["materials"],
+                        "instructions" => product.full_attributes_ru["instructions"]
+                      }.compact
+                      content_tag(:pre, JSON.pretty_generate(ordered))
+                    else
+                      "Нет данных"
+                    end
+                  end
+                end
+              )
+            end
+          )
         end
-      end
-
-      static_field :full_attributes_json, label: "Все атрибуты (JSON)" do
-        content_tag :pre, JSON.pretty_generate(product.full_attributes) if product.full_attributes.present?
       end
     end
 

@@ -197,6 +197,16 @@ paths:
       tags:
         - Categories
       parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
         - name: is_popular
           in: query
           schema:
@@ -213,6 +223,8 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Category'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
 
   /api/v1/categories/header_menu:
     get:
@@ -259,6 +271,22 @@ paths:
       summary: Список товаров в категории
       tags:
         - Categories
+      description: |
+        Возвращает товары категории и метаданные с доступными фильтрами.
+
+        ## Как фильтровать
+        1) Получите категорию и её `available_filters` (из `GET /api/v1/categories` или `GET /api/v1/categories/{id}`).
+        2) Отправляйте выбранные значения в query через `filters[PARAMETER][]=VALUE_ID`.
+
+        - `PARAMETER` — это `available_filters[].parameter`
+        - `VALUE_ID` — это `available_filters[].values[].id`
+
+        ## Пример
+        `/api/v1/categories/700403/products?filters[f-type][]=50310&filters[f-price-buckets][]=PRICE_19900_19901`
+
+        ## Логика
+        - между разными параметрами фильтров используется AND
+        - внутри одного параметра используется OR
       parameters:
         - name: id
           in: path
@@ -294,7 +322,9 @@ paths:
             enum: [popular, newest, cheapest, expensive]
         - name: filters
           in: query
-          description: Динамические фильтры в формате filters[parameter][]=value
+          description: |
+            Фильтры по available_filters.
+            Формат: filters[PARAMETER][]=VALUE_ID
           style: deepObject
           explode: true
           schema:
@@ -1877,6 +1907,8 @@ components:
         page:
           type: integer
         per_page:
+          type: integer
+        total_pages:
           type: integer
 
     PopularSearchQuery:

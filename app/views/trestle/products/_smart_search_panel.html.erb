@@ -12,6 +12,10 @@
                   class: "d-flex gap-2 align-items-center",
                   data: { turbo: false } do %>
         <%= file_field_tag :file, accept: "application/json", class: "form-control", style: "max-width: 340px;" %>
+        <div class="form-check form-check-inline">
+          <%= check_box_tag :force_full, "1", false, class: "form-check-input", id: "force_full_import" %>
+          <%= label_tag :force_full, "Полное обновление", class: "form-check-label", for: "force_full_import" %>
+        </div>
         <%= submit_tag "⬆️ Загрузить атрибуты (JSON)",
                       class: "btn btn-success",
                       data: { confirm: "Загрузить и обновить продукты из JSON файла?" } %>

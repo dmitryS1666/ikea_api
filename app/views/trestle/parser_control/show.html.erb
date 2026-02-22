@@ -79,7 +79,9 @@
                         'category_images' => 'Картинки категорий',
                         'product_images' => 'Картинки продуктов',
                         'extended_attributes' => 'Расширенные атрибуты продуктов',
-                        'currency_rates' => 'Курсы валют'
+                        'currency_rates' => 'Курсы валют',
+                        'category_filters' => 'Переиндексация фильтров категорий',
+                        'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)'
                       }[task.task_type] || task.task_type %>
                       <% if task.status == 'pending' %>
                         <span class="badge badge-secondary ml-2">Ожидание</span>
@@ -124,6 +126,7 @@
                 <th>Ошибок</th>
                 <th>Начало</th>
                 <th>Завершено</th>
+                <th>Действие</th>
               </tr>
             </thead>
             <tbody>
@@ -138,7 +141,9 @@
                       'category_images' => 'Картинки категорий',
                       'product_images' => 'Картинки продуктов',
                       'extended_attributes' => 'Расширенные атрибуты продуктов',
-                      'currency_rates' => 'Курсы валют'
+                      'currency_rates' => 'Курсы валют',
+                      'category_filters' => 'Переиндексация фильтров категорий',
+                      'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)'
                     }[task.task_type] || task.task_type %>
                   </td>
                   <td>
@@ -152,6 +157,14 @@
                   <td><%= task.error_count %></td>
                   <td><%= task.started_at&.strftime('%d.%m.%Y %H:%M') %></td>
                   <td><%= task.completed_at&.strftime('%d.%m.%Y %H:%M') %></td>
+                  <td>
+                    <% if task.task_type == 'extended_attrs_import' && task.status == 'failed' %>
+                      <%= form_tag resume_task_parser_control_admin_index_path, method: :post, data: { turbo: false }, style: "display: inline;" do %>
+                        <%= hidden_field_tag :task_id, task.id %>
+                        <%= submit_tag "Продолжить", class: "btn btn-sm btn-outline-primary" %>
+                      <% end %>
+                    <% end %>
+                  </td>
                 </tr>
               <% end %>
             </tbody>
@@ -280,7 +293,9 @@
             'category_images': 'Картинки категорий',
             'product_images': 'Картинки продуктов',
             'extended_attributes': 'Расширенные атрибуты продуктов',
-            'currency_rates': 'Курсы валют'
+            'currency_rates': 'Курсы валют',
+            'category_filters': 'Переиндексация фильтров категорий',
+            'extended_attrs_import': 'Импорт расширенных атрибутов (JSON)'
           }[task.task_type] || task.task_type;
           
           const limitText = task.limit ? task.limit : '∞';

@@ -11,5 +11,6 @@ FactoryBot.define do
     is_deleted { false }
     is_important { false }
     is_popular { false }
+    available_filters { [] }
   end
 end

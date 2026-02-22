@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_02_22_121000) do
+ActiveRecord::Schema[7.1].define(version: 2026_02_22_133000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -377,6 +377,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_22_121000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "job_id"
+    t.jsonb "payload", default: {}, null: false
     t.index ["created_at"], name: "index_parser_tasks_on_created_at"
     t.index ["job_id"], name: "index_parser_tasks_on_job_id"
     t.index ["status"], name: "index_parser_tasks_on_status"
@@ -423,6 +424,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_22_121000) do
     t.datetime "updated_at", null: false
     t.index ["active"], name: "index_popular_search_queries_on_active"
     t.index ["query"], name: "index_popular_search_queries_on_query"
+  end
+
+  create_table "product_filter_values", force: :cascade do |t|
+    t.bigint "product_id", null: false
+    t.string "category_id", null: false
+    t.string "parameter", null: false
+    t.string "value_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category_id", "parameter", "value_id", "product_id"], name: "index_product_filter_values_on_category_param_value_product"
+    t.index ["product_id", "category_id", "parameter", "value_id"], name: "index_product_filter_values_unique", unique: true
+    t.index ["product_id", "category_id"], name: "index_product_filter_values_on_product_and_category"
   end
 
   create_table "product_title_templates", force: :cascade do |t|
@@ -505,6 +518,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_22_121000) do
     t.jsonb "full_attributes", default: {}
     t.jsonb "packaging", default: {}
     t.text "dimensions_ru"
+    t.jsonb "full_attributes_ru", default: {}, null: false
     t.index ["category_id"], name: "index_products_on_category_id"
     t.index ["is_bestseller"], name: "index_products_on_is_bestseller"
     t.index ["is_popular"], name: "index_products_on_is_popular"
@@ -680,6 +694,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_22_121000) do
   add_foreign_key "order_items", "orders"
   add_foreign_key "orders", "promo_codes"
   add_foreign_key "orders", "users"
+  add_foreign_key "product_filter_values", "categories", primary_key: "ikea_id"
+  add_foreign_key "product_filter_values", "products"
   add_foreign_key "promo_code_products", "promo_codes"
   add_foreign_key "review_helpful_votes", "reviews"
   add_foreign_key "review_helpful_votes", "users"

@@ -49,7 +49,7 @@
               <tr>
                 <th>Категория:</th>
                 <td>
-                  <%= link_to @product.category.name, categories_admin_path(@product.category.ikea_id), class: 'text-decoration-none' %>
+                  <%= link_to @product.category.translated_name, categories_admin_path(@product.category.ikea_id), class: 'text-decoration-none' %>
                 </td>
               </tr>
             <% end %>
@@ -120,39 +120,15 @@
             <% if @product.dimensions.present? %>
               <tr>
                 <th>Размеры:</th>
-                <td><%= @product.dimensions %></td>
-              </tr>
-            <% end %>
-            <tr>
-              <th>Посылка:</th>
-              <td>
-                <span class="badge <%= @product.is_parcel? ? 'badge-success' : 'badge-secondary' %>">
-                  <%= @product.is_parcel? ? 'Да' : 'Нет' %>
-                </span>
-              </td>
-            </tr>
-            <% if @product.content_ru.present? %>
-              <tr>
-                <th>Описание:</th>
-                <td><%= @product.content_ru.html_safe %></td>
-              </tr>
-            <% end %>
-            <% if @product.materials.present? %>
-              <tr>
-                <th>Материалы:</th>
-                <td><%= @product.materials %></td>
+                  <% full = @product.full_attributes_ru || {} %>
+                  <% ordered = full["size"] %>
+                <td><%= ordered %></td>
               </tr>
             <% end %>
             <% if @product.materials_ru.present? %>
               <tr>
                 <th>Материалы (RU):</th>
                 <td><%= @product.materials_ru %></td>
-              </tr>
-            <% end %>
-            <% if @product.features.present? %>
-              <tr>
-                <th>Особенности:</th>
-                <td><%= @product.features %></td>
               </tr>
             <% end %>
             <% if @product.features_ru.present? %>
@@ -407,7 +383,8 @@
               <h6 class="mb-3">Рекомендуемые товары (<%= related_products.length %>)</h6>
               <div class="mb-4">
                 <ul class="list-group">
-                  <% related_products.each do |item_no| %>
+                  <% related_products.each do |item| %>
+                    <% item_no = item.is_a?(Hash) ? (item["sku"] || item[:sku] || item["item_no"] || item[:item_no]) : item %>
                     <% related_product = Product.find_by(item_no: item_no) || Product.find_by(sku: item_no) %>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                       <% if related_product %>

@@ -114,6 +114,41 @@ Trestle.resource :parser_control, model: ParserControl do
       redirect_to admin.instance_path(ParserControl.new(id: 'show'))
     end
 
+    def resume_task
+      task_id = params[:task_id]
+      if task_id.blank?
+        flash[:error] = "Не указан ID задачи"
+        return redirect_to admin.instance_path(ParserControl.new(id: 'show'))
+      end
+
+      task = ParserTask.find_by(id: task_id)
+      unless task
+        flash[:error] = "Задача не найдена"
+        return redirect_to admin.instance_path(ParserControl.new(id: 'show'))
+      end
+
+      unless task.task_type == 'extended_attrs_import'
+        flash[:error] = "Эта задача не поддерживает продолжение"
+        return redirect_to admin.instance_path(ParserControl.new(id: 'show'))
+      end
+
+      if %w[running pending].include?(task.status)
+        flash[:error] = "Задача уже выполняется"
+        return redirect_to admin.instance_path(ParserControl.new(id: 'show'))
+      end
+
+      task.update!(status: 'pending', error_message: nil, completed_at: nil)
+      job = ImportExtendedAttributesFromFileJob.perform_later(task_id: task.id)
+      task.update!(job_id: job.job_id) if job.respond_to?(:job_id)
+
+      flash[:message] = "Продолжение импорта запущено"
+      redirect_to admin.instance_path(ParserControl.new(id: 'show'))
+    rescue => e
+      Rails.logger.error "Error resuming task: #{e.class} - #{e.message}"
+      flash[:error] = "Ошибка запуска: #{e.message}"
+      redirect_to admin.instance_path(ParserControl.new(id: 'show'))
+    end
+
     private
 
     # Остановить все связанные Sidekiq jobs для задачи
@@ -228,7 +263,9 @@ Trestle.resource :parser_control, model: ParserControl do
         'category_images' => 'Картинки категорий',
         'product_images' => 'Картинки продуктов',
         'extended_attributes' => 'Расширенные атрибуты продуктов',
-        'currency_rates' => 'Курсы валют'
+        'currency_rates' => 'Курсы валют',
+        'category_filters' => 'Переиндексация фильтров категорий',
+        'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)'
       }[type] || type
     end
   end
@@ -236,6 +273,7 @@ Trestle.resource :parser_control, model: ParserControl do
   routes do
     post :start_task, on: :collection
     post :stop_task, on: :collection
+    post :resume_task, on: :collection
     get :active_tasks, on: :collection
   end
 end

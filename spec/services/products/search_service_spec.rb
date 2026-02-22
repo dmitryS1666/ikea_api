@@ -45,5 +45,30 @@ RSpec.describe Products::SearchService do
       end
     end
 
+    context 'filtering by available_filters values' do
+      before do
+        create(:product_filter_value,
+               product: product1,
+               category_id: category.ikea_id,
+               parameter: "f-type",
+               value_id: "50310")
+        create(:product_filter_value,
+               product: product2,
+               category_id: category.ikea_id,
+               parameter: "f-type",
+               value_id: "99999")
+      end
+
+      it 'filters by single value_id' do
+        service = described_class.new(category, { filters: { "f-type" => "50310" } })
+        expect(service.call).to contain_exactly(product1)
+      end
+
+      it 'filters by multiple value_ids' do
+        service = described_class.new(category, { filters: { "f-type" => ["50310", "99999"] } })
+        expect(service.call).to contain_exactly(product1, product2)
+      end
+    end
+
   end
 end

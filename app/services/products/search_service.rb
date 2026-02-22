@@ -12,6 +12,7 @@ module Products
 
     def call
       filter_by_price
+      filter_by_attributes
       sort_results
       
       @scope.distinct
@@ -29,8 +30,21 @@ module Products
       end
     end
 
-    # Фильтрация по атрибутам через filters/filter_values удалена.
-    # Доступные фильтры берутся из category.available_filters.
+    def filter_by_attributes
+      return unless @params[:filters].present? && @params[:filters].is_a?(Hash)
+      return unless @category&.ikea_id
+
+      @params[:filters].each do |filter_param, values|
+        value_ids = Array(values).map(&:to_s).reject(&:blank?)
+        next if value_ids.empty?
+
+        subquery = ProductFilterValue
+                     .where(category_id: @category.ikea_id, parameter: filter_param.to_s, value_id: value_ids)
+                     .select(:product_id)
+
+        @scope = @scope.where(id: subquery)
+      end
+    end
 
     def sort_results
       sort_option = @params[:sort] || @category.try(:default_sort) || 'popular'

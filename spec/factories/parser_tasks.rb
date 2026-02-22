@@ -10,6 +10,7 @@ FactoryBot.define do
     started_at { nil }
     completed_at { nil }
     error_message { nil }
+    payload { {} }
 
     trait :running do
       status { 'running' }
