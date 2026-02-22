@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_02_18_150000) do
+ActiveRecord::Schema[7.1].define(version: 2026_02_22_121000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -30,7 +30,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_18_150000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
-    t.bigint "record_id", null: false
+    t.string "record_id", null: false
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
     t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
@@ -119,6 +119,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_18_150000) do
     t.boolean "show_delivery_block", default: true
     t.boolean "show_reviews_block", default: true
     t.boolean "show_tips_block", default: true
+    t.jsonb "available_filters", default: [], null: false
     t.index "to_tsvector('simple'::regconfig, COALESCE(parent_ids, ''::text))", name: "index_categories_on_parent_ids_text", where: "((parent_ids IS NOT NULL) AND (parent_ids <> '[]'::text) AND (parent_ids <> ''::text))", using: :gin
     t.index ["default_sort"], name: "index_categories_on_default_sort"
     t.index ["ikea_id"], name: "index_categories_on_ikea_id", unique: true
@@ -234,27 +235,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_18_150000) do
     t.boolean "include_out_of_stock", default: false, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-  end
-
-  create_table "filter_values", force: :cascade do |t|
-    t.bigint "filter_id", null: false
-    t.string "value_id"
-    t.string "name"
-    t.string "name_ru"
-    t.string "hex"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["filter_id"], name: "index_filter_values_on_filter_id"
-    t.index ["value_id"], name: "index_filter_values_on_value_id", unique: true
-  end
-
-  create_table "filters", force: :cascade do |t|
-    t.string "parameter"
-    t.string "name"
-    t.string "name_ru"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["parameter"], name: "index_filters_on_parameter", unique: true
   end
 
   create_table "global_seo_settings", force: :cascade do |t|
@@ -443,15 +423,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_18_150000) do
     t.datetime "updated_at", null: false
     t.index ["active"], name: "index_popular_search_queries_on_active"
     t.index ["query"], name: "index_popular_search_queries_on_query"
-  end
-
-  create_table "product_filter_values", force: :cascade do |t|
-    t.bigint "product_id", null: false
-    t.bigint "filter_value_id", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["filter_value_id"], name: "index_product_filter_values_on_filter_value_id"
-    t.index ["product_id"], name: "index_product_filter_values_on_product_id"
   end
 
   create_table "product_title_templates", force: :cascade do |t|
@@ -701,7 +672,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_18_150000) do
   add_foreign_key "carts", "promo_codes"
   add_foreign_key "carts", "users"
   add_foreign_key "category_products", "products"
-  add_foreign_key "filter_values", "filters"
   add_foreign_key "home_banners", "categories", primary_key: "ikea_id", on_delete: :nullify
   add_foreign_key "home_slider_banners", "home_sliders"
   add_foreign_key "homepage_product_block_items", "homepage_product_blocks"
@@ -710,8 +680,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_18_150000) do
   add_foreign_key "order_items", "orders"
   add_foreign_key "orders", "promo_codes"
   add_foreign_key "orders", "users"
-  add_foreign_key "product_filter_values", "filter_values"
-  add_foreign_key "product_filter_values", "products"
   add_foreign_key "promo_code_products", "promo_codes"
   add_foreign_key "review_helpful_votes", "reviews"
   add_foreign_key "review_helpful_votes", "users"

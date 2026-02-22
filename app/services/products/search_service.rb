@@ -12,7 +12,6 @@ module Products
 
     def call
       filter_by_price
-      filter_by_attributes
       sort_results
       
       @scope.distinct
@@ -30,21 +29,8 @@ module Products
       end
     end
 
-    def filter_by_attributes
-      return unless @params[:filters].present? && @params[:filters].is_a?(Hash)
-
-      @params[:filters].each do |filter_param, values|
-        next if values.blank?
-        
-        # values can be a single string or an array
-        value_ids = Array(values)
-        
-        @scope = @scope.joins(product_filter_values: :filter_value)
-                       .joins('INNER JOIN filters ON filter_values.filter_id = filters.id')
-                       .where(filters: { parameter: filter_param })
-                       .where(filter_values: { value_id: value_ids })
-      end
-    end
+    # Фильтрация по атрибутам через filters/filter_values удалена.
+    # Доступные фильтры берутся из category.available_filters.
 
     def sort_results
       sort_option = @params[:sort] || @category.try(:default_sort) || 'popular'

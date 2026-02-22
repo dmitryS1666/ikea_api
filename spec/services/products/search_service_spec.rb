@@ -45,25 +45,5 @@ RSpec.describe Products::SearchService do
       end
     end
 
-    context 'filtering by attributes' do
-      let(:filter) { create(:filter, parameter: 'color') }
-      let(:red_value) { create(:filter_value, filter: filter, value_id: 'red') }
-      let(:blue_value) { create(:filter_value, filter: filter, value_id: 'blue') }
-
-      before do
-        create(:product_filter_value, product: product1, filter_value: red_value)
-        create(:product_filter_value, product: product2, filter_value: blue_value)
-      end
-
-      it 'filters by single attribute value' do
-        service = described_class.new(category, { filters: { color: 'red' } })
-        expect(service.call).to contain_exactly(product1)
-      end
-
-      it 'filters by multiple attribute values' do
-        service = described_class.new(category, { filters: { color: ['red', 'blue'] } })
-        expect(service.call).to contain_exactly(product1, product2)
-      end
-    end
   end
 end

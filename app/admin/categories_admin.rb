@@ -146,6 +146,20 @@ Trestle.resource(:categories, model: Category) do
       redirect_to '/admin/categories', notice: "Категория отключена (мягкое удаление)"
     end
 
+    def import_available_filters
+      file = params[:file]
+      unless file.respond_to?(:read)
+        flash[:error] = "Не выбран файл."
+        return redirect_to admin.path(:index)
+      end
+
+      result = Categories::AvailableFiltersImportService.new(file).call
+      clear_categories_cache
+
+      flash[:notice] = "Импорт завершен: обновлено #{result.updated}, пропущено #{result.skipped}, ошибок #{result.errors}."
+      redirect_to admin.path(:index)
+    end
+
     private
 
     def clear_categories_cache
@@ -181,6 +195,7 @@ Trestle.resource(:categories, model: Category) do
     post :toggle_active, on: :member
     post :toggle_popular, on: :member
     post :soft_delete, on: :member
+    post :import_available_filters, on: :collection
   end
 
   table do
@@ -277,16 +292,15 @@ Trestle.resource(:categories, model: Category) do
           concat(content_tag(:div, id: "category-icon-preview-container", style: "margin-bottom: 15px;") do
             content = +""
             if category.persisted? && category.icon.attached?
+              icon_path = main_app.rails_storage_proxy_path(category.icon, only_path: true)
               content << content_tag(:div, class: "current-icon-preview", style: "margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px; display: inline-block;") do
-                image_tag(Rails.application.routes.url_helpers.rails_blob_path(category.icon, only_path: true),
+                image_tag(icon_path,
                         style: "max-width: 100px; max-height: 100px; display: block; margin: 0 auto; border: 1px solid #ddd; border-radius: 4px;",
-                        id: "current-icon-preview") +
-                content_tag(:p, "Текущая иконка", style: "text-align: center; margin-top: 10px; color: #666; font-size: 12px;")
+                        id: "current-icon-preview")
               end
             end
             content << content_tag(:div, id: "new-icon-preview", style: "display: none; margin-bottom: 15px; padding: 10px; background: #e8f5e9; border-radius: 4px; display: inline-block;") do
-              content_tag(:img, "", id: "icon-preview", style: "max-width: 100px; max-height: 100px; display: block; margin: 0 auto; border: 1px solid #4caf50; border-radius: 4px;") +
-              content_tag(:p, "Предпросмотр новой иконки", style: "text-align: center; margin-top: 10px; color: #2e7d32; font-size: 12px; font-weight: bold;")
+              content_tag(:img, "", id: "icon-preview", style: "max-width: 100px; max-height: 100px; display: block; margin: 0 auto; border: 1px solid #4caf50; border-radius: 4px;")
             end
             content.html_safe
           end)
@@ -304,6 +318,10 @@ Trestle.resource(:categories, model: Category) do
                   var preview = document.getElementById('icon-preview');
                   var container = document.getElementById('new-icon-preview');
                   var currentPreview = document.querySelector('.current-icon-preview');
+
+                  // Reset preview state after page load (e.g., after save)
+                  if (container) container.style.display = 'none';
+                  if (currentPreview) currentPreview.style.display = 'inline-block';
 
                   fileInput.addEventListener('change', function(e) {
                     if (e.target.files && e.target.files[0]) {
@@ -374,6 +392,7 @@ Trestle.resource(:categories, model: Category) do
       :ikea_id, :name, :translated_name, :is_popular, :default_sort,
       :header_menu, :is_deleted, :header_menu_position, :delivery_days,
       :is_bulky, :show_delivery_block, :show_reviews_block, :show_tips_block,
+      :icon,
       seo_meta_attributes: [:id, :title, :description, :keywords, :robots, :seo_text, :_destroy]
     )
   end

@@ -65,9 +65,6 @@ Rails.application.routes.draw do
         end
       end
       
-      # Filters
-      resources :filters, only: [:index]
-      
       # Delivery
       resources :delivery, only: [] do
         collection do

@@ -15,7 +15,8 @@ class CategorySerializer
              :show_delivery_block,
              :show_reviews_block,
              :show_tips_block,
-             :icon_url
+            :icon_url,
+            :available_filters
   
   attribute :icon_url do |category|
     if category.icon.attached?
@@ -29,6 +30,10 @@ class CategorySerializer
 
   attribute :parent_ids do |category|
     category.parent_ids || []
+  end
+
+  attribute :available_filters do |category|
+    category.available_filters || []
   end
 
   attribute :seo do |category, params|

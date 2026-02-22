@@ -23,31 +23,15 @@ module Api
           min_price: params[:min_price],
           max_price: params[:max_price],
           sort: params[:sort],
-          filters: params[:filters] # Ожидаем Hash: { color: ['red', 'blue'], material: 'wood' }
+          filters: params[:filters] # Deprecated: server-side filter_values removed
         }
 
         products_scope = Products::SearchService.new(category, search_params).call
         
         products = products_scope
-                           .includes(:categories, :filter_values)
+                           .includes(:categories)
                            .page(params[:page])
                            .per(params[:per_page] || 50)
-
-        # Собираем доступные фильтры для текущей категории
-        # Это поможет фронтенду отображать только актуальные значения
-        available_filters_data = category.products_through_categories
-                                    .joins(filter_values: :filter)
-                                    .select('filters.parameter, filters.name_ru as filter_name, filter_values.value_id, filter_values.name_ru as value_name')
-                                    .distinct
-
-        # Группируем фильтры для удобства фронтенда
-        filters_meta = available_filters_data.group_by(&:parameter).map do |param, values|
-          {
-            parameter: param,
-            name: values.first.filter_name,
-            values: values.map { |v| { id: v.value_id, name: v.value_name } }
-          }
-        end
 
         render json: ProductSerializer.new(products, {
           include: [:categories],
@@ -57,7 +41,7 @@ module Api
             per_page: (params[:per_page] || 50).to_i,
             total_pages: products.total_pages,
             default_sort: category.default_sort,
-            available_filters: filters_meta
+            available_filters: category.available_filters || []
           }
         })
       end

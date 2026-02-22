@@ -18,9 +18,6 @@ class Product < ApplicationRecord
     category || categories.order(:name).first
   end
 
-  has_many :product_filter_values
-  has_many :filter_values, through: :product_filter_values
-  
   # Scopes
   scope :active, -> { all } # Placeholder if you want to add logic like where(is_deleted: false)
   scope :bestsellers, -> { where(is_bestseller: true) }

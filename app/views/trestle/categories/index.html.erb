@@ -4,6 +4,23 @@
 
 <div class="row">
   <div class="col-md-2">
+    <div class="card mb-3">
+      <div class="card-header">Импорт фильтров</div>
+      <div class="card-body">
+        <%= form_tag admin.path(:import_available_filters),
+                    method: :post,
+                    multipart: true,
+                    data: { turbo: false } do %>
+          <%= file_field_tag :file, accept: "application/json", class: "form-control mb-2" %>
+          <%= submit_tag "Загрузить available_filters",
+                        class: "btn btn-success btn-sm",
+                        data: { confirm: "Загрузить available_filters из JSON файла?" } %>
+          <div class="text-muted small mt-2">
+            JSON: объект, массив, { categories: [...] } или JSONL.
+          </div>
+        <% end %>
+      </div>
+    </div>
     <div class="sidebar-section card">
       <div class="card-header">Фильтры</div>
       <div class="list-group list-group-flush">
