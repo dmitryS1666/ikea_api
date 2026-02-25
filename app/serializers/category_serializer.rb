@@ -2,7 +2,12 @@ class CategorySerializer
   include FastJsonapi::ObjectSerializer
   
   set_id :ikea_id
-  
+
+  attribute :slug do |category|
+    source = category.translated_name.presence || category.name
+    SlugifyService.call(source)
+  end
+
   attributes :translated_name, 
              :local_image_path, 
              :is_deleted,
@@ -17,7 +22,8 @@ class CategorySerializer
              :show_tips_block,
              :icon_url,
              :available_filters
-  
+
+
   attribute :icon_url do |category|
     if category.icon.attached?
       begin

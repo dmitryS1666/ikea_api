@@ -3,6 +3,7 @@ class ProductSerializer
   
   attributes :sku,
              :name_ru,
+             :slug,
              :price, 
              :quantity, 
              :weight,
@@ -13,6 +14,11 @@ class ProductSerializer
              :rating_weighted,
              :rating_count, 
              :rating_updated_at
+
+  attribute :slug do |product|
+    source = product.name_ru.presence || product.name.presence || product.sku
+    SlugifyService.call(source)
+  end
   
   attribute :variants do |product|
     ProductSerializer.normalize_variants(product.variants)
@@ -144,11 +150,16 @@ class ProductSerializer
   end
 
   def self.extract_variant_name(entry)
-    entry["name_ru"] || entry[:name_ru]
+    entry["name_ru"] || entry[:name_ru] ||
+      entry["name"] || entry[:name] ||
+      entry["typeName"] || entry[:typeName] ||
+      entry["validDesignText"] || entry[:validDesignText]
   end
 
   def self.extract_variant_sku(entry)
-    entry["sku"] || entry[:sku]
+    entry["id"] || entry[:id] ||
+      entry["itemNoGlobal"] || entry[:itemNoGlobal] ||
+      entry["itemNo"] || entry[:itemNo]
   end
 
   def self.extract_variant_price(entry)
@@ -168,7 +179,7 @@ class ProductSerializer
 
   def self.extract_variant_images(entry)
     images = entry["local_images"] || entry[:local_images]
-    Array(images).compact
+    normalize_variant_images(images)
   end
 
   def self.extract_variant_quantity(entry)
@@ -177,6 +188,27 @@ class ProductSerializer
       quantity = quantity["quantity"] || quantity[:quantity]
     end
     quantity
+  end
+
+  def self.normalize_variant_images(value)
+    return [] if value.blank?
+
+    if value.is_a?(String)
+      begin
+        value = JSON.parse(value)
+      rescue JSON::ParserError
+        return value.present? ? [value] : []
+      end
+    end
+
+    Array(value).filter_map do |item|
+      if item.is_a?(Hash)
+        item["url"] || item[:url] ||
+          item["imageUrl"] || item[:imageUrl]
+      else
+        item.to_s.presence
+      end
+    end
   end
 end
 
