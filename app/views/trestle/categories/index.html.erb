@@ -65,6 +65,9 @@
     <div class="categories-tree-container card">
       <div class="card-body">
         <div class="tree-controls mb-3">
+          <%= link_to new_categories_admin_path("category[is_custom]": true), class: "btn btn-sm btn-primary" do %>
+            <i class="fa fa-plus"></i> Создать кастомную страницу
+          <% end %>
           <button type="button" class="btn btn-sm btn-secondary" onclick="expandAll()">
             <i class="fa fa-plus-circle"></i> Развернуть все
           </button>

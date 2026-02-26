@@ -2,12 +2,27 @@
   <%= @category.name %>
 <% end %>
 
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5>Действия</h5>
+        </div>
+        <div class="card-body"> 
+          <%= link_to edit_categories_admin_path(@category), class: "btn btn-primary" do %>
+            <i class="fa fa-pencil"></i> Редактировать
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <div class="category-show">
   <div class="row">
     <div class="col-md-6">
       <div class="card">
         <div class="card-header">
-          <h5>Главный баннер</h5>
+          <h5>Основная информация</h5>
         </div>
         <div class="card-body">
           <table class="table">

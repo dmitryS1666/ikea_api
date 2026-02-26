@@ -1,6 +1,7 @@
 Trestle.resource(:categories, model: Category) do
   menu do
     item :categories, icon: "fa fa-folder", priority: 1, label: "Категории", group: "Catalog"
+    # item :custom_categories, icon: "fa fa-magic", priority: 2, label: "Кастомные страницы", group: "Catalog", path: "/admin/categories?scope=custom"
   end
 
   scopes do
@@ -18,110 +19,63 @@ Trestle.resource(:categories, model: Category) do
       # Получаем текущий scope из параметров
       @current_scope = params[:scope] || 'all'
       
-      # В development режиме отключаем кэширование для упрощения отладки
-      if Rails.env.development?
-        # Без кэширования - всегда свежие данные
+      # Используем кэширование для производительности (даже в development, но с коротким TTL)
+      # В production - 30 минут, в development - 1 минута
+      cache_ttl = Rails.env.development? ? 1.minute : 30.minutes
+      
+      # Кэшируем счетчики продуктов (избегаем N+1 в дереве и таблице)
+      @product_counts = Rails.cache.fetch("categories_product_counts", expires_in: cache_ttl) do
         # Используем новую связь many-to-many через category_products
-        @product_counts = CategoryProduct.select(:category_id).group(:category_id).count
-        
-        # Предзагружаем счетчики дочерних категорий одним запросом (оптимизация N+1)
-        all_categories = Category.select(:ikea_id, :parent_ids).to_a
-        @children_counts = Hash.new(0)
-        
-        all_categories.each do |category|
-          parent_ids = Category.normalize_parent_ids(category.parent_ids)
-          parent_ids.each do |parent_id|
-            @children_counts[parent_id.to_s] += 1
-          end
-        end
-        
-        # Сохраняем счетчики в переменные экземпляра для доступа в table блоке
-        @_product_counts_cache = @product_counts
-        @_children_counts_cache = @children_counts
-        
-        # Применяем фильтрацию в зависимости от выбранного scope
-        base_query = Category.all
-        case @current_scope
-        when 'top_level'
-          base_query = Category.top_level
-        when 'top'
-          base_query = Category.top
-        when 'custom'
-          base_query = Category.custom
-        when 'popular'
-          base_query = Category.popular
-        when 'active'
-          base_query = Category.active
-        end
-
-        # Дерево категорий без кэша
-        categories = base_query.select(:ikea_id, :name, :translated_name, :parent_ids, :is_popular, :is_top, :top_position, :is_custom, :is_deleted, :is_important, :header_menu, :header_menu_position)
-                             .order(:name)
-                             .to_a
-        @categories_tree = Category.build_tree(categories)
-        Rails.logger.info "CategoriesAdmin: Built tree with #{@categories_tree.count} top-level categories (DEV: no cache, scope: #{@current_scope})"
-      else
-        # В production/staging используем кэширование для производительности
-        # Кэшируем счетчики продуктов отдельно для быстрого доступа (увеличено до 30 минут)
-        @product_counts = Rails.cache.fetch("categories_product_counts", expires_in: 30.minutes) do
-          # Используем новую связь many-to-many через category_products
-          CategoryProduct.select(:category_id).group(:category_id).count
-        end
-        
-        # Предзагружаем счетчики дочерних категорий одним запросом (оптимизация N+1)
-        @children_counts = Rails.cache.fetch("categories_children_counts", expires_in: 30.minutes) do
-          # Получаем все категории с их parent_ids
-          all_categories = Category.select(:ikea_id, :parent_ids).to_a
-          children_counts = Hash.new(0)
-          
-          all_categories.each do |category|
-            parent_ids = Category.normalize_parent_ids(category.parent_ids)
-            parent_ids.each do |parent_id|
-              children_counts[parent_id.to_s] += 1
-            end
-          end
-          
-          children_counts
-        end
-        
-        # Сохраняем счетчики в переменные экземпляра для доступа в table блоке
-        @_product_counts_cache = @product_counts
-        @_children_counts_cache = @children_counts
-        
-        # Кэшируем дерево категорий на 30 минут (увеличено с 5 минут)
-        # Ключ кэша включает максимальное время обновления категорий и текущий scope
-        max_updated_at = Rails.cache.fetch("categories_max_updated_at", expires_in: 30.minutes) do
-          Category.maximum(:updated_at)
-        end
-        cache_key = "categories_tree_#{@current_scope}_#{max_updated_at&.to_i || 0}"
-        
-        @categories_tree = Rails.cache.fetch(cache_key, expires_in: 30.minutes) do
-          # Применяем фильтрацию в зависимости от выбранного scope
-          base_query = Category.all
-          case @current_scope
-          when 'top_level'
-            base_query = Category.top_level
-          when 'top'
-            base_query = Category.top
-          when 'custom'
-            base_query = Category.custom
-          when 'popular'
-            base_query = Category.popular
-          when 'active'
-            base_query = Category.active
-          end
-
-          # Оптимизированный запрос - загружаем только нужные поля
-          categories = base_query.select(:ikea_id, :name, :translated_name, :parent_ids, :is_popular, :is_top, :top_position, :is_custom, :is_deleted, :is_important, :header_menu, :header_menu_position)
-                               .order(:name)
-                               .to_a
-          tree = Category.build_tree(categories)
-          Rails.logger.info "CategoriesAdmin: Built tree with #{tree.count} top-level categories (scope: #{@current_scope})"
-          tree
-        end
+        CategoryProduct.group(:category_id).count
       end
       
-      Rails.logger.info "CategoriesAdmin: Rendering tree with #{@categories_tree.count} top-level categories"
+      # Предзагружаем счетчики дочерних категорий (избегаем N+1)
+      @children_counts = Rails.cache.fetch("categories_children_counts", expires_in: cache_ttl) do
+        # Считаем количество вхождений каждого ID в parent_ids
+        counts = Hash.new(0)
+        Category.pluck(:parent_ids).each do |parent_ids_raw|
+          parent_ids = Category.normalize_parent_ids(parent_ids_raw)
+          parent_ids.each { |pid| counts[pid.to_s] += 1 }
+        end
+        counts
+      end
+      
+      # Сохраняем счетчики в переменные экземпляра для доступа в table блоке (Trestle fallback)
+      @_product_counts_cache = @product_counts
+      @_children_counts_cache = @children_counts
+      
+      # Кэшируем дерево категорий
+      # Ключ включает scope и максимальное время обновления категорий
+      max_updated_at = Rails.cache.fetch("categories_max_updated_at", expires_in: cache_ttl) do
+        Category.maximum(:updated_at)
+      end
+      cache_key = "categories_tree_#{@current_scope}_#{max_updated_at&.to_i || 0}"
+      
+      @categories_tree = Rails.cache.fetch(cache_key, expires_in: cache_ttl) do
+        # Применяем фильтрацию
+        base_query = Category.all
+        case @current_scope
+        when 'top_level' then base_query = Category.top_level
+        when 'top'       then base_query = Category.top
+        when 'custom'    then base_query = Category.custom
+        when 'popular'   then base_query = Category.popular
+        when 'active'    then base_query = Category.active
+        end
+
+        # Оптимизированный запрос - загружаем только нужные поля и предзагружаем вложения
+        categories = base_query.with_attached_icon
+                             .select(:ikea_id, :name, :translated_name, :parent_ids, 
+                                    :is_popular, :is_top, :top_position, :is_custom, 
+                                    :is_deleted, :is_important, :header_menu, :header_menu_position,
+                                    :updated_at)
+                             .order(:name)
+                             .to_a
+        
+        tree = Category.build_tree(categories)
+        Rails.logger.info "CategoriesAdmin: Built tree with #{tree.count} top-level categories (scope: #{@current_scope})"
+        tree
+      end
+      
       @filters_reindex_task = ParserTask.by_type('category_filters').recent.first
       @filters_reindex_running = ParserTask.by_type('category_filters')
                                             .where(status: ['running', 'pending'])
@@ -152,31 +106,48 @@ Trestle.resource(:categories, model: Category) do
       @category = admin.find_instance(params)
       file = params[:file]
       
-      if file.blank?
-        flash[:error] = "Выберите CSV файл."
+      result = Categories::ProductImportService.new(@category, file).call
+      
+      if result.error_message
+        flash[:error] = result.error_message
       else
-        begin
-          require 'csv'
-          skus = []
-          CSV.foreach(file.path, headers: false) do |row|
-            skus << row[0].to_s.strip if row[0].present?
-          end
-          
-          skus.uniq!
-          products = Product.where(sku: skus)
-          
-          # Очищаем старые связи, если нужно, или просто добавляем новые
-          # В данном случае, скорее всего, пользователь хочет ЗАМЕНИТЬ список
-          @category.category_products.delete_all
-          
-          products.each do |product|
-            @category.category_products.create(product: product)
-          end
-          
-          flash[:notice] = "Импортировано #{products.count} товаров в категорию."
-        rescue => e
-          flash[:error] = "Ошибка импорта: #{e.message}"
+        msg = "Импортировано #{result.imported} товаров."
+        msg += " Пропущено #{result.skipped} SKU (не найдены в базе)." if result.skipped > 0
+        flash[:notice] = msg
+        flash[:warning] = "Не найдены SKU: #{result.skipped_skus.join(', ')}" if result.skipped > 0
+      end
+      
+      redirect_back fallback_location: edit_categories_admin_path(@category.ikea_id)
+    end
+
+    def add_product
+      @category = admin.find_instance(params)
+      sku = params[:sku].to_s.strip
+      product = Product.find_by(sku: sku)
+      
+      if product
+        if @category.category_products.exists?(product_id: product.id)
+          flash[:error] = "Товар с SKU #{sku} уже есть в этой категории."
+        else
+          @category.category_products.create(product: product)
+          flash[:notice] = "Товар #{product.name_ru || product.name} добавлен."
         end
+      else
+        flash[:error] = "Товар с SKU #{sku} не найден в базе."
+      end
+      
+      redirect_back fallback_location: edit_categories_admin_path(@category.ikea_id)
+    end
+
+    def remove_product
+      @category = admin.find_instance(params)
+      cp = @category.category_products.find_by(product_id: params[:product_id])
+      
+      if cp
+        cp.destroy
+        flash[:notice] = "Товар удален из категории."
+      else
+        flash[:error] = "Связь не найдена."
       end
       
       redirect_back fallback_location: edit_categories_admin_path(@category.ikea_id)
@@ -275,6 +246,8 @@ Trestle.resource(:categories, model: Category) do
     post :import_available_filters, on: :collection
     post :reindex_all_filters, on: :collection
     post :import_products_csv, on: :member
+    post :add_product, on: :member
+    post :remove_product, on: :member
   end
 
   table do
@@ -363,9 +336,10 @@ Trestle.resource(:categories, model: Category) do
       row do
         col(sm: 2) { number_field :top_position, label: "Позиция в ТОП" }
       end
+      row do
+        col(sm: 4) { check_box :is_custom, label: "Кастомная категория (Спецпредложение)" }
+      end
       divider
-      
-      # check_box :is_custom, label: "Кастомная категория (Спецпредложение)"
       
       # select :default_sort, Category.default_sorts.keys.map { |s| [s.humanize, s] }
       # check_box :header_menu
@@ -422,24 +396,6 @@ Trestle.resource(:categories, model: Category) do
         end
       end
       
-      if category.persisted?
-        divider
-        h4 "Импорт товаров (CSV)"
-        row do
-          col(sm: 12) do
-            render inline: <<-ERB, locals: { category: category, admin: admin }
-              <%= form_tag admin.path(:import_products_csv, id: category.ikea_id), method: :post, multipart: true do %>
-                <div class="input-group">
-                  <%= file_field_tag :file, accept: ".csv", class: "form-control" %>
-                  <%= submit_tag "Загрузить CSV", class: "btn btn-primary" %>
-                </div>
-                <p class="help-block">Выберите CSV файл со списком SKU товаров (один SKU на строку).</p>
-              <% end %>
-            ERB
-          end
-        end
-      end
-
       # JavaScript для предпросмотра иконок и фона
       concat(content_tag(:script, type: "text/javascript") do
         raw <<-JS.strip_heredoc
@@ -494,6 +450,62 @@ Trestle.resource(:categories, model: Category) do
       row do
         col(sm: 6) { check_box :show_reviews_block, label: "Показывать отзывы" }
         col(sm: 6) { check_box :show_tips_block, label: "Показывать советы" }
+      end
+    end
+
+    tab :products, label: "Товары" do
+      if category.persisted?
+        h4 "Добавить товар вручную"
+        render inline: <<-ERB, locals: { category: category, admin: admin }
+          <%= form_tag admin.path(:add_product, id: category.ikea_id), method: :post do %>
+            <div class="input-group" style="margin-bottom: 20px;">
+              <%= text_field_tag :sku, nil, placeholder: "Введите SKU товара (например, 102.456.32)", class: "form-control" %>
+              <span class="input-group-btn">
+                <%= submit_tag "Добавить", class: "btn btn-success" %>
+              </span>
+            </div>
+          <% end %>
+        ERB
+
+        divider
+        h4 "Импорт товаров (CSV)"
+        render inline: <<-ERB, locals: { category: category, admin: admin }
+          <%= form_tag admin.path(:import_products_csv, id: category.ikea_id), method: :post, multipart: true do %>
+            <div class="input-group" style="margin-bottom: 10px;">
+              <%= file_field_tag :file, accept: ".csv", class: "form-control" %>
+              <span class="input-group-btn">
+                <%= submit_tag "Загрузить CSV", class: "btn btn-primary" %>
+              </span>
+            </div>
+            <p class="help-block">Один SKU на строку. Текущий список товаров будет заменен.</p>
+          <% end %>
+        ERB
+
+        divider
+        h4 "Список товаров в категории"
+        
+        table category.category_products.includes(:product), label: "Товары" do
+          column :sku do |cp|
+            cp.product.sku
+          end
+          column :name do |cp|
+            link_to cp.product.name_ru || cp.product.name, admin_url_for(cp.product) rescue (cp.product.name_ru || cp.product.name)
+          end
+          column :price do |cp|
+            cp.product.price
+          end
+          column :actions, header: false do |cp|
+            link_to "Удалить", admin.path(:remove_product, id: category.ikea_id, product_id: cp.product_id), 
+                    method: :post, class: "btn btn-danger btn-xs", 
+                    data: { confirm: "Вы уверены, что хотите удалить этот товар из категории?" }
+          end
+        end
+      else
+        row do
+          col do
+            content_tag(:p, "Сохраните категорию, чтобы управлять списком товаров.", class: "alert alert-info")
+          end
+        end
       end
     end
 
