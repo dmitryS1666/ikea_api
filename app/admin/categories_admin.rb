@@ -6,9 +6,10 @@ Trestle.resource(:categories, model: Category) do
   scopes do
     scope :all, default: true
     scope :top_level, -> { Category.top_level }, label: "Верхнеуровневые"
+    scope :top, -> { Category.top }, label: "ТОП-категории"
+    scope :custom, -> { Category.custom }, label: "Кастомные (Спецпредложения)"
     scope :popular, -> { Category.popular }, label: "Популярные"
     scope :active, -> { Category.active }, label: "Активные"
-    scope :in_header_menu, -> { Category.in_header_menu }, label: "В хедере"
   end
 
   # Используем кастомный index view с древовидной структурой
@@ -43,16 +44,18 @@ Trestle.resource(:categories, model: Category) do
         case @current_scope
         when 'top_level'
           base_query = Category.top_level
+        when 'top'
+          base_query = Category.top
+        when 'custom'
+          base_query = Category.custom
         when 'popular'
           base_query = Category.popular
         when 'active'
           base_query = Category.active
-        when 'in_header_menu'
-          base_query = Category.in_header_menu
         end
 
         # Дерево категорий без кэша
-        categories = base_query.select(:ikea_id, :name, :translated_name, :parent_ids, :is_popular, :is_deleted, :is_important, :header_menu, :header_menu_position)
+        categories = base_query.select(:ikea_id, :name, :translated_name, :parent_ids, :is_popular, :is_top, :top_position, :is_custom, :is_deleted, :is_important, :header_menu, :header_menu_position)
                              .order(:name)
                              .to_a
         @categories_tree = Category.build_tree(categories)
@@ -98,16 +101,18 @@ Trestle.resource(:categories, model: Category) do
           case @current_scope
           when 'top_level'
             base_query = Category.top_level
+          when 'top'
+            base_query = Category.top
+          when 'custom'
+            base_query = Category.custom
           when 'popular'
             base_query = Category.popular
           when 'active'
             base_query = Category.active
-          when 'in_header_menu'
-            base_query = Category.in_header_menu
           end
 
           # Оптимизированный запрос - загружаем только нужные поля
-          categories = base_query.select(:ikea_id, :name, :translated_name, :parent_ids, :is_popular, :is_deleted, :is_important, :header_menu, :header_menu_position)
+          categories = base_query.select(:ikea_id, :name, :translated_name, :parent_ids, :is_popular, :is_top, :top_position, :is_custom, :is_deleted, :is_important, :header_menu, :header_menu_position)
                                .order(:name)
                                .to_a
           tree = Category.build_tree(categories)
@@ -122,6 +127,59 @@ Trestle.resource(:categories, model: Category) do
                                             .where(status: ['running', 'pending'])
                                             .exists?
       render "trestle/categories/index"
+    end
+
+    def new
+      @category = Category.new(params[:category]&.to_unsafe_h || {})
+      @category.ikea_id ||= "custom-#{SecureRandom.hex(4)}" if @category.is_custom?
+    end
+
+    def toggle_top
+      @category = admin.find_instance(params)
+      @category.update(is_top: !@category.is_top)
+      clear_categories_cache
+      redirect_to '/admin/categories', notice: "Категория #{@category.is_top? ? 'добавлена в ТОП' : 'удалена из ТОП'}"
+    end
+
+    def toggle_custom
+      @category = admin.find_instance(params)
+      @category.update(is_custom: !@category.is_custom)
+      clear_categories_cache
+      redirect_to '/admin/categories', notice: "Категория #{@category.is_custom? ? 'сделана кастомной' : 'сделана обычной'}"
+    end
+
+    def import_products_csv
+      @category = admin.find_instance(params)
+      file = params[:file]
+      
+      if file.blank?
+        flash[:error] = "Выберите CSV файл."
+      else
+        begin
+          require 'csv'
+          skus = []
+          CSV.foreach(file.path, headers: false) do |row|
+            skus << row[0].to_s.strip if row[0].present?
+          end
+          
+          skus.uniq!
+          products = Product.where(sku: skus)
+          
+          # Очищаем старые связи, если нужно, или просто добавляем новые
+          # В данном случае, скорее всего, пользователь хочет ЗАМЕНИТЬ список
+          @category.category_products.delete_all
+          
+          products.each do |product|
+            @category.category_products.create(product: product)
+          end
+          
+          flash[:notice] = "Импортировано #{products.count} товаров в категорию."
+        rescue => e
+          flash[:error] = "Ошибка импорта: #{e.message}"
+        end
+      end
+      
+      redirect_back fallback_location: edit_categories_admin_path(@category.ikea_id)
     end
 
     def show
@@ -198,30 +256,25 @@ Trestle.resource(:categories, model: Category) do
 
     def categories_admin_params
       params.require(:category).permit(
-        :ikea_id, :name, :translated_name, :is_popular, :default_sort, 
+        :ikea_id, :name, :translated_name, :is_popular, :is_top, :top_position, :is_custom, :default_sort, 
         :header_menu, :is_deleted, :header_menu_position, :delivery_days,
         :is_bulky, :show_delivery_block, :show_reviews_block, :show_tips_block,
-        :icon
+        :icon, :background_image,
+        seo_meta_attributes: [:id, :title, :description, :keywords, :robots, :seo_text, :_destroy]
       )
     end
-  end
-
-  params do |params|
-    params.require(:category).permit(
-      :ikea_id, :name, :translated_name, :is_popular, :default_sort, 
-      :header_menu, :is_deleted, :header_menu_position, :delivery_days,
-      :is_bulky, :show_delivery_block, :show_reviews_block, :show_tips_block,
-      :icon
-    )
   end
 
   routes do
     post :toggle_active, on: :member
     post :toggle_popular, on: :member
+    post :toggle_top, on: :member
+    post :toggle_custom, on: :member
     post :soft_delete, on: :member
     post :reindex_filters, on: :member
     post :import_available_filters, on: :collection
     post :reindex_all_filters, on: :collection
+    post :import_products_csv, on: :member
   end
 
   table do
@@ -231,10 +284,6 @@ Trestle.resource(:categories, model: Category) do
     column :is_popular do |category|
       status_tag(category.is_popular? ? 'Да' : 'Нет', 
                  category.is_popular? ? :success : :secondary)
-    end
-    column :header_menu, label: "В хедере" do |category|
-      status_tag(category.header_menu? ? 'Да' : 'Нет', 
-                 category.header_menu? ? :success : :secondary)
     end
     column :is_deleted do |category|
       status_tag(category.is_deleted? ? 'Удалена' : 'Активна', 
@@ -302,19 +351,36 @@ Trestle.resource(:categories, model: Category) do
     
       text_field :name
       text_field :translated_name
-      check_box :is_popular
-      select :default_sort, Category.default_sorts.keys.map { |s| [s.humanize, s] }
-      check_box :header_menu
-      check_box :is_deleted
-      number_field :header_menu_position
-      number_field :delivery_days, help: "Срок доставки в днях (если не задано, используется значение по умолчанию)"
+      
+      divider
+      row do
+        col(sm: 4) { check_box :is_popular, label: "Популярная категория" }
+        col(sm: 4) { check_box :is_deleted, label: "Удалена" }
+      end
+      row do
+        col(sm: 4) { check_box :is_top, label: "ТОП-категория" }
+      end
+      row do
+        col(sm: 2) { number_field :top_position, label: "Позиция в ТОП" }
+      end
+      divider
+      
+      # check_box :is_custom, label: "Кастомная категория (Спецпредложение)"
+      
+      # select :default_sort, Category.default_sorts.keys.map { |s| [s.humanize, s] }
+      # check_box :header_menu
+      # number_field :header_menu_position
+      row do
+        col(sm: 2) { number_field :delivery_days, help: "Срок доставки в днях (если не задано, используется значение по умолчанию)" }
+      end
 
       divider
-      h3 "Иконка категории"
+      h3 "Изображения категории"
       divider
 
       row do
-        col(sm: 12) do
+        col(sm: 4) do
+          h4 "Иконка"
           concat(content_tag(:div, id: "category-icon-preview-container", style: "margin-bottom: 15px;") do
             content = +""
             if category.persisted? && category.icon.attached?
@@ -332,52 +398,90 @@ Trestle.resource(:categories, model: Category) do
           end)
 
           file_field :icon, label: "Иконка (SVG, PNG, WebP)"
-          
-          # JavaScript для предпросмотра иконки
-          concat(content_tag(:script, type: "text/javascript") do
-            raw <<-JS.strip_heredoc
-              (function() {
-                function initIconPreview() {
-                  var fileInput = document.querySelector('input[type="file"][name*="[icon]"]');
-                  if (!fileInput) return;
+        end
 
-                  var preview = document.getElementById('icon-preview');
-                  var container = document.getElementById('new-icon-preview');
-                  var currentPreview = document.querySelector('.current-icon-preview');
-
-                  // Reset preview state after page load (e.g., after save)
-                  if (container) container.style.display = 'none';
-                  if (currentPreview) currentPreview.style.display = 'inline-block';
-
-                  fileInput.addEventListener('change', function(e) {
-                    if (e.target.files && e.target.files[0]) {
-                      var reader = new FileReader();
-
-                      reader.onload = function(event) {
-                        if (preview) preview.src = event.target.result;
-                        if (container) container.style.display = 'inline-block';
-                        if (currentPreview) currentPreview.style.display = 'none';
-                      };
-
-                      reader.readAsDataURL(e.target.files[0]);
-                    } else {
-                      if (container) container.style.display = 'none';
-                      if (currentPreview) currentPreview.style.display = 'inline-block';
-                    }
-                  });
-                }
-
-                document.addEventListener('turbo:load', initIconPreview);
-                if (document.readyState === 'loading') {
-                  document.addEventListener('DOMContentLoaded', initIconPreview);
-                } else {
-                  initIconPreview();
-                }
-              })();
-            JS
+        col(sm: 6) do
+          h4 "Фоновое изображение"
+          concat(content_tag(:div, id: "category-bg-preview-container", style: "margin-bottom: 15px;") do
+            content = +""
+            if category.persisted? && category.background_image.attached?
+              bg_path = main_app.rails_storage_proxy_path(category.background_image, only_path: true)
+              content << content_tag(:div, class: "current-bg-preview", style: "margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px; display: inline-block;") do
+                image_tag(bg_path,
+                        style: "max-width: 200px; max-height: 100px; display: block; margin: 0 auto; border: 1px solid #ddd; border-radius: 4px;",
+                        id: "current-bg-preview")
+              end
+            end
+            content << content_tag(:div, id: "new-bg-preview", style: "display: none; margin-bottom: 15px; padding: 10px; background: #e8f5e9; border-radius: 4px; display: inline-block;") do
+              content_tag(:img, "", id: "bg-preview", style: "max-width: 200px; max-height: 100px; display: block; margin: 0 auto; border: 1px solid #4caf50; border-radius: 4px;")
+            end
+            content.html_safe
           end)
+
+          file_field :background_image, label: "Фон (для превью спецпредложения)"
         end
       end
+      
+      if category.persisted?
+        divider
+        h4 "Импорт товаров (CSV)"
+        row do
+          col(sm: 12) do
+            render inline: <<-ERB, locals: { category: category, admin: admin }
+              <%= form_tag admin.path(:import_products_csv, id: category.ikea_id), method: :post, multipart: true do %>
+                <div class="input-group">
+                  <%= file_field_tag :file, accept: ".csv", class: "form-control" %>
+                  <%= submit_tag "Загрузить CSV", class: "btn btn-primary" %>
+                </div>
+                <p class="help-block">Выберите CSV файл со списком SKU товаров (один SKU на строку).</p>
+              <% end %>
+            ERB
+          end
+        end
+      end
+
+      # JavaScript для предпросмотра иконок и фона
+      concat(content_tag(:script, type: "text/javascript") do
+        raw <<-JS.strip_heredoc
+          (function() {
+            function initPreviews() {
+              function setupPreview(inputName, previewId, containerId, currentClass) {
+                var fileInput = document.querySelector('input[type="file"][name*="[' + inputName + ']"]');
+                if (!fileInput) return;
+
+                var preview = document.getElementById(previewId);
+                var container = document.getElementById(containerId);
+                var currentPreview = document.querySelector('.' + currentClass);
+
+                fileInput.addEventListener('change', function(e) {
+                  if (e.target.files && e.target.files[0]) {
+                    var reader = new FileReader();
+                    reader.onload = function(event) {
+                      if (preview) preview.src = event.target.result;
+                      if (container) container.style.display = 'inline-block';
+                      if (currentPreview) currentPreview.style.display = 'none';
+                    };
+                    reader.readAsDataURL(e.target.files[0]);
+                  } else {
+                    if (container) container.style.display = 'none';
+                    if (currentPreview) currentPreview.style.display = 'inline-block';
+                  }
+                });
+              }
+
+              setupPreview('icon', 'icon-preview', 'new-icon-preview', 'current-icon-preview');
+              setupPreview('background_image', 'bg-preview', 'new-bg-preview', 'current-bg-preview');
+            }
+
+            document.addEventListener('turbo:load', initPreviews);
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', initPreviews);
+            } else {
+              initPreviews();
+            }
+          })();
+        JS
+      end)
 
       divider 
       h3 "Отображение блоков в карточке товара"
@@ -415,10 +519,10 @@ Trestle.resource(:categories, model: Category) do
 
   params do |params|
     params.require(:category).permit(
-      :ikea_id, :name, :translated_name, :is_popular, :default_sort,
+      :ikea_id, :name, :translated_name, :is_popular, :is_top, :top_position, :is_custom, :default_sort,
       :header_menu, :is_deleted, :header_menu_position, :delivery_days,
       :is_bulky, :show_delivery_block, :show_reviews_block, :show_tips_block,
-      :icon,
+      :icon, :background_image,
       seo_meta_attributes: [:id, :title, :description, :keywords, :robots, :seo_text, :_destroy]
     )
   end

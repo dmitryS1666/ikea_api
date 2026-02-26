@@ -17,7 +17,7 @@ info:
     - `GET /api/v1/products/popular` — Популярные товары
     - `GET /api/v1/products/categories` — Категории по коллекции
     - `GET /api/v1/categories` — Категории
-    - `GET /api/v1/categories/header_menu` — Категории для верхнего меню
+    - `GET /api/v1/categories/top` — Категории для верхнего меню
     - `GET /api/v1/categories/{id}/products` — Товары в категории
     - `GET /api/v1/homepage/slider/main` — Слайдер на главной
     - `POST /api/v1/auth/login` — Вход (только для админов/менеджеров)
@@ -226,7 +226,7 @@ paths:
                   meta:
                     $ref: '#/components/schemas/Meta'
 
-  /api/v1/categories/header_menu:
+  /api/v1/categories/top:
     get:
       summary: Категории для верхнего меню (хедер)
       tags:
@@ -358,6 +358,42 @@ paths:
       responses:
         '200':
           description: Список популярных категорий
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CategoryPopular'
+
+  /api/v1/categories/top:
+    get:
+      summary: ТОП-категории
+      tags:
+        - Categories
+      responses:
+        '200':
+          description: Список ТОП-категорий
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CategoryTop'
+
+  /api/v1/categories/custom:
+    get:
+      summary: Кастомные категории (Спецпредложения)
+      tags:
+        - Categories
+      responses:
+        '200':
+          description: Список кастомных категорий
           content:
             application/json:
               schema:
@@ -1785,6 +1821,8 @@ components:
               type: string
             translated_name:
               type: string
+            slug:
+              type: string
             url:
               type: string
             remote_image_url:
@@ -1797,6 +1835,16 @@ components:
               type: boolean
             is_popular:
               type: boolean
+            is_top:
+              type: boolean
+            top_position:
+              type: integer
+            is_custom:
+              type: boolean
+            background_image_url:
+              type: string
+              nullable: true
+              description: URL фонового изображения для превью спецпредложения
             is_bulky:
               type: boolean
               description: Флаг крупногабаритного товара
@@ -1828,6 +1876,52 @@ components:
               format: date-time
             seo:
               $ref: '#/components/schemas/SeoMeta'
+
+    CategoryPopular:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        attributes:
+          type: object
+          properties:
+            name:
+              type: string
+            translated_name:
+              type: string
+            slug:
+              type: string
+            is_popular:
+              type: boolean
+            icon_url:
+              type: string
+              nullable: true
+
+    CategoryTop:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        attributes:
+          type: object
+          properties:
+            name:
+              type: string
+            translated_name:
+              type: string
+            slug:
+              type: string
+            is_top:
+              type: boolean
+            top_position:
+              type: integer
+            icon_url:
+              type: string
+              nullable: true
 
     CategoryTree:
       allOf:

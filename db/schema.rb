@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_02_22_133000) do
+ActiveRecord::Schema[7.1].define(version: 2026_02_26_100100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -120,6 +120,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_22_133000) do
     t.boolean "show_reviews_block", default: true
     t.boolean "show_tips_block", default: true
     t.jsonb "available_filters", default: [], null: false
+    t.boolean "is_top", default: false
+    t.integer "top_position", default: 0
+    t.boolean "is_custom", default: false
     t.index "to_tsvector('simple'::regconfig, COALESCE(parent_ids, ''::text))", name: "index_categories_on_parent_ids_text", where: "((parent_ids IS NOT NULL) AND (parent_ids <> '[]'::text) AND (parent_ids <> ''::text))", using: :gin
     t.index ["default_sort"], name: "index_categories_on_default_sort"
     t.index ["ikea_id"], name: "index_categories_on_ikea_id", unique: true

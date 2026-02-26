@@ -2,6 +2,7 @@ class Category < ApplicationRecord
   self.primary_key = 'ikea_id'
   
   has_one_attached :icon
+  has_one_attached :background_image
   
   validates :ikea_id, presence: true, uniqueness: true
   validates :name, presence: true
@@ -26,10 +27,11 @@ class Category < ApplicationRecord
     expensive: 'expensive'
   }
 
+  scope :top, -> { where(is_top: true).order(top_position: :asc) }
   scope :popular, -> { where(is_popular: true) }
+  scope :custom, -> { where(is_custom: true) }
   scope :active, -> { where(is_deleted: [false, nil]) }
   scope :not_deleted, -> { where(is_deleted: [false, nil]) }
-  scope :in_header_menu, -> { where(header_menu: true).order(header_menu_position: :asc) }
   # Категории с цифровым кодом (ikea_id состоит только из цифр)
   scope :with_numeric_id, -> { where("ikea_id ~ '^[0-9]+$'") }
   # Верхнеуровневые категории (без родительских категорий)
@@ -96,12 +98,14 @@ class Category < ApplicationRecord
   # Класс для построения дерева категорий
   class << self
     def build_tree(categories = nil)
-      categories ||= Category.select(:ikea_id, :name, :translated_name, :parent_ids, :is_popular, :is_deleted, :is_important)
+      categories ||= Category.select(:ikea_id, :name, :translated_name, :parent_ids, :is_popular, :is_top, :top_position, :is_custom, :is_deleted, :is_important)
                              .order(:name)
                              .to_a
       
+      # Создаем быстрый поиск по ID для проверки наличия родителей в наборе
+      category_ids = categories.map { |c| c.ikea_id.to_s }.to_set
+      
       # Оптимизация: создаем индекс для быстрого поиска дочерних категорий
-      # Используем Hash для O(1) поиска
       children_index = {}
       categories.each do |cat|
         parent_ids = self.normalize_parent_ids(cat.parent_ids)
@@ -114,14 +118,21 @@ class Category < ApplicationRecord
         end
       end
       
-      # Находим верхнеуровневые категории
-      # Оптимизация: используем select вместо select + each для лучшей производительности
+      # Находим верхнеуровневые категории ДЛЯ ДАННОГО НАБОРА
+      # Категория считается корневой, если:
+      # 1. Она помечена как is_important
+      # 2. У нее нет родителей
+      # 3. Ни один из ее родителей не представлен в текущем наборе (важно для фильтров типа "ТОП")
       top_level = categories.select do |c|
         parent_ids = self.normalize_parent_ids(c.parent_ids)
+        
+        # Категория считается корневой, если:
+        # 1. Она помечена как is_important
+        # 2. У нее нет родителей
+        # 3. Ни один из ее родителей не представлен в текущем наборе (важно для фильтров типа "ТОП")
         c.is_important || 
-        parent_ids.blank? || 
-        parent_ids == [] || 
-        (parent_ids.is_a?(Array) && parent_ids.empty?)
+          parent_ids.blank? || 
+          parent_ids.none? { |pid| category_ids.include?(pid.to_s) }
       end
       
       build_tree_recursive(top_level, children_index)

@@ -27,6 +27,12 @@
       </div>
       
       <div class="category-badges">
+        <% if category.is_top? %>
+          <span class="badge badge-top" title="Позиция: <%= category.top_position %>">ТОП</span>
+        <% end %>
+        <% if category.is_custom? %>
+          <span class="badge badge-custom">Кастомная</span>
+        <% end %>
         <% if category.is_popular? %>
           <span class="badge badge-popular">Популярная</span>
         <% end %>
@@ -79,6 +85,17 @@
                      class: "btn btn-sm #{category.is_popular? ? 'btn-warning' : 'btn-secondary'}", 
                      title: category.is_popular? ? "Убрать из популярных" : "Добавить в популярные" do %>
           <i class="fa fa-star<%= category.is_popular? ? '' : '-o' %>"></i>
+        <% end %>
+      <% end %>
+
+      <%= form_with url: toggle_top_categories_admin_path(category.ikea_id), 
+                    method: :post, 
+                    local: true,
+                    class: "d-inline" do |f| %>
+        <%= f.button type: :submit, 
+                     class: "btn btn-sm #{category.is_top? ? 'btn-info' : 'btn-outline-info'}", 
+                     title: category.is_top? ? "Убрать из ТОП" : "Сделать ТОП" do %>
+          <i class="fa fa-arrow-up"></i>
         <% end %>
       <% end %>
 

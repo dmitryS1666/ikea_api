@@ -4,6 +4,8 @@ module Api
       def index
         categories = Category.active
         categories = categories.popular if params[:is_popular] == 'true'
+        categories = categories.top if params[:is_top] == 'true'
+        categories = categories.custom if params[:is_custom] == 'true'
 
         page = (params[:page] || 1).to_i
         per_page = (params[:per_page] || 50).to_i
@@ -59,11 +61,16 @@ module Api
       
       def popular
         categories = Category.popular
-        render json: CategorySerializer.new(categories)
+        render json: CategoryPopularSerializer.new(categories)
       end
 
-      def header_menu
-        categories = Category.in_header_menu
+      def top
+        categories = Category.top
+        render json: CategoryTopSerializer.new(categories)
+      end
+
+      def custom
+        categories = Category.custom
         render json: CategorySerializer.new(categories)
       end
       

@@ -2,6 +2,12 @@
   Категории
 <% end %>
 
+<% content_for :main_actions do %>
+  <%= link_to new_categories_admin_path("category[is_custom]": true), class: "btn btn-primary" do %>
+    <i class="fa fa-plus"></i> Добавить кастомную категорию
+  <% end %>
+<% end %>
+
 <div class="row">
   <div class="col-md-2">
     <div class="card mb-3">
@@ -46,10 +52,11 @@
       <div class="card-header">Фильтры</div>
       <div class="list-group list-group-flush">
         <%= link_to "Все", { scope: 'all' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'all'}" %>
+        <%= link_to "ТОП-категории", { scope: 'top' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'top'}" %>
+        <%= link_to "Кастомные (Спецпредложения)", { scope: 'custom' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'custom'}" %>
         <%= link_to "Верхнеуровневые", { scope: 'top_level' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'top_level'}" %>
         <%= link_to "Популярные", { scope: 'popular' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'popular'}" %>
         <%= link_to "Активные", { scope: 'active' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'active'}" %>
-        <%= link_to "В хедере", { scope: 'in_header_menu' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'in_header_menu'}" %>
       </div>
     </div>
   </div>
@@ -182,6 +189,16 @@
 
   .badge-popular {
     background-color: #28a745;
+    color: white;
+  }
+
+  .badge-top {
+    background-color: #17a2b8;
+    color: white;
+  }
+
+  .badge-custom {
+    background-color: #6f42c1;
     color: white;
   }
 

@@ -13,6 +13,9 @@ class CategorySerializer
              :is_deleted,
              :is_important, 
              :is_popular,
+             :is_top,
+             :top_position,
+             :is_custom,
              :header_menu,
              :header_menu_position,
              :delivery_days,
@@ -21,6 +24,7 @@ class CategorySerializer
              :show_reviews_block,
              :show_tips_block,
              :icon_url,
+             :background_image_url,
              :available_filters
 
 
@@ -28,6 +32,16 @@ class CategorySerializer
     if category.icon.attached?
       begin
         Rails.application.routes.url_helpers.rails_blob_url(category.icon, only_path: true)
+      rescue
+        nil
+      end
+    end
+  end
+
+  attribute :background_image_url do |category|
+    if category.background_image.attached?
+      begin
+        Rails.application.routes.url_helpers.rails_blob_url(category.background_image, only_path: true)
       rescue
         nil
       end
