@@ -17,6 +17,8 @@ class HomeBanner < ApplicationRecord
   # Associations
   belongs_to :category, foreign_key: :category_id, primary_key: :ikea_id, optional: true
   has_one_attached :image
+
+  has_one :seo_meta, as: :seoable, class_name: 'SeoMetum', dependent: :destroy
   
   # Callbacks
   before_validation :normalize_category_id

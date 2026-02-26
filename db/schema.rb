@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_02_26_114746) do
+ActiveRecord::Schema[7.1].define(version: 2026_02_26_152131) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -254,13 +254,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_26_114746) do
   create_table "home_banners", force: :cascade do |t|
     t.integer "section", default: 0, null: false
     t.integer "variant", default: 0, null: false
-    t.string "title"
-    t.string "subtitle"
     t.string "category_id"
     t.integer "position", default: 0, null: false
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "description"
     t.index ["category_id"], name: "index_home_banners_on_category_id"
     t.index ["section", "active", "position"], name: "index_home_banners_on_section_and_active_and_position"
   end

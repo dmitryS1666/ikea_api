@@ -2233,14 +2233,6 @@ components:
               type: string
               enum: [main_1500x516, main_572x594, secondary_1500x256, secondary_742x256]
               description: Вариант размера изображения
-            title:
-              type: string
-              nullable: true
-              description: Заголовок баннера
-            subtitle:
-              type: string
-              nullable: true
-              description: Подзаголовок баннера
             position:
               type: integer
               description: Позиция для сортировки

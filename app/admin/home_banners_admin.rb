@@ -18,12 +18,6 @@ Trestle.resource(:home_banners, model: HomeBanner) do
           # Генерируем путь через прокси
           path = main_app.rails_storage_proxy_path(banner.image, only_path: true)
           
-          # Если NPM не пускает /rails, но пускает /images, 
-          # мы можем попробовать подменить начало пути, 
-          # но это сработает только если в Rails есть такой маршрут.
-          # Поэтому просто используем proxy_path и надеемся, что вы сможете 
-          # починить NPM или добавить локацию /rails позже.
-          
           link_to path, target: '_blank', title: "Открыть оригинал" do
             image_tag(path, 
                       class: 'img-fluid', 
@@ -61,7 +55,7 @@ Trestle.resource(:home_banners, model: HomeBanner) do
         banner.variant
       end
     end
-    column :title, link: true
+    column :description, label: "Описание (служебное)", link: true
     column :category do |banner|
       banner.category&.name || '—'
     end
@@ -90,171 +84,169 @@ Trestle.resource(:home_banners, model: HomeBanner) do
       }
     }
 
-    row do
-      col(sm: 6) do
-        select :section, {
-          'Главный баннер' => 'main',
-          'Горизонтальынй баннер' => 'secondary'
-        }, label: "Секция", html: { id: "home_banner_section", data: { variants: section_variants.to_json } }
-      end
-      col(sm: 6) do
-        current_section = banner.section.presence || (banner.persisted? ? banner.section : 'main')
-        variant_options = section_variants[current_section] || section_variants['main']
-
-        select :variant, variant_options, { include_blank: false }, label: "Вариант размера", html: { id: "home_banner_variant", data: { selected: banner.variant } }
-      end
-    end
-
-    concat(content_tag(:script, type: "text/javascript") do
-      raw <<-JS.strip_heredoc
-        (function() {
-          var sectionVariants = #{section_variants.to_json.html_safe};
-          var sectionSelect = document.getElementById("home_banner_section");
-          var variantSelect = document.getElementById("home_banner_variant");
-          if (!sectionSelect || !variantSelect) { return; }
-
-          function rebuildOptions() {
-            var selectedSection = sectionSelect.value || Object.keys(sectionVariants)[0];
-            var options = sectionVariants[selectedSection] || {};
-            var prevValue = variantSelect.value || variantSelect.dataset.selected;
-            variantSelect.innerHTML = "";
-
-            Object.keys(options).forEach(function(label) {
-              var value = options[label];
-              var option = document.createElement("option");
-              option.value = value;
-              option.textContent = label;
-
-              if (value === prevValue) {
-                option.selected = true;
-              }
-
-              variantSelect.appendChild(option);
-            });
-
-            if (!variantSelect.value && variantSelect.options.length) {
-              variantSelect.selectedIndex = 0;
-            }
-          }
-
-          sectionSelect.addEventListener("change", function() {
-            rebuildOptions();
-          });
-
-          function init() {
-            rebuildOptions();
-          }
-
-          document.addEventListener("turbo:load", init);
-          if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", init);
-          } else {
-            init();
-          }
-        })();
-      JS
-    end)
-
-    row do
-      col(sm: 6) do
-        text_field :title, label: "Заголовок"
-      end
-      col(sm: 6) do
-        text_field :subtitle, label: "Подзаголовок"
-      end
+    sidebar do
+      check_box :active, label: "Активен"
+      number_field :position, label: "Позиция"
     end
 
     row do
-      col(sm: 12) do
-        # Выпадающий список категорий (1 и 2 уровень)
-        categories = Category.active.order(:name).map do |cat|
-          name = cat.translated_name.presence || cat.name
-          level_indicator = cat.is_important || (cat.parent_ids.blank? || (cat.parent_ids.is_a?(Array) && cat.parent_ids.empty?)) ? "★ " : "  "
-          ["#{level_indicator}#{name}", cat.ikea_id]
-        end
-        select :category_id, categories, { include_blank: 'Выберите категорию...' }, label: "Категория"
-      end
-    end
-
-    row do
-      col(sm: 12) do
-        concat(content_tag(:div, id: "image-preview-container", style: "margin-bottom: 15px;") do
-          content = +""
-          if banner.persisted? && banner.image.attached?
-            content << content_tag(:div, class: "current-image-preview", style: "margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;") do
-              image_tag(Rails.application.routes.url_helpers.rails_blob_path(banner.image, only_path: true),
-                       style: "max-width: 400px; max-height: 300px; display: block; margin: 0 auto; border: 1px solid #ddd; border-radius: 4px;",
-                       id: "current-image-preview") +
-              content_tag(:p, "Текущее изображение", style: "text-align: center; margin-top: 10px; color: #666; font-size: 12px;")
-            end
+      col(sm: 6) do
+        row do
+          col(sm: 6) do
+            select :section, {
+              'Главный баннер' => 'main',
+              'Горизонтальынй баннер' => 'secondary'
+            }, label: "Секция", html: { id: "home_banner_section", data: { variants: section_variants.to_json } }
           end
-          content << content_tag(:div, id: "new-image-preview", style: "display: none; margin-bottom: 15px; padding: 10px; background: #e8f5e9; border-radius: 4px;") do
-            content_tag(:img, "", id: "image-preview", style: "max-width: 400px; max-height: 300px; display: block; margin: 0 auto; border: 1px solid #4caf50; border-radius: 4px;") +
-            content_tag(:p, "Предпросмотр нового изображения", style: "text-align: center; margin-top: 10px; color: #2e7d32; font-size: 12px; font-weight: bold;")
-          end
-          content.html_safe
-        end)
+          col(sm: 6) do
+            current_section = banner.section.presence || (banner.persisted? ? banner.section : 'main')
+            variant_options = section_variants[current_section] || section_variants['main']
 
-        file_field :image, label: "Изображение"
-        content_tag :small, "Разрешены: WebP, AVIF, PNG, JPEG. Размер должен соответствовать выбранному варианту.", class: "text-muted"
-
-        if banner.variant.present?
-          expected = banner.expected_dimensions
-          if expected
-            content_tag :div, class: "alert alert-info", style: "margin-top: 10px;" do
-              "Требуемый размер: #{expected[0]}×#{expected[1]} пикселей"
-            end
+            select :variant, variant_options, { include_blank: false }, label: "Вариант размера", html: { id: "home_banner_variant", data: { selected: banner.variant } }
           end
         end
+        row do
+          col(sm: 6) do
+            # Выпадающий список категорий (1 и 2 уровень)
+            categories = Category.active.order(:name).map do |cat|
+              name = cat.translated_name.presence || cat.name
+              level_indicator = cat.is_important || (cat.parent_ids.blank? || (cat.parent_ids.is_a?(Array) && cat.parent_ids.empty?)) ? "★ " : "  "
+              ["#{level_indicator}#{name}", cat.ikea_id]
+            end
+            select :category_id, categories, { include_blank: 'Выберите категорию...' }, label: "Категория"
+          end
+        end
+        row do
+          col(sm: 12) do
+            text_area :description, label: "Описание", rows: 5, placeholder: "Технические заметки для админа"
+          end
+        end
+      end
 
-        # JavaScript для предпросмотра изображения
+
+      col(sm: 6) do
         concat(content_tag(:script, type: "text/javascript") do
           raw <<-JS.strip_heredoc
             (function() {
-              function initImagePreview() {
-                var fileInput = document.querySelector('input[type="file"][name*="[image]"]');
-                if (!fileInput) return;
+              var sectionVariants = #{section_variants.to_json.html_safe};
+              var sectionSelect = document.getElementById("home_banner_section");
+              var variantSelect = document.getElementById("home_banner_variant");
+              if (!sectionSelect || !variantSelect) { return; }
 
-                var preview = document.getElementById('image-preview');
-                var container = document.getElementById('new-image-preview');
-                var currentPreview = document.querySelector('.current-image-preview');
+              function rebuildOptions() {
+                var selectedSection = sectionSelect.value || Object.keys(sectionVariants)[0];
+                var options = sectionVariants[selectedSection] || {};
+                var prevValue = variantSelect.value || variantSelect.dataset.selected;
+                variantSelect.innerHTML = "";
 
-                fileInput.addEventListener('change', function(e) {
-                  if (e.target.files && e.target.files[0]) {
-                    var reader = new FileReader();
+                Object.keys(options).forEach(function(label) {
+                  var value = options[label];
+                  var option = document.createElement("option");
+                  option.value = value;
+                  option.textContent = label;
 
-                    reader.onload = function(event) {
-                      if (preview) preview.src = event.target.result;
-                      if (container) container.style.display = 'block';
-                      if (currentPreview) currentPreview.style.display = 'none';
-                    };
-
-                    reader.readAsDataURL(e.target.files[0]);
-                  } else {
-                    if (container) container.style.display = 'none';
-                    if (currentPreview) currentPreview.style.display = 'block';
+                  if (value === prevValue) {
+                    option.selected = true;
                   }
+                
+                  variantSelect.appendChild(option);
                 });
+                
+                if (!variantSelect.value && variantSelect.options.length) {
+                  variantSelect.selectedIndex = 0;
+                }
               }
-
-              document.addEventListener('turbo:load', initImagePreview);
-              if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', initImagePreview);
+            
+              sectionSelect.addEventListener("change", function() {
+                rebuildOptions();
+              });
+            
+              function init() {
+                rebuildOptions();
+              }
+            
+              document.addEventListener("turbo:load", init);
+              if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", init);
               } else {
-                initImagePreview();
+                init();
               }
             })();
           JS
         end)
-      end
-    end
 
-    row do
-      col(sm: 6) do
-        number_field :position, label: "Позиция"
-      end
-      col(sm: 6) do
-        check_box :active, label: "Активен"
+        row do
+          col(sm: 12) do
+            concat(content_tag(:div, id: "image-preview-container", style: "margin-bottom: 15px;") do
+              content = +""
+              if banner.persisted? && banner.image.attached?
+                content << content_tag(:div, class: "current-image-preview", style: "margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;") do
+                  image_tag(Rails.application.routes.url_helpers.rails_blob_path(banner.image, only_path: true),
+                           style: "max-width: 400px; max-height: 300px; display: block; margin: 0 auto; border: 1px solid #ddd; border-radius: 4px;",
+                           id: "current-image-preview") +
+                  content_tag(:p, "Текущее изображение", style: "text-align: center; margin-top: 10px; color: #666; font-size: 12px;")
+                end
+              end
+              content << content_tag(:div, id: "new-image-preview", style: "display: none; margin-bottom: 15px; padding: 10px; background: #e8f5e9; border-radius: 4px;") do
+                content_tag(:img, "", id: "image-preview", style: "max-width: 400px; max-height: 300px; display: block; margin: 0 auto; border: 1px solid #4caf50; border-radius: 4px;") +
+                content_tag(:p, "Предпросмотр нового изображения", style: "text-align: center; margin-top: 10px; color: #2e7d32; font-size: 12px; font-weight: bold;")
+              end
+              content.html_safe
+            end)
+          
+            file_field :image, label: "Изображение"
+            content_tag :small, "Разрешены: WebP, AVIF, PNG, JPEG. Размер должен соответствовать выбранному варианту.", class: "text-muted"
+          
+            if banner.variant.present?
+              expected = banner.expected_dimensions
+              if expected
+                content_tag :div, class: "alert alert-info", style: "margin-top: 10px;" do
+                  "Требуемый размер: #{expected[0]}×#{expected[1]} пикселей"
+                end
+              end
+            end
+          
+            # JavaScript для предпросмотра изображения
+            concat(content_tag(:script, type: "text/javascript") do
+              raw <<-JS.strip_heredoc
+                (function() {
+                  function initImagePreview() {
+                    var fileInput = document.querySelector('input[type="file"][name*="[image]"]');
+                    if (!fileInput) return;
+            
+                    var preview = document.getElementById('image-preview');
+                    var container = document.getElementById('new-image-preview');
+                    var currentPreview = document.querySelector('.current-image-preview');
+            
+                    fileInput.addEventListener('change', function(e) {
+                      if (e.target.files && e.target.files[0]) {
+                        var reader = new FileReader();
+            
+                        reader.onload = function(event) {
+                          if (preview) preview.src = event.target.result;
+                          if (container) container.style.display = 'block';
+                          if (currentPreview) currentPreview.style.display = 'none';
+                        };
+                          
+                        reader.readAsDataURL(e.target.files[0]);
+                      } else {
+                        if (container) container.style.display = 'none';
+                        if (currentPreview) currentPreview.style.display = 'block';
+                      }
+                    });
+                  }
+                
+                  document.addEventListener('turbo:load', initImagePreview);
+                  if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', initImagePreview);
+                  } else {
+                    initImagePreview();
+                  }
+                })();
+              JS
+            end)
+          end
+        end
       end
     end
   end
@@ -294,7 +286,7 @@ Trestle.resource(:home_banners, model: HomeBanner) do
     private
     def home_banner_params
       permitted = params.require(:home_banner).permit(
-        :section, :variant, :title, :subtitle, :category_id, :position, :active, :image
+        :section, :variant, :description, :category_id, :position, :active, :image
       )
       permitted[:category_id] = nil if permitted[:category_id].blank?
       if permitted.key?(:active)
@@ -348,7 +340,7 @@ Trestle.resource(:home_banners, model: HomeBanner) do
 
   params do |params|
     permitted = params.require(:home_banner).permit(
-      :section, :variant, :title, :subtitle, :category_id, :position, :active, :image
+      :section, :variant, :description, :category_id, :position, :active, :image
     )
     # Normalize empty category_id to nil
     permitted[:category_id] = nil if permitted[:category_id].blank?

@@ -11,8 +11,6 @@ module Api
       global_seo = GlobalSeoSetting.find_by(target_type: 'home')
       
       render json: HomeBannerSerializer.new(banners, {
-        include: [:category],
-        params: { base_url: request.protocol + request.host_with_port },
         meta: {
           seo: global_seo ? {
             title: global_seo.title_template,
@@ -31,10 +29,7 @@ module Api
                            .by_position
                            .includes(:category, :image_attachment)
         
-        render json: HomeBannerSerializer.new(banners, {
-          include: [:category],
-          params: { base_url: request.protocol + request.host_with_port }
-        })
+        render json: HomeBannerSerializer.new(banners)
       end
     end
   end
