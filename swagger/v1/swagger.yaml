@@ -78,7 +78,7 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Product'
+                      $ref: '#/components/schemas/ProductTeaser'
                   meta:
                     $ref: '#/components/schemas/Meta'
 
@@ -133,7 +133,65 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Product'
+                      $ref: '#/components/schemas/ProductTeaser'
+
+  /api/v1/products/new_arrivals:
+    get:
+      summary: Новинки
+      tags:
+        - Products
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Список новинок
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProductTeaser'
+
+  /api/v1/products/recommended:
+    get:
+      summary: Рекомендованные товары
+      tags:
+        - Products
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Список рекомендованных товаров
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProductTeaser'
 
   /api/v1/products/popular:
     get:
@@ -162,11 +220,12 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Product'
+                      $ref: '#/components/schemas/ProductTeaser'
 
   /api/v1/products/categories:
     get:
-      summary: Получить список категорий по названию коллекции
+      summary: Получить список категорий по названию коллекции (временно не используется)
+      deprecated: true
       tags:
         - Products
       parameters:
@@ -344,7 +403,7 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Product'
+                      $ref: '#/components/schemas/ProductTeaser'
                   meta:
                     $ref: '#/components/schemas/Meta'
         '404':
@@ -1726,6 +1785,10 @@ components:
               type: boolean
             is_bestseller:
               type: boolean
+            is_new:
+              type: boolean
+            is_recommended:
+              type: boolean
             is_popular:
               type: boolean
             category_id:
@@ -1794,6 +1857,56 @@ components:
                   description: Дополнительная информация о доставке (например, для не крупногабаритных товаров)
             seo:
               $ref: '#/components/schemas/SeoMeta'
+
+    ProductTeaser:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        attributes:
+          type: object
+          properties:
+            sku:
+              type: string
+            name_ru:
+              type: string
+            slug:
+              type: string
+            price:
+              type: number
+            quantity:
+              type: integer
+            is_bestseller:
+              type: boolean
+            is_new:
+              type: boolean
+            is_recommended:
+              type: boolean
+            is_popular:
+              type: boolean
+            category_id:
+              type: string
+            rating_avg:
+              type: number
+              format: float
+            rating_weighted:
+              type: number
+              format: float
+            rating_count:
+              type: integer
+            rating_updated_at:
+              type: string
+              format: date-time
+            local_images:
+              type: array
+              items:
+                type: string
+            variants:
+              type: array
+              items:
+                type: string
 
     Breadcrumb:
       type: object

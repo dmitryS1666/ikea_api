@@ -23,14 +23,18 @@ module CartResponseFormatter
   end
 
   def build_recommendations
-    RecommendedProductsService.call(limit: 8).map do |p|
+    Product.recommended.limit(8).map do |p|
       {
         sku: p.sku,
-        name: p.name,
+        name: p.name_ru.presence || p.name,
         price_byn: format_byn(p.price),
         quantity: p.quantity,
         category_id: p.category_id,
         collection: p.collection,
+        is_bestseller: p.is_bestseller,
+        is_new: p.is_new,
+        is_recommended: p.is_recommended,
+        is_popular: p.is_popular,
         images: {
           local_images: p.local_images || [],
           images: p.images || []

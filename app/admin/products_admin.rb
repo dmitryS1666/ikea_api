@@ -7,6 +7,18 @@ Trestle.resource(:products, model: Product) do
     get :by_category, on: :collection
     get :export_extended_attrs_input, on: :collection
     post :import_extended_attrs, on: :collection
+    post :import_bestsellers_csv, on: :collection
+    post :import_new_arrivals_csv, on: :collection
+    post :import_popular_csv, on: :collection
+    post :import_recommended_csv, on: :collection
+  end
+
+  scopes do
+    scope :all, default: true
+    scope :bestsellers, -> { Product.bestsellers }, label: "Хиты продаж"
+    scope :new_arrivals, -> { Product.new_arrivals }, label: "Новинки"
+    scope :popular, -> { Product.popular }, label: "Популярные"
+    scope :recommended, -> { Product.recommended }, label: "Рекомендованные"
   end
 
   table do
@@ -24,9 +36,17 @@ Trestle.resource(:products, model: Product) do
       status_tag(product.is_bestseller? ? 'Да' : 'Нет', 
                  product.is_bestseller? ? :success : :secondary)
     end
+    column :is_new do |product|
+      status_tag(product.is_new? ? 'Да' : 'Нет', 
+                 product.is_new? ? :success : :secondary)
+    end
     column :is_popular do |product|
       status_tag(product.is_popular? ? 'Да' : 'Нет', 
                  product.is_popular? ? :success : :secondary)
+    end
+    column :is_recommended do |product|
+      status_tag(product.is_recommended? ? 'Да' : 'Нет', 
+                 product.is_recommended? ? :success : :secondary)
     end
     column :created_at, align: :center
     column :updated_at, align: :center
@@ -110,9 +130,53 @@ Trestle.resource(:products, model: Product) do
 
       flash[:message] = "Импорт запущен в фоне. Статус смотрите в Управлении парсером."
       redirect_to admin.path(:index)
-    end    
+    end
+
+    def import_bestsellers_csv
+      import_product_flag_csv(:is_bestseller, "Хиты продаж")
+    end
+
+    def import_new_arrivals_csv
+      import_product_flag_csv(:is_new, "Новинки")
+    end
+
+    def import_popular_csv
+      import_product_flag_csv(:is_popular, "Популярные")
+    end
+
+    def import_recommended_csv
+      import_product_flag_csv(:is_recommended, "Рекомендованные")
+    end
 
     private
+
+    def import_product_flag_csv(flag, label)
+      file = params[:file]
+      if file.blank?
+        flash[:error] = "Выберите CSV файл."
+      else
+        begin
+          require 'csv'
+          skus = []
+          CSV.foreach(file.path, headers: false) do |row|
+            skus << row[0].to_s.strip if row[0].present?
+          end
+          
+          skus.uniq!
+          
+          # Reset flag for all products not in the list
+          Product.where(flag => true).update_all(flag => false)
+          
+          # Set flag for products in the list
+          updated_count = Product.where(sku: skus).update_all(flag => true)
+          
+          flash[:notice] = "Импортировано #{updated_count} товаров в список '#{label}'."
+        rescue => e
+          flash[:error] = "Ошибка импорта: #{e.message}"
+        end
+      end
+      redirect_to admin.path(:index)
+    end
 
     def download_documents(documents, sku)
       Array(documents).filter_map do |doc|
@@ -225,8 +289,9 @@ Trestle.resource(:products, model: Product) do
 
     tab :flags, label: "Флаги" do
       check_box :is_bestseller, label: "Хит продаж (Is Bestseller)"
+      check_box :is_new, label: "Новинка (Is New)"
       check_box :is_popular, label: "Популярный (Is Popular)"
-      check_box :translated, label: "Переведено (Translated)"
+      check_box :is_recommended, label: "Рекомендованный (Is Recommended)"
       number_field :popularity_score, label: "Оценка популярности (Popularity Score)"
       number_field :views_count, label: "Количество просмотров (Views Count)"
       number_field :sales_count, label: "Количество продаж (Sales Count)"
@@ -461,7 +526,7 @@ Trestle.resource(:products, model: Product) do
       :sku, :unique_id, :item_no, :url, :name, :name_ru, :collection, :category_id,
       :price, :quantity, :home_delivery, :weight, :net_weight, :package_volume,
       :package_dimensions, :dimensions, :dimensions_ru, :is_parcel,
-      :is_bestseller, :is_popular, :translated, :popularity_score, :views_count, :sales_count,
+      :is_bestseller, :is_new, :is_popular, :is_recommended, :translated, :popularity_score, :views_count, :sales_count,
       :delivery_type, :delivery_name, :delivery_cost, :delivery_reason,
       :short_description, :short_description_ru, :materials, :materials_ru,
       :care_instructions, :care_instructions_ru,

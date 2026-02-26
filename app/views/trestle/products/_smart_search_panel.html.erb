@@ -21,6 +21,50 @@
                       data: { confirm: "Загрузить и обновить продукты из JSON файла?" } %>
       <% end %>
     </div>
+
+    <div class="d-flex gap-2 flex-wrap mt-2">
+      <%= form_tag admin.path(:import_bestsellers_csv),
+                  method: :post,
+                  multipart: true,
+                  class: "d-flex gap-2 align-items-center",
+                  data: { turbo: false } do %>
+        <%= file_field_tag :file, accept: ".csv", class: "form-control", style: "max-width: 250px;" %>
+        <%= submit_tag "⬆️ Загрузить Хиты Продаж (CSV)",
+                      class: "btn btn-outline-success" %>
+      <% end %>
+
+      <%= form_tag admin.path(:import_new_arrivals_csv),
+                  method: :post,
+                  multipart: true,
+                  class: "d-flex gap-2 align-items-center",
+                  data: { turbo: false } do %>
+        <%= file_field_tag :file, accept: ".csv", class: "form-control", style: "max-width: 250px;" %>
+        <%= submit_tag "⬆️ Загрузить Новинки (CSV)",
+                      class: "btn btn-outline-success" %>
+      <% end %>
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap mt-2">
+      <%= form_tag admin.path(:import_popular_csv),
+                  method: :post,
+                  multipart: true,
+                  class: "d-flex gap-2 align-items-center",
+                  data: { turbo: false } do %>
+        <%= file_field_tag :file, accept: ".csv", class: "form-control", style: "max-width: 250px;" %>
+        <%= submit_tag "⬆️ Загрузить Популярные (CSV)",
+                      class: "btn btn-outline-success" %>
+      <% end %>
+
+      <%= form_tag admin.path(:import_recommended_csv),
+                  method: :post,
+                  multipart: true,
+                  class: "d-flex gap-2 align-items-center",
+                  data: { turbo: false } do %>
+        <%= file_field_tag :file, accept: ".csv", class: "form-control", style: "max-width: 250px;" %>
+        <%= submit_tag "⬆️ Загрузить Рекомендованные (CSV)",
+                      class: "btn btn-outline-success" %>
+      <% end %>
+    </div>
   </div>
 
   <hr>

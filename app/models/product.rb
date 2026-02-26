@@ -23,7 +23,9 @@ class Product < ApplicationRecord
   # Scopes
   scope :active, -> { all } # Placeholder if you want to add logic like where(is_deleted: false)
   scope :bestsellers, -> { where(is_bestseller: true) }
+  scope :new_arrivals, -> { where(is_new: true) }
   scope :popular, -> { where(is_popular: true) }
+  scope :recommended, -> { where(is_recommended: true) }
   scope :with_category, -> { where.not(category_id: nil) }
   scope :by_rating, -> { order(rating_weighted: :desc, rating_count: :desc) }
   
@@ -60,7 +62,9 @@ class Product < ApplicationRecord
                   saved_change_to_rating_avg? ||
                   saved_change_to_rating_weighted? ||
                   saved_change_to_is_bestseller? ||
+                  saved_change_to_is_new? ||
                   saved_change_to_is_popular? ||
+                  saved_change_to_is_recommended? ||
                   saved_change_to_quantity? ||
                   saved_change_to_collection? ||
                   saved_change_to_features?

@@ -1,7 +1,7 @@
 module Api
   module V1
     class ProductsController < ApplicationController
-      before_action :authenticate_user, except: [:index, :show, :bestsellers, :popular, :categories]
+      before_action :authenticate_user, except: [:index, :show, :bestsellers, :popular, :new_arrivals, :recommended, :categories]
       
       def index
         products = Product.includes(:category)
@@ -31,7 +31,35 @@ module Api
                          .page(params[:page])
                          .per(params[:per_page] || 10)
         
-        render json: ProductSerializer.new(products, {
+        render json: ProductTeaserSerializer.new(products, {
+          meta: {
+            total: products.total_count,
+            page: params[:page] || 1
+          }
+        })
+      end
+
+      def new_arrivals
+        products = Product.new_arrivals
+                         .includes(:category)
+                         .page(params[:page])
+                         .per(params[:per_page] || 10)
+        
+        render json: ProductTeaserSerializer.new(products, {
+          meta: {
+            total: products.total_count,
+            page: params[:page] || 1
+          }
+        })
+      end
+
+      def recommended
+        products = Product.recommended
+                         .includes(:category)
+                         .page(params[:page])
+                         .per(params[:per_page] || 10)
+        
+        render json: ProductTeaserSerializer.new(products, {
           meta: {
             total: products.total_count,
             page: params[:page] || 1
@@ -45,7 +73,7 @@ module Api
                          .page(params[:page])
                          .per(params[:per_page] || 10)
         
-        render json: ProductSerializer.new(products, {
+        render json: ProductTeaserSerializer.new(products, {
           meta: {
             total: products.total_count,
             page: params[:page] || 1

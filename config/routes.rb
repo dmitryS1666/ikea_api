@@ -20,8 +20,10 @@ Rails.application.routes.draw do
       resources :products, only: [:index, :show], param: :sku do
         collection do
           get :bestsellers
+          get :new_arrivals
+          get :recommended
           get :popular
-          get :categories
+#          get :categories
         end
 
         resources :reviews, only: [:create]

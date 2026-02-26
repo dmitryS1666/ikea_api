@@ -8,6 +8,8 @@ class ProductSerializer
              :quantity, 
              :weight,
              :is_bestseller, 
+             :is_new,
+             :is_recommended,
              :is_popular, 
              :category_id,
              :rating_avg, 
