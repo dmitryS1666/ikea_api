@@ -21,6 +21,7 @@ class ProductTranslationRepairService
     
     products.find_each do |product|
       processed += 1
+      Rails.logger.info "Repairing translation for product SKU: #{product.sku} (#{processed}/#{total})"
       res = repair_product(product)
       fixed += 1 if res[:fixed]
     end
@@ -44,7 +45,7 @@ class ProductTranslationRepairService
         original_text = product.read_attribute(field_original)
         if original_text.present?
           # Переводим заново, принудительно (force: true)
-          new_translation = TranslationService.translate(original_text, force: true)
+          new_translation = TranslationService.translate(original_text, force: true, context: "Product SKU: #{product.sku}, field: #{field_ru}")
           if new_translation.present? && !TranslationService.invalid_translation?(new_translation, original_text)
             updates[field_ru] = new_translation
             was_fixed = true
@@ -83,7 +84,7 @@ class ProductTranslationRepairService
       if value.is_a?(String) && value.include?('translatedText')
         original_val = original_hash[key]
         if original_val.present?
-          new_translation = TranslationService.translate(original_val, force: true)
+          new_translation = TranslationService.translate(original_val, force: true, context: "JSON key: #{key}")
           if new_translation.present? && !TranslationService.invalid_translation?(new_translation, original_val)
             new_hash[key] = new_translation
           end

@@ -7,9 +7,11 @@ class TranslationService
   
   # Универсальный метод перевода (для продуктов)
   # Использует каскад: MyMemory → LibreTranslate → Google Translate
-  def self.translate(text, target_lang: 'ru', source_lang: 'pl', force: false, skip_mymemory: false, skip_google: false)
+  def self.translate(text, target_lang: 'ru', source_lang: 'pl', force: false, skip_mymemory: false, skip_google: false, context: nil)
     return '' if text.blank?
     debug = ENV['TRANSLATION_DEBUG'].to_s == '1'
+    
+    context_info = context ? "[#{context}] " : ""
     
     # Кэширование переводов
     cached = TranslationCache.find_by(
@@ -29,6 +31,7 @@ class TranslationService
     # 1. Google Translate (теперь первый приоритет)
     unless skip_google || ENV['GCLOUD_PROJECT'].blank? || ENV['GOOGLE_APPLICATION_CREDENTIALS'].blank?
       begin
+        Rails.logger.info("TranslationService: #{context_info}translating via Google: #{text.to_s.truncate(50)}")
         translated = GoogleTranslateService.translate(text, target_lang: target_lang)
         provider = 'google' if translated.present? && !invalid_translation?(translated, text)
       rescue => e
@@ -40,6 +43,7 @@ class TranslationService
     if translated.blank? || invalid_translation?(translated, text)
       unless skip_mymemory || ENV['MYMEMORY_DISABLED'].to_s == '1'
         begin
+          Rails.logger.info("TranslationService: #{context_info}translating via MyMemory: #{text.to_s.truncate(50)}")
           translated = translate_with_my_memory(text, target_lang: target_lang, source_lang: source_lang, force: force)
           provider = 'mymemory' if translated.present? && !invalid_translation?(translated, text)
         rescue => e2
@@ -51,6 +55,7 @@ class TranslationService
     # 3. LibreTranslate
     if translated.blank? || invalid_translation?(translated, text)
       begin
+        Rails.logger.info("TranslationService: #{context_info}translating via LibreTranslate: #{text.to_s.truncate(50)}")
         translated = LibreTranslateService.translate(text, target_lang: target_lang, source_lang: source_lang)
         provider = 'libretranslate' if translated.present? && !invalid_translation?(translated, text)
       rescue => e3
