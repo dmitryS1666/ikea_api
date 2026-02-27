@@ -2502,7 +2502,10 @@ class PlDetailsFetcher
       '.pip-product-compact img',
       '.pip-image img',
       'img[src*="ikea"]',
-      '.product-gallery img'
+      '.product-gallery img',
+      '.pipf-product-gallery img',
+      '.pipf-product-gallery__media img',
+      '.pipf-product-gallery__thumbnail img'
     ]
     
     html_images_found = 0

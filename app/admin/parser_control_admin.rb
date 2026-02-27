@@ -337,6 +337,8 @@ Trestle.resource :parser_control, model: ParserControl do
         ImportExtendedAttributesFromFileJob
       when 'extended_attributes_by_skus'
         FetchExtendedAttributesBySkusJob
+      when 'recover_missing_images'
+        RecoverMissingImagesJob
       end
     end
 
@@ -354,7 +356,8 @@ Trestle.resource :parser_control, model: ParserControl do
         'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)',
         'fix_missing_images' => 'Проверка и докачка отсутствующих картинок',
         'fix_translations' => 'Исправление битых переводов',
-        'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU'
+        'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
+        'recover_missing_images' => 'Поиск и восполнение ссылок на картинки'
       }[type] || type
     end
   end

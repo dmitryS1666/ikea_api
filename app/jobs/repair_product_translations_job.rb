@@ -21,16 +21,16 @@ class RepairProductTranslationsJob < ApplicationJob
     }
     
     begin
-      FIELDS_TO_FIX = ProductTranslationRepairService::FIELDS_TO_FIX
+      fields_to_fix = ProductTranslationRepairService::FIELDS_TO_FIX
       
       # Ищем продукты, где хотя бы в одном из полей есть "translatedText"
-      query_parts = FIELDS_TO_FIX.map { |f| "#{f} LIKE '%translatedText%'" }
+      query_parts = fields_to_fix.map { |f| "#{f} LIKE '%translatedText%'" }
       query_parts << "full_attributes_ru::text LIKE '%translatedText%'"
       
       products = Product.where(query_parts.join(" OR "))
       products = products.limit(limit) if limit
       
-      total = products.count
+      products.count
       
       products.find_each do |product|
         # Проверяем, не остановлена ли задача

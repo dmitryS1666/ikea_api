@@ -40,7 +40,8 @@
                     ['Проверка отсутствующих картинок', 'fix_missing_images'],
                     ['Исправление битых переводов', 'fix_translations'],
                     ['Импорт атрибутов из файла (JSON)', 'extended_attrs_import'],
-                    ['Загрузка атрибутов по списку SKU', 'extended_attributes_by_skus']
+                    ['Загрузка атрибутов по списку SKU', 'extended_attributes_by_skus'],
+                    ['Восполнение ссылок на картинки', 'recover_missing_images']
                   ]),
                   { prompt: 'Выберите тип задачи', class: "form-control", required: true, id: "task_type_select" } %>
             </div>
@@ -99,7 +100,8 @@
                         'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)',
                         'fix_missing_images' => 'Проверка отсутствующих картинок',
                         'fix_translations' => 'Исправление битых переводов',
-                        'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU'
+                        'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
+                        'recover_missing_images' => 'Восполнение ссылок на картинки'
                       }[task.task_type] || task.task_type %>
                       <% if task.status == 'pending' %>
                         <span class="badge badge-secondary ml-2">Ожидание</span>
