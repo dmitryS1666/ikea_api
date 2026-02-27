@@ -61,6 +61,9 @@ gem "rswag"
 gem "rswag-api"
 gem "rswag-ui"
 
+# Google Cloud Translation
+gem "google-cloud-translate", "~> 2.0"
+
 gem "dotenv"
 
 # Trestle Admin Panel

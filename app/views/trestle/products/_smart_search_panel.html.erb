@@ -75,13 +75,19 @@
       <span class="text-muted small">Algolia-like</span>
     </div>
 
-    <form id="trestle-smart-search-form" class="search-form">
+    <form id="trestle-smart-search-form" class="search-form" action="<%= admin.path(:index) %>" method="get">
       <div class="input-group">
         <input type="search"
-               name="query"
+               name="q"
                class="form-control"
+               value="<%= params[:q] %>"
                placeholder="Введите текст для поиска…"
                autocomplete="off" />
+        <% if params[:q].present? %>
+          <%= link_to admin.path(:index), class: "btn btn-outline-secondary", title: "Очистить поиск" do %>
+            <i class="fa fa-times"></i>
+          <% end %>
+        <% end %>
         <button type="submit" class="btn btn-primary">Искать</button>
       </div>
     </form>
@@ -116,28 +122,14 @@
     var results = document.getElementById('trestle-smart-search-results');
 
     form.addEventListener('submit', function(event) {
-      event.preventDefault();
-      var query = form.querySelector('input[name="query"]').value.trim();
-      if (!query) {
-        results.innerHTML = '<p class="text-muted small mb-0">Введите текст запроса.</p>';
-        return;
-      }
+      // Убираем event.preventDefault(), чтобы форма отправлялась на сервер для фильтрации таблицы
+      // Но оставляем логику для отображения подсказок, если нужно
+      
+      var query = form.querySelector('input[name="q"]').value.trim();
+      if (!query) return;
 
-      results.innerHTML = '<p class="text-muted small mb-0">Ищем…</p>';
-
-      fetch('/api/v1/search/suggest?q=' + encodeURIComponent(query), { credentials: 'same-origin' })
-        .then(function(response) {
-          if (!response.ok) {
-            throw new Error('network');
-          }
-          return response.json();
-        })
-        .then(function(payload) {
-          results.innerHTML = buildSections(payload);
-        })
-        .catch(function() {
-          results.innerHTML = '<p class="text-danger small mb-0">Не удалось получить результаты.</p>';
-        });
+      // Если хотим оставить и подсказки, и фильтрацию таблицы:
+      // fetch('/api/v1/search/suggest?q=' + encodeURIComponent(query), ... )
     });
 
     function buildSections(data) {

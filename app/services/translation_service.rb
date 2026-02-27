@@ -26,46 +26,43 @@ class TranslationService
     translated = nil
     provider = nil
     
-    # 1. MyMemory (если не отключен)
-    unless skip_mymemory || ENV['MYMEMORY_DISABLED'].to_s == '1'
+    # 1. Google Translate (теперь первый приоритет)
+    unless skip_google || ENV['GCLOUD_PROJECT'].blank? || ENV['GOOGLE_APPLICATION_CREDENTIALS'].blank?
       begin
-        translated = translate_with_my_memory(text, target_lang: target_lang, source_lang: source_lang, force: force)
-        provider = 'mymemory' if translated.present? && !invalid_translation?(translated, text)
+        translated = GoogleTranslateService.translate(text, target_lang: target_lang)
+        provider = 'google' if translated.present? && !invalid_translation?(translated, text)
       rescue => e
-        Rails.logger.warn("MyMemory failed: #{e.message}")
+        Rails.logger.warn("Google Translate failed: #{e.message}")
       end
     end
 
-    # 2. LibreTranslate
+    # 2. MyMemory (если не отключен)
+    if translated.blank? || invalid_translation?(translated, text)
+      unless skip_mymemory || ENV['MYMEMORY_DISABLED'].to_s == '1'
+        begin
+          translated = translate_with_my_memory(text, target_lang: target_lang, source_lang: source_lang, force: force)
+          provider = 'mymemory' if translated.present? && !invalid_translation?(translated, text)
+        rescue => e2
+          Rails.logger.warn("MyMemory failed: #{e2.message}")
+        end
+      end
+    end
+
+    # 3. LibreTranslate
     if translated.blank? || invalid_translation?(translated, text)
       begin
         translated = LibreTranslateService.translate(text, target_lang: target_lang, source_lang: source_lang)
         provider = 'libretranslate' if translated.present? && !invalid_translation?(translated, text)
-      rescue => e2
-        Rails.logger.warn("LibreTranslate failed: #{e2.message}")
+      rescue => e3
+        Rails.logger.warn("LibreTranslate failed: #{e3.message}")
       end
     end
 
-    # 3. Google Translate (если настроен)
+    # 4. Fallback (оригинал)
     if translated.blank? || invalid_translation?(translated, text)
-      if skip_google
-        Rails.logger.warn("Google Translate disabled, returning original text")
-        translated = text
-        provider = 'fallback'
-      elsif ENV['GCLOUD_PROJECT'].present? && ENV['GOOGLE_APPLICATION_CREDENTIALS'].present?
-        begin
-          translated = GoogleTranslateService.translate(text, target_lang: target_lang)
-          provider = 'google' if translated.present? && !invalid_translation?(translated, text)
-        rescue => e3
-          Rails.logger.error("All translation services failed: #{e3.message}")
-          translated = text # Возвращаем оригинал
-          provider = 'fallback'
-        end
-      else
-        Rails.logger.warn("Google Translate not configured, returning original text")
-        translated = text
-        provider = 'fallback'
-      end
+      Rails.logger.warn("All translation services failed, returning original text")
+      translated = text
+      provider = 'fallback'
     end
 
     if debug

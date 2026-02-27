@@ -21,6 +21,24 @@ Trestle.resource(:products, model: Product) do
     scope :recommended, -> { Product.recommended }, label: "Рекомендованные"
   end
 
+  collection do |params|
+    products = Product.all
+    
+    # Стандартный поиск Trestle (параметр q)
+    if params[:q].present?
+      q = "%#{params[:q]}%"
+      products = products.where("sku ILIKE :q OR name ILIKE :q OR name_ru ILIKE :q", q: q)
+    end
+
+    # Поиск из "Умной панели" (параметр query)
+    if params[:query].present?
+      q = "%#{params[:query]}%"
+      products = products.where("sku ILIKE :q OR name ILIKE :q OR name_ru ILIKE :q", q: q)
+    end
+    
+    products
+  end
+
   table do
     column :sku, link: true
     column :name

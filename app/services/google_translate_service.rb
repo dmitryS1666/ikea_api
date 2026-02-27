@@ -11,10 +11,7 @@ class GoogleTranslateService
     
     require 'google/cloud/translate'
     
-    translate_client = Google::Cloud::Translate.translation_v2(
-      project_id: ENV['GCLOUD_PROJECT'],
-      credentials: ENV['GOOGLE_APPLICATION_CREDENTIALS']
-    )
+    translate_client = Google::Cloud::Translate.new(version: :v2)
     
     translation = translate_client.translate(
       text,

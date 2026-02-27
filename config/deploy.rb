@@ -14,7 +14,7 @@ set :deploy_to, "/home/deploy/apps/ikea_back"
 set :keep_releases, 5
 
 # Linked files (shared between deployments)
-append :linked_files, "config/master.key", ".env"
+append :linked_files, "config/master.key", ".env", "config/google_translate_key.json"
 
 # Linked directories (shared between deployments)
 append :linked_dirs, "log", "tmp/pids", "tmp/cache", "tmp/sockets", 'public/system', 'storage', 'public/images', 'public/documents'
