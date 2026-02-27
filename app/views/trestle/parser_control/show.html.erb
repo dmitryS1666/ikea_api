@@ -24,7 +24,7 @@
           <h3>Запуск задач парсинга</h3>
         </div>
         <div class="card-body">
-          <%= form_tag start_task_parser_control_admin_index_path, method: :post, data: { turbo: false }, class: "parser-start-form" do %>
+          <%= form_tag start_task_parser_control_admin_index_path, method: :post, multipart: true, data: { turbo: false }, class: "parser-start-form" do %>
             <div class="form-group">
               <%= label_tag :task_type, "Тип задачи", class: "form-label" %>
               <%= select_tag :task_type, 
@@ -35,15 +35,30 @@
                     ['Популярные категории', 'popular_categories'],
                     ['Картинки категорий', 'category_images'],
                     ['Картинки продуктов', 'product_images'],
-                    ['Расширенные атрибуты продуктов', 'extended_attributes'],
-                    ['Курсы валют', 'currency_rates']
+                    ['Расширенные атрибуты продуктов (все)', 'extended_attributes'],
+                    ['Курсы валют', 'currency_rates'],
+                    ['Проверка отсутствующих картинок', 'fix_missing_images'],
+                    ['Исправление битых переводов', 'fix_translations'],
+                    ['Импорт атрибутов из файла (JSON)', 'extended_attrs_import'],
+                    ['Загрузка атрибутов по списку SKU', 'extended_attributes_by_skus']
                   ]),
-                  { prompt: 'Выберите тип задачи', class: "form-control", required: true } %>
+                  { prompt: 'Выберите тип задачи', class: "form-control", required: true, id: "task_type_select" } %>
             </div>
             
-            <div class="form-group">
+            <div class="form-group" id="limit_field">
               <%= label_tag :limit, "Лимит записей (необязательно)", class: "form-label" %>
               <%= number_field_tag :limit, nil, class: "form-control", placeholder: "Оставьте пустым для без ограничений", min: 1 %>
+            </div>
+
+            <div class="form-group d-none" id="extra_data_field">
+              <%= label_tag :extra_data, "Список SKU (через пробел или запятую)", class: "form-label" %>
+              <%= text_area_tag :extra_data, nil, class: "form-control", rows: 5, placeholder: "Например: 123.456.78, 987.654.32" %>
+            </div>
+
+            <div class="form-group d-none" id="extra_file_field">
+              <%= label_tag :extra_file, "Файл с данными", class: "form-label" %>
+              <%= file_field_tag :extra_file, class: "form-control-file" %>
+              <small class="form-text text-muted">Для импорта расширенных атрибутов выберите JSON или JSONL файл.</small>
             </div>
             
             <%= submit_tag "Запустить", class: "btn btn-primary", data: { disable_with: "Запускается..." } %>
@@ -81,7 +96,10 @@
                         'extended_attributes' => 'Расширенные атрибуты продуктов',
                         'currency_rates' => 'Курсы валют',
                         'category_filters' => 'Переиндексация фильтров категорий',
-                        'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)'
+                        'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)',
+                        'fix_missing_images' => 'Проверка отсутствующих картинок',
+                        'fix_translations' => 'Исправление битых переводов',
+                        'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU'
                       }[task.task_type] || task.task_type %>
                       <% if task.status == 'pending' %>
                         <span class="badge badge-secondary ml-2">Ожидание</span>
@@ -143,7 +161,10 @@
                       'extended_attributes' => 'Расширенные атрибуты продуктов',
                       'currency_rates' => 'Курсы валют',
                       'category_filters' => 'Переиндексация фильтров категорий',
-                      'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)'
+                      'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)',
+                      'fix_missing_images' => 'Проверка отсутствующих картинок',
+                      'fix_translations' => 'Исправление битых переводов',
+                      'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU'
                     }[task.task_type] || task.task_type %>
                   </td>
                   <td>
@@ -295,7 +316,10 @@
             'extended_attributes': 'Расширенные атрибуты продуктов',
             'currency_rates': 'Курсы валют',
             'category_filters': 'Переиндексация фильтров категорий',
-            'extended_attrs_import': 'Импорт расширенных атрибутов (JSON)'
+            'extended_attrs_import': 'Импорт расширенных атрибутов (JSON)',
+            'fix_missing_images': 'Проверка отсутствующих картинок',
+            'fix_translations': 'Исправление битых переводов',
+            'extended_attributes_by_skus': 'Загрузка атрибутов по списку SKU'
           }[task.task_type] || task.task_type;
           
           const limitText = task.limit ? task.limit : '∞';
@@ -419,6 +443,32 @@
   // Обновляем список после отправки формы запуска задачи
   const startForm = document.querySelector('.parser-start-form');
   if (startForm) {
+    const taskSelect = document.getElementById('task_type_select');
+    const limitField = document.getElementById('limit_field');
+    const extraDataField = document.getElementById('extra_data_field');
+    const extraFileField = document.getElementById('extra_file_field');
+
+    function toggleFields() {
+      const task = taskSelect.value;
+      
+      // Скрываем все
+      limitField.classList.remove('d-none');
+      extraDataField.classList.add('d-none');
+      extraFileField.classList.add('d-none');
+
+      if (task === 'extended_attributes_by_skus') {
+        extraDataField.classList.remove('d-none');
+      } else if (task === 'extended_attrs_import') {
+        extraFileField.classList.remove('d-none');
+        limitField.classList.add('d-none');
+      }
+    }
+
+    if (taskSelect) {
+      taskSelect.addEventListener('change', toggleFields);
+      toggleFields(); // Инициализация
+    }
+
     startForm.addEventListener('submit', function() {
       // Сбрасываем счетчик пустых обновлений при запуске новой задачи
       consecutiveEmptyUpdates = 0;
@@ -442,4 +492,3 @@
   }
 })();
 </script>
-

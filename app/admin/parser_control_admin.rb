@@ -44,6 +44,8 @@ Trestle.resource :parser_control, model: ParserControl do
     def start_task
       task_type = params[:task_type]
       limit = params[:limit].present? && params[:limit].to_i > 0 ? params[:limit].to_i : nil
+      extra_data = params[:extra_data]
+      extra_file = params[:extra_file]
       
       Rails.logger.info "ParserControlAdmin#start_task called with task_type=#{task_type}, limit=#{limit}"
       
@@ -59,18 +61,44 @@ Trestle.resource :parser_control, model: ParserControl do
         if job_class.nil?
           flash[:error] = "Неизвестный тип задачи: #{task_type}"
         else
+          payload = {}
+          
+          # Обработка дополнительных данных (SKUs и т.д.)
+          if task_type == 'extended_attributes_by_skus'
+            payload[:skus] = extra_data
+          end
+          
+          # Обработка файла для импорта
+          if task_type == 'extended_attrs_import' && extra_file.present?
+            import_path = prepare_import_file(extra_file)
+            if import_path
+              payload[:file_path] = import_path
+              payload[:original_name] = extra_file.original_filename
+              payload[:cursor] = 0
+            else
+              flash[:error] = "Не удалось подготовить файл."
+              redirect_to admin.instance_path(ParserControl.new(id: 'show'))
+              return
+            end
+          end
+
           # Создаем ParserTask сразу, чтобы отобразить в админке
           task = ParserTask.create!(
             task_type: task_type,
             status: 'pending',
-            limit: limit
+            limit: limit,
+            payload: payload
           )
           
           # Передаем task_id в job и сохраняем job_id
-          job = job_class.perform_later(limit: limit, task_id: task.id)
+          job = if %w[extended_attrs_import extended_attributes_by_skus fix_translations fix_missing_images].include?(task_type)
+                  job_class.perform_later(task_id: task.id)
+                else
+                  job_class.perform_later(limit: limit, task_id: task.id)
+                end
+                
           task.update!(job_id: job.job_id) if job.respond_to?(:job_id)
-          Rails.logger.info "Job #{job_class.name} enqueued with limit=#{limit}, task_id=#{task.id}, job_id=#{job.job_id rescue 'N/A'}"
-          flash[:message] = "Задача '#{task_type_label(task_type)}' запущена#{limit ? " (лимит: #{limit})" : ''}"
+          flash[:message] = "Задача '#{task_type_label(task_type)}' запущена"
         end
       rescue => e
         Rails.logger.error "Error starting task: #{e.class} - #{e.message}\n#{e.backtrace.first(5).join("\n")}"
@@ -150,6 +178,56 @@ Trestle.resource :parser_control, model: ParserControl do
     end
 
     private
+
+    def prepare_import_file(file)
+      FileUtils.mkdir_p(Rails.root.join("tmp", "imports"))
+      timestamp = Time.current.strftime("%Y%m%d_%H%M%S")
+      import_path = Rails.root.join("tmp", "imports", "extended_attrs_#{timestamp}_#{SecureRandom.hex(4)}.jsonl")
+
+      size = file.size.to_i
+      sample = file.read(2048).to_s
+      file.rewind
+      first_char = sample.lstrip[0]
+
+      if first_char == '['
+        return nil if size > 50.megabytes
+        parsed = JSON.parse(file.read)
+        write_jsonl(import_path, parsed)
+      elsif first_char == '{' && !sample.include?("\n")
+        begin
+          parsed = JSON.parse(file.read)
+          write_jsonl(import_path, parsed)
+        rescue JSON::ParserError
+          file.rewind
+          File.open(import_path, "wb") { |f| IO.copy_stream(file, f) }
+        end
+      else
+        File.open(import_path, "wb") { |f| IO.copy_stream(file, f) }
+      end
+
+      import_path.to_s
+    rescue => e
+      Rails.logger.error "Error preparing import file: #{e.message}"
+      nil
+    ensure
+      file.rewind if file.respond_to?(:rewind)
+    end
+
+    def write_jsonl(path, parsed)
+      items = if parsed.is_a?(Array)
+                parsed
+              elsif parsed.is_a?(Hash) && parsed["products"].is_a?(Array)
+                parsed["products"]
+              elsif parsed.is_a?(Hash)
+                [parsed]
+              else
+                []
+              end
+
+      File.open(path, "wb") do |f|
+        items.each { |item| f.puts(item.to_json) }
+      end
+    end
 
     # Остановить все связанные Sidekiq jobs для задачи
     def stop_related_jobs(task)
@@ -251,6 +329,14 @@ Trestle.resource :parser_control, model: ParserControl do
         FetchProductExtendedAttributesJob
       when 'currency_rates'
         FetchCurrencyRatesJob
+      when 'fix_missing_images'
+        FixMissingImagesJob
+      when 'fix_translations'
+        RepairProductTranslationsJob
+      when 'extended_attrs_import'
+        ImportExtendedAttributesFromFileJob
+      when 'extended_attributes_by_skus'
+        FetchExtendedAttributesBySkusJob
       end
     end
 
@@ -265,7 +351,10 @@ Trestle.resource :parser_control, model: ParserControl do
         'extended_attributes' => 'Расширенные атрибуты продуктов',
         'currency_rates' => 'Курсы валют',
         'category_filters' => 'Переиндексация фильтров категорий',
-        'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)'
+        'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)',
+        'fix_missing_images' => 'Проверка и докачка отсутствующих картинок',
+        'fix_translations' => 'Исправление битых переводов',
+        'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU'
       }[type] || type
     end
   end
@@ -277,4 +366,3 @@ Trestle.resource :parser_control, model: ParserControl do
     get :active_tasks, on: :collection
   end
 end
-
