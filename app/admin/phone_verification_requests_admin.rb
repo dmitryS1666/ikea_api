@@ -4,8 +4,8 @@ Trestle.resource(:phone_verification_requests) do
   end
 
   # Scope to show latest first
-  scopes do
-    scope :all, default: true
+  collection do
+    PhoneVerificationRequest.order(id: :desc)
   end
 
   table do

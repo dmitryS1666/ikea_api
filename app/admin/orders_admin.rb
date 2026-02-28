@@ -49,6 +49,21 @@ Trestle.resource(:orders) do
     static_field :delivery_type
     static_field :payment_method
     
-    # ... другие поля по необходимости
+    if order.address_json.present?
+      static_field :address do
+        addr = order.address_json
+        "#{addr['city']}, #{addr['street']}, д. #{addr['house']}#{addr['apartment'] ? ', кв. ' + addr['apartment'] : ''}"
+      end
+    end
+
+    divider
+    
+    table order.order_items, label: "Товары в заказе" do
+      column :product_sku, label: "SKU"
+      column :quantity, label: "Кол-во"
+      column :price, label: "Цена" do |oi|
+        sprintf('%.2f', oi.price.to_f)
+      end
+    end
   end
 end

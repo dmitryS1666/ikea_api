@@ -112,6 +112,13 @@ Rails.application.routes.draw do
         delete '', to: 'cart_items#bulk_destroy', on: :collection
       end
 
+      # Favorites
+      resource :favorites, controller: 'favorites', only: [:show] do
+        delete '/', action: :clear, on: :member
+      end
+
+      resources :favorites, only: [:create, :destroy]
+
       post 'cart/promo/apply', to: 'cart_promo#apply'
       delete 'cart/promo/remove', to: 'cart_promo#remove'
 

@@ -1,6 +1,7 @@
 module Api
   module V1
     class ProductsController < ApplicationController
+      include FavoriteHelper
       before_action :authenticate_user, except: [:index, :show, :bestsellers, :popular, :new_arrivals, :recommended, :categories]
       
       def index
@@ -8,7 +9,8 @@ module Api
         products = products.by_rating if params[:sort] == 'rating'
         products = products.page(params[:page]).per(params[:per_page] || 50)
         
-        render json: ProductSerializer.new(products, {
+        render json: ProductTeaserSerializer.new(products, {
+          params: { favorite_skus: current_favorite_skus },
           meta: {
             total: products.total_count,
             page: params[:page] || 1,
@@ -21,7 +23,7 @@ module Api
       def show
         product = Product.includes(:seo_meta).find_by(sku: params[:sku])
         render json: ProductSerializer.new(product, {
-          params: { detail: true, city: current_city }
+          params: { detail: true, city: current_city, favorite_skus: current_favorite_skus }
         })
       end
       
@@ -32,6 +34,7 @@ module Api
                          .per(params[:per_page] || 10)
         
         render json: ProductTeaserSerializer.new(products, {
+          params: { favorite_skus: current_favorite_skus },
           meta: {
             total: products.total_count,
             page: params[:page] || 1
@@ -46,6 +49,7 @@ module Api
                          .per(params[:per_page] || 10)
         
         render json: ProductTeaserSerializer.new(products, {
+          params: { favorite_skus: current_favorite_skus },
           meta: {
             total: products.total_count,
             page: params[:page] || 1
@@ -60,6 +64,7 @@ module Api
                          .per(params[:per_page] || 10)
         
         render json: ProductTeaserSerializer.new(products, {
+          params: { favorite_skus: current_favorite_skus },
           meta: {
             total: products.total_count,
             page: params[:page] || 1
@@ -74,6 +79,7 @@ module Api
                          .per(params[:per_page] || 10)
         
         render json: ProductTeaserSerializer.new(products, {
+          params: { favorite_skus: current_favorite_skus },
           meta: {
             total: products.total_count,
             page: params[:page] || 1
@@ -95,4 +101,3 @@ module Api
     end
   end
 end
-

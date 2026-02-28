@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_02_27_000000) do
+ActiveRecord::Schema[7.1].define(version: 2026_02_28_214616) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -221,6 +221,27 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_27_000000) do
     t.datetime "updated_at", null: false
     t.index ["currency_code"], name: "index_exchange_rates_on_currency_code"
     t.index ["date", "currency_code"], name: "index_exchange_rates_on_date_and_currency_code", unique: true
+  end
+
+  create_table "favorite_items", force: :cascade do |t|
+    t.bigint "favorite_id", null: false
+    t.string "product_sku"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["favorite_id", "product_sku"], name: "index_favorite_items_on_favorite_id_and_product_sku", unique: true
+    t.index ["favorite_id"], name: "index_favorite_items_on_favorite_id"
+    t.index ["product_sku"], name: "index_favorite_items_on_product_sku"
+  end
+
+  create_table "favorites", force: :cascade do |t|
+    t.string "guest_token"
+    t.datetime "expires_at"
+    t.bigint "user_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["expires_at"], name: "index_favorites_on_expires_at"
+    t.index ["guest_token"], name: "index_favorites_on_guest_token"
+    t.index ["user_id"], name: "index_favorites_on_user_id"
   end
 
   create_table "feed_settings", force: :cascade do |t|
@@ -679,9 +700,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_27_000000) do
     t.boolean "gdpr_consent"
     t.boolean "newsletter_consent"
     t.string "country_code"
+    t.date "dob"
+    t.string "gender"
+    t.text "address"
+    t.boolean "telegram_marketing"
+    t.boolean "email_marketing"
     t.index ["email"], name: "index_users_on_email", unique: true, where: "(email IS NOT NULL)"
     t.index ["phone"], name: "index_users_on_phone", unique: true
-    t.index ["username"], name: "index_users_on_username", unique: true
+    t.index ["username"], name: "index_users_on_username"
   end
 
   create_table "verification_codes", force: :cascade do |t|
@@ -699,6 +725,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_27_000000) do
   add_foreign_key "carts", "promo_codes"
   add_foreign_key "carts", "users"
   add_foreign_key "category_products", "products"
+  add_foreign_key "favorite_items", "favorites"
+  add_foreign_key "favorites", "users"
   add_foreign_key "home_banners", "categories", primary_key: "ikea_id", on_delete: :nullify
   add_foreign_key "home_slider_banners", "home_sliders"
   add_foreign_key "homepage_product_block_items", "homepage_product_blocks"

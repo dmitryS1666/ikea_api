@@ -1,6 +1,8 @@
 module Api
   module V1
     class CategoriesController < ApplicationController
+      include FavoriteHelper
+
       def index
         categories = Category.active
         categories = categories.popular if params[:is_popular] == 'true'
@@ -48,6 +50,7 @@ module Api
                            .per(params[:per_page] || 50)
 
         render json: ProductSerializer.new(products, {
+          params: { favorite_skus: current_favorite_skus },
           meta: {
             total: products.total_count,
             page: (params[:page] || 1).to_i,
@@ -98,4 +101,3 @@ module Api
     end
   end
 end
-

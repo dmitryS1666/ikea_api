@@ -23,11 +23,18 @@ info:
     - `POST /api/v1/auth/login` — Вход (только для админов/менеджеров)
     - `POST /api/v1/auth/phone/send` — Запрос звонка для входа/регистрации
     - `POST /api/v1/auth/phone/verify` — Подтверждение кода из звонка (вход/регистрация)
+    - `GET /api/v1/favorites` — Список избранного (поддержка гостевых токенов)
+    - `POST /api/v1/favorites` — Добавление в избранное (поддержка гостевых токенов)
     
     **Приватные эндпоинты (Требуется Bearer Token):**
     - `POST /api/v1/products/{sku}/reviews` — Оставить отзыв
     - `GET /api/v1/account/reviews` — Мои отзывы
     - `PATCH/DELETE /api/v1/reviews/{id}` — Управление своими отзывами
+    
+    **Избранное (Favorites):**
+    - `GET /api/v1/favorites` — Список избранного
+    - `POST /api/v1/favorites` — Добавить в избранное
+    - `DELETE /api/v1/favorites/{sku}` — Удалить из избранного
     
     Получить токен можно через `/api/v1/auth/login`
 
@@ -67,6 +74,16 @@ paths:
           in: query
           schema:
             type: boolean
+        - name: favorite_token
+          in: query
+          description: Токен гостевого списка избранного
+          schema:
+            type: string
+        - name: X-Favorite-Token
+          in: header
+          description: Токен гостевого списка избранного
+          schema:
+            type: string
       responses:
         '200':
           description: Список товаров
@@ -91,6 +108,16 @@ paths:
         - name: sku
           in: path
           required: true
+          schema:
+            type: string
+        - name: favorite_token
+          in: query
+          description: Токен гостевого списка избранного
+          schema:
+            type: string
+        - name: X-Favorite-Token
+          in: header
+          description: Токен гостевого списка избранного
           schema:
             type: string
       responses:
@@ -122,6 +149,16 @@ paths:
           schema:
             type: integer
             default: 10
+        - name: favorite_token
+          in: query
+          description: Токен гостевого списка избранного
+          schema:
+            type: string
+        - name: X-Favorite-Token
+          in: header
+          description: Токен гостевого списка избранного
+          schema:
+            type: string
       responses:
         '200':
           description: Список хитов продаж
@@ -151,6 +188,16 @@ paths:
           schema:
             type: integer
             default: 10
+        - name: favorite_token
+          in: query
+          description: Токен гостевого списка избранного
+          schema:
+            type: string
+        - name: X-Favorite-Token
+          in: header
+          description: Токен гостевого списка избранного
+          schema:
+            type: string
       responses:
         '200':
           description: Список новинок
@@ -180,6 +227,16 @@ paths:
           schema:
             type: integer
             default: 10
+        - name: favorite_token
+          in: query
+          description: Токен гостевого списка избранного
+          schema:
+            type: string
+        - name: X-Favorite-Token
+          in: header
+          description: Токен гостевого списка избранного
+          schema:
+            type: string
       responses:
         '200':
           description: Список рекомендованных товаров
@@ -209,6 +266,16 @@ paths:
           schema:
             type: integer
             default: 10
+        - name: favorite_token
+          in: query
+          description: Токен гостевого списка избранного
+          schema:
+            type: string
+        - name: X-Favorite-Token
+          in: header
+          description: Токен гостевого списка избранного
+          schema:
+            type: string
       responses:
         '200':
           description: Список популярных товаров
@@ -392,6 +459,16 @@ paths:
               type: array
               items:
                 type: string
+        - name: favorite_token
+          in: query
+          description: Токен гостевого списка избранного
+          schema:
+            type: string
+        - name: X-Favorite-Token
+          in: header
+          description: Токен гостевого списка избранного
+          schema:
+            type: string
       responses:
         '200':
           description: Список товаров категории
@@ -812,6 +889,106 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CartResponse'
+
+  /api/v1/favorites:
+    get:
+      summary: Получить список избранного
+      tags:
+        - Favorites
+      parameters:
+        - name: favorite_token
+          in: query
+          description: Токен гостевого списка избранного
+          schema:
+            type: string
+        - name: X-Favorite-Token
+          in: header
+          description: Токен гостевого списка избранного (альтернатива query параметру)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Данные избранного
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteResponse'
+    post:
+      summary: Добавить товар в избранное
+      tags:
+        - Favorites
+      parameters:
+        - name: X-Favorite-Token
+          in: header
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sku
+              properties:
+                sku:
+                  type: string
+                favorite_token:
+                  type: string
+      responses:
+        '200':
+          description: Товар добавлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteResponse'
+    delete:
+      summary: Полная очистка списка избранного
+      tags:
+        - Favorites
+      parameters:
+        - name: favorite_token
+          in: query
+          schema:
+            type: string
+        - name: X-Favorite-Token
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Список очищен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteResponse'
+
+  /api/v1/favorites/{sku}:
+    delete:
+      summary: Удалить товар из избранного
+      tags:
+        - Favorites
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: favorite_token
+          in: query
+          schema:
+            type: string
+        - name: X-Favorite-Token
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Товар удален
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteResponse'
 
   /api/v1/checkout:
     post:
@@ -1425,6 +1602,16 @@ paths:
         - name: q
           in: query
           required: true
+          schema:
+            type: string
+        - name: favorite_token
+          in: query
+          description: Токен гостевого списка избранного
+          schema:
+            type: string
+        - name: X-Favorite-Token
+          in: header
+          description: Токен гостевого списка избранного
           schema:
             type: string
       responses:
@@ -2067,9 +2254,16 @@ components:
         email: { type: string }
         phone: { type: string }
         country_code: { type: string, enum: [RB, РФ, РК] }
+        dob: { type: string, format: date, description: "Дата рождения" }
+        gender: { type: string, description: "Пол" }
+        address: { type: string, description: "Адрес доставки" }
+        telegram_marketing: { type: boolean, description: "Подписка на рассылку в Telegram" }
+        email_marketing: { type: boolean, description: "Подписка на рассылку по Email" }
         gdpr_consent: { type: boolean }
         newsletter_consent: { type: boolean }
         passport_verified: { type: boolean }
+        passport_data:
+          $ref: '#/components/schemas/PassportData'
 
     UserProfileUpdate:
       type: object
@@ -2078,8 +2272,22 @@ components:
         email: { type: string }
         phone: { type: string }
         country_code: { type: string, enum: [RB, РФ, РК] }
+        dob: { type: string, format: date }
+        gender: { type: string }
+        address: { type: string }
+        telegram_marketing: { type: boolean }
+        email_marketing: { type: boolean }
         gdpr_consent: { type: boolean }
         newsletter_consent: { type: boolean }
+        passport:
+          $ref: '#/components/schemas/PassportData'
+
+    PassportData:
+      type: object
+      properties:
+        passport_number: { type: string, example: "MP1234567" }
+        full_name: { type: string, example: "Иван Иванов" }
+        issue_date: { type: string, format: date, example: "2020-01-01" }
 
     PurchaseItem:
       type: object
@@ -2792,6 +3000,28 @@ components:
         lat: { type: string }
         lon: { type: string }
         provider: { type: string, example: "europost" }
+
+    FavoriteResponse:
+      type: object
+      properties:
+        favorite:
+          type: object
+          properties:
+            token: { type: string }
+            expires_at: { type: string, format: date-time }
+            items_count: { type: integer }
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/FavoriteItem'
+
+    FavoriteItem:
+      type: object
+      properties:
+        sku: { type: string }
+        added_at: { type: string, format: date-time }
+        product:
+          $ref: '#/components/schemas/CartProductPayload'
 
   securitySchemes:
     BearerAuth:

@@ -1,6 +1,8 @@
 module Api
   module V1
     class SearchController < ApplicationController
+      include FavoriteHelper
+      
       def suggest
         query = params[:q].to_s.strip
         suggestions = suggestions_for(query)
@@ -13,7 +15,7 @@ module Api
         render json: {
           suggestions: suggestions,
           categories: CategorySerializer.new(categories).serializable_hash,
-          products: ProductSerializer.new(products).serializable_hash,
+          products: ProductSerializer.new(products, { params: { favorite_skus: current_favorite_skus } }).serializable_hash,
           popular_queries: popular_queries.map do |entry|
             { query: entry.query, weight: entry.weight }
           end

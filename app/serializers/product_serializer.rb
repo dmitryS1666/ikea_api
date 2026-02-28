@@ -17,6 +17,10 @@ class ProductSerializer
              :rating_count, 
              :rating_updated_at
 
+  attribute :is_favorite do |product, params|
+    Array(params[:favorite_skus]).include?(product.sku)
+  end
+
   attribute :slug do |product|
     source = product.name_ru.presence || product.name.presence || product.sku
     SlugifyService.call(source)
@@ -27,7 +31,16 @@ class ProductSerializer
   end
   
   attribute :local_images do |product|
-    product.local_images || []
+    images = product.local_images
+    if images.is_a?(String)
+      begin
+        JSON.parse(images)
+      rescue JSON::ParserError
+        [images]
+      end
+    else
+      Array(images)
+    end
   end
 
   attribute :related_products do |product|
