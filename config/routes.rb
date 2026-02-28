@@ -112,10 +112,8 @@ Rails.application.routes.draw do
         delete '', to: 'cart_items#bulk_destroy', on: :collection
       end
 
-      namespace :cart do
-        post 'promo/apply', to: 'cart_promo#apply'
-        delete 'promo', to: 'cart_promo#remove'
-      end
+      post 'cart/promo/apply', to: 'cart_promo#apply'
+      delete 'cart/promo/remove', to: 'cart_promo#remove'
 
       # Content
       namespace :content do
