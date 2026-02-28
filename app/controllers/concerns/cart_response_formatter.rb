@@ -65,12 +65,10 @@ module CartResponseFormatter
       category_id: product.category_id,
       collection: product.collection,
       images: {
-        local_images: product.local_images || [],
-        images: product.images || []
+        local_images: product.local_images || []
       }
     }
   end
-
   def build_similar_products(product)
     SimilarProductsService.for(product: product, limit: 8).map do |similar|
       {
