@@ -20,12 +20,21 @@ Trestle.resource(:promo_codes, model: PromoCode) do
   end
 
   form do |promo_code|
-    text_field :code
-    text_field :name
-    select :discount_type, PromoCode.discount_types.keys.map { |type| [type.humanize, type] }
-    number_field :discount_value, step: 0.01
-    check_box :active
-    datetime_field :starts_at
-    datetime_field :ends_at
+    row do
+      col(sm: 6) do
+        text_field :code
+        text_field :name
+      end
+      col(sm: 6) do
+        select :discount_type, PromoCode.discount_types.keys.map { |type| [type.humanize, type] }
+        number_field :discount_value, step: 0.01
+      end
+    end
+
+    sidebar do
+      check_box :active, label: "Активен"
+      datetime_field :starts_at
+      datetime_field :ends_at
+    end
   end
 end

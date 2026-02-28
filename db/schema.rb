@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_02_26_152131) do
+ActiveRecord::Schema[7.1].define(version: 2026_02_27_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -534,6 +534,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_26_152131) do
     t.index ["views_count"], name: "index_products_on_views_count"
   end
 
+  create_table "promo_code_categories", force: :cascade do |t|
+    t.bigint "promo_code_id", null: false
+    t.string "category_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["promo_code_id", "category_id"], name: "index_promo_code_categories_on_promo_code_id_and_category_id", unique: true
+    t.index ["promo_code_id"], name: "index_promo_code_categories_on_promo_code_id"
+  end
+
   create_table "promo_code_products", force: :cascade do |t|
     t.bigint "promo_code_id", null: false
     t.string "product_sku", null: false
@@ -700,6 +709,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_26_152131) do
   add_foreign_key "orders", "users"
   add_foreign_key "product_filter_values", "categories", primary_key: "ikea_id"
   add_foreign_key "product_filter_values", "products"
+  add_foreign_key "promo_code_categories", "promo_codes"
   add_foreign_key "promo_code_products", "promo_codes"
   add_foreign_key "review_helpful_votes", "reviews"
   add_foreign_key "review_helpful_votes", "users"

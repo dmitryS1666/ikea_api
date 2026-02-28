@@ -1,5 +1,6 @@
 class PromoCode < ApplicationRecord
   has_many :promo_code_products, dependent: :destroy
+  has_many :promo_code_categories, dependent: :destroy
 
   enum discount_type: { percent: 0, fixed_byn: 1 }
 
@@ -21,9 +22,15 @@ class PromoCode < ApplicationRecord
   end
 
   def applies_to_sku?(sku)
-    return true unless promo_code_products.exists?
+    return true if promo_code_products.none? && promo_code_categories.none?
 
-    promo_code_products.where(product_sku: sku).exists?
+    return true if promo_code_products.where(product_sku: sku).exists?
+
+    product = Product.find_by(sku: sku)
+    return false unless product
+
+    category_ids = [product.category_id] + product.category_products.pluck(:category_id)
+    promo_code_categories.where(category_id: category_ids.compact.uniq).exists?
   end
 
   private
