@@ -31,9 +31,14 @@ Trestle.resource(:users, model: User) do
   end
 
   form do |user|
-    tab "Основные данные" do
+    tab :basic, label: "Основные данные" do
       row do
-        col(sm: 6) { text_field :username }
+        col(sm: 4) { text_field :last_name, label: "Фамилия" }
+        col(sm: 4) { text_field :first_name, label: "Имя" }
+        col(sm: 4) { text_field :middle_name, label: "Отчество" }
+      end
+      row do
+        col(sm: 6) { text_field :username, label: "Username (публичный)" }
         col(sm: 6) { text_field :email }
       end
       row do
@@ -44,32 +49,50 @@ Trestle.resource(:users, model: User) do
         col(sm: 6) { date_field :dob, label: "Дата рождения" }
         col(sm: 6) { select :gender, %w[Male Female], label: "Пол" }
       end
-      text_area :address, label: "Адрес доставки"
-      
-      password_field :password
-      password_field :password_confirmation
       
       row do
-        col(sm: 6) { select :role, { 'Пользователь' => 'user', 'Менеджер' => 'manager', 'Администратор' => 'admin' } }
-        col(sm: 6) { check_box :is_active }
+        col(sm: 4) { text_field :region, label: "Область/Регион" }
+        col(sm: 4) { text_field :city, label: "Город" }
+        col(sm: 4) { text_field :postcode, label: "Индекс" }
       end
+      row do
+        col(sm: 6) { text_field :street, label: "Улица" }
+        col(sm: 2) { text_field :house, label: "Дом" }
+        col(sm: 2) { text_field :building, label: "Корпус" }
+        col(sm: 2) { text_field :apartment, label: "Кв." }
+      end
+      text_area :address, label: "Адрес доставки (полный)"
     end
 
-    tab "Маркетинг" do
+    tab :marketing, label: "Маркетинг" do
       check_box :email_marketing, label: "Рассылка через Email"
       check_box :telegram_marketing, label: "Рассылка через Telegram"
       check_box :newsletter_consent, label: "Общее согласие на рассылку"
       check_box :gdpr_consent, label: "Согласие GDPR"
     end
 
-    tab "Паспортные данные" do
+    tab :passport, label: "Паспортные данные" do
       if user.encrypted_passport_json.present?
         data = user.passport_data || {}
         static_field :passport_info do
           content_tag(:div, class: "well") do
-            content_tag(:p) { "Номер: #{data['passport_number'] || data[:passport_number]}" } +
-            content_tag(:p) { "ФИО: #{data['full_name'] || data[:full_name]}" } +
-            content_tag(:p) { "Дата выдачи: #{data['issue_date'] || data[:issue_date]}" }
+            content_tag(:p) { "Фамилия: #{data['last_name']}" } +
+            content_tag(:p) { "Имя: #{data['first_name']}" } +
+            content_tag(:p) { "Отчество: #{data['middle_name']}" } +
+            content_tag(:p) { "Серия: #{data['series']}" } +
+            content_tag(:p) { "Номер: #{data['number'] || data['passport_number']}" } +
+            content_tag(:p) { "Дата выдачи: #{data['issue_date']}" } +
+            content_tag(:p) { "Кем выдан: #{data['issued_by']}" } +
+            content_tag(:p) { "Идентификационный номер: #{data['identification_number']}" } +
+            content_tag(:p) { "Дата рождения: #{data['dob']}" } +
+            content_tag(:hr) +
+            content_tag(:p) { "Область/Регион: #{data['region']}" } +
+            content_tag(:p) { "Город: #{data['city']}" } +
+            content_tag(:p) { "Индекс: #{data['postcode']}" } +
+            content_tag(:p) { "Улица: #{data['street']}" } +
+            content_tag(:p) { "Дом: #{data['house']}" } +
+            content_tag(:p) { "Корпус: #{data['building']}" } +
+            content_tag(:p) { "Квартира: #{data['apartment']}" }
           end
         end
         
@@ -78,6 +101,18 @@ Trestle.resource(:users, model: User) do
         static_field :no_passport, label: "Статус" do
           "Данные не предоставлены"
         end
+      end
+    end
+
+    sidebar do
+      password_field :password
+      password_field :password_confirmation
+      
+      row do
+        col(sm: 12) { select :role, { 'Пользователь' => 'user', 'Менеджер' => 'manager', 'Администратор' => 'admin' } }
+      end
+      row do
+        col(sm: 12) { check_box :is_active }
       end
     end
   end

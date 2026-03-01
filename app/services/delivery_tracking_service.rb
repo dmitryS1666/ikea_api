@@ -33,12 +33,27 @@ end
 
 class AutolightTracker
   def self.track(track_number)
-    # Stub: Autolight integration usually via https://autolight.by/services/it-services/integration/
-    {
-      status: 'Прибыло в пункт выдачи (заглушка)',
-      last_update: Time.current.strftime('%d.%m.%Y %H:%M'),
-      provider: 'Автолайт',
-      tracking_url: "https://autolight.by/services/it-services/tracking/?track=#{track_number}"
-    }
+    res = AutolightApiService.get_tracking(order_number: track_number)
+    
+    if res['resultCode'] == 0 && res['result'].is_a?(Hash)
+      details = res['result']['orderDetails'] || {}
+      track = res['result']['track'] || []
+      last_event = track.last || {}
+
+      {
+        status: details['status'] || last_event['status'] || 'В пути',
+        last_update: last_event['date'] || details['deliveryDate'] || Time.current.strftime('%d.%m.%Y %H:%M'),
+        provider: 'Автолайт',
+        tracking_url: "http://api.autolight.by/v1/getTracking/?orderNumber=#{track_number}",
+        history: track
+      }
+    else
+      {
+        status: 'Информация об отслеживании недоступна',
+        last_update: Time.current.strftime('%d.%m.%Y %H:%M'),
+        provider: 'Автолайт',
+        tracking_url: "https://autolight.by/services/it-services/tracking/?track=#{track_number}"
+      }
+    end
   end
 end

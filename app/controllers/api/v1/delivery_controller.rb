@@ -82,6 +82,28 @@ module Api
         }
       end
 
+      # GET /api/v1/delivery/autolight_offices
+      def autolight_offices
+        res = AutolightApiService.get_post_offices_list
+        offices = res['result'] || []
+        
+        render json: {
+          offices: offices.map { |o|
+            {
+              external_id: o['code'],
+              name: o['name'],
+              city: o['cityName'],
+              address: o['address'],
+              phone: o['contacts'],
+              working_hours: o['workTime'],
+              lat: o['coordLat'],
+              lon: o['coordLong'],
+              provider: 'autolight'
+            }
+          }
+        }
+      end
+
       private
 
       def calculation_basis

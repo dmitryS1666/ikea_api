@@ -36,6 +36,60 @@ module Api
           end
         end
 
+        # POST /api/v1/account/profile/change_phone_request
+        def change_phone_request
+          phone = params[:phone].to_s.gsub(/\D/, '')
+          if phone.blank? || phone.length < 10
+            return render json: { error: 'Неверный формат телефона' }, status: :unprocessable_entity
+          end
+
+          if User.exists?(phone: phone)
+            return render json: { error: 'Этот номер телефона уже занят' }, status: :unprocessable_entity
+          end
+
+          result = PhoneAuthService.send_code(phone: phone, metadata: { user_id: current_user.id, context: 'change_phone' })
+          if result[:success]
+            render json: { message: result[:message] }
+          else
+            render json: { error: result[:error] }, status: :unprocessable_entity
+          end
+        end
+
+        # POST /api/v1/account/profile/change_phone_verify
+        def change_phone_verify
+          phone = params[:phone].to_s.gsub(/\D/, '')
+          code = params[:code]
+
+          verification = VerificationCode.valid_code(phone, code).first
+          if verification
+            verification.destroy!
+            if current_user.update(phone: phone)
+              render json: user_payload(current_user)
+            else
+              render json: { errors: current_user.errors.full_messages }, status: :unprocessable_entity
+            end
+          else
+            render json: { error: 'Неверный или просроченный код' }, status: :unauthorized
+          end
+        end
+
+        # POST /api/v1/account/profile/change_email_verify
+        def change_email_verify
+          # Заглушка: в реальности здесь была бы проверка кода из письма
+          code = params[:code]
+          new_email = params[:email]
+
+          if code == '1234' # Заглушка кода
+            if current_user.update(email: new_email)
+              render json: user_payload(current_user)
+            else
+              render json: { errors: current_user.errors.full_messages }, status: :unprocessable_entity
+            end
+          else
+            render json: { error: 'Неверный код подтверждения' }, status: :unauthorized
+          end
+        end
+
         private
 
         def profile_params
@@ -43,7 +97,9 @@ module Api
             :username, :email, :phone, :country_code, 
             :gdpr_consent, :newsletter_consent,
             :dob, :gender, :address, 
-            :telegram_marketing, :email_marketing
+            :telegram_marketing, :email_marketing,
+            :first_name, :last_name, :middle_name,
+            :region, :city, :postcode, :street, :house, :building, :apartment
           )
         end
 
@@ -51,12 +107,22 @@ module Api
           {
             id: user.id,
             username: user.username,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            middle_name: user.middle_name,
             email: user.email,
             phone: user.phone,
             country_code: user.country_code,
             dob: user.dob,
             gender: user.gender,
             address: user.address,
+            region: user.region,
+            city: user.city,
+            postcode: user.postcode,
+            street: user.street,
+            house: user.house,
+            building: user.building,
+            apartment: user.apartment,
             telegram_marketing: user.telegram_marketing,
             email_marketing: user.email_marketing,
             gdpr_consent: user.gdpr_consent,

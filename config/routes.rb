@@ -47,7 +47,11 @@ Rails.application.routes.draw do
             post :reorder
           end
         end
-        resource :profile, only: [:show, :update], controller: 'profile'
+        resource :profile, only: [:show, :update], controller: 'profile' do
+          post :change_phone_request
+          post :change_phone_verify
+          post :change_email_verify
+        end
 
         resources :purchases, only: [:index]
         resources :returns, only: [:index, :create]
@@ -77,6 +81,7 @@ Rails.application.routes.draw do
           get :pickup_points
           get :pickup_points_search
           get :europost_offices
+          get :autolight_offices
         end
       end
       

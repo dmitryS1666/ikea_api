@@ -28,12 +28,16 @@ class User < ApplicationRecord
   end
   
   # Методы для Trestle Auth
-  def first_name
-    username.split(' ').first || username
+  def full_name
+    [last_name, first_name, middle_name].compact_blank.join(' ').presence || username
+  end
+
+  def first_name_display
+    first_name.presence || username.split(' ').first || username
   end
   
-  def last_name
-    username.split(' ').last || ''
+  def last_name_display
+    last_name.presence || username.split(' ').last || ''
   end
 
   # Passport storage (encrypted locally; CRM integration is skipped for now)

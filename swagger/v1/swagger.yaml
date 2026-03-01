@@ -1156,6 +1156,24 @@ paths:
                     items:
                       $ref: '#/components/schemas/EuropostOffice'
 
+  /api/v1/delivery/autolight_offices:
+    get:
+      summary: Получить список отделений Автолайтэкспресс напрямую из API
+      tags:
+        - Delivery
+      responses:
+        '200':
+          description: Список отделений Автолайтэкспресс
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  offices:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AutolightOffice'
+
   /api/v1/delivery/calculate:
     post:
       summary: Расчет стоимости и доступности доставки
@@ -1455,6 +1473,82 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserProfile'
+
+  /api/v1/account/profile/change_phone_request:
+    post:
+      summary: Запросить смену номера телефона
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone: { type: string, example: "375291112233" }
+      responses:
+        '200':
+          description: Код отправлен
+        '422':
+          description: Ошибка (номер занят или неверный формат)
+
+  /api/v1/account/profile/change_phone_verify:
+    post:
+      summary: Подтвердить смену номера телефона
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code]
+              properties:
+                phone: { type: string }
+                code: { type: string, description: "Последние 4 цифры входящего номера" }
+      responses:
+        '200':
+          description: Номер изменен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: Неверный код
+
+  /api/v1/account/profile/change_email_verify:
+    post:
+      summary: Подтвердить смену email
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code]
+              properties:
+                email: { type: string }
+                code: { type: string, description: "Код из письма (для теста: 1234)" }
+      responses:
+        '200':
+          description: Email изменен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: Неверный код
 
   /api/v1/account/purchases:
     get:
@@ -2251,12 +2345,22 @@ components:
       properties:
         id: { type: integer }
         username: { type: string }
+        first_name: { type: string }
+        last_name: { type: string }
+        middle_name: { type: string }
         email: { type: string }
         phone: { type: string }
         country_code: { type: string, enum: [RB, РФ, РК] }
         dob: { type: string, format: date, description: "Дата рождения" }
         gender: { type: string, description: "Пол" }
         address: { type: string, description: "Адрес доставки" }
+        region: { type: string }
+        city: { type: string }
+        postcode: { type: string }
+        street: { type: string }
+        house: { type: string }
+        building: { type: string }
+        apartment: { type: string }
         telegram_marketing: { type: boolean, description: "Подписка на рассылку в Telegram" }
         email_marketing: { type: boolean, description: "Подписка на рассылку по Email" }
         gdpr_consent: { type: boolean }
@@ -2269,12 +2373,22 @@ components:
       type: object
       properties:
         username: { type: string }
+        first_name: { type: string }
+        last_name: { type: string }
+        middle_name: { type: string }
         email: { type: string }
         phone: { type: string }
         country_code: { type: string, enum: [RB, РФ, РК] }
         dob: { type: string, format: date }
         gender: { type: string }
         address: { type: string }
+        region: { type: string }
+        city: { type: string }
+        postcode: { type: string }
+        street: { type: string }
+        house: { type: string }
+        building: { type: string }
+        apartment: { type: string }
         telegram_marketing: { type: boolean }
         email_marketing: { type: boolean }
         gdpr_consent: { type: boolean }
@@ -2285,9 +2399,22 @@ components:
     PassportData:
       type: object
       properties:
-        passport_number: { type: string, example: "MP1234567" }
-        full_name: { type: string, example: "Иван Иванов" }
-        issue_date: { type: string, format: date, example: "2020-01-01" }
+        first_name: { type: string }
+        last_name: { type: string }
+        middle_name: { type: string }
+        series: { type: string, description: "Серия паспорта" }
+        number: { type: string, description: "Номер паспорта" }
+        issue_date: { type: string, format: date }
+        issued_by: { type: string, description: "Кем выдан" }
+        identification_number: { type: string, description: "Идентификационный номер" }
+        dob: { type: string, format: date, description: "Дата рождения" }
+        region: { type: string }
+        city: { type: string }
+        postcode: { type: string }
+        street: { type: string }
+        house: { type: string }
+        building: { type: string }
+        apartment: { type: string }
 
     PurchaseItem:
       type: object
@@ -3000,6 +3127,19 @@ components:
         lat: { type: string }
         lon: { type: string }
         provider: { type: string, example: "europost" }
+
+    AutolightOffice:
+      type: object
+      properties:
+        external_id: { type: string, example: "1234" }
+        name: { type: string, example: "CityPost01" }
+        city: { type: string, example: "Минск г." }
+        address: { type: string, example: "CityPost01, г.Минск, ул.Л.Беды 46" }
+        phone: { type: string, example: "+375291234567" }
+        working_hours: { type: string, example: "пн-вс 07:00 - 23:00" }
+        lat: { type: string, example: "53.9428" }
+        lon: { type: string, example: "27.5987" }
+        provider: { type: string, example: "autolight" }
 
     FavoriteResponse:
       type: object

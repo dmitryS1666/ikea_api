@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_02_28_214616) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_01_195501) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -705,6 +705,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_28_214616) do
     t.text "address"
     t.boolean "telegram_marketing"
     t.boolean "email_marketing"
+    t.string "first_name"
+    t.string "last_name"
+    t.string "middle_name"
+    t.string "region"
+    t.string "city"
+    t.string "postcode"
+    t.string "street"
+    t.string "house"
+    t.string "building"
+    t.string "apartment"
     t.index ["email"], name: "index_users_on_email", unique: true, where: "(email IS NOT NULL)"
     t.index ["phone"], name: "index_users_on_phone", unique: true
     t.index ["username"], name: "index_users_on_username"
