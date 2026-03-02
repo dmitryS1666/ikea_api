@@ -31,10 +31,11 @@ module Products
     end
 
     def filter_by_attributes
-      return unless @params[:filters].present? && @params[:filters].is_a?(Hash)
+      filters = @params[:filters]
+      return unless filters.present? && (filters.is_a?(Hash) || filters.is_a?(ActionController::Parameters))
       return unless @category&.ikea_id
 
-      @params[:filters].each do |filter_param, values|
+      filters.each do |filter_param, values|
         value_ids = Array(values).map(&:to_s).reject(&:blank?)
         next if value_ids.empty?
 

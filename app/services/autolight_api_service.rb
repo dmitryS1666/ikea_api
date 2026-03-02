@@ -29,7 +29,7 @@ class AutolightApiService
 
   def self.get_json!(operation, params = {})
     uri = URI("#{BASE_URL}/#{operation}/")
-    query_params = { apikey: API_KEY }.merge(params)
+    query_params = { apikey: API_KEY, testmode: "yes" }.merge(params)
     uri.query = URI.encode_www_form(query_params)
 
     http = Net::HTTP.new(uri.host, uri.port)
@@ -55,7 +55,7 @@ class AutolightApiService
 
   def self.post_json!(operation, payload = {})
     uri = URI("#{BASE_URL}/#{operation}/")
-    uri.query = URI.encode_www_form({ apikey: API_KEY })
+    uri.query = URI.encode_www_form({ apikey: API_KEY, testmode: "yes" })
 
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = (uri.scheme == "https")

@@ -49,7 +49,7 @@ module Api
                            .page(params[:page])
                            .per(params[:per_page] || 50)
 
-        render json: ProductSerializer.new(products, {
+        render json: ProductTeaserSerializer.new(products, {
           params: { favorite_skus: current_favorite_skus },
           meta: {
             total: products.total_count,

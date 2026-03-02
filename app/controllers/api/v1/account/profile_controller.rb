@@ -17,8 +17,9 @@ module Api
           end
 
           # Handle passport update separately
-          if params[:passport].is_a?(Hash)
-            passport_input = params[:passport]
+          passport_input = params[:passport]
+          if passport_input.present? && (passport_input.is_a?(Hash) || passport_input.is_a?(ActionController::Parameters))
+            passport_input = passport_input.to_unsafe_h if passport_input.respond_to?(:to_unsafe_h)
             current_passport = current_user.passport_data
             
             if !UserPassportService.same?(passport_input, current_passport)

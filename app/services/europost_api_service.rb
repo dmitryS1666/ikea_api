@@ -68,6 +68,7 @@ class EuropostApiService
     )
 
     res = post_json!(payload)
+    Rails.logger.debug("[EUROPOST] OfficesOut raw response: \#{res.inspect}")
     table = res["Table"]
     return [] unless table.is_a?(Array)
 
