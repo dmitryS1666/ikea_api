@@ -1973,5 +1973,81 @@ namespace :categories do
     puts "  - Ошибок: #{stats[:errors]}"
     puts "=" * 80
   end
+
+  desc "Присвоить иконки категориям из указанной папки (по имени или переведенному имени)"
+  task :assign_icons, [:folder_path] => :environment do |t, args|
+    folder_path = args[:folder_path] || Rails.root.join('icons')
+    
+    puts "=" * 80
+    puts "Присвоение иконок категориям"
+    puts "Папка: #{folder_path}"
+    puts "=" * 80
+
+    unless Dir.exist?(folder_path)
+      puts "❌ Ошибка: Папка #{folder_path} не найдена"
+      next
+    end
+
+    files = Dir.glob(File.join(folder_path, "*")).select { |f| File.file?(f) }
+    
+    if files.empty?
+      puts "⚠️  В папке нет файлов"
+      next
+    end
+
+    puts "Найдено файлов: #{files.count}"
+    
+    stats = {
+      found: 0,
+      attached: 0,
+      not_found: 0,
+      errors: 0
+    }
+
+    files.each do |file_path|
+      filename = File.basename(file_path)
+      # Получаем имя без расширения
+      base_name = File.basename(file_path, ".*")
+      
+      puts "\nОбработка файла: #{filename} (имя для поиска: #{base_name})"
+      
+      # Ищем категорию по translated_name или name (регистронезависимо)
+      category = Category.where("translated_name ILIKE ? OR name ILIKE ?", base_name, base_name).first
+      
+      if category
+        stats[:found] += 1
+        begin
+          # Прикрепляем иконку через ActiveStorage
+          category.icon.attach(
+            io: File.open(file_path),
+            filename: filename
+          )
+          
+          if category.icon.attached?
+            stats[:attached] += 1
+            puts "  ✅ Успешно прикреплено к категории: #{category.name} (ikea_id: #{category.ikea_id})"
+          else
+            puts "  ❌ Ошибка: Не удалось прикрепить файл"
+            stats[:errors] += 1
+          end
+        rescue => e
+          puts "  ❌ Ошибка при обработке: #{e.message}"
+          stats[:errors] += 1
+        end
+      else
+        puts "  ⚠️  Категория с именем '#{base_name}' не найдена"
+        stats[:not_found] += 1
+      end
+    end
+
+    puts "\n" + "=" * 80
+    puts "ИТОГИ:"
+    puts "  - Всего файлов обработано: #{files.count}"
+    puts "  - Категорий найдено: #{stats[:found]}"
+    puts "  - Иконок успешно прикреплено: #{stats[:attached]}"
+    puts "  - Категорий не найдено: #{stats[:not_found]}"
+    puts "  - Ошибок: #{stats[:errors]}"
+    puts "=" * 80
+  end
 end
 

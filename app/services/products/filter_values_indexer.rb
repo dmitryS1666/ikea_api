@@ -8,36 +8,69 @@ module Products
     ].freeze
 
     PARAMETER_KEYS = {
-      "f-type" => ["Typ", "Rodzaj"],
-      "f-function" => ["Funkcja", "Funkcje"],
-      "f-feature" => ["Właściwości", "Cechy", "Funkcje"],
-      "f-series" => ["Seria", "Kolekcja"],
-      "f-energy-labels" => ["Etykieta energetyczna", "Klasa energetyczna"],
-      "f-number-of-cooking-zones" => ["Liczba pól grzewczych", "Liczba stref grzewczych", "Liczba pół grzewczych"],
-      "f-colors" => ["Kolor", "Kolory", "Kolorystyka", "Kolor/wykończenie", "Kolor/wykonczenie"],
-      "f-material" => ["Materiał", "Materiały", "Materiał/wykończenie", "Materiały i pielęgnacja"],
-      "f-materials" => ["Materiał", "Materiały", "Materiał/wykończenie", "Materiały i pielęgnacja"],
-      "f-style" => ["Styl", "Styl i wykończenie"],
-      "f-room" => ["Pomieszczenie", "Pomieszczenia", "Przeznaczenie"],
-      "f-pattern" => ["Wzór", "Wzory"],
-      "f-shape" => ["Kształt", "Ksztalt"],
-      "f-brand" => ["Marka", "Producent"],
-      "f-size" => ["Rozmiar", "Wymiar", "Wymiary"],
-      "f-length" => ["Długość", "Dlugosc"],
-      "f-width" => ["Szerokość"],
-      "f-height" => ["Wysokość"],
-      "f-depth" => ["Głębokość"],
-      "f-number-of-doors" => ["Liczba drzwi"],
-      "f-number-of-drawers" => ["Liczba szuflad"],
-      "f-number-of-shelves" => ["Liczba półek"],
-      "f-number-of-seats" => ["Liczba miejsc"]
+      "f-type" => ["Typ", "Rodzaj", "Тип", "Вид"],
+      "f-function" => ["Funkcja", "Funkcje", "Функция", "Функции"],
+      "f-feature" => ["Właściwości", "Cechy", "Funkcje", "Свойства", "Характеристики", "Особенности", "Функции"],
+      "f-series" => ["Seria", "Koleкcja", "Серия", "Коллекция"],
+      "f-energy-labels" => ["Etykieta energetyczna", "Klasa energetyczna", "Энергетическая этикетка", "Класс энергопотребления", "Энергетический класс"],
+      "f-number-of-cooking-zones" => ["Liczba pól grzewczych", "Liczba stref grzewczych", "Liczba pół grzewczych", "Количество конфорок", "Количество зон нагрева", "Количество варочных зон"],
+      "f-colors" => ["Kolor", "Kolory", "Kolorystyka", "Kolor/wyкоńчение", "Kolor/wykonczenie", "Цвет", "Цвета", "Цветовая гамма", "Цвет/отделка"],
+      "f-material" => ["Materiał", "Materiały", "Materiał/wykońчение", "Materiały i pielęgnacja", "Материал", "Материалы", "Материал/отделка", "Материалы и уход"],
+      "f-materials" => ["Materiał", "Materiały", "Materiał/wykończenie", "Materiały i pielęgnacja", "Материал", "Материалы", "Материал/отделка", "Материалы и уход"],
+      "f-style" => ["Styl", "Styl i wykończenie", "Стиль", "Стиль и отделка"],
+      "f-room" => ["Pomieszczenie", "Pomieszczenia", "Przeznaczenie", "Помещение", "Помещения", "Назначение"],
+      "f-pattern" => ["Wzór", "Wzory", "Узор", "Узоры"],
+      "f-shape" => ["Kształt", "Ksztalt", "Форма"],
+      "f-brand" => ["Marka", "Producent", "Бренд", "Марка", "Производитель"],
+      "f-size" => ["Rozmiar", "Wymiar", "Wymiary", "Размер", "Габарит", "Габариты", "Размеры"],
+      "f-length" => ["Długość", "Dlugosc", "Длина"],
+      "f-width" => ["Szerokość", "Ширина"],
+      "f-height" => ["Wysokość", "Высота"],
+      "f-depth" => ["Głębokość", "Глубина"],
+      "f-number-of-doors" => ["Liczba drzwi", "Количество дверей"],
+      "f-number-of-drawers" => ["Liczba szuflad", "Количество ящиков"],
+      "f-number-of-shelves" => ["Liczba półek", "Количество полок"],
+      "f-number-of-seats" => ["Liczba miejsc", "Количество мест"]
     }.freeze
 
     MEASUREMENT_KEYS = {
-      width: ["Szerokość"],
-      height: ["Wysokość"],
-      depth: ["Głębokość"],
-      volume: ["Pojemność"]
+      width: ["Szerokość", "Ширина"],
+      height: ["Wysokość", "Высота"],
+      depth: ["Głębokość", "Глубина"],
+      volume: ["Pojemność", "Объем", "Объём"]
+    }.freeze
+
+    VALUE_TRANSLATIONS = {
+      # Цвета
+      "белый" => ["biały", "biała", "białe", "białego", "białych", "białym", "white"],
+      "черный" => ["czarny", "czarna", "czarne", "czarnego", "czarnych", "czarnym", "black"],
+      "бежевый" => ["beżowy", "beżowa", "beżowe", "beżowym", "beige"],
+      "серый" => ["szary", "szara", "szare", "szaryм", "grey", "gray"],
+      "коричневый" => ["brązowy", "brązowa", "brązowe", "brązowym", "brown"],
+      "зеленый" => ["zielony", "zielona", "zielone", "zielonym", "green"],
+      "синий" => ["niebieski", "niebiesка", "niebiesкие", "niebiesким", "blue"],
+      "оранжевый" => ["pomarańczowy", "pomarańczowa", "pomarańczowe", "pomarańczowym", "orange"],
+      "красный" => ["czerwony", "czerwona", "czerwone", "czerwonym", "red"],
+      "желтый" => ["żółтый", "żółта", "żółте", "жółтым", "yellow"],
+      "розовый" => ["różowy", "różowa", "różowe", "розовым", "pink"],
+      "бирюзовый" => ["turkusowy", "turkusowa", "turkusowe", "turkusвым", "turquoise"],
+      
+      # Материалы
+      "дерево" => ["drewno", "drewniany", "lite drewno", "sosna", "dąб", "buk", "brзоза", "wood", "oak", "pine", "birch"],
+      "металл" => ["metal", "stal", "stalowa", "aluminium"],
+      "стекло" => ["szкło", "szklane", "glass"],
+      "пластик" => ["plastik", "tworzywo", "tworzywo polipropylenowe", "polypropylene"],
+      "ткань" => ["tkanina", "tekstylia", "bawełна", "poliester", "fabric"],
+      
+      # Формы
+      "круглый" => ["okrąглый", "okrągła", "round"],
+      "квадратный" => ["kwadratowy", "kwadratowa", "square"],
+      "прямоугольный" => ["prostokątny", "prostokątна", "rectangular"],
+      "овальный" => ["owalny", "owalna", "oval"],
+      
+      # Стили
+      "современный" => ["nowoczesny", "współczesny", "modern"],
+      "традиционный" => ["tradycyjny", "klasyczny", "traditional", "classic"]
     }.freeze
 
     def initialize(category)
@@ -188,7 +221,10 @@ module Products
     def match_textual_parameter(results, parameter, values, product, keys)
       text_values = attribute_values_for_keys(product, keys)
       text_values.concat(extract_features_text(product)) if parameter == "f-feature"
-      text_values.concat(attribute_text_pool(product)) if keys.blank?
+      
+      if keys.blank? || text_values.blank?
+        text_values.concat(attribute_text_pool(product))
+      end
 
       values.each do |value|
         target = value["name"].presence || value["id"]
@@ -229,7 +265,8 @@ module Products
     end
 
     def extract_measurements(product)
-      attributes = product.full_attributes || {}
+      # Объединяем оба хеша атрибутов, чтобы искать по всем возможным ключам
+      attributes = (product.full_attributes || {}).merge(product.full_attributes_ru || {})
       measurements = {}
 
       MEASUREMENT_KEYS.each do |type, keys|
@@ -239,7 +276,7 @@ module Products
           next if number.nil?
 
           measurements[type] = number
-          break
+          break # Останавливаемся на первом найденном совпадении для этого типа измерения
         end
       end
 
@@ -301,7 +338,7 @@ module Products
     def attribute_values_for_keys(product, keys)
       return [] if keys.blank?
 
-      attributes = product.full_attributes || {}
+      attributes = (product.full_attributes || {}).merge(product.full_attributes_ru || {})
       values = []
 
       keys.each do |key|
@@ -323,8 +360,8 @@ module Products
     end
 
     def attribute_text_pool(product)
-      attributes = product.full_attributes || {}
-      pool = []
+      attributes = (product.full_attributes || {}).merge(product.full_attributes_ru || {})
+      pool = [product.name.to_s]
 
       attributes.each do |key, value|
         pool << key
@@ -353,11 +390,40 @@ module Products
       return false if target.blank?
 
       target_norm = normalize_text(target)
-      values.any? { |value| normalize_text(value).include?(target_norm) }
+      val_norms = values.map { |v| normalize_text(v) }
+      
+      # 1. Прямое совпадение
+      return true if val_norms.any? { |v| v.include?(target_norm) }
+      
+      # 2. Совпадение через универсальный словарь переводов
+      # Ищем перевод: ключ словаря должен быть частью target_norm (или наоборот)
+      translation_entry = VALUE_TRANSLATIONS.find do |k, _| 
+        k_norm = normalize_text(k)
+        target_norm.include?(k_norm) || k_norm.include?(target_norm)
+      end
+      
+      if translation_entry
+        translations = translation_entry.last
+        trans_norms = translations.map { |t| normalize_text(t) }
+        return true if val_norms.any? do |v|
+          trans_norms.any? { |t| v.include?(t) }
+        end
+      end
+
+      false
     end
 
     def normalize_text(value)
-      value.to_s.downcase.tr("\u00A0", " ").squeeze(" ").strip
+      return "" if value.blank?
+      
+      text = value.to_s.downcase
+      
+      # Убираем польскую диакритику
+      text = text.tr('ąćęłńóśźż', 'acelnoszz')
+      # Убираем русскую "ё"
+      text = text.tr('ё', 'е')
+      
+      text.tr("\u00A0", " ").squeeze(" ").strip
     end
   end
 end
