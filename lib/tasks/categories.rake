@@ -1988,7 +1988,7 @@ namespace :categories do
       next
     end
 
-    files = Dir.glob(File.join(folder_path, "*")).select { |f| File.file?(f) }
+    files = Dir.glob(File.join(folder_path, "**", "*")).select { |f| File.file?(f) }
     
     if files.empty?
       puts "⚠️  В папке нет файлов"
