@@ -1976,70 +1976,127 @@ namespace :categories do
 
   desc "Присвоить иконки категориям из указанной папки (по имени или переведенному имени)"
   task :assign_icons, [:folder_path] => :environment do |t, args|
-    folder_path = args[:folder_path] || Rails.root.join('icons')
-    
+    folder_path = (args[:folder_path] || Rails.root.join('icons')).to_s
+    log_dir = Rails.root.join('log')
+    FileUtils.mkdir_p(log_dir)
+  
+    not_found_log_path = log_dir.join('assign_icons_not_found.log')
+    common_log_path    = log_dir.join('assign_icons.log')
+  
     puts "=" * 80
     puts "Присвоение иконок категориям"
     puts "Папка: #{folder_path}"
+    puts "Общий лог: #{common_log_path}"
+    puts "Лог ненайденных категорий: #{not_found_log_path}"
     puts "=" * 80
-
+  
     unless Dir.exist?(folder_path)
-      puts "❌ Ошибка: Папка #{folder_path} не найдена"
+      message = "❌ Ошибка: Папка #{folder_path} не найдена"
+      puts message
+      File.open(common_log_path, "a:utf-8") do |f|
+        f.puts "\n[#{Time.current}] #{message}"
+      end
       next
     end
-
+  
     files = Dir.glob(File.join(folder_path, "**", "*")).select { |f| File.file?(f) }
-    
+  
     if files.empty?
-      puts "⚠️  В папке нет файлов"
+      message = "⚠️ В папке нет файлов"
+      puts message
+      File.open(common_log_path, "a:utf-8") do |f|
+        f.puts "\n[#{Time.current}] #{message}"
+      end
       next
     end
-
+  
     puts "Найдено файлов: #{files.count}"
-    
+  
     stats = {
       found: 0,
       attached: 0,
       not_found: 0,
       errors: 0
     }
-
-    files.each do |file_path|
-      filename = File.basename(file_path)
-      # Получаем имя без расширения
-      base_name = File.basename(file_path, ".*")
-      
-      puts "\nОбработка файла: #{filename} (имя для поиска: #{base_name})"
-      
-      # Ищем категорию по translated_name или name (регистронезависимо)
-      category = Category.where("translated_name ILIKE ? OR name ILIKE ?", base_name, base_name).first
-      
-      if category
-        stats[:found] += 1
-        begin
-          # Прикрепляем иконку через ActiveStorage
-          category.icon.attach(
-            io: File.open(file_path),
-            filename: filename
-          )
-          
-          if category.icon.attached?
-            stats[:attached] += 1
-            puts "  ✅ Успешно прикреплено к категории: #{category.name} (ikea_id: #{category.ikea_id})"
+  
+    run_started_at = Time.current
+  
+    File.open(not_found_log_path, "a:utf-8") do |not_found_log|
+      File.open(common_log_path, "a:utf-8") do |common_log|
+        common_log.puts "\n" + "=" * 100
+        common_log.puts "[#{run_started_at}] START assign_icons"
+        common_log.puts "Folder: #{folder_path}"
+        common_log.puts "=" * 100
+  
+        not_found_log.puts "\n" + "=" * 100
+        not_found_log.puts "[#{run_started_at}] START assign_icons"
+        not_found_log.puts "Folder: #{folder_path}"
+        not_found_log.puts "=" * 100
+  
+        files.each do |file_path|
+          filename = File.basename(file_path)
+          base_name = File.basename(file_path, ".*")
+  
+          puts "\nОбработка файла: #{filename} (имя для поиска: #{base_name})"
+          common_log.puts "[#{Time.current}] FILE: #{filename} | SEARCH_NAME: #{base_name}"
+  
+          category = Category.where("translated_name ILIKE ? OR name ILIKE ?", base_name, base_name).first
+  
+          if category
+            stats[:found] += 1
+  
+            begin
+              category.icon.purge if category.icon.attached?
+              category.icon.attach(
+                io: File.open(file_path),
+                filename: filename
+              )
+  
+              if category.icon.attached?
+                stats[:attached] += 1
+                message = "✅ Успешно прикреплено к категории: #{category.name} (ikea_id: #{category.ikea_id})"
+                puts "  #{message}"
+                common_log.puts "[#{Time.current}] ATTACHED: #{filename} -> #{category.name} (ikea_id: #{category.ikea_id})"
+              else
+                stats[:errors] += 1
+                message = "❌ Ошибка: Не удалось прикрепить файл #{filename}"
+                puts "  #{message}"
+                common_log.puts "[#{Time.current}] ERROR: #{message}"
+              end
+            rescue => e
+              stats[:errors] += 1
+              message = "❌ Ошибка при обработке #{filename}: #{e.class} - #{e.message}"
+              puts "  #{message}"
+              common_log.puts "[#{Time.current}] ERROR: #{message}"
+            end
           else
-            puts "  ❌ Ошибка: Не удалось прикрепить файл"
-            stats[:errors] += 1
+            stats[:not_found] += 1
+            message = "⚠️ Категория с именем '#{base_name}' не найдена"
+            puts "  #{message}"
+  
+            not_found_log.puts "[#{Time.current}] NOT_FOUND | file=#{filename} | search_name=#{base_name}"
+            common_log.puts   "[#{Time.current}] NOT_FOUND | file=#{filename} | search_name=#{base_name}"
           end
-        rescue => e
-          puts "  ❌ Ошибка при обработке: #{e.message}"
-          stats[:errors] += 1
         end
-      else
-        puts "  ⚠️  Категория с именем '#{base_name}' не найдена"
-        stats[:not_found] += 1
+  
+        summary = <<~TEXT
+  
+          #{'=' * 100}
+          [#{Time.current}] FINISH assign_icons
+          Folder: #{folder_path}
+          Всего файлов обработано: #{files.count}
+          Категорий найдено: #{stats[:found]}
+          Иконок успешно прикреплено: #{stats[:attached]}
+          Категорий не найдено: #{stats[:not_found]}
+          Ошибок: #{stats[:errors]}
+          #{'=' * 100}
+        TEXT
+  
+        common_log.puts summary
+        not_found_log.puts summary
       end
     end
-
+  
     puts "\n" + "=" * 80
     puts "ИТОГИ:"
     puts "  - Всего файлов обработано: #{files.count}"
@@ -2047,7 +2104,256 @@ namespace :categories do
     puts "  - Иконок успешно прикреплено: #{stats[:attached]}"
     puts "  - Категорий не найдено: #{stats[:not_found]}"
     puts "  - Ошибок: #{stats[:errors]}"
+    puts "Логи сохранены:"
+    puts "  - #{common_log_path}"
+    puts "  - #{not_found_log_path}"
     puts "=" * 80
+  end
+
+  require 'roo'
+  require 'fileutils'
+  
+  desc "Обновить translated_name у категорий из колонки H, находя категории по совпадению translated_name со столбцами A/D/E/F (с игнором комментариев в E/F)"
+  task :assign_translated_names_from_catalog, [:file_path, :dry_run] => :environment do |t, args|
+      file_path = (args[:file_path] || Rails.root.join('categories_docs', 'catalog_2.ods')).to_s
+      dry_run = ActiveModel::Type::Boolean.new.cast(args[:dry_run])
+  
+      log_dir = Rails.root.join('log')
+      FileUtils.mkdir_p(log_dir)
+  
+      common_log_path    = log_dir.join('assign_translated_names.log')
+      not_found_log_path = log_dir.join('assign_translated_names_not_found.log')
+      skipped_log_path   = log_dir.join('assign_translated_names_skipped.log')
+  
+      puts "=" * 100
+      puts "Обновление translated_name из колонки H"
+      puts "Файл: #{file_path}"
+      puts "Dry run: #{dry_run}"
+      puts "Поиск категории по совпадению translated_name со столбцами A/D/E/F"
+      puts "Комментарий в E/F будет проигнорирован"
+      puts "=" * 100
+  
+      unless File.exist?(file_path)
+        message = "❌ Ошибка: Файл #{file_path} не найден"
+        puts message
+        File.open(common_log_path, "a:utf-8") { |f| f.puts "\n[#{Time.current}] #{message}" }
+        next
+      end
+  
+      stats = {
+        total_rows: 0,
+        processed_rows: 0,
+        found: 0,
+        updated: 0,
+        unchanged: 0,
+        not_found: 0,
+        skipped: 0,
+        errors: 0
+      }
+  
+      run_started_at = Time.current
+  
+      File.open(not_found_log_path, "a:utf-8") do |not_found_log|
+        File.open(skipped_log_path, "a:utf-8") do |skipped_log|
+          File.open(common_log_path, "a:utf-8") do |common_log|
+            common_log.puts "\n" + "=" * 100
+            common_log.puts "[#{run_started_at}] START assign_translated_names_from_catalog"
+            common_log.puts "File: #{file_path}"
+            common_log.puts "Dry run: #{dry_run}"
+            common_log.puts "=" * 100
+  
+            not_found_log.puts "\n" + "=" * 100
+            not_found_log.puts "[#{run_started_at}] START assign_translated_names_from_catalog"
+            not_found_log.puts "File: #{file_path}"
+            not_found_log.puts "=" * 100
+  
+            skipped_log.puts "\n" + "=" * 100
+            skipped_log.puts "[#{run_started_at}] START assign_translated_names_from_catalog"
+            skipped_log.puts "File: #{file_path}"
+            skipped_log.puts "=" * 100
+  
+            spreadsheet = Roo::Spreadsheet.open(file_path)
+            sheet = spreadsheet.sheet(0)
+  
+            (1..sheet.last_row).each do |row_no|
+              stats[:total_rows] += 1
+              row = sheet.row(row_no)
+  
+              # A,D,E,F,H -> индексы 0,3,4,5,7
+              a_value = normalize_cell(row[0])
+              d_value = normalize_cell(row[3])
+              e_value = normalize_cell(row[4])
+              f_value = normalize_cell(row[5])
+  
+              search_values = []
+              search_values << a_value if a_value.present?
+              search_values << d_value if d_value.present?
+              search_values << e_value if e_value.present? && !comment_like?(e_value)
+              search_values << f_value if f_value.present? && !comment_like?(f_value)
+              search_values = search_values.uniq
+  
+              new_translated_name = normalize_cell(row[7])
+  
+              if search_values.blank?
+                stats[:skipped] += 1
+                message = "SKIPPED row=#{row_no} | пусты/невалидны A/D/E/F"
+                puts "⚠️ #{message}"
+                skipped_log.puts "[#{Time.current}] #{message}"
+                common_log.puts "[#{Time.current}] #{message}"
+                next
+              end
+  
+              if new_translated_name.blank?
+                stats[:skipped] += 1
+                message = "SKIPPED row=#{row_no} | пустое значение в H | search_value=#{search_value.inspect}"
+                puts "⚠️ #{message}"
+                skipped_log.puts "[#{Time.current}] #{message}"
+                common_log.puts "[#{Time.current}] #{message}"
+                next
+              end
+  
+              stats[:processed_rows] += 1
+
+              category = nil
+              matched_value = search_value
+              matched_by = nil
+                          
+              category = Category.where("translated_name ILIKE ?", search_value).first
+              if category
+                matched_by = "translated_name"
+              else
+                category = Category.where("name ILIKE ?", search_value).first
+                matched_by = "name" if category
+              end
+              
+              if category.nil? && new_translated_name.present?
+                category = Category.where("name ILIKE ? OR translated_name ILIKE ?", new_translated_name, new_translated_name).first
+                if category
+                  matched_by = "new_translated_name_fallback"
+                  matched_value = new_translated_name
+                end
+              end
+  
+              if category.nil?
+                stats[:not_found] += 1
+                message = "NOT_FOUND row=#{row_no} | search_value=#{search_value.inspect} | new_translated_name=#{new_translated_name.inspect}"
+                puts "⚠️ #{message}"
+                not_found_log.puts "[#{Time.current}] #{message}"
+                common_log.puts "[#{Time.current}] #{message}"
+                next
+              end
+  
+              stats[:found] += 1
+              old_value = normalize_cell(category.translated_name)
+  
+              if old_value == new_translated_name
+                stats[:unchanged] += 1
+                message = "UNCHANGED row=#{row_no} | ikea_id=#{category.ikea_id} | matched_by=#{matched_value.inspect} | translated_name=#{old_value.inspect}"
+                puts "ℹ️ #{message}"
+                common_log.puts "[#{Time.current}] #{message}"
+                next
+              end
+  
+              if dry_run
+                stats[:updated] += 1
+                message = "DRY_RUN row=#{row_no} | ikea_id=#{category.ikea_id} | matched_by=#{matched_value.inspect} | #{old_value.inspect} -> #{new_translated_name.inspect}"
+                puts "🧪 #{message}"
+                common_log.puts "[#{Time.current}] #{message}"
+              else
+                begin
+                  category.update!(translated_name: new_translated_name)
+                  stats[:updated] += 1
+                  message = "UPDATED row=#{row_no} | ikea_id=#{category.ikea_id} | matched_by=#{matched_value.inspect} | #{old_value.inspect} -> #{new_translated_name.inspect}"
+                  puts "✅ #{message}"
+                  common_log.puts "[#{Time.current}] #{message}"
+                rescue => e
+                  stats[:errors] += 1
+                  message = "ERROR row=#{row_no} | ikea_id=#{category.ikea_id} | #{e.class} - #{e.message}"
+                  puts "❌ #{message}"
+                  common_log.puts "[#{Time.current}] #{message}"
+                end
+              end
+            end
+  
+            summary = <<~TEXT
+  
+              #{'=' * 100}
+              [#{Time.current}] FINISH assign_translated_names_from_catalog
+              File: #{file_path}
+              Dry run: #{dry_run}
+              Всего строк: #{stats[:total_rows]}
+              Обработано строк: #{stats[:processed_rows]}
+              Категорий найдено: #{stats[:found]}
+              Обновлено translated_name: #{stats[:updated]}
+              Без изменений: #{stats[:unchanged]}
+              Не найдено категорий: #{stats[:not_found]}
+              Пропущено строк: #{stats[:skipped]}
+              Ошибок: #{stats[:errors]}
+              #{'=' * 100}
+            TEXT
+  
+            common_log.puts summary
+            not_found_log.puts summary
+            skipped_log.puts summary
+          end
+        end
+      end
+  
+      puts "\n" + "=" * 100
+      puts "ИТОГИ:"
+      puts "  - Всего строк: #{stats[:total_rows]}"
+      puts "  - Обработано строк: #{stats[:processed_rows]}"
+      puts "  - Категорий найдено: #{stats[:found]}"
+      puts "  - Обновлено translated_name: #{stats[:updated]}"
+      puts "  - Без изменений: #{stats[:unchanged]}"
+      puts "  - Не найдено категорий: #{stats[:not_found]}"
+      puts "  - Пропущено строк: #{stats[:skipped]}"
+      puts "  - Ошибок: #{stats[:errors]}"
+      puts "Логи сохранены:"
+      puts "  - #{common_log_path}"
+      puts "  - #{not_found_log_path}"
+      puts "  - #{skipped_log_path}"
+      puts "=" * 100
+  end
+
+  def normalize_cell(value)
+    text = value.to_s.dup
+  
+    loop do
+      cleaned = text
+        .gsub(/^\s*📂\s*/, '')
+        .gsub(/^\s*└─\s*/, '')
+        .strip
+  
+      puts "cleaned: #{cleaned}"
+      break if cleaned == text
+      text = cleaned
+    end
+  
+    text.presence
+  end
+
+  def comment_like?(value)
+      text = value.to_s.strip.downcase
+      return true if text.blank?
+  
+      comment_patterns = [
+        /схлоп/,
+        /удаля/,
+        /оставля/,
+        /строк/,
+        /указал/,
+        /одинаков/,
+        /странно/,
+        /comment/,
+        /примечан/,
+        /note/,
+        /\(/,
+        /\)/
+      ]
+  
+      return true if text.length > 80
+      comment_patterns.any? { |pattern| text.match?(pattern) }
   end
 end
 

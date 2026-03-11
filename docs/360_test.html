@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Фото-360 — цистерна</title>
+  <style>
+    :root{
+      --bg:#0f1115;
+      --panel:#171a21;
+      --text:#eef2f7;
+      --muted:#aab4c3;
+      --accent:#ff9f1a;
+      --border:#2a2f3a;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Arial,Helvetica,sans-serif;
+      background:linear-gradient(180deg,#0d1015,#151922);
+      color:var(--text);
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+    }
+    .wrap{
+      width:min(1200px,96vw);
+      margin:24px auto;
+      display:grid;
+      grid-template-columns:1fr;
+      gap:16px;
+    }
+    .panel{
+      background:rgba(23,26,33,.92);
+      border:1px solid var(--border);
+      border-radius:18px;
+      overflow:hidden;
+      box-shadow:0 10px 40px rgba(0,0,0,.35);
+    }
+    .head{
+      padding:16px 18px;
+      border-bottom:1px solid var(--border);
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .head h1{
+      margin:0;
+      font-size:20px;
+      font-weight:700;
+    }
+    .head .sub{
+      color:var(--muted);
+      font-size:14px;
+    }
+    .viewer{
+      position:relative;
+      width:100%;
+      aspect-ratio:16/9;
+      background:#0b0d12;
+      overflow:hidden;
+      user-select:none;
+      touch-action:pan-y;
+      cursor:grab;
+    }
+    .viewer.dragging{cursor:grabbing}
+    .viewer img{
+      width:100%;
+      height:100%;
+      object-fit:contain;
+      display:block;
+      background:#0b0d12;
+      pointer-events:none;
+    }
+    .controls{
+      padding:14px 16px 18px;
+      display:grid;
+      gap:14px;
+    }
+    .row{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    button{
+      background:#212734;
+      color:var(--text);
+      border:1px solid #313948;
+      border-radius:12px;
+      padding:10px 14px;
+      font-size:14px;
+      cursor:pointer;
+      transition:.18s ease;
+    }
+    button:hover{background:#2a3242}
+    button.primary{
+      background:var(--accent);
+      color:#111;
+      border-color:#ffb347;
+      font-weight:700;
+    }
+    button.primary:hover{filter:brightness(1.04)}
+    .range-wrap{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width:260px;
+      flex:1;
+    }
+    input[type="range"]{
+      width:100%;
+      accent-color:var(--accent);
+    }
+    .meta{
+      color:var(--muted);
+      font-size:14px;
+    }
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 10px;
+      border:1px solid var(--border);
+      border-radius:999px;
+      background:#141923;
+      color:var(--muted);
+      font-size:13px;
+    }
+    .help{
+      padding:0 16px 18px;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.45;
+    }
+    .counter{
+      min-width:90px;
+      text-align:center;
+      font-variant-numeric:tabular-nums;
+    }
+    @media (max-width:700px){
+      .viewer{aspect-ratio:4/3}
+      .head h1{font-size:18px}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <div class="head">
+        <div>
+          <h1>Фото-360 — полуприцеп-цистерна</h1>
+          <div class="sub">Интерактивный просмотр по 6 кадрам</div>
+        </div>
+        <div class="badge">Перетаскивай влево/вправо для вращения</div>
+      </div>
+
+      <div class="viewer" id="viewer">
+        <img id="frame" alt="Фото-360" />
+      </div>
+
+      <div class="controls">
+        <div class="row">
+          <button id="prev">← Назад</button>
+          <button id="play" class="primary">▶ Авто</button>
+          <button id="next">Вперёд →</button>
+          <button id="fullscreen">⛶ На весь экран</button>
+          <div class="meta counter" id="counter">1 / 6</div>
+        </div>
+
+        <div class="row">
+          <div class="range-wrap">
+            <span class="meta">Кадр</span>
+            <input id="slider" type="range" min="0" max="5" step="1" value="0" />
+          </div>
+
+          <div class="range-wrap" style="max-width:320px;">
+            <span class="meta">Скорость</span>
+            <input id="speed" type="range" min="80" max="1200" step="20" value="320" />
+          </div>
+        </div>
+      </div>
+
+      <div class="help">
+        Поддерживается мышь и тач. Это spin-view на основе загруженных фотографий, поэтому плавность зависит от количества исходных ракурсов.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const frames = [
+      "images/1.jpg",
+      "images/2.jpg",
+      "images/3.jpg",
+      "images/4.jpg",
+      "images/5.jpg",
+      "images/6.jpg"
+    ];
+  
+    const frameImg = document.getElementById("frame");
+    const viewer = document.getElementById("viewer");
+    const counter = document.getElementById("counter");
+    const slider = document.getElementById("slider");
+    const speed = document.getElementById("speed");
+    const playBtn = document.getElementById("play");
+  
+    let index = 0;
+    let playing = false;
+    let timer = null;
+  
+    function showFrame(i){
+      index = (i + frames.length) % frames.length;
+      frameImg.src = frames[index];
+      counter.textContent = `${index + 1} / ${frames.length}`;
+      slider.value = index;
+    }
+  
+    function nextFrame(step = 1){
+      showFrame(index + step);
+    }
+  
+    function startAuto(){
+      stopAuto();
+      playing = true;
+      playBtn.textContent = "⏸ Пауза";
+      timer = setInterval(() => nextFrame(1), Number(speed.value));
+    }
+  
+    function stopAuto(){
+      playing = false;
+      playBtn.textContent = "▶ Авто";
+      if(timer){
+        clearInterval(timer);
+        timer = null;
+      }
+    }
+  
+    document.getElementById("prev").addEventListener("click", () => nextFrame(-1));
+    document.getElementById("next").addEventListener("click", () => nextFrame(1));
+  
+    playBtn.addEventListener("click", () => {
+      if(playing) stopAuto();
+      else startAuto();
+    });
+  
+    slider.addEventListener("input", e => showFrame(Number(e.target.value)));
+  
+    speed.addEventListener("input", () => {
+      if(playing) startAuto();
+    });
+  
+    document.getElementById("fullscreen").addEventListener("click", async () => {
+      if (!document.fullscreenElement) {
+        await viewer.requestFullscreen?.();
+      } else {
+        await document.exitFullscreen?.();
+      }
+    });
+  
+    let dragging = false;
+    let lastX = 0;
+    let acc = 0;
+  
+    function handleDragStart(x){
+      dragging = true;
+      acc = 0;
+      lastX = x;
+      viewer.classList.add("dragging");
+      stopAuto();
+    }
+  
+    function handleDragMove(x){
+      if(!dragging) return;
+      const dx = x - lastX;
+      lastX = x;
+      acc += dx;
+  
+      const threshold = 18;
+      if(Math.abs(acc) >= threshold){
+        const steps = Math.trunc(acc / threshold);
+        nextFrame(-steps);
+        acc = acc % threshold;
+      }
+    }
+  
+    function handleDragEnd(){
+      dragging = false;
+      viewer.classList.remove("dragging");
+    }
+  
+    viewer.addEventListener("mousedown", e => handleDragStart(e.clientX));
+    window.addEventListener("mousemove", e => handleDragMove(e.clientX));
+    window.addEventListener("mouseup", handleDragEnd);
+  
+    viewer.addEventListener("touchstart", e => {
+      if(e.touches[0]) handleDragStart(e.touches[0].clientX);
+    }, {passive:true});
+  
+    viewer.addEventListener("touchmove", e => {
+      if(e.touches[0]) handleDragMove(e.touches[0].clientX);
+    }, {passive:true});
+  
+    viewer.addEventListener("touchend", handleDragEnd);
+  
+    window.addEventListener("keydown", e => {
+      if(e.key === "ArrowLeft") nextFrame(-1);
+      if(e.key === "ArrowRight") nextFrame(1);
+      if(e.key === " ") {
+        e.preventDefault();
+        if(playing) stopAuto(); else startAuto();
+      }
+    });
+  
+    frames.forEach(src => {
+      const img = new Image();
+      img.src = src;
+    });
+  
+    showFrame(0);
+  </script>
+</body>
+</html>

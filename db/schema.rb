@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_01_195501) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_11_150100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -129,6 +129,46 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_01_195501) do
     t.index ["is_popular"], name: "index_categories_on_is_popular"
     t.index ["parent_ids"], name: "index_categories_on_parent_ids_btree", where: "((parent_ids IS NOT NULL) AND (parent_ids <> '[]'::text) AND (parent_ids <> ''::text))"
     t.index ["unique_id"], name: "index_categories_on_unique_id", unique: true, where: "(unique_id IS NOT NULL)"
+  end
+
+  create_table "category_catalog_row_mappings", force: :cascade do |t|
+    t.integer "row_no", null: false
+    t.string "ikea_id"
+    t.string "matched_by"
+    t.decimal "confidence", precision: 5, scale: 2, default: "0.0", null: false
+    t.string "raw_name"
+    t.string "seo_name"
+    t.text "path"
+    t.integer "depth"
+    t.jsonb "meta", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["ikea_id"], name: "index_category_catalog_row_mappings_on_ikea_id"
+    t.index ["row_no"], name: "index_category_catalog_row_mappings_on_row_no", unique: true
+  end
+
+  create_table "category_cleanup_rules", force: :cascade do |t|
+    t.integer "source_row_no", null: false
+    t.string "source_ikea_id"
+    t.string "source_url"
+    t.text "raw_status", null: false
+    t.string "action", null: false
+    t.integer "target_row_no"
+    t.string "target_ikea_id"
+    t.string "resolution_status", default: "pending", null: false
+    t.string "resolved_source_ikea_id"
+    t.string "resolved_target_ikea_id"
+    t.string "source_matched_by"
+    t.string "target_matched_by"
+    t.text "notes"
+    t.jsonb "meta", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action"], name: "index_category_cleanup_rules_on_action"
+    t.index ["resolution_status"], name: "index_category_cleanup_rules_on_resolution_status"
+    t.index ["resolved_source_ikea_id"], name: "index_category_cleanup_rules_on_resolved_source_ikea_id"
+    t.index ["resolved_target_ikea_id"], name: "index_category_cleanup_rules_on_resolved_target_ikea_id"
+    t.index ["source_row_no"], name: "index_category_cleanup_rules_on_source_row_no", unique: true
   end
 
   create_table "category_products", force: :cascade do |t|
