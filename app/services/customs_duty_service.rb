@@ -43,8 +43,8 @@ class CustomsDutyService
     details = {
       cost_limit_exceeded: cost_exceeded,
       weight_limit_exceeded: weight_exceeded,
-      cost_excess: cost_exceeded ? (cost - cost_limit) : 0.0,
-      weight_excess: weight_exceeded ? (weight - weight_limit) : 0.0
+      cost_excess: cost_exceeded ? (cost - cost_limit).round(2) : 0.0,
+      weight_excess: weight_exceeded ? (weight - weight_limit).round(2) : 0.0
     }
     
     if !cost_exceeded && !weight_exceeded
@@ -57,14 +57,14 @@ class CustomsDutyService
       # Сценарий 1: Превышение только стоимостного лимита
       details[:scenario] = 1
       duty_eur = (cost - cost_limit) * cost_duty_rate
-      details[:duty_by_cost_eur] = duty_eur
+      details[:duty_by_cost_eur] = duty_eur.round(2)
       details[:duty_by_weight_eur] = 0.0
     elsif !cost_exceeded && weight_exceeded
       # Сценарий 2: Превышение только весового лимита
       details[:scenario] = 2
       duty_eur = (weight - weight_limit) * weight_duty_rate
       details[:duty_by_cost_eur] = 0.0
-      details[:duty_by_weight_eur] = duty_eur
+      details[:duty_by_weight_eur] = duty_eur.round(2)
     else
       # Сценарий 3: Двойное превышение
       details[:scenario] = 3
@@ -73,8 +73,8 @@ class CustomsDutyService
       
       # Выбираем максимальную пошлину
       duty_eur = [duty_by_cost_eur, duty_by_weight_eur].max
-      details[:duty_by_cost_eur] = duty_by_cost_eur
-      details[:duty_by_weight_eur] = duty_by_weight_eur
+      details[:duty_by_cost_eur] = duty_by_cost_eur.round(2)
+      details[:duty_by_weight_eur] = duty_by_weight_eur.round(2)
       details[:max_duty_used] = duty_by_cost_eur > duty_by_weight_eur ? 'cost' : 'weight'
     end
     

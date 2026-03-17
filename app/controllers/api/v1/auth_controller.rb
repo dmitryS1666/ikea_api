@@ -27,7 +27,8 @@ module Api
           phone: params[:phone],
           metadata: {
             ip_address: request.remote_ip,
-            user_agent: request.user_agent
+            user_agent: request.user_agent,
+            context: 'auth'
           }
         )
         

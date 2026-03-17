@@ -60,9 +60,15 @@ class CalculatorSetting < ApplicationRecord
   
   # Инициализация дефолтных настроек
   def self.initialize_defaults
-    # Маржа
-    set('margin_multiplier', 1.1, setting_type: 'decimal', description: 'Маржа (10% = 1.1)')
+    # Маржа (старая)
+    set('margin_multiplier', 1.1, setting_type: 'decimal', description: 'Маржа (старая логика, 10% = 1.1)')
     
+    # Новая логика наценки K
+    set('target_profit_pln', 87.0, setting_type: 'decimal', description: 'Целевая прибыль в PLN (для формулы 87 / цена)')
+    set('markup_offset', -0.187, setting_type: 'decimal', description: 'Смещение наценки (для формулы K = 87 / цена - 0.187)')
+    set('min_markup', 0.10, setting_type: 'decimal', description: 'Минимальная наценка (10% = 0.10)')
+    set('exchange_rate_buffer', 1.05, setting_type: 'decimal', description: 'Буфер к курсу PLN (5% = 1.05)')
+
     # Тарифы доставки по Польше (вес в кг => цена в zl)
     poland_rates = {
       '0-1' => 0.0,
@@ -76,15 +82,15 @@ class CalculatorSetting < ApplicationRecord
     set('poland_delivery_rates', poland_rates, setting_type: 'json', 
         description: 'Тарифы доставки по Польше (вес в кг => цена в zl)')
     
-    # Тарифы доставки по Беларуси (вес в кг => цена в EUR за кг)
+    # Тарифы доставки по Беларуси (вес в кг => цена в PLN за кг)
     belarus_rates = {
-      '0-20' => 3.0,
-      '20-30' => 2.0,
-      '30-40' => 1.5,
-      '40-1000' => 1.0
+      '0-20' => 16.85,
+      '20-30' => 12.81,
+      '30-40' => 10.69,
+      '40-1000' => 8.58
     }
     set('belarus_delivery_rates', belarus_rates, setting_type: 'json',
-        description: 'Тарифы доставки по Беларуси (вес в кг => цена в EUR за кг)')
+        description: 'Тарифы доставки по Беларуси (вес в кг => цена в PLN за кг)')
     
     # Таможенные лимиты
     set('customs_free_cost_limit', 200.0, setting_type: 'decimal',

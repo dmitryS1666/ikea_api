@@ -17,6 +17,16 @@ class PromoCode < ApplicationRecord
     true
   end
 
+  scope :active_now, ->(time = Time.current) {
+    where(active: true)
+      .where('starts_at IS NULL OR starts_at <= ?', time)
+      .where('ends_at IS NULL OR ends_at >= ?', time)
+  }
+
+  def self.for_sku(sku)
+    active_now.to_a.select { |p| p.applies_to_sku?(sku) }
+  end
+
   def expired?(time = Time.current)
     ends_at.present? && ends_at < time
   end

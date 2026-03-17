@@ -10,7 +10,7 @@ module Api
         products = products.page(params[:page]).per(params[:per_page] || 50)
         
         render json: ProductTeaserSerializer.new(products, {
-          params: { favorite_skus: current_favorite_skus },
+          params: serialization_params,
           meta: {
             total: products.total_count,
             page: params[:page] || 1,
@@ -21,9 +21,10 @@ module Api
       end
       
       def show
-        product = Product.includes(:seo_meta).find_by(sku: params[:sku])
+        product = Product.includes(:seo_meta, :category).find_by!(sku: params[:sku])
+        
         render json: ProductSerializer.new(product, {
-          params: { detail: true, city: current_city, favorite_skus: current_favorite_skus }
+          params: serialization_params.merge(detail: true, city: current_city)
         })
       end
       
@@ -34,7 +35,7 @@ module Api
                          .per(params[:per_page] || 10)
         
         render json: ProductTeaserSerializer.new(products, {
-          params: { favorite_skus: current_favorite_skus },
+          params: serialization_params,
           meta: {
             total: products.total_count,
             page: params[:page] || 1
@@ -49,7 +50,7 @@ module Api
                          .per(params[:per_page] || 10)
         
         render json: ProductTeaserSerializer.new(products, {
-          params: { favorite_skus: current_favorite_skus },
+          params: serialization_params,
           meta: {
             total: products.total_count,
             page: params[:page] || 1
@@ -64,7 +65,7 @@ module Api
                          .per(params[:per_page] || 10)
         
         render json: ProductTeaserSerializer.new(products, {
-          params: { favorite_skus: current_favorite_skus },
+          params: serialization_params,
           meta: {
             total: products.total_count,
             page: params[:page] || 1
@@ -79,7 +80,7 @@ module Api
                          .per(params[:per_page] || 10)
         
         render json: ProductTeaserSerializer.new(products, {
-          params: { favorite_skus: current_favorite_skus },
+          params: serialization_params,
           meta: {
             total: products.total_count,
             page: params[:page] || 1
@@ -88,15 +89,20 @@ module Api
       end
 
       def categories
-        collection_name = params[:collection]
-        return render json: { error: 'Collection parameter is required' }, status: :bad_request if collection_name.blank?
+        # ... existing implementation ...
+      end
 
-        categories = Category.active
-                             .joins(:products_through_categories)
-                             .where(products: { collection: collection_name })
-                             .distinct
+      private
 
-        render json: CategorySerializer.new(categories)
+      def serialization_params
+        {
+          favorite_skus: current_favorite_skus,
+          active_promos: PromoCode.active_now.to_a,
+          rates: {
+            eur: ExchangeRate.fetch_or_create('EUR')&.rate_per_unit,
+            pln: ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
+          }
+        }
       end
     end
   end

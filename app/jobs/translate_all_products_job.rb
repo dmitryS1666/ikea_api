@@ -33,7 +33,7 @@ class TranslateAllProductsJob < ApplicationJob
       Rails.logger.info "Starting TranslateAllProductsJob for #{total_count} products (starting from ID: #{last_id || 'begin'})..."
 
       # Используем пул соединений для параллельной обработки
-      products.find_in_batches(batch_size: 4) do |batch|
+      products.find_in_batches(batch_size: 2) do |batch|
         break if limit && processed_count >= limit
 
         promises = batch.map do |product|

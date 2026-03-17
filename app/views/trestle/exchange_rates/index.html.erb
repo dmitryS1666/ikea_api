@@ -101,7 +101,7 @@
               </tr>
             </thead>
             <tbody>
-              <% admin.collection.each do |rate| %>
+              <% @collection.each do |rate| %>
                 <tr>
                   <td><%= rate.date.strftime('%d.%m.%Y') %></td>
                   <td><%= rate.currency_code %></td>
@@ -113,6 +113,9 @@
               <% end %>
             </tbody>
           </table>
+        </div>
+        <div class="card-footer d-flex justify-content-center">
+          <%= pagination(collection: @collection) %>
         </div>
       </div>
     </div>

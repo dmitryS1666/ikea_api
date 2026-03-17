@@ -34,8 +34,8 @@
                             <td class="text-right"><strong><%= number_with_precision(rate[:nbrb], precision: 4) %> BYN</strong></td>
                           </tr>
                           <tr>
-                            <td>Курс с маржой 10%:</td>
-                            <td class="text-right"><strong class="text-success"><%= number_with_precision(rate[:with_margin], precision: 4) %> BYN</strong></td>
+                            <td>Курс с буфером <%= ((@params_info[:buffer] - 1) * 100).to_i %>%:</td>
+                            <td class="text-right"><strong class="text-success"><%= number_with_precision(rate[:with_buffer], precision: 4) %> BYN</strong></td>
                           </tr>
                           <tr>
                             <td>Дата курса:</td>
@@ -51,7 +51,7 @@
             <div class="alert alert-info mt-3 mb-0">
               <small>
                 <strong>Примечание:</strong> Курсы обновляются раз в сутки из API НБ РБ. 
-                Менеджер подтверждает наличие и стоимость товара в рамках бизнес-процесса.
+                К курсу PLN добавляется страховой буфер <%= ((@params_info[:buffer] - 1) * 100).to_i %>% (настройка <code>exchange_rate_buffer</code>).
               </small>
             </div>
           <% else %>
@@ -68,8 +68,8 @@
     <div class="col-md-5">
       <div class="card">
         <div class="card-header">
-          <h3>Калькулятор стоимости товара</h3>
-          <p class="text-muted mb-0">Расчет итоговой цены с учетом доставки и таможенной пошлины</p>
+          <h3>Калькулятор стоимости товара (Новый)</h3>
+          <p class="text-muted mb-0">Расчет по схеме: Динамическая наценка + Весовая логистика</p>
         </div>
         <div class="card-body">
           <%= form_tag admin.instance_path(PriceCalculator.new(id: 'show')), method: :get, data: { turbo: false } do %>
@@ -78,7 +78,7 @@
               <%= number_field_tag :product_price, params[:product_price], 
                   class: "form-control", step: 0.01, min: 0, required: true, placeholder: "0.00" %>
               <small class="form-text text-muted">
-                Цена товара в польских злотых (PLN)
+                Брутто цена на сайте IKEA Poland в злотых (PLN)
               </small>
             </div>
             
@@ -87,23 +87,20 @@
               <%= number_field_tag :weight, params[:weight], 
                   class: "form-control", step: 0.01, min: 0, required: true, placeholder: "0.00" %>
               <small class="form-text text-muted">
-                Вес товара в килограммах (используется для расчета доставки)
+                Вес товара в килограммах
               </small>
             </div>
             
             <div class="form-group mb-3">
               <%= label_tag :use_gls, class: "form-check-label" do %>
                 <%= check_box_tag :use_gls, '1', params[:use_gls] == '1', class: "form-check-input" %>
-                Использовать пункт отбора GLS (бесплатно для товаров до 30 кг)
+                Использовать пункт отбора GLS (бесплатно до 30 кг)
               <% end %>
             </div>
             
             <div class="form-group mb-3">
               <%= label_tag :date, "Дата курсов валют", class: "form-label" %>
               <%= date_field_tag :date, params[:date] || Date.today, class: "form-control" %>
-              <small class="form-text text-muted">
-                Дата для получения курсов валют от НБ РБ
-              </small>
             </div>
             
             <%= hidden_field_tag :calculate, '1' %>
@@ -115,42 +112,33 @@
       <!-- Описание расчета -->
       <div class="card mt-4">
         <div class="card-header">
-          <h5>📋 Описание расчета стоимости</h5>
+          <h5>📋 Описание новой логики (Март 2026)</h5>
         </div>
         <div class="card-body">
           <ol class="mb-0">
             <li class="mb-2">
+              <strong>Динамическая наценка (K):</strong><br>
+              <small class="text-muted">
+                Зависит от цены товара. Чем дешевле, тем выше %. 
+                Формула: <code>max(10%, <%= @params_info[:target_profit] %> / Цена + <%= @params_info[:markup_offset] %>)</code>
+              </small>
+            </li>
+            <li class="mb-2">
               <strong>Доставка по Польше (PLN):</strong><br>
               <small class="text-muted">
-                Рассчитывается в злотых в зависимости от веса товара. 
-                К стоимости доставки добавляется курс НБ РБ + 10% маржа.
+                Ступенчатый тариф IKEA (0-79-119... PLN).
               </small>
             </li>
             <li class="mb-2">
-              <strong>Доставка по Беларуси (EUR):</strong><br>
+              <strong>Весовая логистика РБ (PLN):</strong><br>
               <small class="text-muted">
-                Рассчитывается в евро в зависимости от веса товара. 
-                К стоимости доставки добавляется 10% маржа.
+                Оплата за кг в PLN: < 20кг: 16.85; 20-30кг: 12.81; 30-40кг: 10.69; > 40кг: 8.58
               </small>
             </li>
             <li class="mb-2">
-              <strong>Цена товара:</strong><br>
+              <strong>Итого в BYN:</strong><br>
               <small class="text-muted">
-                К цене товара применяется маржа 10% (умножение на 1.1) 
-                и курс НБ РБ + 10% маржа.
-              </small>
-            </li>
-            <li class="mb-2">
-              <strong>Таможенная пошлина:</strong><br>
-              <small class="text-muted">
-                Рассчитывается на основе стоимости товара в EUR и веса. 
-                Подробности см. в калькуляторе таможенной пошлины.
-              </small>
-            </li>
-            <li>
-              <strong>Итоговая стоимость:</strong><br>
-              <small class="text-muted">
-                Сумма: Цена товара + Доставка по Польше + Доставка по Беларуси + Таможенная пошлина
+                <code>(Цена × (1+K) + Доставка_PL + Вес_Логистика_PL) × Курс_PLN × <%= @params_info[:buffer] %></code>
               </small>
             </li>
           </ol>
@@ -171,235 +159,110 @@
             <h3 class="mb-0">Результат расчета</h3>
           </div>
           <div class="card-body">
-            <div class="alert alert-success mb-4">
-              <h4 class="alert-heading">Итоговая стоимость товара:</h4>
-              <h2 class="mb-0 text-primary">
+            <div class="alert alert-success mb-4 text-center">
+              <h4 class="alert-heading">Итоговая стоимость:</h4>
+              <h1 class="mb-0 text-primary">
                 <strong><%= number_to_currency(@calculation[:total_price_byn], unit: 'BYN', format: '%n %u', precision: 2) %></strong>
-              </h2>
+              </h1>
+              <div class="mt-2 text-muted">
+                (≈ <%= number_to_currency(@calculation[:total_pln], unit: 'PLN', format: '%n %u', precision: 2) %>)
+              </div>
             </div>
             
-            <!-- Входные данные -->
-            <h5>Входные данные:</h5>
+            <!-- Детализация -->
+            <div class="row">
+              <div class="col-md-6">
+                <h5>Наценка и Коэффициенты:</h5>
+                <table class="table table-sm table-bordered mb-4">
+                  <tr>
+                    <td>Наценка K:</td>
+                    <td class="text-right"><strong><%= (@calculation[:markup_k] * 100).round(2) %>%</strong></td>
+                  </tr>
+                  <tr>
+                    <td>Курс PLN (баз):</td>
+                    <td class="text-right"><%= number_with_precision(@calculation[:pln_rate], precision: 4) %></td>
+                  </tr>
+                  <tr>
+                    <td>Курс PLN (с буф):</td>
+                    <td class="text-right"><strong><%= number_with_precision(@calculation[:pln_rate_with_buffer], precision: 4) %></strong></td>
+                  </tr>
+                </table>
+              </div>
+              <div class="col-md-6">
+                <h5>Физические параметры:</h5>
+                <table class="table table-sm table-bordered mb-4">
+                  <tr>
+                    <td>Вес товара:</td>
+                    <td class="text-right"><%= @calculation[:weight_kg] %> кг</td>
+                  </tr>
+                  <tr>
+                    <td>Пункт отбора:</td>
+                    <td class="text-right"><%= params[:use_gls] == '1' ? 'GLS' : 'Курьер/Склад' %></td>
+                  </tr>
+                </table>
+              </div>
+            </div>
+
+            <h5>Расчет суммы в PLN:</h5>
             <table class="table table-sm table-bordered mb-4">
               <tr>
-                <td><strong>Цена товара (PLN):</strong></td>
+                <td>Цена товара:</td>
                 <td class="text-right"><%= number_to_currency(@calculation[:product_price_zl], unit: 'PLN', format: '%n %u', precision: 2) %></td>
               </tr>
               <tr>
-                <td><strong>Вес товара:</strong></td>
-                <td class="text-right"><%= @calculation[:weight_kg] %> кг</td>
+                <td>Наценка (<%= (@calculation[:markup_k] * 100).round(2) %>%):</td>
+                <td class="text-right">+ <%= number_to_currency(@calculation[:product_price_zl] * @calculation[:markup_k], unit: 'PLN', format: '%n %u', precision: 2) %></td>
               </tr>
               <tr>
-                <td><strong>Дата курсов:</strong></td>
-                <td class="text-right"><%= params[:date] || Date.today.strftime('%d.%m.%Y') %></td>
+                <td>Доставка по Польше:</td>
+                <td class="text-right">+ <%= number_to_currency(@calculation[:poland_delivery_zl], unit: 'PLN', format: '%n %u', precision: 2) %></td>
+              </tr>
+              <tr>
+                <td>Весовая логистика РБ:</td>
+                <td class="text-right">+ <%= number_to_currency(@calculation[:belarus_delivery_zl], unit: 'PLN', format: '%n %u', precision: 2) %></td>
+              </tr>
+              <tr class="table-info">
+                <td><strong>ИТОГО (PLN):</strong></td>
+                <td class="text-right"><strong><%= number_to_currency(@calculation[:total_pln], unit: 'PLN', format: '%n %u', precision: 2) %></strong></td>
               </tr>
             </table>
-            
-            <!-- Курсы валют -->
-            <h5>Курсы валют:</h5>
-            <table class="table table-sm table-bordered mb-4">
-              <tr>
-                <td>Курс PLN (НБ РБ):</td>
-                <td class="text-right"><%= number_with_precision(@calculation[:pln_rate], precision: 4) %> BYN</td>
-              </tr>
-              <tr>
-                <td>Курс PLN (с маржой 10%):</td>
-                <td class="text-right"><strong><%= number_with_precision(@calculation[:pln_rate_with_margin], precision: 4) %> BYN</strong></td>
-              </tr>
-              <tr>
-                <td>Курс EUR (НБ РБ):</td>
-                <td class="text-right"><%= number_with_precision(@calculation[:eur_rate], precision: 4) %> BYN</td>
-              </tr>
-              <tr>
-                <td>Курс EUR (с маржой 10%):</td>
-                <td class="text-right"><strong><%= number_with_precision(@calculation[:eur_rate_with_margin], precision: 4) %> BYN</strong></td>
-              </tr>
-            </table>
-            
-            <!-- Детальный расчет -->
-            <h5>Детальный расчет:</h5>
-            
-            <!-- 1. Цена товара -->
-            <div class="card mb-3">
-              <div class="card-header bg-light">
-                <strong>1. Цена товара</strong>
-              </div>
-              <div class="card-body">
-                <table class="table table-sm table-bordered mb-0">
-                  <tr>
-                    <td>Цена товара (PLN):</td>
-                    <td class="text-right"><%= number_to_currency(@calculation[:product_price_zl], unit: 'PLN', format: '%n %u', precision: 2) %></td>
-                  </tr>
-                  <tr>
-                    <td>Формула:</td>
-                    <td class="text-right">
-                      <small class="text-muted">
-                        Цена × Маржа (1.1) × Курс PLN (НБ РБ) × Маржа (1.1)
-                      </small>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Расчет:</td>
-                    <td class="text-right">
-                      <small>
-                        <%= number_to_currency(@calculation[:product_price_zl], unit: 'PLN', format: '%n %u', precision: 2) %> × 
-                        1.1 × 
-                        <%= number_with_precision(@calculation[:pln_rate], precision: 4) %> × 
-                        1.1
-                      </small>
-                    </td>
-                  </tr>
-                  <tr class="table-success">
-                    <td><strong>Цена товара (BYN):</strong></td>
-                    <td class="text-right"><strong><%= number_to_currency(@calculation[:product_price_byn], unit: 'BYN', format: '%n %u', precision: 2) %></strong></td>
-                  </tr>
-                </table>
+
+            <div class="card border-primary mb-4">
+              <div class="card-body bg-light">
+                <h5 class="card-title">Итоговая формула:</h5>
+                <p class="card-text">
+                  <code><%= number_with_precision(@calculation[:total_pln], precision: 2) %> (PLN) × <%= number_with_precision(@calculation[:pln_rate_with_buffer], precision: 4) %> (Курс) = 
+                  <%= number_to_currency(@calculation[:total_price_byn], unit: 'BYN', format: '%n %u', precision: 2) %></code>
+                </p>
               </div>
             </div>
-            
-            <!-- 2. Доставка по Польше -->
-            <div class="card mb-3">
-              <div class="card-header bg-light">
-                <strong>2. Доставка по Польше</strong>
-              </div>
-              <div class="card-body">
-                <table class="table table-sm table-bordered mb-0">
-                  <tr>
-                    <td>Доставка по Польше (PLN):</td>
-                    <td class="text-right"><%= number_to_currency(@calculation[:poland_delivery_zl], unit: 'PLN', format: '%n %u', precision: 2) %></td>
-                  </tr>
-                  <tr>
-                    <td>Формула:</td>
-                    <td class="text-right">
-                      <small class="text-muted">
-                        Доставка (PLN) × Курс PLN (НБ РБ) × Маржа (1.1)
-                      </small>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Расчет:</td>
-                    <td class="text-right">
-                      <small>
-                        <%= number_to_currency(@calculation[:poland_delivery_zl], unit: 'PLN', format: '%n %u', precision: 2) %> × 
-                        <%= number_with_precision(@calculation[:pln_rate], precision: 4) %> × 
-                        1.1
-                      </small>
-                    </td>
-                  </tr>
-                  <tr class="table-success">
-                    <td><strong>Доставка по Польше (BYN):</strong></td>
-                    <td class="text-right"><strong><%= number_to_currency(@calculation[:poland_delivery_byn], unit: 'BYN', format: '%n %u', precision: 2) %></strong></td>
-                  </tr>
-                </table>
-              </div>
-            </div>
-            
-            <!-- 3. Доставка по Беларуси -->
-            <div class="card mb-3">
-              <div class="card-header bg-light">
-                <strong>3. Доставка по Беларуси</strong>
-              </div>
-              <div class="card-body">
-                <table class="table table-sm table-bordered mb-0">
-                  <tr>
-                    <td>Доставка по Беларуси (EUR):</td>
-                    <td class="text-right"><%= number_to_currency(@calculation[:belarus_delivery_eur], unit: 'EUR', format: '%n %u', precision: 2) %></td>
-                  </tr>
-                  <tr>
-                    <td>Формула:</td>
-                    <td class="text-right">
-                      <small class="text-muted">
-                        Доставка (EUR) × Курс EUR (НБ РБ) × Маржа (1.1)
-                      </small>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Расчет:</td>
-                    <td class="text-right">
-                      <small>
-                        <%= number_to_currency(@calculation[:belarus_delivery_eur], unit: 'EUR', format: '%n %u', precision: 2) %> × 
-                        <%= number_with_precision(@calculation[:eur_rate], precision: 4) %> × 
-                        1.1
-                      </small>
-                    </td>
-                  </tr>
-                  <tr class="table-success">
-                    <td><strong>Доставка по Беларуси (BYN):</strong></td>
-                    <td class="text-right"><strong><%= number_to_currency(@calculation[:belarus_delivery_byn], unit: 'BYN', format: '%n %u', precision: 2) %></strong></td>
-                  </tr>
-                </table>
-              </div>
-            </div>
-            
-            <!-- 4. Таможенная пошлина -->
-            <div class="card mb-3">
-              <div class="card-header bg-light">
-                <strong>4. Таможенная пошлина</strong>
-              </div>
-              <div class="card-body">
-                <table class="table table-sm table-bordered mb-0">
-                  <tr>
-                    <td>Таможенная пошлина (EUR):</td>
-                    <td class="text-right"><%= number_to_currency(@calculation[:customs_duty_eur], unit: 'EUR', format: '%n %u', precision: 2) %></td>
-                  </tr>
-                  <tr>
-                    <td>Таможенная пошлина (BYN):</td>
-                    <td class="text-right"><%= number_to_currency(@calculation[:customs_duty_byn], unit: 'BYN', format: '%n %u', precision: 2) %></td>
-                  </tr>
-                  <% if @calculation[:customs_fee_byn] > 0 %>
+
+            <div class="mt-4">
+              <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#customsDetails">
+                Показать информацию о таможне (справочно)
+              </button>
+              <div class="collapse mt-3" id="customsDetails">
+                <div class="card card-body">
+                  <h6>Таможенная пошлина (не включена в итоговую цену):</h6>
+                  <table class="table table-sm table-bordered mb-0">
                     <tr>
-                      <td>Таможенный сбор (BYN):</td>
+                      <td>Пошлина (EUR):</td>
+                      <td class="text-right"><%= number_to_currency(@calculation[:customs_duty_eur], unit: 'EUR', format: '%n %u', precision: 2) %></td>
+                    </tr>
+                    <tr>
+                      <td>Сбор (BYN):</td>
                       <td class="text-right"><%= number_to_currency(@calculation[:customs_fee_byn], unit: 'BYN', format: '%n %u', precision: 2) %></td>
                     </tr>
-                  <% end %>
-                  <tr class="table-success">
-                    <td><strong>Итого таможенные платежи (BYN):</strong></td>
-                    <td class="text-right"><strong><%= number_to_currency(@calculation[:customs_total_byn], unit: 'BYN', format: '%n %u', precision: 2) %></strong></td>
-                  </tr>
-                </table>
-                <% if @calculation[:customs_details][:scenario] != 4 %>
-                  <div class="mt-2">
-                    <small class="text-muted">
-                      <strong>Сценарий:</strong>
-                      <% case @calculation[:customs_details][:scenario] %>
-                      <% when 1 %>
-                        Превышение стоимостного лимита
-                      <% when 2 %>
-                        Превышение весового лимита
-                      <% when 3 %>
-                        Двойное превышение
-                      <% end %>
-                    </small>
-                  </div>
-                <% end %>
+                    <tr class="table-warning">
+                      <td><strong>Итого пошлина (BYN):</strong></td>
+                      <td class="text-right"><strong><%= number_to_currency(@calculation[:customs_total_byn], unit: 'BYN', format: '%n %u', precision: 2) %></strong></td>
+                    </tr>
+                  </table>
+                  <small class="text-muted mt-2">
+                    Внимание: В данной логике таможенная пошлина не прибавляется к стоимости товара автоматически.
+                  </small>
+                </div>
               </div>
-            </div>
-            
-            <!-- Итоговая сумма -->
-            <div class="alert alert-success mt-4">
-              <h5 class="mb-3">Итого к оплате:</h5>
-              <table class="table table-sm mb-0">
-                <tr>
-                  <td>Цена товара (BYN):</td>
-                  <td class="text-right"><%= number_to_currency(@calculation[:product_price_byn], unit: 'BYN', format: '%n %u', precision: 2) %></td>
-                </tr>
-                <tr>
-                  <td>Доставка по Польше (BYN):</td>
-                  <td class="text-right"><%= number_to_currency(@calculation[:poland_delivery_byn], unit: 'BYN', format: '%n %u', precision: 2) %></td>
-                </tr>
-                <tr>
-                  <td>Доставка по Беларуси (BYN):</td>
-                  <td class="text-right"><%= number_to_currency(@calculation[:belarus_delivery_byn], unit: 'BYN', format: '%n %u', precision: 2) %></td>
-                </tr>
-                <tr>
-                  <td>Таможенные платежи (BYN):</td>
-                  <td class="text-right"><%= number_to_currency(@calculation[:customs_total_byn], unit: 'BYN', format: '%n %u', precision: 2) %></td>
-                </tr>
-                <tr class="table-primary">
-                  <td><strong>ВСЕГО (BYN):</strong></td>
-                  <td class="text-right"><strong><%= number_to_currency(@calculation[:total_price_byn], unit: 'BYN', format: '%n %u', precision: 2) %></strong></td>
-                </tr>
-              </table>
             </div>
           </div>
         </div>

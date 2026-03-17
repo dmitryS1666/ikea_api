@@ -1,7 +1,11 @@
 Trestle.resource(:calculator_settings, model: CalculatorSetting) do
   TRACKED_KEYS = %w[
-    min_order_amount_byn 
-    free_delivery_threshold_byn
+    target_profit_pln
+    markup_offset
+    min_markup
+    exchange_rate_buffer
+    belarus_delivery_rates
+    poland_delivery_rates
     customs_free_cost_limit
     customs_free_weight_limit
     customs_cost_duty_rate
@@ -14,7 +18,7 @@ Trestle.resource(:calculator_settings, model: CalculatorSetting) do
   ] unless defined?(TRACKED_KEYS)
 
   menu do
-    item :calculator_settings, icon: "fa fa-cogs", label: "Правила корзины", group: "Marketing"
+    item :calculator_settings, icon: "fa fa-cogs", label: "Настройки расчета", group: "Marketing"
   end
 
   collection do
@@ -35,9 +39,12 @@ Trestle.resource(:calculator_settings, model: CalculatorSetting) do
     if setting.key&.end_with?('_global')
       select :setting_type, [['Boolean (0/1)', 'integer']], label: "Тип настройки"
       select :value, [['Включено', '1'], ['Выключено', '0']], label: "Значение"
+    elsif %w[belarus_delivery_rates poland_delivery_rates].include?(setting.key)
+      hidden_field :setting_type, value: 'json'
+      text_area :value, rows: 10, label: "Значение (JSON)"
     else
       hidden_field :setting_type, value: 'decimal'
-      number_field :value, step: 0.01
+      number_field :value, step: 0.0001
     end
     
     text_field :description

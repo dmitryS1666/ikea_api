@@ -2,6 +2,8 @@ class PhoneAuthService
   def self.send_code(phone:, metadata: {})
     ip_address = metadata.delete(:ip_address)
     user_agent = metadata.delete(:user_agent)
+    context = metadata.delete(:context) || 'auth' # Default context is auth (login/reg)
+    user_id = metadata.delete(:user_id)
 
     # Нормализация номера телефона (оставляем только цифры)
     phone = phone.to_s.gsub(/\D/, '')
@@ -11,6 +13,8 @@ class PhoneAuthService
       status: 'pending',
       ip_address: ip_address,
       user_agent: user_agent,
+      context: context,
+      user_id: user_id,
       metadata: metadata
     )
 
@@ -32,14 +36,20 @@ class PhoneAuthService
     )
 
     begin
-      # В будущем здесь будет вызов API для звонка
-      # Код - это последние 4 цифры входящего номера
-      Rails.logger.info "\n[CALL MOCK] Initiating call to #{phone}. Verification code: #{code}\n"
-      puts "\n[CALL MOCK] Initiating call to #{phone}. Verification code: #{code}\n"
+      # Интеграция с asterisk.by
+      result = AsteriskCallAuthService.initiate_call(to_phone: phone, code: code)
       
-      request.update!(status: 'success')
-      { success: true, message: 'Ожидайте звонок. Введите последние 4 цифры номера.' }
+      if result[:success]
+        Rails.logger.info "\n[ASTERISK CALL] Initiated call to #{phone}. Verification code: #{code}\n"
+        request.update!(status: 'success')
+        { success: true, message: 'Ожидайте звонок. Введите последние 4 цифры номера.' }
+      else
+        Rails.logger.error "\n[ASTERISK ERROR] Failed to initiate call to #{phone}. Error: #{result[:error]}\n"
+        request.update!(status: 'error', error_message: result[:error])
+        { error: "Ошибка при инициации звонка: #{result[:error]}" }
+      end
     rescue => e
+      Rails.logger.error "\n[ASTERISK EXCEPTION] #{e.message}\n"
       request.update!(status: 'error', error_message: e.message)
       { error: "Ошибка при инициации звонка: #{e.message}" }
     end

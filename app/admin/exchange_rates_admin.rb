@@ -1,11 +1,13 @@
 # Админ-панель для управления курсами валют
 Trestle.resource(:exchange_rates, model: ExchangeRate) do
+  paginate per_page: 31
+
   menu do
     item :exchange_rates, icon: "fa fa-dollar-sign", priority: 4, label: "Курсы валют", group: "Finance"
   end
 
   table do
-    column :date, header: "Дата"
+    column :date, header: "Дата", sort: { default: true, direction: :desc }
     column :currency_code, header: "Валюта"
     column :rate, header: "Курс" do |rate|
       number_with_precision(rate.rate, precision: 4)

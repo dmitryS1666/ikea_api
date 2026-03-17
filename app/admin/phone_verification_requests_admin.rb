@@ -1,6 +1,6 @@
 Trestle.resource(:phone_verification_requests) do
   menu do
-    item :phone_verification_requests, icon: "fa fa-phone", label: "Запросы СМС", group: "Settings", priority: 6
+    item :phone_verification_requests, icon: "fa fa-phone", label: "Запросы звонков", group: "Settings", priority: 6
   end
 
   # Scope to show latest first
@@ -12,6 +12,25 @@ Trestle.resource(:phone_verification_requests) do
     column :id
     column :phone
     column :code
+    column :context do |request|
+      case request.context
+      when 'auth'
+        status_tag('Вход/Рег', :primary)
+      when 'change_phone'
+        status_tag('Смена телефона', :info)
+      when 'passport_update'
+        status_tag('Паспорт', :warning)
+      else
+        request.context
+      end
+    end
+    column :user_id do |request|
+      if request.user_id
+        link_to(request.user_id, admin.path(:users, action: :show, id: request.user_id))
+      else
+        "-"
+      end
+    end
     column :status do |request|
       case request.status
       when 'success'
@@ -23,19 +42,64 @@ Trestle.resource(:phone_verification_requests) do
       end
     end
     column :error_message
-    column :ip_address
     column :created_at, align: :center
     actions
   end
 
   form do |request|
-    static_field :phone
-    static_field :code
-    static_field :status
-    static_field :error_message
-    static_field :ip_address
-    static_field :user_agent
-    static_field :metadata
-    static_field :created_at
+    row do
+      col(sm: 3) { static_field :phone, label: "Телефон" }
+      col(sm: 3) { static_field :code, label: "Код" }
+      col(sm: 3) do
+        static_field :status, label: "Статус" do
+          tag = case request.status
+          when 'success'
+            status_tag(request.status, :success)
+          when 'error'
+            status_tag(request.status, :danger)
+          else
+            status_tag(request.status, :info)
+          end
+          content_tag(:div, tag, style: "font-size: 1.5rem; margin-top: 5px;")
+        end
+      end
+    end
+    divider
+    row do
+      col(sm: 3) do
+        static_field :context, label: "Контекст" do
+          tag = case request.context
+          when 'auth'
+            status_tag('Вход/Рег', :primary)
+          when 'change_phone'
+            status_tag('Смена телефона', :info)
+          when 'passport_update'
+            status_tag('Паспорт', :warning)
+          else
+            status_tag(request.context, :info)
+          end
+          content_tag(:div, tag, style: "font-size: 1.5rem; margin-top: 5px;")
+        end
+      end
+      col(sm: 3) do
+        static_field :user_id, label: "Пользователь" do
+          if request.user_id
+            link_to("Пользователь ##{request.user_id}", admin.path(:users, action: :show, id: request.user_id), class: "btn btn-default btn-sm")
+          else
+            "-"
+          end
+        end
+      end
+    end
+    divider
+    row do
+      col(sm: 6) { text_area :error_message, label: "Сообщение об ошибке" }
+    end
+    sidebar do
+      row do
+        col(sm: 12) { static_field :user_agent }
+        col(sm: 12) { static_field :created_at }
+      end
+    end
   end
 end

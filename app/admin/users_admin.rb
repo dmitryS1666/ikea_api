@@ -43,7 +43,14 @@ Trestle.resource(:users, model: User) do
       if user.phone.blank?
         flash[:error] = "У пользователя не указан номер телефона"
       else
-        A1StubService.request_call(user: user, phone: user.phone, context: 'passport_update')
+        PhoneAuthService.send_code(
+          phone: user.phone, 
+          metadata: { 
+            user_id: user.id, 
+            context: 'passport_update',
+            admin_id: current_user.id
+          }
+        )
         flash[:message] = "Запрос на звонок отправлен на #{user.phone}"
       end
       redirect_to admin.path(:show, id: user.id)
@@ -57,17 +64,15 @@ Trestle.resource(:users, model: User) do
         redirect_to admin.path(:show, id: user.id) and return
       end
 
-      pending_verification = A1Verification.where(user: user, context: 'passport_update', status: 'pending').order(created_at: :desc).first
-      if pending_verification.nil?
-        flash[:error] = "Нет активных запросов на верификацию"
+      # Проверка через VerificationCode (то же, что в PhoneAuthService)
+      verification = VerificationCode.valid_code(user.phone.gsub(/\D/, ''), last4).first
+      
+      if verification.nil?
+        flash[:error] = "Неверный код (последние 4 цифры) или срок действия истек"
       else
-        result = A1StubService.verify_call(verification_id: pending_verification.id, last4: last4)
-        if result[:success]
-          user.update!(passport_verified_at: Time.current)
-          flash[:message] = "Паспорт успешно верифицирован через звонок"
-        else
-          flash[:error] = "Неверный код (последние 4 цифры)"
-        end
+        verification.destroy!
+        user.update!(passport_verified_at: Time.current)
+        flash[:message] = "Паспорт успешно верифицирован через звонок"
       end
       redirect_to admin.path(:show, id: user.id)
     end
@@ -143,8 +148,9 @@ Trestle.resource(:users, model: User) do
 
         divider
 
-        static_field :a1_verifications, label: "История верификаций через звонок (A1)" do
-          pending_v = A1Verification.where(user: user, context: 'passport_update', status: 'pending').where('expires_at > ?', Time.current).order(created_at: :desc).first
+        static_field :verification_history, label: "История верификаций через звонок" do
+          phone_normalized = user.phone.to_s.gsub(/\D/, '')
+          pending_v = VerificationCode.where(phone: phone_normalized).where('expires_at > ?', Time.current).order(created_at: :desc).first
           
           res = if pending_v
             content_tag(:div, class: "well", style: "background-color: #fff9c4; border: 1px solid #ffd600;") do
@@ -158,34 +164,32 @@ Trestle.resource(:users, model: User) do
             link_to("Запросить звонок для верификации", admin.instance_path(user, action: :request_call), method: :post, class: "btn btn-info btn-sm")
           end
 
-          verifications = A1Verification.where(user: user, context: 'passport_update').order(created_at: :desc).limit(5)
+          verifications = PhoneVerificationRequest.where(phone: phone_normalized, context: 'passport_update').order(id: :desc).limit(5)
           res += content_tag(:hr)
           res += if verifications.any?
             content_tag(:table, class: "table") do
               content_tag(:thead) do
                 content_tag(:tr) do
-                  content_tag(:th) { "Дата" } +
-                  content_tag(:th) { "Телефон" } +
-                  content_tag(:th) { "Статус" } +
-                  content_tag(:th) { "Ожидалось" }
+                  content_tag(:th) { "Дата" }
+                  content_tag(:th) { "Статус" }
+                  content_tag(:th) { "Код" }
                 end
               end +
               content_tag(:tbody) do
                 verifications.map do |v|
                   content_tag(:tr) do
                     content_tag(:td) { v.created_at.strftime("%d.%m.%Y %H:%M") } +
-                    content_tag(:td) { v.phone } +
                     content_tag(:td) do
                       case v.status
-                      when 'verified'
-                        status_tag("Подтвержден", :success)
-                      when 'expired'
-                        status_tag("Просрочен", :danger)
+                      when 'success'
+                        status_tag("Звонок прошел", :success)
+                      when 'error'
+                        status_tag("Ошибка", :danger)
                       else
-                        status_tag("Ожидает", :warning)
+                        status_tag(v.status, :warning)
                       end
                     end +
-                    content_tag(:td) { v.expected_last4 }
+                    content_tag(:td) { v.code }
                   end
                 end.reduce(:+)
               end

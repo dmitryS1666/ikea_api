@@ -1,4 +1,4 @@
-# Админ-панель для расчета цен
+# Админ-панель для расчета цен (Обновленная логика Март 2026)
 Trestle.resource(:price_calculator, model: PriceCalculator) do
   menu do
     item :price_calculator, icon: "fa fa-calculator", priority: 5, label: "Калькулятор цен", group: "Finance"
@@ -16,16 +16,25 @@ Trestle.resource(:price_calculator, model: PriceCalculator) do
       
       # Получаем актуальные курсы валют на текущий день
       today = Date.today
-      margin = CalculatorSetting.get('margin_multiplier') || 1.1
+      
+      # Новые параметры наценки
+      @params_info = {
+        target_profit: CalculatorSetting.get('target_profit_pln') || 87.0,
+        markup_offset: CalculatorSetting.get('markup_offset') || -0.187,
+        min_markup: CalculatorSetting.get('min_markup') || 0.10,
+        buffer: CalculatorSetting.get('exchange_rate_buffer') || 1.05
+      }
+
       @current_rates = {}
       
       # Получаем курсы для USD, EUR, PLN
       ['USD', 'EUR', 'PLN'].each do |currency|
         rate = ExchangeRate.fetch_or_create(currency, today)
         if rate
+          rate_val = rate.rate_per_unit
           @current_rates[currency.downcase.to_sym] = {
-            nbrb: rate.rate_per_unit.round(4),
-            with_margin: (rate.rate_per_unit * margin).round(4),
+            nbrb: rate_val.round(4),
+            with_buffer: (rate_val * @params_info[:buffer]).round(4),
             date: rate.date
           }
         end
@@ -63,4 +72,3 @@ Trestle.resource(:price_calculator, model: PriceCalculator) do
     end
   end
 end
-

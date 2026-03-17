@@ -11,41 +11,69 @@ module Api
         context = params[:context].presence || 'passport_update'
 
         # Throttle: 30 seconds between requests
-        last_verification = A1Verification.where(phone: phone).order(created_at: :desc).first
-        if last_verification && last_verification.created_at > 30.seconds.ago
-          seconds_left = (last_verification.created_at + 30.seconds - Time.current).to_i
+        last_request = PhoneVerificationRequest.where(phone: phone.gsub(/\D/, '')).order(id: :desc).first
+        if last_request && last_request.created_at > 30.seconds.ago
+          seconds_left = (last_request.created_at + 30.seconds - Time.current).to_i
           return render json: { 
             error: "Повторный запрос звонка возможен через #{seconds_left} сек.",
             seconds_left: seconds_left
           }, status: :too_many_requests
         end
 
-        payload = A1StubService.request_call(user: current_user, phone: phone, context: context)
-        render json: payload, status: :created
+        result = PhoneAuthService.send_code(
+          phone: phone, 
+          metadata: { 
+            user_id: current_user&.id, 
+            context: context,
+            ip_address: request.remote_ip,
+            user_agent: request.user_agent
+          }
+        )
+
+        if result[:success]
+          # Находим созданный код для возврата ID (хотя ID теперь не так важен)
+          verification = VerificationCode.find_by(phone: phone.gsub(/\D/, ''))
+          render json: {
+            verification_id: verification&.id,
+            phone: phone,
+            display_message: "Введите последние 4 цифры номера, с которого поступил звонок",
+            caller_number_masked: "+375 (**) ***-**-#{verification&.code}",
+            expires_at: verification&.expires_at&.iso8601
+          }, status: :created
+        else
+          render json: { error: result[:error] }, status: :unprocessable_entity
+        end
       end
 
       # POST /api/v1/a1/verify
       # Body: { verification_id: 123, last4: "1234" }
       def verify_call
-        verification_id = params.require(:verification_id)
+        # Для совместимости принимаем verification_id, но искать будем по телефону и коду
+        # Если verification_id передан, попробуем найти телефон
         last4 = params.require(:last4)
+        
+        verification = nil
+        if params[:verification_id].present?
+          verification = VerificationCode.find_by(id: params[:verification_id], code: last4)
+        end
+        
+        # Если не нашли по ID, попробуем по телефону (если передан)
+        if verification.nil? && params[:phone].present?
+          verification = VerificationCode.valid_code(params[:phone].gsub(/\D/, ''), last4).first
+        end
 
-        result = A1StubService.verify_call(verification_id: verification_id, last4: last4)
-        if result[:success]
-          # If it was a passport update, update the user's passport_verified_at
-          verification = A1Verification.find(verification_id)
+        if verification && verification.expires_at > Time.current
+          phone = verification.phone
+          verification.destroy!
           
-          # Security check: if user is logged in, ensure this verification belongs to them
-          # Or if they are anonymous (checkout), it still works
-          if verification.context == 'passport_update' && verification.user.present?
-            if current_user.nil? || current_user.id == verification.user_id
-              verification.user.update!(passport_verified_at: Time.current)
-            end
+          # Если это паспортное подтверждение и есть пользователь
+          if current_user
+            current_user.update!(passport_verified_at: Time.current, phone: phone)
           end
 
           render json: { success: true }
         else
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render json: { success: false, error: 'invalid_code_or_expired' }, status: :unprocessable_entity
         end
       end
     end

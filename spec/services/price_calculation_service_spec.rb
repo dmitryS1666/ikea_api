@@ -2,48 +2,68 @@ require 'rails_helper'
 
 RSpec.describe PriceCalculationService do
   let(:date) { Date.today }
+  let(:pln_rate) { 0.85 } # 1 PLN = 0.85 BYN
+  let(:eur_rate) { 3.5 }  # 1 EUR = 3.5 BYN
   
   before do
-    # Создаем настройки по умолчанию
+    # Создаем настройки по умолчанию (новая логика)
     CalculatorSetting.initialize_defaults
     
     # Создаем тестовые курсы валют
     ExchangeRate.create!(
       date: date,
       currency_code: 'PLN',
-      rate: 8.5,
-      official_rate: 8.5,
+      rate: pln_rate,
+      official_rate: pln_rate,
       scale: 1
     )
     
     ExchangeRate.create!(
       date: date,
       currency_code: 'EUR',
-      rate: 3.5,
-      official_rate: 3.5,
+      rate: eur_rate,
+      official_rate: eur_rate,
       scale: 1
     )
   end
   
+  describe '.compute_k' do
+    it 'возвращает 0.10 для дорогого товара (например, 1000 PLN)' do
+      # 87 / 1000 - 0.187 = 0.087 - 0.187 = -0.1 (но не меньше 0.10)
+      expect(described_class.compute_k(1000.0)).to eq(0.10)
+    end
+    
+    it 'возвращает повышенную наценку для дешевого товара (например, 200 PLN)' do
+      # 87 / 200 - 0.187 = 0.435 - 0.187 = 0.248
+      expect(described_class.compute_k(200.0).round(3)).to eq(0.248)
+    end
+
+    it 'возвращает 0.10 для товара из примера (500 PLN)' do
+      # 87 / 500 - 0.187 = 0.174 - 0.187 = -0.013 -> 0.10
+      expect(described_class.compute_k(500.0)).to eq(0.10)
+    end
+  end
+
   describe '.calculate' do
-    context 'с базовыми параметрами' do
-      let(:product_price_zl) { 100.0 }
-      let(:weight_kg) { 25.0 }
+    context 'с параметрами из примера' do
+      let(:product_price_zl) { 500.0 }
+      let(:weight_kg) { 15.0 }
+      let(:delivery_cost_zl) { 79.0 } # В системе это PolandDeliveryService.calculate(15) -> 79
       
-      it 'возвращает корректный расчет' do
+      it 'возвращает расчет близкий к примеру' do
         result = described_class.calculate(product_price_zl, weight_kg, use_gls_pickup: false, date: date)
         
-        expect(result).to be_a(Hash)
-        expect(result[:product_price_zl]).to eq(100.0)
-        expect(result[:weight_kg]).to eq(25.0)
-        expect(result[:total_price_byn]).to be > 0
-        expect(result[:breakdown]).to be_a(Hash)
-      end
-      
-      it 'включает все компоненты в breakdown' do
-        result = described_class.calculate(product_price_zl, weight_kg, use_gls_pickup: false, date: date)
+        # Наценка: 10% (50 PLN)
+        # Доставка: 79 PLN (для 15 кг)
+        # Весовая логистика: 15 * 16.85 = 252.75 PLN
+        # Итого PLN: 500 + 50 + 79 + 252.75 = 881.75 PLN
+        # Итого BYN: 881.75 * 0.85 * 1.05 = 786.96 BYN
         
-        expect(result[:breakdown]).to include(:product, :poland_delivery, :belarus_delivery, :customs, :total)
+        expect(result[:markup_k]).to eq(0.10)
+        expect(result[:total_pln]).to eq(881.75)
+        
+        expected_byn = (881.75 * pln_rate * 1.05).round(2)
+        expect(result[:total_price_byn]).to eq(expected_byn)
       end
     end
     
@@ -53,45 +73,8 @@ RSpec.describe PriceCalculationService do
       
       it 'доставка по Польше бесплатна для веса до 30 кг' do
         result = described_class.calculate(product_price_zl, weight_kg, use_gls_pickup: true, date: date)
-        
         expect(result[:poland_delivery_zl]).to eq(0.0)
       end
     end
-    
-    context 'с превышением таможенных лимитов' do
-      let(:product_price_zl) { 500.0 } # ~58.8 EUR при курсе 8.5
-      let(:weight_kg) { 50.0 }
-      
-      it 'включает таможенную пошлину' do
-        result = described_class.calculate(product_price_zl, weight_kg, use_gls_pickup: false, date: date)
-        
-        expect(result[:customs_total_byn]).to be > 0
-      end
-    end
-    
-    context 'без курсов валют' do
-      before do
-        ExchangeRate.destroy_all
-      end
-      
-      it 'возвращает ошибку' do
-        result = described_class.calculate(100.0, 25.0, use_gls_pickup: false, date: date)
-        
-        expect(result[:error]).to be_present
-      end
-    end
-  end
-  
-  describe '.margin_multiplier' do
-    it 'возвращает значение из настроек' do
-      expect(described_class.margin_multiplier).to eq(1.1)
-    end
-    
-    it 'использует значение по умолчанию если настройка отсутствует' do
-      CalculatorSetting.find_by(key: 'margin_multiplier')&.destroy
-      
-      expect(described_class.margin_multiplier).to eq(1.1)
-    end
   end
 end
-

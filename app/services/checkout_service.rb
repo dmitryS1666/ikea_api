@@ -1,14 +1,11 @@
 class CheckoutService
-  MIN_ORDER_AMOUNT = 150.0
-
   def self.call(user:, params:)
     cart = user.cart
     return { error: 'Корзина не найдена' } unless cart
     return { error: 'Корзина пуста' } if cart.cart_items.blank?
 
-    # Passport change requires A1 verification (stubbed for now)
+    # Passport validation skipped for brevity, same as original
     passport_input = params[:passport].is_a?(Hash) ? params[:passport] : (params[:passport].to_unsafe_h rescue nil)
-    # Validate passport number format (relaxed) if provided
     if passport_input.present?
       number = passport_input['passport_number'] || passport_input[:passport_number] || passport_input['number'] || passport_input[:number]
       if number.present? && !PassportNumberValidator.valid?(number)
@@ -18,9 +15,10 @@ class CheckoutService
     current_passport = user.passport_data
     passport_changed = passport_input.present? && !UserPassportService.same?(passport_input, current_passport)
     if passport_changed
-      verification_id = params[:a1_verification_id]
-      verification = A1Verification.find_by(id: verification_id, user_id: user.id)
-      return { error: 'Требуется подтверждение паспорта через A1' } unless verification&.status == 'verified'
+      last4 = params[:a1_verification_last4] || params[:verification_code]
+      verification = VerificationCode.valid_code(user.phone.to_s.gsub(/\D/, ''), last4).first
+      return { error: 'Требуется подтверждение паспорта через звонок' } unless verification
+      verification.destroy!
     end
 
     # Пересчет и проверка с использованием динамических правил
@@ -32,7 +30,6 @@ class CheckoutService
 
     # Проверка наличия (заглушка)
     pricing[:items].each do |item|
-      # Проверяем реальный сток в БД, если есть поле quantity
       product = Product.find_by(sku: item[:sku])
       if product && product.quantity.to_i <= 0
         return { error: "Товара #{product.name} нет в наличии" }
@@ -46,8 +43,8 @@ class CheckoutService
       order = Order.new(
         user: user,
         status: :created,
-        total_amount: pricing[:totals][:subtotal_new_byn],
-        delivery_price: 0, # Пока 0, можно брать из params если передали
+        total_amount: pricing[:totals][:total_byn], # Финальная сумма к оплате
+        delivery_price: pricing[:totals][:delivery_total_byn], # Сохраняем стоимость доставки
         discount_amount: pricing[:totals][:discount_total_byn],
         promo_code: cart.promo_code,
         full_name: params[:full_name],
@@ -57,7 +54,9 @@ class CheckoutService
         address_json: (params[:address] || {}).merge(
           pickup_point_id: params[:pickup_point_id],
           services: params[:services],
-          passport_provided: passport_input.present?
+          passport_provided: passport_input.present?,
+          weight_kg: pricing[:totals][:total_weight_kg],
+          pln_total: pricing[:totals][:total_pln]
         )
       )
 
@@ -70,15 +69,13 @@ class CheckoutService
             order: order,
             product_sku: cart_item.product_sku,
             quantity: cart_item.quantity,
-            price: price_snapshot[:unit_price_new_byn] # Фиксируем финальную цену
+            price: price_snapshot[:unit_price_byn] # Фиксируем финальную цену (включая наценку K)
           )
         end
 
-        # Очистка корзины
         cart.cart_items.destroy_all
         cart.update!(promo_code: nil)
 
-        # Persist passport if changed and verified
         if passport_changed
           UserPassportService.write!(user: user, passport_hash: passport_input)
           user.update!(passport_verified_at: Time.current)
@@ -89,12 +86,8 @@ class CheckoutService
     end
 
     if order&.persisted?
-      # Отправка уведомлений
       OrderNotificationService.call(order)
-      
-      # Синхронизация с CRM
       CrmIntegrationService.sync_order(order)
-      
       { success: true, order: order }
     else
       { error: order&.errors&.full_messages&.join(', ') || 'Ошибка создания заказа' }

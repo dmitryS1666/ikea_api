@@ -33,7 +33,16 @@ module Api
               local_image_path: category.local_image_path
             }
           end,
-          products: ProductTeaserSerializer.new(display_products, { params: { favorite_skus: current_favorite_skus } }).serializable_hash,
+          products: ProductTeaserSerializer.new(display_products, { 
+            params: { 
+              favorite_skus: current_favorite_skus,
+              active_promos: PromoCode.active_now.to_a,
+              rates: {
+                eur: ExchangeRate.fetch_or_create('EUR')&.rate_per_unit,
+                pln: ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
+              }
+            } 
+          }).serializable_hash,
           available_filters: available_filters,
           popular_queries: popular_queries.map do |entry|
             { query: entry.query, weight: entry.weight }
