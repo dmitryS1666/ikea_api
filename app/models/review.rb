@@ -31,9 +31,7 @@ class Review < ApplicationRecord
 
   scope :published_reviews, -> { published.where(excluded_from_rating: false) }
 
-  def photos_urls(host:)
-    photos.map { |photo| Rails.application.routes.url_helpers.rails_blob_url(photo, host: host) }
-  rescue ArgumentError
+  def photos_urls
     photos.map { |photo| Rails.application.routes.url_helpers.rails_blob_path(photo, only_path: true) }
   end
 

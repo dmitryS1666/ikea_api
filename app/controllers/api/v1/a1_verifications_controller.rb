@@ -32,6 +32,17 @@ module Api
 
         result = A1StubService.verify_call(verification_id: verification_id, last4: last4)
         if result[:success]
+          # If it was a passport update, update the user's passport_verified_at
+          verification = A1Verification.find(verification_id)
+          
+          # Security check: if user is logged in, ensure this verification belongs to them
+          # Or if they are anonymous (checkout), it still works
+          if verification.context == 'passport_update' && verification.user.present?
+            if current_user.nil? || current_user.id == verification.user_id
+              verification.user.update!(passport_verified_at: Time.current)
+            end
+          end
+
           render json: { success: true }
         else
           render json: { success: false, error: result[:error] }, status: :unprocessable_entity

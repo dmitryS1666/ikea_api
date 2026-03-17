@@ -1,4 +1,9 @@
 Trestle.resource(:users, model: User) do
+  routes do
+    post :request_call, on: :member
+    post :verify_call, on: :member
+  end
+
   menu do
     item :users, icon: "fa fa-users", priority: 5, label: "Пользователи", group: "Settings"
   end
@@ -27,7 +32,45 @@ Trestle.resource(:users, model: User) do
                  user.is_active? ? :success : :danger)
     end
     column :created_at, align: :center
-    actions
+    actions do |toolbar, user|
+      toolbar.link "Запрос звонка", admin.instance_path(user, action: :request_call), method: :post, icon: "fa fa-phone", class: "btn btn-info"
+    end
+  end
+
+  controller do
+    def request_call
+      user = admin.find_instance(params)
+      if user.phone.blank?
+        flash[:error] = "У пользователя не указан номер телефона"
+      else
+        A1StubService.request_call(user: user, phone: user.phone, context: 'passport_update')
+        flash[:message] = "Запрос на звонок отправлен на #{user.phone}"
+      end
+      redirect_to admin.path(:show, id: user.id)
+    end
+
+    def verify_call
+      user = admin.find_instance(params)
+      last4 = params[:last4]
+      if last4.blank?
+        flash[:error] = "Введите 4 цифры"
+        redirect_to admin.path(:show, id: user.id) and return
+      end
+
+      pending_verification = A1Verification.where(user: user, context: 'passport_update', status: 'pending').order(created_at: :desc).first
+      if pending_verification.nil?
+        flash[:error] = "Нет активных запросов на верификацию"
+      else
+        result = A1StubService.verify_call(verification_id: pending_verification.id, last4: last4)
+        if result[:success]
+          user.update!(passport_verified_at: Time.current)
+          flash[:message] = "Паспорт успешно верифицирован через звонок"
+        else
+          flash[:error] = "Неверный код (последние 4 цифры)"
+        end
+      end
+      redirect_to admin.path(:show, id: user.id)
+    end
   end
 
   form do |user|
@@ -97,6 +140,61 @@ Trestle.resource(:users, model: User) do
         end
         
         datetime_field :passport_verified_at, label: "Дата верификации"
+
+        divider
+
+        static_field :a1_verifications, label: "История верификаций через звонок (A1)" do
+          pending_v = A1Verification.where(user: user, context: 'passport_update', status: 'pending').where('expires_at > ?', Time.current).order(created_at: :desc).first
+          
+          res = if pending_v
+            content_tag(:div, class: "well", style: "background-color: #fff9c4; border: 1px solid #ffd600;") do
+              content_tag(:p, "Ожидает подтверждения (последние 4 цифры):") +
+              form_tag(admin.instance_path(user, action: :verify_call), method: :post, class: "form-inline") do
+                text_field_tag(:last4, nil, class: "form-control input-sm", placeholder: "1234", maxlength: 4, style: "width: 100px; display: inline-block;") +
+                submit_tag("Подтвердить", class: "btn btn-success btn-sm", style: "margin-left: 10px;")
+              end
+            end
+          else
+            link_to("Запросить звонок для верификации", admin.instance_path(user, action: :request_call), method: :post, class: "btn btn-info btn-sm")
+          end
+
+          verifications = A1Verification.where(user: user, context: 'passport_update').order(created_at: :desc).limit(5)
+          res += content_tag(:hr)
+          res += if verifications.any?
+            content_tag(:table, class: "table") do
+              content_tag(:thead) do
+                content_tag(:tr) do
+                  content_tag(:th) { "Дата" } +
+                  content_tag(:th) { "Телефон" } +
+                  content_tag(:th) { "Статус" } +
+                  content_tag(:th) { "Ожидалось" }
+                end
+              end +
+              content_tag(:tbody) do
+                verifications.map do |v|
+                  content_tag(:tr) do
+                    content_tag(:td) { v.created_at.strftime("%d.%m.%Y %H:%M") } +
+                    content_tag(:td) { v.phone } +
+                    content_tag(:td) do
+                      case v.status
+                      when 'verified'
+                        status_tag("Подтвержден", :success)
+                      when 'expired'
+                        status_tag("Просрочен", :danger)
+                      else
+                        status_tag("Ожидает", :warning)
+                      end
+                    end +
+                    content_tag(:td) { v.expected_last4 }
+                  end
+                end.reduce(:+)
+              end
+            end
+          else
+            content_tag(:p, "Записей не найдено")
+          end
+          res
+        end
       else
         static_field :no_passport, label: "Статус" do
           "Данные не предоставлены"
@@ -114,7 +212,12 @@ Trestle.resource(:users, model: User) do
       row do
         col(sm: 12) { check_box :is_active }
       end
+      row do
+        col(sm: 12) { static_field :created_at }
+      end
+      row do
+        col(sm: 12) { static_field :updated_at }
+      end
     end
   end
 end
-

@@ -81,7 +81,7 @@ module Api
       end
 
       def serializer_params
-        { host: request.base_url }
+        {}
       end
     end
   end

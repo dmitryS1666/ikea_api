@@ -46,6 +46,13 @@ module Api
           scope = scope.with_component(params[:component]) if params[:component].present?
           scope = scope.with_project(params[:project]) if params[:project].present?
           scope = scope.with_tag(params[:tag]) if params[:tag].present?
+
+          if params[:product_sku].present?
+            product = Product.find_by(sku: params[:product_sku])
+            scope = scope.relevant_for_product(product) if product
+          end
+
+          scope = scope.for_category_id(params[:category_id]) if params[:category_id].present?
           scope
         end
 

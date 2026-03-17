@@ -62,7 +62,7 @@ class ContentArticle < ApplicationRecord
   enum content_type: { tips_ideas: 0, news: 1 }
   enum status: { draft: 0, published: 1, archived: 2 }
 
-  attr_accessor :product_skus_input, :category_ids_input
+  attr_accessor :product_skus_input, :category_ids_input, :product_csv
   attr_writer :components_input, :projects_input, :tags_input, :body_blocks_json, :tile_blocks_json
   attr_accessor :body_block_images_uploads
 
@@ -93,6 +93,24 @@ class ContentArticle < ApplicationRecord
   scope :with_project, ->(value) { where("projects @> ?", Array(value).to_json) if value.present? }
   scope :with_tag, ->(value) { where("tags @> ?", Array(value).to_json) if value.present? }
   scope :pinned, -> { where(pinned: true) }
+
+  scope :for_product_sku, ->(sku) { joins(:content_article_products).where(content_article_products: { product_sku: sku }) }
+  scope :for_category_id, ->(category_id) { joins(:content_article_categories).where(content_article_categories: { category_id: Array.wrap(category_id) }) }
+  
+  scope :relevant_for_product, ->(product) {
+    return none unless product
+
+    category_ids = product.categories.pluck(:ikea_id)
+    category_ids << product.category_id if product.category_id.present?
+    category_ids = category_ids.compact.uniq
+
+    query = "content_article_products.product_sku = :sku"
+    query += " OR content_article_categories.category_id IN (:category_ids)" if category_ids.any?
+
+    left_outer_joins(:content_article_products, :content_article_categories)
+      .where(query, sku: product.sku, category_ids: category_ids)
+      .distinct
+  }
 
   def components_input
     @components_input || components.to_a.join("\n")
@@ -147,7 +165,7 @@ class ContentArticle < ApplicationRecord
   def category_ids_input
     return @category_ids_input if instance_variable_defined?(:@category_ids_input)
 
-    linked_category_ids.join("\n")
+    linked_category_ids
   end
 
   def to_param
@@ -160,6 +178,30 @@ class ContentArticle < ApplicationRecord
 
   def linked_category_ids
     content_article_categories.order(:position).pluck(:category_id)
+  end
+
+  def preview_url_for(signed_id)
+    blob = blob_for_signed_id(signed_id)
+    return nil unless blob
+
+    Rails.application.routes.url_helpers.rails_blob_url(blob, only_path: true)
+  rescue ArgumentError
+    nil
+  end
+
+  def blob_for_signed_id(signed_id)
+    return nil unless signed_id.present?
+
+    ActiveStorage::Blob.find_signed(signed_id)
+  rescue ActiveSupport::MessageVerifier::InvalidSignature, ActiveRecord::RecordNotFound
+    nil
+  end
+
+  def default_url_host
+    default_host = Rails.application.routes.default_url_options[:host]
+    return default_host if default_host.present?
+
+    ENV["DEFAULT_URL_HOST"].presence || ENV["API_HOST"].presence || "http://localhost:3000"
   end
 
   def body_blocks_for_admin
@@ -323,30 +365,6 @@ class ContentArticle < ApplicationRecord
     }
   end
 
-  def preview_url_for(signed_id)
-    blob = blob_for_signed_id(signed_id)
-    return nil unless blob
-
-    rails_blob_url(blob, host: default_url_host)
-  rescue ArgumentError
-    nil
-  end
-
-  def blob_for_signed_id(signed_id)
-    return nil unless signed_id.present?
-
-    ActiveStorage::Blob.find_signed(signed_id)
-  rescue ActiveSupport::MessageVerifier::InvalidSignature, ActiveRecord::RecordNotFound
-    nil
-  end
-
-  def default_url_host
-    default_host = Rails.application.routes.default_url_options[:host]
-    return default_host if default_host.present?
-
-    ENV["DEFAULT_URL_HOST"].presence || ENV["API_HOST"].presence || "http://localhost:3000"
-  end
-
   def normalize_array_value(value)
     return [] if value.blank?
     if value.is_a?(Array)
@@ -373,9 +391,26 @@ class ContentArticle < ApplicationRecord
   end
 
   def sync_linked_products
-    return unless defined?(@product_skus_input)
+    return unless defined?(@product_skus_input) || product_csv.present?
 
-    parsed_skus = normalize_array_value(@product_skus_input)
+    skus_from_input = normalize_array_value(@product_skus_input)
+    skus_from_csv = []
+
+    if product_csv.respond_to?(:read)
+      require 'csv'
+      begin
+        CSV.parse(product_csv.read, headers: false).each do |row|
+          skus_from_csv << row[0].to_s.strip if row[0].present?
+        end
+      rescue CSV::MalformedCSVError
+        # Optional: handle error
+      ensure
+        product_csv.rewind if product_csv.respond_to?(:rewind)
+      end
+    end
+
+    parsed_skus = (skus_from_input + skus_from_csv).uniq.reject(&:blank?)
+    
     content_article_products.delete_all
     parsed_skus.each_with_index do |sku, index|
       content_article_products.create!(

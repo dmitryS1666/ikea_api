@@ -47,7 +47,7 @@ class OrderNotificationService
   end
 
   def self.send_telegram_status_notification(order)
-    status_text = I18n.t("activerecord.attributes.order.status.#{order.status}")
+    status_text = I18n.t("activerecord.attributes.order.statuses.#{order.status}")
     message = "📦 <b>Заказ №#{order.id}</b>\n"
     message += "Статус изменен на: <b>#{status_text}</b>"
     

@@ -10,13 +10,29 @@ Trestle.resource(:content_articles, model: ContentArticle) do
     scope :published, -> { ContentArticle.visible }
   end
 
+  routes do
+    post :remove_product, on: :member
+    get :remove_product, on: :member
+  end
+
+  controller do
+    def remove_product
+      article = admin.find_instance(params)
+      sku = params[:sku]
+      article.content_article_products.where(product_sku: sku).delete_all
+      
+      flash[:message] = "Товар #{sku} удален из статьи."
+      redirect_to admin.path(:show, id: article.id)
+    end
+  end
+
   table do
     column :content_type do |article|
-      ContentArticle.human_attribute_name("content_type.#{article.content_type}")
+      ContentArticle.human_attribute_name("content_types.#{article.content_type}")
     end
     
     column :status do |article|
-      ContentArticle.human_attribute_name("status.#{article.status}")
+      ContentArticle.human_attribute_name("statuses.#{article.status}")
     end
     column :title, link: true
     column :slug
@@ -32,13 +48,13 @@ Trestle.resource(:content_articles, model: ContentArticle) do
       row do
         col(sm: 6) do
           select :content_type,
-                 ContentArticle.content_types.keys.map { |key| [ContentArticle.human_attribute_name("content_type.#{key}"), key] },
+                 ContentArticle.content_types.keys.map { |key| [ContentArticle.human_attribute_name("content_types.#{key}"), key] },
                  label: "Тип контента"
         end
         
         col(sm: 6) do
           select :status,
-                 ContentArticle.statuses.keys.map { |key| [ContentArticle.human_attribute_name("status.#{key}"), key] },
+                 ContentArticle.statuses.keys.map { |key| [ContentArticle.human_attribute_name("statuses.#{key}"), key] },
                  label: "Статус"
         end
       end
@@ -75,10 +91,67 @@ Trestle.resource(:content_articles, model: ContentArticle) do
     tab :links do
       row do
         col(sm: 6) do
-          text_area :product_skus_input, rows: 4, help: "SKU товаров (штроки, разделенные переносами)"
+          text_area :product_skus_input, rows: 4, help: "SKU товаров (строки, разделенные переносами)"
+          file_field :product_csv, label: "Или загрузить SKU из CSV", accept: ".csv", help: "Первая колонка = SKU"
         end
         col(sm: 6) do
-          text_area :category_ids_input, rows: 4, help: "Категории (ikea_id), одна строка = одна категория"
+          select :category_ids_input, 
+                 Category.all.order(:name).map { |c| [c.translated_name, c.ikea_id] }, 
+                 { label: "Связанные категории", help: "Советы будут показаны в товарах этих категорий" }, 
+                 { multiple: true, data: { ui: "select2" } }
+        end
+      end
+
+      if article.content_article_products.any?
+        row do
+          col(sm: 12) do
+            accordion_id = "linked-products-accordion-#{article.id}"
+            collapse_id = "linked-products-collapse-#{article.id}"
+            
+            static_field :linked_products_list, label: "Привязанные товары (#{article.content_article_products.count})" do
+              content_tag(:div, class: "accordion", id: accordion_id) do
+                content_tag(:div, class: "accordion-item") do
+                  header = content_tag(:h2, class: "accordion-header", id: "#{collapse_id}-header") do
+                    content_tag(:button, "Показать список привязанных товаров", 
+                                class: "accordion-button collapsed", 
+                                type: "button", 
+                                data: { "bs-toggle": "collapse", "bs-target": "##{collapse_id}" }, 
+                                aria: { expanded: "false", controls: collapse_id })
+                  end
+                  
+                  body = content_tag(:div, id: collapse_id, 
+                                     class: "accordion-collapse collapse", 
+                                     aria: { labelledby: "#{collapse_id}-header" }, 
+                                     data: { "bs-parent": "##{accordion_id}" }) do
+                    content_tag(:div, class: "accordion-body") do
+                      table article.content_article_products.includes(:product), class: "table table-condensed" do
+                        column :product_sku, label: "SKU" do |cap|
+                          if cap.product
+                            link_to cap.product_sku, Trestle.lookup(:products).path(:show, id: cap.product.id)
+                          else
+                            cap.product_sku
+                          end
+                        end
+                        column :name, label: "Название" do |cap|
+                          cap.product&.name_ru || "—"
+                        end
+                        column :actions, label: "" do |cap|
+                          link_to admin.path(:remove_product, id: article.id, sku: cap.product_sku), 
+                                  method: :post, 
+                                  class: "btn btn-xs btn-outline-danger", 
+                                  data: { confirm: "Удалить связь с этим товаром?" } do
+                            tag.i(class: "fa fa-trash")
+                          end
+                        end
+                      end
+                    end
+                  end
+                  
+                  header + body
+                end
+              end
+            end
+          end
         end
       end
     end
@@ -123,6 +196,7 @@ Trestle.resource(:content_articles, model: ContentArticle) do
       :tags_input,
       :product_skus_input,
       :category_ids_input,
+      :product_csv,
       :pinned,
       :pinned_position,
       :published_at,

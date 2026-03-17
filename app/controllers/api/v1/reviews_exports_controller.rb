@@ -41,7 +41,7 @@ module Api
               review.pinned,
               review.created_at,
               review.published_at,
-              review.photos_urls(host: request.base_url).join(';')
+              review.photos_urls.join(';')
             ]
           end
         end
@@ -61,7 +61,7 @@ module Api
             pinned: review.pinned,
             created_at: review.created_at,
             published_at: review.published_at,
-            photos_urls: review.photos_urls(host: request.base_url)
+            photos_urls: review.photos_urls
           }
         end
       end

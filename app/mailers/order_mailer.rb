@@ -9,7 +9,7 @@ class OrderMailer < ApplicationMailer
   def status_updated(order)
     @order = order
     @user = order.user
-    @status_text = I18n.t("activerecord.attributes.order.status.#{@order.status}")
+    @status_text = I18n.t("activerecord.attributes.order.statuses.#{@order.status}")
     
     mail(to: @user.email, subject: "Статус заказа №#{@order.id} изменен: #{@status_text}") if @user.email.present?
   end

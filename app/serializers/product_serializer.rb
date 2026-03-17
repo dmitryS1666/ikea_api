@@ -102,6 +102,11 @@ class ProductSerializer
     SeoHelper.meta_for(product, params[:city])
   end
 
+  attribute :tips, if: Proc.new { |_product, params| params && params[:detail] } do |product|
+    articles = ContentArticle.visible.tips_ideas.relevant_for_product(product).limit(5)
+    ContentArticleTeaserSerializer.new(articles).serializable_hash[:data].map { |a| a[:attributes] }
+  end
+
   attribute :full_attributes_ru do |product|
     full = product.full_attributes_ru || {}
     {

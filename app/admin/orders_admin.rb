@@ -5,18 +5,22 @@ Trestle.resource(:orders) do
 
   table do
     column :id
-    column :user
+    column :customer_name, label: "Покупатель"
     column :status do |order|
-      status_text = I18n.t("activerecord.attributes.order.status.#{order.status}")
-      case order.status.to_sym
-      when :completed
-        status_tag(status_text, :success)
-      when :cancelled
-        status_tag(status_text, :danger)
-      when :created, :confirmed, :paid
-        status_tag(status_text, :info)
+      if order.status
+        status_text = I18n.t("activerecord.attributes.order.statuses.#{order.status}")
+        case order.status.to_sym
+        when :completed
+          status_tag(status_text, :success)
+        when :cancelled
+          status_tag(status_text, :danger)
+        when :created, :confirmed, :paid
+          status_tag(status_text, :info)
+        else
+          status_tag(status_text, :primary)
+        end
       else
-        status_tag(status_text, :primary)
+        status_tag("Неизвестно (#{order.attributes['status']})", :secondary)
       end
     end
     column :total_amount
@@ -25,14 +29,15 @@ Trestle.resource(:orders) do
   end
 
   form do |order|
-    row do
+    sidebar do
       col(sm: 6) { static_field :id }
-      col(sm: 6) { select :status, Order.statuses.keys.map { |s| [I18n.t("activerecord.attributes.order.status.#{s}"), s] } }
+      col(sm: 6) { static_field :created_at }
+      col(sm: 6) { select :status, Order.statuses.keys.map { |s| [I18n.t("activerecord.attributes.order.statuses.#{s}"), s] } }
     end
 
     row do
-      col(sm: 6) { static_field :user }
-      col(sm: 6) { text_field :track_number }
+      col(sm: 6) { static_field :customer_name, label: "Покупатель" }
+      col(sm: 6) { static_field :track_number }
     end
 
     row do

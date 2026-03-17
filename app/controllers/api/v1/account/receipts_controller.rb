@@ -27,7 +27,7 @@ module Api
             filename: attachment.filename.to_s,
             content_type: attachment.content_type,
             byte_size: attachment.byte_size,
-            url: rails_blob_url(attachment, host: request.base_url)
+            url: rails_blob_path(attachment, only_path: true)
           }
         end
       end

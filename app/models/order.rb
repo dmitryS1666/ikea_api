@@ -36,6 +36,10 @@ class Order < ApplicationRecord
     status.in?(PURCHASED_STATUSES)
   end
 
+  def customer_name
+    user&.full_name || full_name.presence || "—"
+  end
+
   private
 
   def notify_status_change

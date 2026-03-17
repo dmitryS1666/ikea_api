@@ -74,7 +74,8 @@ class TelegramService
         'category_images' => 'Картинки категорий',
         'product_images' => 'Картинки продуктов',
         'extended_attributes' => 'Расширенные атрибуты продуктов',
-        'currency_rates' => 'Курсы валют'
+        'currency_rates' => 'Курсы валют',
+        'translate_all_products' => 'Полный перевод продуктов (Google)'
       }[task_type.to_s] || task_type.to_s
     end
 

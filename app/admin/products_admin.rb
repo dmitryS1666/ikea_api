@@ -537,6 +537,23 @@ Trestle.resource(:products, model: Product) do
         end
       end
     end
+
+    tab :tips, label: "Советы" do
+      static_field :relevant_tips, label: "Связанные советы" do
+        tips = ContentArticle.visible.tips_ideas.relevant_for_product(product)
+        if tips.any?
+          content_tag(:ul) do
+            tips.map do |tip|
+              content_tag(:li) do
+                link_to(tip.title, Trestle.lookup(:content_articles).path(:show, id: tip.id))
+              end
+            end.join.html_safe
+          end
+        else
+          "Для этого товара нет специфических советов"
+        end
+      end
+    end
   end
 
   params do |params|

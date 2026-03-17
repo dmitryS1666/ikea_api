@@ -9,9 +9,8 @@ class ReviewSerializer
     review.helpful_count
   end
 
-  attribute :photos do |review, params|
-    host = params&.dig(:host) || Rails.application.routes.default_url_options[:host]
-    review.photos_urls(host: host)
+  attribute :photos do |review|
+    review.photos_urls
   end
 
   attribute :product do |review|
