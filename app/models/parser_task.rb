@@ -59,6 +59,20 @@ class ParserTask < ApplicationRecord
     increment!(:error_count)
   end
 
+  def reset_task!
+    update!(
+      processed: 0,
+      created: 0,
+      updated: 0,
+      error_count: 0,
+      payload: (payload || {}).merge('last_id' => nil),
+      started_at: nil,
+      completed_at: nil,
+      error_message: nil,
+      status: 'pending'
+    )
+  end
+
   def update_payload!(updates = {})
     self.payload = (payload || {}).merge(updates)
     update_column(:payload, payload)

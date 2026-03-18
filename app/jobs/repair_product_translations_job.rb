@@ -2,9 +2,12 @@
 class RepairProductTranslationsJob < ApplicationJob
   queue_as :parser
 
-  def perform(limit: nil, task_id: nil)
+  def perform(limit: nil, task_id: nil, reset: false)
     # Если task_id передан, используем существующую задачу, иначе создаем новую
     task = task_id ? ParserTask.find(task_id) : create_parser_task('fix_translations', limit: limit)
+    
+    # Сбрасываем прогресс, если запрошен сброс
+    task.reset_task! if reset
     
     # Проверяем, не остановлена ли задача перед началом выполнения
     check_task_not_stopped!(task)
@@ -15,15 +18,15 @@ class RepairProductTranslationsJob < ApplicationJob
     start_time = Time.current
     
     stats = {
-      processed: 0,
-      fixed: 0,
-      errors: 0
+      processed: task.processed || 0,
+      fixed: task.updated || 0, # В ParserTask fixed мапится на updated
+      errors: task.error_count || 0
     }
     
     begin
       fields_to_fix = ProductTranslationRepairService::FIELDS_TO_FIX
       last_id = task.payload['last_id']
-
+      
       # Ищем продукты, где хотя бы в одном из полей есть "translatedText"
       query_parts = fields_to_fix.map { |f| "#{f} LIKE '%translatedText%'" }
       query_parts << "full_attributes_ru::text LIKE '%translatedText%'"
@@ -38,7 +41,7 @@ class RepairProductTranslationsJob < ApplicationJob
       Rails.logger.info "Starting RepairProductTranslationsJob for #{total_count} products (starting from ID: #{last_id || 'begin'})..."
 
       # Используем пул соединений для параллельной обработки
-      products.find_in_batches(batch_size: 2) do |batch|
+      products.find_in_batches(batch_size: 3) do |batch|
         break if limit && processed_count >= limit
 
         promises = batch.map do |product|

@@ -52,6 +52,14 @@
               <%= number_field_tag :limit, nil, class: "form-control", placeholder: "Оставьте пустым для без ограничений", min: 1 %>
             </div>
 
+            <div class="form-group d-none" id="reset_field">
+              <div class="custom-control custom-checkbox">
+                <%= check_box_tag :reset, '1', false, class: "custom-control-input", id: "reset_checkbox" %>
+                <%= label_tag :reset_checkbox, "Сбросить прогресс и начать сначала", class: "custom-control-label" %>
+              </div>
+              <small class="form-text text-muted">Если отмечено, джоба начнет обработку с первого ID, а не с последнего сохраненного.</small>
+            </div>
+
             <div class="form-group d-none" id="extra_data_field">
               <%= label_tag :extra_data, "Список SKU (через пробел или запятую)", class: "form-label" %>
               <%= text_area_tag :extra_data, nil, class: "form-control", rows: 5, placeholder: "Например: 123.456.78, 987.654.32" %>
@@ -184,7 +192,7 @@
                   <td><%= task.started_at&.strftime('%d.%m.%Y %H:%M') %></td>
                   <td><%= task.completed_at&.strftime('%d.%m.%Y %H:%M') %></td>
                   <td>
-                    <% if task.task_type == 'extended_attrs_import' && task.status == 'failed' %>
+                    <% if %w[extended_attrs_import translate_all_products fix_translations].include?(task.task_type) && task.status == 'failed' %>
                       <%= form_tag resume_task_parser_control_admin_index_path, method: :post, data: { turbo: false }, style: "display: inline;" do %>
                         <%= hidden_field_tag :task_id, task.id %>
                         <%= submit_tag "Продолжить", class: "btn btn-sm btn-outline-primary" %>
@@ -451,6 +459,7 @@
   if (startForm) {
     const taskSelect = document.getElementById('task_type_select');
     const limitField = document.getElementById('limit_field');
+    const resetField = document.getElementById('reset_field');
     const extraDataField = document.getElementById('extra_data_field');
     const extraFileField = document.getElementById('extra_file_field');
 
@@ -459,6 +468,7 @@
       
       // Скрываем все
       limitField.classList.remove('d-none');
+      resetField.classList.add('d-none');
       extraDataField.classList.add('d-none');
       extraFileField.classList.add('d-none');
 
@@ -467,6 +477,8 @@
       } else if (task === 'extended_attrs_import') {
         extraFileField.classList.remove('d-none');
         limitField.classList.add('d-none');
+      } else if (task === 'translate_all_products' || task === 'fix_translations') {
+        resetField.classList.remove('d-none');
       }
     }
 

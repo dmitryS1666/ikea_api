@@ -2,9 +2,12 @@
 class TranslateAllProductsJob < ApplicationJob
   queue_as :parser
 
-  def perform(limit: nil, task_id: nil)
+  def perform(limit: nil, task_id: nil, reset: false)
     # Если task_id передан, используем существующую задачу, иначе создаем новую
     task = task_id ? ParserTask.find(task_id) : create_parser_task('translate_all_products', limit: limit)
+    
+    # Сбрасываем прогресс, если запрошен сброс
+    task.reset_task! if reset
     
     # Проверяем, не остановлена ли задача перед началом выполнения
     check_task_not_stopped!(task)
@@ -15,9 +18,9 @@ class TranslateAllProductsJob < ApplicationJob
     start_time = Time.current
     
     stats = {
-      processed: 0,
-      updated: 0,
-      errors: 0
+      processed: task.processed || 0,
+      updated: task.updated || 0,
+      errors: task.error_count || 0
     }
     
     begin

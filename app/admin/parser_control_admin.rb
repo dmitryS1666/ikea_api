@@ -44,10 +44,11 @@ Trestle.resource :parser_control, model: ParserControl do
     def start_task
       task_type = params[:task_type]
       limit = params[:limit].present? && params[:limit].to_i > 0 ? params[:limit].to_i : nil
+      reset = params[:reset] == '1'
       extra_data = params[:extra_data]
       extra_file = params[:extra_file]
       
-      Rails.logger.info "ParserControlAdmin#start_task called with task_type=#{task_type}, limit=#{limit}"
+      Rails.logger.info "ParserControlAdmin#start_task called with task_type=#{task_type}, limit=#{limit}, reset=#{reset}"
       
       if task_type.blank?
         flash[:error] = "Необходимо выбрать тип задачи"
@@ -91,8 +92,8 @@ Trestle.resource :parser_control, model: ParserControl do
           )
           
           # Передаем task_id в job и сохраняем job_id
-          job = if %w[extended_attrs_import extended_attributes_by_skus fix_translations fix_missing_images].include?(task_type)
-                  job_class.perform_later(task_id: task.id)
+          job = if %w[extended_attrs_import extended_attributes_by_skus fix_translations fix_missing_images translate_all_products].include?(task_type)
+                  job_class.perform_later(task_id: task.id, reset: reset)
                 else
                   job_class.perform_later(limit: limit, task_id: task.id)
                 end
@@ -155,7 +156,7 @@ Trestle.resource :parser_control, model: ParserControl do
         return redirect_to admin.instance_path(ParserControl.new(id: 'show'))
       end
 
-      unless task.task_type == 'extended_attrs_import'
+      unless %w[extended_attrs_import translate_all_products fix_translations].include?(task.task_type)
         flash[:error] = "Эта задача не поддерживает продолжение"
         return redirect_to admin.instance_path(ParserControl.new(id: 'show'))
       end
@@ -166,10 +167,13 @@ Trestle.resource :parser_control, model: ParserControl do
       end
 
       task.update!(status: 'pending', error_message: nil, completed_at: nil)
-      job = ImportExtendedAttributesFromFileJob.perform_later(task_id: task.id)
+      
+      job_class = job_class_for_task_type(task.task_type)
+      job = job_class.perform_later(task_id: task.id)
+      
       task.update!(job_id: job.job_id) if job.respond_to?(:job_id)
 
-      flash[:message] = "Продолжение импорта запущено"
+      flash[:message] = "Продолжение задачи '#{task_type_label(task.task_type)}' запущено"
       redirect_to admin.instance_path(ParserControl.new(id: 'show'))
     rescue => e
       Rails.logger.error "Error resuming task: #{e.class} - #{e.message}"

@@ -21,11 +21,16 @@ module Products
       end
 
       # 2. Translate full_attributes
-      source_attrs = @product.full_attributes.presence || @product.full_attributes_ru
+      # ЗАЩИТА: Используем ТОЛЬКО оригинальные атрибуты. Никогда не переводим уже переведенное.
+      source_attrs = @product.full_attributes.presence
       if source_attrs.present?
         translated_attrs = translate_hash(source_attrs, context: "Product SKU: #{@product.sku}, full_attributes")
-        if translated_attrs.present? && translated_attrs != @product.full_attributes_ru
+        
+        # ЗАЩИТА: Проверяем, что мы не получили пустой или деградировавший объект
+        if should_update_attributes?(source_attrs, translated_attrs)
           updates[:full_attributes_ru] = translated_attrs
+        else
+          Rails.logger.warn("FullTranslationService: Translation for #{@product.sku} seems invalid or incomplete, skipping update")
         end
       end
 
@@ -43,6 +48,24 @@ module Products
 
     private
 
+    def should_update_attributes?(source, translated)
+      return false if translated.blank?
+      return false unless translated.is_a?(Hash)
+      
+      # Если в оригинале были ключи, а в переводе их стало 0 — это ошибка
+      return false if source.is_a?(Hash) && source.keys.any? && translated.keys.empty?
+      
+      # Если количество ключей в верхнем уровне уменьшилось более чем на 50% — подозрительно
+      if source.is_a?(Hash) && source.size > 2
+        return false if translated.size < (source.size / 2.0)
+      end
+
+      # Проверяем, что это не просто копия оригинала (если перевод не сработал совсем)
+      return false if translated == @product.full_attributes_ru && !@force
+
+      true
+    end
+
     def translate_hash(hash, context: nil)
       return hash unless hash.is_a?(Hash)
 
@@ -50,6 +73,7 @@ module Products
       hash.each do |key, value|
         # Translate key if it's a string and looks like Polish
         new_key = translate_key(key, context: "#{context} key")
+        new_key = key if new_key.blank? # Защита: оставляем оригинал ключа если перевод пустой
         
         # Recursively translate value
         new_value = case value
