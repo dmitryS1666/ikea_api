@@ -3,9 +3,9 @@ class ContentArticleSerializer
 
   set_id :slug
 
-  attributes :title, :slug, :excerpt, :content_type, :status,
+  attributes :title, :slug, :excerpt, :content_type, :status, :rubric,
              :published_at, :tile_blocks,
-             :components, :projects, :tags, :pinned, :pinned_position, :active
+             :components, :projects, :pinned, :pinned_position, :active
 
   attribute :body_blocks do |article|
     article.serialized_body_blocks

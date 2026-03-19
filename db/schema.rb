@@ -10,22 +10,9 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_17_113403) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_19_200826) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
-
-  create_table "a1_verifications", force: :cascade do |t|
-    t.bigint "user_id"
-    t.string "phone", null: false
-    t.string "context", null: false
-    t.string "status", default: "pending", null: false
-    t.string "expected_last4", null: false
-    t.datetime "expires_at", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["phone", "status"], name: "index_a1_verifications_on_phone_and_status"
-    t.index ["user_id"], name: "index_a1_verifications_on_user_id"
-  end
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
@@ -123,6 +110,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_17_113403) do
     t.boolean "is_top", default: false
     t.integer "top_position", default: 0
     t.boolean "is_custom", default: false
+    t.jsonb "available_filters_ru"
     t.index "to_tsvector('simple'::regconfig, COALESCE(parent_ids, ''::text))", name: "index_categories_on_parent_ids_text", where: "((parent_ids IS NOT NULL) AND (parent_ids <> '[]'::text) AND (parent_ids <> ''::text))", using: :gin
     t.index ["default_sort"], name: "index_categories_on_default_sort"
     t.index ["ikea_id"], name: "index_categories_on_ikea_id", unique: true
@@ -221,9 +209,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_17_113403) do
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "rubric"
     t.index ["components"], name: "index_content_articles_on_components", using: :gin
     t.index ["content_type", "status", "pinned", "pinned_position", "published_at", "active"], name: "index_content_articles_on_status_and_filters"
     t.index ["projects"], name: "index_content_articles_on_projects", using: :gin
+    t.index ["rubric"], name: "index_content_articles_on_rubric"
     t.index ["slug"], name: "index_content_articles_on_slug", unique: true
     t.index ["tags"], name: "index_content_articles_on_tags", using: :gin
   end

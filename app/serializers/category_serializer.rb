@@ -53,7 +53,7 @@ class CategorySerializer
   end
 
   attribute :available_filters do |category|
-    category.available_filters || []
+    category.display_filters
   end
 
   attribute :seo do |category, params|

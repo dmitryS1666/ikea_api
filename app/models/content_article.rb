@@ -63,7 +63,7 @@ class ContentArticle < ApplicationRecord
   enum status: { draft: 0, published: 1, archived: 2 }
 
   attr_accessor :product_skus_input, :category_ids_input, :product_csv
-  attr_writer :components_input, :projects_input, :tags_input, :body_blocks_json, :tile_blocks_json
+  attr_writer :components_input, :projects_input, :body_blocks_json, :tile_blocks_json
   attr_accessor :body_block_images_uploads
 
   has_many :content_article_products, dependent: :destroy
@@ -91,7 +91,7 @@ class ContentArticle < ApplicationRecord
   scope :visible, -> { published_and_active.order(pinned: :desc, pinned_position: :asc, published_at: :desc) }
   scope :with_component, ->(value) { where("components @> ?", Array(value).to_json) if value.present? }
   scope :with_project, ->(value) { where("projects @> ?", Array(value).to_json) if value.present? }
-  scope :with_tag, ->(value) { where("tags @> ?", Array(value).to_json) if value.present? }
+  scope :with_rubric, ->(value) { where(rubric: value) if value.present? }
   scope :pinned, -> { where(pinned: true) }
 
   scope :for_product_sku, ->(sku) { joins(:content_article_products).where(content_article_products: { product_sku: sku }) }
@@ -126,14 +126,6 @@ class ContentArticle < ApplicationRecord
 
   def projects_input=(value)
     self.projects = normalize_array_value(value)
-  end
-
-  def tags_input
-    @tags_input || tags.to_a.join("\n")
-  end
-
-  def tags_input=(value)
-    self.tags = normalize_array_value(value)
   end
 
   def body_blocks_json
@@ -264,7 +256,6 @@ class ContentArticle < ApplicationRecord
   def normalize_array_fields
     self.components = normalize_array_value(components)
     self.projects = normalize_array_value(projects)
-    self.tags = normalize_array_value(tags)
   end
 
   def normalize_body_blocks

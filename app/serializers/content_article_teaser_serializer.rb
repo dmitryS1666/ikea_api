@@ -3,7 +3,7 @@ class ContentArticleTeaserSerializer
 
   set_id :slug
 
-  attributes :title, :slug, :excerpt, :content_type, :published_at
+  attributes :title, :slug, :excerpt, :content_type, :rubric, :published_at
 
   attribute :image_url do |article|
     # Пытаемся взять первое изображение из блоков для превью

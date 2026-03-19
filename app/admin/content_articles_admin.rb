@@ -34,6 +34,7 @@ Trestle.resource(:content_articles, model: ContentArticle) do
     column :status do |article|
       ContentArticle.human_attribute_name("statuses.#{article.status}")
     end
+    column :rubric
     column :title, link: true
     column :slug
     column :pinned do |article|
@@ -44,7 +45,7 @@ Trestle.resource(:content_articles, model: ContentArticle) do
   end
 
   form do |article|
-    tab :general do
+    tab :general, label: "Основное" do
       row do
         col(sm: 6) do
           select :content_type,
@@ -74,21 +75,26 @@ Trestle.resource(:content_articles, model: ContentArticle) do
       end
     end
 
-    tab :filters do
+    tab :filters, label: "Фильтры" do
       row do
-        col(sm: 4) do
+        col(sm: 12) do
+          select :rubric,
+                 ContentArticle.where.not(rubric: [nil, ""]).pluck(:rubric).uniq.sort,
+                 { label: "Рубрика", include_blank: true },
+                 { data: { ui: "select2", tags: "true" } }
+        end
+      end
+      row do
+        col(sm: 6) do
           text_area :components_input, rows: 3, help: "Одна строка = один компонент"
         end
-        col(sm: 4) do
+        col(sm: 6) do
           text_area :projects_input, rows: 3, help: "Одна строка = один проект"
-        end
-        col(sm: 4) do
-          text_area :tags_input, rows: 3, help: "Одна строка = один тег"
         end
       end
     end
 
-    tab :links do
+    tab :links, label: "Ссылки" do
       row do
         col(sm: 6) do
           text_area :product_skus_input, rows: 4, help: "SKU товаров (строки, разделенные переносами)"
@@ -156,28 +162,28 @@ Trestle.resource(:content_articles, model: ContentArticle) do
       end
     end
 
-    tab :publication do
-      row do
-        col(sm: 6) do
-          check_box :pinned, label: "Закрепить сверху"
-        end
-        col(sm: 6) do
-          number_field :pinned_position, label: "Порядок закрепления"
-        end
-      end
-      row do
-        col(sm: 6) { datetime_field :published_at }
-        col(sm: 6) { check_box :active }
-      end
-    end
-
-    tab :seo, label: "SEO" do
+    tab :seo, label: "SEO-метки" do
       fields_for :seo_meta, article.seo_meta || article.build_seo_meta do |seo|
         seo.text_field :title, label: "SEO Title"
         seo.text_area :description, label: "SEO Description"
         seo.text_field :keywords, label: "SEO Keywords"
         seo.text_field :robots, label: "SEO Robots"
         seo.tinymce :seo_text, label: "SEO Текст"
+      end
+    end
+
+    sidebar do
+      row do
+        col(sm: 12) do
+          datetime_field :published_at, label: "Дата публикации"
+          check_box :active, label: "Активно"
+        end
+        row do
+          col(sm: 12) do
+            check_box :pinned, label: "Закрепить сверху"
+            number_field :pinned_position, label: "Порядок закрепления"
+          end
+        end
       end
     end
   end
@@ -191,9 +197,9 @@ Trestle.resource(:content_articles, model: ContentArticle) do
       :excerpt,
       :body_blocks_json,
       :tile_blocks_json,
+      :rubric,
       :components_input,
       :projects_input,
-      :tags_input,
       :product_skus_input,
       :category_ids_input,
       :product_csv,

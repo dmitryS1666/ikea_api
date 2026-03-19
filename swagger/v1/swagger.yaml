@@ -1758,11 +1758,11 @@ paths:
             type: string
             enum: [tips_ideas, news]
           description: Тип контента, по умолчанию возвращаются оба
-        - name: tag
+        - name: rubric
           in: query
           schema:
             type: string
-          description: Фильтр по тегу
+          description: Фильтр по рубрике
         - name: component
           in: query
           schema:

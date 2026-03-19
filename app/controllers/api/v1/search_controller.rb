@@ -84,9 +84,10 @@ module Api
         aggregated = {}
 
         categories.each do |category|
-          next if category.available_filters.blank?
+          filters_to_use = category.respond_to?(:display_filters) ? category.display_filters : (category.available_filters || [])
+          next if filters_to_use.blank?
           
-          category.available_filters.each do |filter|
+          filters_to_use.each do |filter|
             param = filter["parameter"]
             next unless param_to_values.key?(param)
             

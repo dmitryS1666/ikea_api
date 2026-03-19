@@ -45,7 +45,9 @@ module Api
           scope = scope.where(pinned: true) if params[:pinned_only] == 'true'
           scope = scope.with_component(params[:component]) if params[:component].present?
           scope = scope.with_project(params[:project]) if params[:project].present?
-          scope = scope.with_tag(params[:tag]) if params[:tag].present?
+          
+          rubric = params[:rubric] || params[:tag]
+          scope = scope.with_rubric(rubric) if rubric.present?
 
           if params[:product_sku].present?
             product = Product.find_by(sku: params[:product_sku])
