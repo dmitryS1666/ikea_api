@@ -10,8 +10,9 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_19_200826) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_20_072015) do
   # These are extensions that must be enabled in order to support this database
+  enable_extension "pg_trgm"
   enable_extension "plpgsql"
 
   create_table "active_storage_attachments", force: :cascade do |t|
@@ -111,7 +112,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_19_200826) do
     t.integer "top_position", default: 0
     t.boolean "is_custom", default: false
     t.jsonb "available_filters_ru"
+    t.string "cached_slug"
     t.index "to_tsvector('simple'::regconfig, COALESCE(parent_ids, ''::text))", name: "index_categories_on_parent_ids_text", where: "((parent_ids IS NOT NULL) AND (parent_ids <> '[]'::text) AND (parent_ids <> ''::text))", using: :gin
+    t.index ["cached_slug"], name: "index_categories_on_cached_slug"
     t.index ["default_sort"], name: "index_categories_on_default_sort"
     t.index ["ikea_id"], name: "index_categories_on_ikea_id", unique: true
     t.index ["is_popular"], name: "index_categories_on_is_popular"
@@ -411,8 +414,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_19_200826) do
     t.string "phone"
     t.jsonb "address_json", default: {}
     t.string "track_number"
+    t.jsonb "tracking_info"
     t.index ["crm_external_id"], name: "index_orders_on_crm_external_id"
     t.index ["promo_code_id"], name: "index_orders_on_promo_code_id"
+    t.index ["status"], name: "index_orders_on_status"
     t.index ["user_id"], name: "index_orders_on_user_id"
   end
 
@@ -576,12 +581,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_19_200826) do
     t.jsonb "full_attributes_ru", default: {}, null: false
     t.boolean "is_new"
     t.boolean "is_recommended"
+    t.string "cached_slug"
+    t.index ["cached_slug"], name: "index_products_on_cached_slug"
     t.index ["category_id"], name: "index_products_on_category_id"
     t.index ["is_bestseller"], name: "index_products_on_is_bestseller"
+    t.index ["is_new"], name: "index_products_on_is_new"
     t.index ["is_popular"], name: "index_products_on_is_popular"
+    t.index ["is_recommended"], name: "index_products_on_is_recommended"
+    t.index ["name"], name: "index_products_on_name_trgm", opclass: :gist_trgm_ops, using: :gist
+    t.index ["name_ru"], name: "index_products_on_name_ru_trgm", opclass: :gist_trgm_ops, using: :gist
     t.index ["popularity_score"], name: "index_products_on_popularity_score"
     t.index ["price"], name: "index_products_on_price"
     t.index ["sku"], name: "index_products_on_sku", unique: true
+    t.index ["sku"], name: "index_products_on_sku_trgm", opclass: :gist_trgm_ops, using: :gist
     t.index ["unique_id"], name: "index_products_on_unique_id", unique: true, where: "(unique_id IS NOT NULL)"
     t.index ["updated_at"], name: "index_products_on_updated_at"
     t.index ["views_count"], name: "index_products_on_views_count"

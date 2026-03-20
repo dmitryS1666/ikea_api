@@ -34,4 +34,24 @@ class ApplicationController < ActionController::API
   def current_user
     @current_user
   end
+
+  def get_promo_applicability(products, promos)
+    return {} if Array(products).empty? || Array(promos).empty?
+
+    sku_to_cat_ids = {}
+    Array(products).each do |p|
+      cat_ids = ([p.category_id] + p.category_products.map(&:category_id)).compact.uniq
+      sku_to_cat_ids[p.sku] = cat_ids
+    end
+
+    # Pre-fetch promo relationships to avoid N+1 inside applies_to_sku?
+    promos.each { |p| p.promo_code_products.to_a; p.promo_code_categories.to_a }
+
+    applicability = {}
+    Array(products).each do |p|
+      cat_ids = sku_to_cat_ids[p.sku]
+      applicability[p.sku] = promos.select { |promo| promo.applies_to_sku?(p.sku, cat_ids) }
+    end
+    applicability
+  end
 end

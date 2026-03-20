@@ -31,6 +31,7 @@ class Order < ApplicationRecord
 
   before_save :set_purchased_at
   after_update :notify_status_change, if: :saved_change_to_status?
+  after_save :enqueue_tracking_update, if: :saved_change_to_track_number?
 
   def purchased?
     status.in?(PURCHASED_STATUSES)
@@ -41,6 +42,10 @@ class Order < ApplicationRecord
   end
 
   private
+
+  def enqueue_tracking_update
+    UpdateOrderTrackingInfoJob.perform_later(id) if track_number.present?
+  end
 
   def notify_status_change
     OrderNotificationService.call(self, status_changed: true)

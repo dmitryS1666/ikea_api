@@ -20,12 +20,29 @@ class Category < ApplicationRecord
   
   serialize :parent_ids, coder: JSON
   
+  before_save :cache_slug, if: -> { name_changed? || translated_name_changed? || cached_slug.blank? }
+
   enum :default_sort, {
     popular: 'popular',
     newest: 'newest',
     cheapest: 'cheapest',
     expensive: 'expensive'
   }
+
+  def slug
+    cached_slug || generate_slug
+  end
+
+  private
+
+  def cache_slug
+    self.cached_slug = generate_slug
+  end
+
+  def generate_slug
+    source = translated_name.presence || name
+    SlugifyService.call(source)
+  end
 
   scope :top, -> { where(is_top: true).order(top_position: :asc) }
   scope :popular, -> { where(is_popular: true) }

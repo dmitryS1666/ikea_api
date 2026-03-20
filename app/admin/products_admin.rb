@@ -22,7 +22,7 @@ Trestle.resource(:products, model: Product) do
   end
 
   collection do |params|
-    products = Product.all
+    products = Product.includes(:category).all
     
     # Стандартный поиск Trestle (параметр q)
     if params[:q].present?

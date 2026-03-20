@@ -4,18 +4,22 @@ class AsteriskCallAuthService
 
   AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjYWxsLWF1dGgtYXBpIiwiYXVkIjoiZXh0ZXJuYWwtYXBpIiwiZXhwIjoyMDg4NTg3MTQ4fQ.Z8SCd_VPEwLs6GdUzmzQ9GV_QM-5DALfkOpHRO1pFmw'
   
-  # Available prefixes with some default numbers
+  # Available full caller numbers
   # Based on user input: "+375291915806" and "+375447765806"
-  FROM_PREFIXES = ['+37529191', '+37544776'].freeze
+  AVAILABLE_NUMBERS = ['+375291915806', '+375447765806'].freeze
 
-  def self.initiate_call(to_phone:, code:)
+  def self.get_caller_info
+    number = AVAILABLE_NUMBERS.sample
+    {
+      number: number,
+      code: number.to_s.last(4)
+    }
+  end
+
+  def self.initiate_call(to_phone:, from_number:)
     # Normalizing phone
     to_phone = to_phone.to_s.gsub(/\D/, '')
     to_phone = "+#{to_phone}" unless to_phone.start_with?('+')
-
-    # Randomly pick one of the available prefixes
-    from_prefix = FROM_PREFIXES.sample
-    from_number = "#{from_prefix}#{code}"
 
     options = {
       headers: {

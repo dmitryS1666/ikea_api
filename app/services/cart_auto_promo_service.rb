@@ -27,16 +27,19 @@ class CartAutoPromoService
   end
 
   def self.choose_best_promo(promos, skus)
-    # Estimate discount on 1 unit for matching items only.
-    # We fetch current product prices for those SKUs.
-    prices = Product.where(sku: skus).pluck(:sku, :price).to_h
+    # Pre-calculate applicability for all items
+    products = Product.includes(:category_products).where(sku: skus).to_a
+    promo_applicability = CartPricingService.get_promo_applicability(products, promos)
+    prices = products.index_by(&:sku)
 
     promos.max_by do |promo|
       skus.sum do |sku|
-        next 0 unless promo.applies_to_sku?(sku)
-        price = prices[sku].to_f
+        is_applicable = promo_applicability[sku]&.include?(promo)
+        next 0 unless is_applicable
+        
+        price = prices[sku]&.price.to_f
         next 0 if price <= 0
-        CartPricingService.send(:calculate_unit_discount, promo, price)
+        CartPricingService.calculate_unit_discount_pln(promo, price)
       end
     end
   end

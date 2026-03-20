@@ -4,8 +4,7 @@ class CategorySerializer
   set_id :ikea_id
 
   attribute :slug do |category|
-    source = category.translated_name.presence || category.name
-    SlugifyService.call(source)
+    category.slug
   end
 
   attributes :translated_name, 

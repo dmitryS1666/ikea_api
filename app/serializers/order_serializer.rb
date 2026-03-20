@@ -9,7 +9,7 @@ class OrderSerializer
   end
 
   attribute :tracking_info do |order|
-    DeliveryTrackingService.call(order) if order.track_number.present?
+    order.tracking_info
   end
 
   has_many :order_items

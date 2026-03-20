@@ -5,7 +5,7 @@ module Api
         def index
           articles = ContentArticle.visible
           articles = apply_filters(articles)
-          articles = articles.includes(:content_article_products, :content_article_categories)
+          articles = articles.includes(:content_article_products, :content_article_categories, :seo_meta)
 
           paged = articles.page(current_page).per(per_page)
 
@@ -20,7 +20,7 @@ module Api
 
         def show
           slug = params[:slug] || params[:id]
-          article = ContentArticle.visible.find_by!(slug: slug)
+          article = ContentArticle.visible.includes(:seo_meta).find_by!(slug: slug)
           article_products = article.content_article_products.order(:position)
           article_categories = article.content_article_categories.order(:position)
 

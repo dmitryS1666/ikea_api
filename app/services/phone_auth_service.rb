@@ -26,7 +26,10 @@ class PhoneAuthService
     # Удаляем старые коды
     VerificationCode.where(phone: phone).destroy_all
 
-    code = VerificationCode.generate_code
+    caller_info = AsteriskCallAuthService.get_caller_info
+    code = caller_info[:code]
+    from_number = caller_info[:number]
+
     request.update!(code: code)
 
     VerificationCode.create!(
@@ -37,7 +40,7 @@ class PhoneAuthService
 
     begin
       # Интеграция с asterisk.by
-      result = AsteriskCallAuthService.initiate_call(to_phone: phone, code: code)
+      result = AsteriskCallAuthService.initiate_call(to_phone: phone, from_number: from_number)
       
       if result[:success]
         Rails.logger.info "\n[ASTERISK CALL] Initiated call to #{phone}. Verification code: #{code}\n"

@@ -31,15 +31,19 @@ class PromoCode < ApplicationRecord
     ends_at.present? && ends_at < time
   end
 
-  def applies_to_sku?(sku)
+  def applies_to_sku?(sku, product_category_ids = nil)
     return true if promo_code_products.none? && promo_code_categories.none?
 
     return true if promo_code_products.where(product_sku: sku).exists?
 
-    product = Product.find_by(sku: sku)
-    return false unless product
+    category_ids = if product_category_ids
+                     product_category_ids
+                   else
+                     product = Product.find_by(sku: sku)
+                     return false unless product
+                     [product.category_id] + product.category_products.pluck(:category_id)
+                   end
 
-    category_ids = [product.category_id] + product.category_products.pluck(:category_id)
     promo_code_categories.where(category_id: category_ids.compact.uniq).exists?
   end
 

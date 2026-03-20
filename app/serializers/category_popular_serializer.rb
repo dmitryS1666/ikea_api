@@ -9,8 +9,7 @@ class CategoryPopularSerializer
              :local_image_path
 
   attribute :slug do |category|
-    source = category.translated_name.presence || category.name
-    SlugifyService.call(source)
+    category.slug
   end
 
   attribute :icon_url do |category|

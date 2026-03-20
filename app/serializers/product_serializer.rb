@@ -23,15 +23,19 @@ class ProductSerializer
 
   attribute :promo do |product, params|
     # Get pre-fetched promos if available, otherwise fetch active now
-    # We use cache or simple list to avoid excessive DB hits
     promos = params[:active_promos] || PromoCode.active_now.to_a
     
-    # Simple check for each active promo if it applies to this product
-    # Note: applies_to_sku? can be slow if called many times, but for a single product it's fine.
-    # For lists, we rely on pre-fetched active_promos.
-    applicable = promos.select { |p| p.applies_to_sku?(product.sku) }
+    # Check pre-calculated applicability if available
+    applicability = params[:promo_applicability] || {}
+    applicable = if applicability.key?(product.sku)
+                   applicability[product.sku]
+                 else
+                   # Fallback (may trigger DB hits)
+                   cat_ids = [product.category_id] + product.category_products.map(&:category_id)
+                   promos.select { |p| p.applies_to_sku?(product.sku, cat_ids) }
+                 end
     
-    # Pick the one with the highest discount (simplified logic)
+    # Pick the one with the highest discount
     best = applicable.max_by do |p| 
       p.discount_type == 'percent' ? p.discount_value : (p.discount_value / 4.0) 
     end
@@ -71,14 +75,19 @@ class ProductSerializer
     product.price.to_f
   end
 
-  attribute :price_byn do |product|
+  attribute :price_byn do |product, params|
     # Упрощенный расчет для листинга: только цена товара с наценкой
     # Без учета индивидуальной доставки и весовой логистики (они в корзине)
     pln_price = product.price.to_f
     if pln_price > 0
       markup_k = PriceCalculationService.compute_k(pln_price)
-      rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 0
-      buffer = PriceCalculationService.exchange_rate_buffer
+      
+      rates = params[:rates] || {}
+      rate = rates[:pln] || ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 0
+      
+      settings = params[:calculator_settings] || {}
+      buffer = settings['exchange_rate_buffer'] || PriceCalculationService.exchange_rate_buffer
+      
       (pln_price * (1 + markup_k) * rate * buffer).round(2)
     else
       0
@@ -90,8 +99,7 @@ class ProductSerializer
   end
 
   attribute :slug do |product|
-    source = product.name_ru.presence || product.name.presence || product.sku
-    SlugifyService.call(source)
+    product.slug
   end
   
   attribute :variants do |product|
@@ -137,19 +145,20 @@ class ProductSerializer
   belongs_to :category, serializer: CategorySerializer, if: Proc.new { |record| record.category.present? }
   has_many :categories, serializer: CategorySerializer
   
-  attribute :delivery_days do |product|
+  attribute :delivery_days do |product, params|
     # Приоритет: Категория -> Глобальная настройка -> 30 (fallback)
-    product.primary_category&.delivery_days.presence || 
-      CalculatorSetting.get('default_delivery_days') || 30
+    global_default = params[:calculator_settings]&.dig('default_delivery_days') || CalculatorSetting.get('default_delivery_days') || 30
+    product.primary_category&.delivery_days.presence || global_default
   end
 
-  attribute :display_blocks do |product|
+  attribute :display_blocks do |product, params|
     category = product.category
+    settings = params[:calculator_settings] || {}
     
     # Глобальные настройки
-    global_delivery = CalculatorSetting.get('show_delivery_block_global') != 0
-    global_reviews = CalculatorSetting.get('show_reviews_block_global') != 0
-    global_tips = CalculatorSetting.get('show_tips_block_global') != 0
+    global_delivery = (settings['show_delivery_block_global'] || CalculatorSetting.get('show_delivery_block_global')) != 0
+    global_reviews = (settings['show_reviews_block_global'] || CalculatorSetting.get('show_reviews_block_global')) != 0
+    global_tips = (settings['show_tips_block_global'] || CalculatorSetting.get('show_tips_block_global')) != 0
 
     # Категорийные настройки
     cat_delivery = category&.show_delivery_block != false

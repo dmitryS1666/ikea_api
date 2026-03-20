@@ -23,13 +23,18 @@ class ProductTeaserSerializer
              :customs_duty
 
   attribute :promo do |product, params|
-    # For lists, it's very important to have active_promos pre-fetched in params
-    # to avoid DB hits. If not, we fallback to PromoCode.active_now.to_a
+    # Get pre-fetched promos if available, otherwise fetch active now
     promos = params[:active_promos] || PromoCode.active_now.to_a
     
-    # We find which promos apply to this SKU. Note: applies_to_sku? might still
-    # trigger category checks, but it's the most reliable way currently.
-    applicable = promos.select { |p| p.applies_to_sku?(product.sku) }
+    # Check pre-calculated applicability if available
+    applicability = params[:promo_applicability] || {}
+    applicable = if applicability.key?(product.sku)
+                   applicability[product.sku]
+                 else
+                   # Fallback (may trigger DB hits)
+                   cat_ids = [product.category_id] + product.category_products.map(&:category_id)
+                   promos.select { |p| p.applies_to_sku?(product.sku, cat_ids) }
+                 end
     
     best = applicable.max_by do |p| 
       p.discount_type == 'percent' ? p.discount_value : (p.discount_value / 4.0)
@@ -69,12 +74,23 @@ class ProductTeaserSerializer
     product.price.to_f
   end
 
-  attribute :price_byn do |product|
+  attribute :delivery_days do |product, params|
+    # Приоритет: Категория -> Глобальная настройка -> 30 (fallback)
+    global_default = params[:calculator_settings]&.dig('default_delivery_days') || CalculatorSetting.get('default_delivery_days') || 30
+    product.primary_category&.delivery_days.presence || global_default
+  end
+
+  attribute :price_byn do |product, params|
     pln_price = product.price.to_f
     if pln_price > 0
       markup_k = PriceCalculationService.compute_k(pln_price)
-      rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 0
-      buffer = PriceCalculationService.exchange_rate_buffer
+      
+      rates = params[:rates] || {}
+      rate = rates[:pln] || ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 0
+      
+      settings = params[:calculator_settings] || {}
+      buffer = settings['exchange_rate_buffer'] || PriceCalculationService.exchange_rate_buffer
+      
       (pln_price * (1 + markup_k) * rate * buffer).round(2)
     else
       0
@@ -86,8 +102,7 @@ class ProductTeaserSerializer
   end
 
   attribute :slug do |product|
-    source = product.name_ru.presence || product.name.presence || product.sku
-    SlugifyService.call(source)
+    product.slug
   end
 
   attribute :local_images do |product|

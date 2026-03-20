@@ -8,11 +8,19 @@ class CartPricingService
     buffer = PriceCalculationService.exchange_rate_buffer
     pln_rate_with_buffer = pln_rate * buffer
 
-    total_weight = 0.0
-    items_pln_sum = 0.0
+    items_total_pln = 0.0
     discount_total_pln = 0.0
 
-    items = cart.cart_items.includes(:product).map do |item|
+    # Pre-fetch exchange rates and buffer
+    pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 0
+    buffer = PriceCalculationService.exchange_rate_buffer
+    
+    # Pre-calculate promo applicability for all items at once
+    promos = promo_valid ? [promo] : []
+    cart_products = cart.cart_items.map(&:product).compact
+    promo_applicability = get_promo_applicability(cart_products, promos)
+
+    items = cart.cart_items.includes(product: :category_products).map do |item|
       product_pln = item.product&.price || 0
       weight = item.product&.weight || 0
       quantity = item.quantity
@@ -21,9 +29,9 @@ class CartPricingService
       # Расчет наценки K для конкретного товара
       markup_k = PriceCalculationService.compute_k(product_pln)
       
-      # Промо-код применяется к базовой цене в PLN
-      promo_applied = promo_valid && promo.applies_to_sku?(item.product_sku)
-      unit_discount_pln = promo_applied ? calculate_unit_discount_pln(promo, product_pln) : 0
+      # Используем предосчитанную применимость промокода
+      promo_applied = promo_valid && promo_applicability[item.product_sku]&.any?
+      unit_discount_pln = promo_applied ? calculate_unit_discount_pln(promo, product_pln, pln_rate, buffer) : 0
       unit_discount_pln = [unit_discount_pln, product_pln].min
       discount_total_pln += unit_discount_pln * quantity
       
@@ -31,7 +39,7 @@ class CartPricingService
       unit_price_with_markup_pln = unit_price_after_promo_pln * (1 + markup_k)
       
       line_total_pln = unit_price_with_markup_pln * quantity
-      items_pln_sum += line_total_pln
+      items_total_pln += line_total_pln
 
       # BYN значения для отображения
       unit_price_byn = (unit_price_with_markup_pln * pln_rate_with_buffer).round(2)
@@ -56,7 +64,7 @@ class CartPricingService
     belarus_delivery_pln = BelarusDeliveryService.calculate(total_weight)
 
     # Итого в PLN
-    total_pln = items_pln_sum + poland_delivery_pln + belarus_delivery_pln
+    total_pln = items_total_pln + poland_delivery_pln + belarus_delivery_pln
     
     # Итого в BYN
     total_byn = (total_pln * pln_rate_with_buffer).round(2)
@@ -68,7 +76,7 @@ class CartPricingService
 
     # Динамические правила (минимальный заказ и т.д.)
     # subtotal_new_byn для правил - это сумма ТОВАРОВ с наценкой
-    items_total_byn = (items_pln_sum * pln_rate_with_buffer).round(2)
+    items_total_byn = (items_total_pln * pln_rate_with_buffer).round(2)
     rules = CartRulesService.call(subtotal_new_byn: items_total_byn)
 
     {
@@ -95,7 +103,7 @@ class CartPricingService
     }
   end
 
-  def self.calculate_unit_discount_pln(promo, price_pln)
+  def self.calculate_unit_discount_pln(promo, price_pln, pln_rate = nil, buffer = nil)
     return 0 unless promo && price_pln.positive?
 
     case promo.discount_type
@@ -104,13 +112,33 @@ class CartPricingService
     when 'fixed_pln'
       [promo.discount_value, price_pln].min
     when 'fixed_byn'
-      pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 1
-      buffer = PriceCalculationService.exchange_rate_buffer
+      pln_rate ||= ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 1
+      buffer ||= PriceCalculationService.exchange_rate_buffer
       discount_pln = promo.discount_value / (pln_rate * buffer)
       [discount_pln, price_pln].min.round(2)
     else
       0
     end
   end
-  private_class_method :calculate_unit_discount_pln
+
+  # Change to public for use in CartAutoPromoService
+  def self.get_promo_applicability(products, promos)
+    return {} if Array(products).empty? || Array(promos).empty?
+
+    sku_to_cat_ids = {}
+    Array(products).each do |p|
+      cat_ids = ([p.category_id] + p.category_products.map(&:category_id)).compact.uniq
+      sku_to_cat_ids[p.sku] = cat_ids
+    end
+
+    # Pre-fetch promo relationships
+    promos.each { |p| p.promo_code_products.to_a; p.promo_code_categories.to_a }
+
+    applicability = {}
+    Array(products).each do |p|
+      cat_ids = sku_to_cat_ids[p.sku]
+      applicability[p.sku] = promos.select { |promo| promo.applies_to_sku?(p.sku, cat_ids) }
+    end
+    applicability
+  end
 end

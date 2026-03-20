@@ -41,16 +41,31 @@ class Product < ApplicationRecord
   serialize :features, coder: JSON
   serialize :assembly_documents, coder: JSON
   
+  before_save :cache_slug, if: -> { name_changed? || name_ru_changed? || cached_slug.blank? }
+
   # Динамические атрибуты (JSONB поля в PostgreSQL не требуют serialize)
   # serialize :full_attributes, coder: JSON
   # serialize :packaging, coder: JSON
   
+  def slug
+    cached_slug || generate_slug
+  end
+
   # Callbacks
   before_save :calculate_delivery, if: :weight_changed?
   after_commit :enqueue_filters_reindex, on: [:create, :update]
   
   private
   
+  def cache_slug
+    self.cached_slug = generate_slug
+  end
+
+  def generate_slug
+    source = name_ru.presence || name.presence || sku
+    SlugifyService.call(source)
+  end
+
   def calculate_delivery
     # Логика расчета доставки
     # Аналогично deliveryService.js

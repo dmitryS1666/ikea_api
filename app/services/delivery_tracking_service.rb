@@ -2,14 +2,17 @@ class DeliveryTrackingService
   def self.call(order)
     return nil unless order.track_number.present?
 
-    case order.delivery_type
-    when 'europost'
-      EuropostTracker.track(order.track_number)
-    when 'autolight'
-      AutolightTracker.track(order.track_number)
-    else
-      { status: 'Информация об отслеживании недоступна', provider: order.delivery_type }
-    end
+    info = case order.delivery_type
+           when 'europost'
+             EuropostTracker.track(order.track_number)
+           when 'autolight'
+             AutolightTracker.track(order.track_number)
+           else
+             { status: 'Информация об отслеживании недоступна', provider: order.delivery_type }
+           end
+
+    order.update_columns(tracking_info: info) if info
+    info
   end
 end
 

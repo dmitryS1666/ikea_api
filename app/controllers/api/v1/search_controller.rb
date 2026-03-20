@@ -11,7 +11,7 @@ module Api
         # 1. Находим продукты
         display_products = prioritized_products(query)
         # Получаем ID всех продуктов, подходящих под поиск, для корректного подсчета фильтров
-        all_matching_product_ids = search_scope(query).pluck(:id)
+        all_matching_products_scope = search_scope(query)
 
         # 2. Категории: те, что совпали по имени + те, где есть найденные продукты
         matched_categories = matching_categories(query)
@@ -19,16 +19,30 @@ module Api
         combined_categories = (matched_categories.to_a + product_categories.to_a).uniq(&:ikea_id)
 
         # 3. Фильтры с подсчетом (на основе всех подходящих продуктов)
-        available_filters = aggregate_filters_for(all_matching_product_ids, combined_categories)
+        available_filters = aggregate_filters_for(all_matching_products_scope, combined_categories)
 
         log_search(query, display_products.size) if query.present?
 
+        rates = {
+          eur: ExchangeRate.fetch_or_create('EUR')&.rate_per_unit,
+          pln: ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
+        }
+
+        calculator_settings = {
+          'show_delivery_block_global' => CalculatorSetting.get('show_delivery_block_global'),
+          'show_reviews_block_global' => CalculatorSetting.get('show_reviews_block_global'),
+          'show_tips_block_global' => CalculatorSetting.get('show_tips_block_global'),
+          'default_delivery_days' => CalculatorSetting.get('default_delivery_days'),
+          'exchange_rate_buffer' => CalculatorSetting.get('exchange_rate_buffer')
+        }
+
+        promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
         render json: {
           suggestions: suggestions,
           categories: combined_categories.map do |category|
             {
               id: category.ikea_id,
-              slug: SlugifyService.call(category.translated_name.presence || category.name),
+              slug: category.slug,
               translated_name: category.translated_name,
               local_image_path: category.local_image_path
             }
@@ -36,11 +50,10 @@ module Api
           products: ProductTeaserSerializer.new(display_products, { 
             params: { 
               favorite_skus: current_favorite_skus,
-              active_promos: PromoCode.active_now.to_a,
-              rates: {
-                eur: ExchangeRate.fetch_or_create('EUR')&.rate_per_unit,
-                pln: ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
-              }
+              active_promos: promos,
+              promo_applicability: get_promo_applicability(display_products, promos),
+              rates: rates,
+              calculator_settings: calculator_settings
             } 
           }).serializable_hash,
           available_filters: available_filters,
@@ -65,12 +78,11 @@ module Api
         products.flat_map { |p| p.categories.to_a + [p.category].compact }.uniq
       end
 
-      def aggregate_filters_for(product_ids, categories)
-        return [] if product_ids.blank? || categories.blank?
+      def aggregate_filters_for(products_scope, categories)
+        return [] if products_scope.blank? || categories.blank?
 
-        # Получаем все значения фильтров для этих продуктов с их количеством
-        # Результат будет: { ["f-colors", "10156"] => 5, ... }
-        counts = ProductFilterValue.where(product_id: product_ids)
+        # Получаем все значения фильтров для этих продуктов с их количеством используя подзапрос
+        counts = ProductFilterValue.where(product_id: products_scope.select(:id))
                                    .group(:parameter, :value_id)
                                    .count
         
@@ -151,10 +163,10 @@ module Api
       def prioritized_products(query)
         return Product.none if query.blank?
 
-        exact_matches = Product.where("LOWER(sku) = ?", query.downcase).limit(1).to_a
+        exact_matches = Product.includes(:category, :categories, :seo_meta).where("LOWER(sku) = ?", query.downcase).limit(1).to_a
         exact_ids = exact_matches.map(&:id)
 
-        fuzzies = Product.where("name ILIKE :term OR name_ru ILIKE :term", term: "%#{query}%")
+        fuzzies = Product.includes(:category, :categories, :seo_meta).where("name ILIKE :term OR name_ru ILIKE :term", term: "%#{query}%")
                          .where.not(id: exact_ids)
                          .limit([10 - exact_matches.size, 0].max)
 

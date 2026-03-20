@@ -35,16 +35,18 @@ class CalculatorSetting < ApplicationRecord
   
   # Получить настройку по ключу
   def self.get(key)
-    setting = find_by(key: key)
-    return nil unless setting
-    
-    case setting.setting_type
-    when 'decimal'
-      setting.decimal_value
-    when 'integer'
-      setting.integer_value
-    when 'json'
-      setting.json_value
+    Rails.cache.fetch("calculator_setting/#{key}", expires_in: 1.hour) do
+      setting = find_by(key: key)
+      next nil unless setting
+      
+      case setting.setting_type
+      when 'decimal'
+        setting.decimal_value
+      when 'integer'
+        setting.integer_value
+      when 'json'
+        setting.json_value
+      end
     end
   end
   
@@ -55,7 +57,16 @@ class CalculatorSetting < ApplicationRecord
     setting.description = description if description
     setting.set_value(value)
     setting.save!
+    Rails.cache.delete("calculator_setting/#{key}")
     setting
+  end
+
+  after_commit :clear_cache
+
+  private
+
+  def clear_cache
+    Rails.cache.delete("calculator_setting/#{key}")
   end
   
   # Инициализация дефолтных настроек
