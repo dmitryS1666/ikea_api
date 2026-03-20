@@ -10,11 +10,8 @@ class CartPricingService
 
     items_total_pln = 0.0
     discount_total_pln = 0.0
+    total_weight = 0.0
 
-    # Pre-fetch exchange rates and buffer
-    pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 0
-    buffer = PriceCalculationService.exchange_rate_buffer
-    
     # Pre-calculate promo applicability for all items at once
     promos = promo_valid ? [promo] : []
     cart_products = cart.cart_items.map(&:product).compact

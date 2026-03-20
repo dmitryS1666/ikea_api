@@ -33,6 +33,16 @@ class Category < ApplicationRecord
     cached_slug || generate_slug
   end
 
+  scope :top, -> { where(is_top: true).order(top_position: :asc) }
+  scope :popular, -> { where(is_popular: true) }
+  scope :custom, -> { where(is_custom: true) }
+  scope :active, -> { where(is_deleted: [false, nil]) }
+  scope :not_deleted, -> { where(is_deleted: [false, nil]) }
+  
+  def display_filters
+    available_filters_ru.presence || available_filters || []
+  end
+
   private
 
   def cache_slug
@@ -42,16 +52,6 @@ class Category < ApplicationRecord
   def generate_slug
     source = translated_name.presence || name
     SlugifyService.call(source)
-  end
-
-  scope :top, -> { where(is_top: true).order(top_position: :asc) }
-  scope :popular, -> { where(is_popular: true) }
-  scope :custom, -> { where(is_custom: true) }
-  scope :active, -> { where(is_deleted: [false, nil]) }
-  scope :not_deleted, -> { where(is_deleted: [false, nil]) }
-  
-  def display_filters
-    available_filters_ru.presence || available_filters || []
   end
 
   # Категории с цифровым кодом (ikea_id состоит только из цифр)
