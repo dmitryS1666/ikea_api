@@ -1,47 +1,31 @@
 Trestle.resource(:home_banners, model: HomeBanner) do
   menu do
-    item :home_banners, icon: "fa fa-images", priority: 3, label: "Слайдер главной", group: "Content"
+    item :home_banners, icon: "fa fa-images", group: :content, label: "Слайдер на главной"
   end
 
   scopes do
-    scope :all, default: true
-    scope :main, -> { HomeBanner.main }, label: "Главный баннер"
-    scope :secondary, -> { HomeBanner.secondary }, label: "Горизонтальынй баннер"
+    scope :all, default: true, label: "Все"
+    scope :main, -> { HomeBanner.main }, label: "Главные"
+    scope :secondary, -> { HomeBanner.secondary }, label: "Вторичные"
     scope :active, -> { HomeBanner.active }, label: "Активные"
   end
 
   table do
-    column :id
-    column :image, align: :center do |banner|
-      if banner.image.attached?
-        begin
-          # Генерируем путь через прокси
-          path = main_app.rails_storage_proxy_path(banner.image, only_path: true)
-          
-          link_to path, target: '_blank', title: "Открыть оригинал" do
-            image_tag(path, 
-                      class: 'img-fluid', 
-                      style: 'max-width: 80px; max-height: 60px; border: 1px solid #eee; border-radius: 4px;', 
-                      onerror: "this.style.display='none'; this.parentElement.innerHTML='<em class=\\'text-muted\\' style=\\'font-size: 10px;\\'>404</em>';")
-          end
-        rescue => e
-          content_tag :span, "Ошибка", class: "text-danger", title: e.message
-        end
-      else
-        content_tag :span, "Нет", class: "text-muted"
-      end
+    column :id, label: "ID"
+    column :image, label: "Изображение", align: :center do |banner|
+      # ...
     end
-    column :section do |banner|
+    column :section, label: "Секция" do |banner|
       case banner.section
       when 'main'
         status_tag('Главный баннер', :info)
       when 'secondary'
-        status_tag('Горизонтальынй баннер', :success)
+        status_tag('Горизонтальный баннер', :success)
       else
         banner.section
       end
     end
-    column :variant do |banner|
+    column :variant, label: "Размер" do |banner|
       case banner.variant
       when 'main_1500x516'
         '1500×516'
@@ -56,15 +40,15 @@ Trestle.resource(:home_banners, model: HomeBanner) do
       end
     end
     column :description, label: "Описание (служебное)", link: true
-    column :category do |banner|
+    column :category, label: "Категория" do |banner|
       banner.category&.name || '—'
     end
-    column :position, sortable: true
-    column :active do |banner|
-      status_tag(banner.active? ? 'Активен' : 'Неактивен', 
+    column :position, label: "Позиция", sortable: true
+    column :active, label: "Активен" do |banner|
+      status_tag(banner.active? ? 'Да' : 'Нет', 
                  banner.active? ? :success : :danger)
     end
-    column :created_at, align: :center
+    column :created_at, label: "Создан", align: :center
     actions do |actions|
       actions.show
       actions.edit
@@ -95,7 +79,7 @@ Trestle.resource(:home_banners, model: HomeBanner) do
           col(sm: 6) do
             select :section, {
               'Главный баннер' => 'main',
-              'Горизонтальынй баннер' => 'secondary'
+              'Горизонтальный баннер' => 'secondary'
             }, label: "Секция", html: { id: "home_banner_section", data: { variants: section_variants.to_json } }
           end
           col(sm: 6) do

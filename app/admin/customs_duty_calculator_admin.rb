@@ -1,7 +1,7 @@
 # Админ-панель для расчета таможенной пошлины
 Trestle.resource(:customs_duty_calculator, model: CustomsDutyCalculator) do
   menu do
-    item :customs_duty_calculator, icon: "fa fa-file-invoice-dollar", priority: 4, label: "Калькулятор таможенной пошлины", group: "Finance"
+    item :customs_duty_calculator, icon: "fa fa-file-invoice-dollar", priority: 4, label: "Калькулятор таможенной пошлины", group: "Финансы"
   end
 
   controller do

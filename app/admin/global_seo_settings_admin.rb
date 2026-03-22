@@ -1,10 +1,10 @@
 Trestle.resource(:global_seo_settings, model: GlobalSeoSetting) do
   menu do
-    item :global_seo_settings, icon: "fa fa-globe", label: "Глобальные SEO", group: "SEO", priority: 1
+    item :global_seo_settings, icon: "fa fa-globe", group: :content, label: "Глобальные SEO"
   end
 
   table do
-    column :target_type do |setting|
+    column :target_type, label: "Тип страницы" do |setting|
       case setting.target_type
       when 'home' then 'Главная'
       when 'category' then 'Категории (общие)'
@@ -31,11 +31,18 @@ Trestle.resource(:global_seo_settings, model: GlobalSeoSetting) do
       text_field :title_template, label: "Шаблон Title", help: "Используйте {{name}} для подстановки названия"
       text_area :description_template, label: "Шаблон Description"
       text_field :keywords_template, label: "Шаблон Keywords"
-      text_field :robots, label: "Robots"
+      text_field :robots, label: "Robots (индексация)"
     end
 
     tab :seo_text, label: "SEO Текст" do
       tinymce :seo_text, label: "Текст внизу страницы"
+    end
+
+    sidebar do
+      form_group :meta, label: "Метаданные" do
+        static_field :created_at, label: "Дата создания"
+        static_field :updated_at, label: "Дата изменения"
+      end
     end
   end
 end

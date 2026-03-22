@@ -1,16 +1,16 @@
 Trestle.resource(:search_query_logs, model: SearchQueryLog, readonly: true) do
   menu do
-    item :search_query_logs, icon: "fa fa-history", priority: 5, label: "Логи поиска", group: "Analytics"
+    item :search_query_logs, icon: "fa fa-history", priority: 5, label: "Логи поиска", group: "Аналитика"
   end
 
   table do
-    column :created_at, align: :center
-    column :customer do |record|
+    column :created_at, label: "Дата", align: :center
+    column :customer, label: "Пользователь" do |record|
       record.customer&.username || 'Гость'
     end
-    column :query
-    column :results_count
-    column :clicked_product_sku
+    column :query, label: "Запрос"
+    column :results_count, label: "Результатов"
+    column :clicked_product_sku, label: "Клик по SKU"
     actions
   end
 

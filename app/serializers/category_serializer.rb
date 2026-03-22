@@ -21,21 +21,32 @@ class CategorySerializer
              :is_bulky,
              :show_delivery_block,
              :show_reviews_block,
-             :show_tips_block,
-             :icon_url,
-             :background_image_url,
-             :available_filters
+            :show_tips_block,
+            :icon_url,
+            :pictogram_url,
+            :background_image_url,
+            :available_filters
 
 
-  attribute :icon_url do |category|
-    if category.icon.attached?
-      begin
-        Rails.application.routes.url_helpers.rails_blob_url(category.icon, only_path: true)
-      rescue
-        nil
-      end
-    end
-  end
+ attribute :icon_url do |category|
+   if category.icon.attached?
+     begin
+       Rails.application.routes.url_helpers.rails_blob_url(category.icon, only_path: true)
+     rescue
+       nil
+     end
+   end
+ end
+
+ attribute :pictogram_url do |category|
+   if category.pictogram.attached?
+     begin
+       Rails.application.routes.url_helpers.rails_blob_url(category.pictogram, only_path: true)
+     rescue
+       nil
+     end
+   end
+ end
 
   attribute :background_image_url do |category|
     if category.background_image.attached?

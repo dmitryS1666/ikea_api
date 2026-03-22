@@ -1,24 +1,36 @@
 Trestle.resource(:popular_search_queries, model: PopularSearchQuery) do
   menu do
-    item :popular_search_queries, icon: "fa fa-search", priority: 3, label: "Популярные запросы", group: "Catalog"
+    item :popular_search_queries, icon: "fa fa-search", group: :catalog, label: "Популярные запросы"
   end
 
   table do
-    column :query
-    column :weight do |record|
+    column :query, label: "Запрос"
+    column :weight, label: "Вес" do |record|
       number_with_precision(record.weight || 0, precision: 0)
     end
-    column :active do |record|
-      status_tag(record.active ? 'Активен' : 'Отключен', record.active ? :success : :secondary)
+    column :active, label: "Активен" do |record|
+      status_tag(record.active ? 'Да' : 'Нет', record.active ? :success : :secondary)
     end
-    column :created_at, align: :center
-    column :updated_at, align: :center
+    column :created_at, label: "Создан", align: :center
+    column :updated_at, label: "Обновлен", align: :center
     actions
   end
 
   form do |record|
-    text_field :query
-    number_field :weight
-    check_box :active
+    tab :basic, label: "Основное" do
+      text_field :query, label: "Запрос"
+      number_field :weight, label: "Вес (приоритет)"
+    end
+
+    sidebar do
+      form_group :status, label: "Статус" do
+        check_box :active, label: "Активен"
+      end
+
+      form_group :meta, label: "Метаданные" do
+        static_field :created_at, label: "Дата создания"
+        static_field :updated_at, label: "Дата изменения"
+      end
+    end
   end
 end

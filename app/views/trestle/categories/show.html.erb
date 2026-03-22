@@ -113,21 +113,37 @@
     <div class="col-md-6">
       <div class="card mb-4">
         <div class="card-header">
-          <h5>Иконка категории</h5>
+          <h5>Изображения (иконка и пиктограмма)</h5>
         </div>
-        <div class="card-body text-center">
-          <% if @category.icon.attached? %>
-            <%= image_tag main_app.rails_storage_proxy_path(@category.icon, only_path: true), 
-                          class: 'img-fluid', 
-                          style: 'max-width: 128px; max-height: 128px; border: 1px solid #eee; padding: 10px; border-radius: 8px; background: #f9f9f9;' %>
-            <p class="text-muted small mt-2">Эта иконка отображается в меню и списках</p>
-          <% else %>
-            <div class="py-4">
-              <i class="fa fa-image text-muted" style="font-size: 48px; opacity: 0.3;"></i>
-              <p class="text-muted mt-2">Иконка не установлена</p>
-              <%= link_to "Установить иконку", edit_categories_admin_path(@category), class: "btn btn-sm btn-outline-primary" %>
+        <div class="card-body">
+          <div class="row text-center">
+            <div class="col-6">
+              <h6>Иконка</h6>
+              <% if @category.icon.attached? %>
+                <%= image_tag main_app.rails_storage_proxy_path(@category.icon, only_path: true), 
+                              class: 'img-fluid mb-2', 
+                              style: 'max-width: 80px; max-height: 80px; border: 1px solid #eee; padding: 5px; border-radius: 4px; background: #f9f9f9;' %>
+                <div class="small text-muted text-break" style="font-size: 10px;">
+                  <%= main_app.rails_storage_proxy_path(@category.icon, only_path: true) %>
+                </div>
+              <% else %>
+                <div class="py-3 text-muted">Не установлена</div>
+              <% end %>
             </div>
-          <% end %>
+            <div class="col-6">
+              <h6>Пиктограмма</h6>
+              <% if @category.pictogram.attached? %>
+                <%= image_tag main_app.rails_storage_proxy_path(@category.pictogram, only_path: true), 
+                              class: 'img-fluid mb-2', 
+                              style: 'max-width: 80px; max-height: 80px; border: 1px solid #eee; padding: 5px; border-radius: 4px; background: #f9f9f9;' %>
+                <div class="small text-muted text-break" style="font-size: 10px;">
+                  <%= main_app.rails_storage_proxy_path(@category.pictogram, only_path: true) %>
+                </div>
+              <% else %>
+                <div class="py-3 text-muted">Не установлена</div>
+              <% end %>
+            </div>
+          </div>
         </div>
       </div>
 

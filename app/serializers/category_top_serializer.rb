@@ -7,7 +7,9 @@ class CategoryTopSerializer
              :translated_name, 
              :is_top, 
              :top_position,
-             :local_image_path
+             :local_image_path,
+             :icon_url,
+             :pictogram_url
 
   attribute :slug do |category|
     category.slug
@@ -17,6 +19,16 @@ class CategoryTopSerializer
     if category.icon.attached?
       begin
         Rails.application.routes.url_helpers.rails_blob_url(category.icon, only_path: true)
+      rescue
+        nil
+      end
+    end
+  end
+
+  attribute :pictogram_url do |category|
+    if category.pictogram.attached?
+      begin
+        Rails.application.routes.url_helpers.rails_blob_url(category.pictogram, only_path: true)
       rescue
         nil
       end

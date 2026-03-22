@@ -3,20 +3,20 @@ Trestle.resource(:exchange_rates, model: ExchangeRate) do
   paginate per_page: 31
 
   menu do
-    item :exchange_rates, icon: "fa fa-dollar-sign", priority: 4, label: "Курсы валют", group: "Finance"
+    item :exchange_rates, icon: "fa fa-dollar-sign", group: :content, label: "Курсы валют"
   end
 
   table do
-    column :date, header: "Дата", sort: { default: true, direction: :desc }
-    column :currency_code, header: "Валюта"
-    column :rate, header: "Курс" do |rate|
+    column :date, label: "Дата", sort: { default: true, direction: :desc }
+    column :currency_code, label: "Валюта"
+    column :rate, label: "Курс НБРБ" do |rate|
       number_with_precision(rate.rate, precision: 4)
     end
-    column :scale, header: "Масштаб"
-    column :rate_per_unit, header: "Курс за 1 ед." do |rate|
+    column :scale, label: "Масштаб"
+    column :rate_per_unit, label: "Курс за 1 ед." do |rate|
       number_with_precision(rate.rate_per_unit, precision: 4)
     end
-    column :created_at, align: :center
+    column :created_at, label: "Загружен", align: :center
     actions
   end
 
@@ -87,11 +87,20 @@ Trestle.resource(:exchange_rates, model: ExchangeRate) do
   end
 
   form do |rate|
-    date_field :date
-    select :currency_code, [['USD', 'USD'], ['EUR', 'EUR'], ['PLN', 'PLN'], ['RUB', 'RUB']]
-    number_field :rate, step: 0.0001
-    number_field :official_rate, step: 0.0001
-    number_field :scale
+    tab :basic, label: "Основное" do
+      date_field :date, label: "Дата"
+      select :currency_code, [['USD', 'USD'], ['EUR', 'EUR'], ['PLN', 'PLN'], ['RUB', 'RUB']], label: "Валюта"
+      number_field :rate, step: 0.0001, label: "Курс НБРБ"
+      number_field :official_rate, step: 0.0001, label: "Официальный курс"
+      number_field :scale, label: "Масштаб"
+    end
+
+    sidebar do
+      form_group :meta, label: "Метаданные" do
+        static_field :created_at, label: "Дата загрузки"
+        static_field :updated_at, label: "Дата изменения"
+      end
+    end
   end
 end
 

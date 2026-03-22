@@ -50,7 +50,7 @@ Trestle.configure do |config|
   # Set the path to consider the application root (for title links and breadcrumbs).
   # Defaults to the same value as `config.path`.
   #
-  # config.root = "/"
+  config.root = "/trestle/dashboard"
 
   # Set the initial breadcrumbs to display in the breadcrumb trail.
   # Defaults to a breadcrumb labeled 'Home' linking to to the application root.
@@ -61,14 +61,6 @@ Trestle.configure do |config|
   # Defaults to "fa fa-arrow-circle-o-right".
   #
   # config.default_navigation_icon = "fa fa-arrow-circle-o-right"
-
-  # Add an explicit menu block to be added to the admin navigation.
-  # Группировка меню определяется через параметр group в menu do блоках ресурсов
-  # config.menu do
-  #   group "Custom Group" do
-  #     item "Custom Link", "/admin/custom", icon: "fa fa-car", badge: { text: "NEW!", class: "label-success" }, priority: :first
-  #   end
-  # end
 
   # == Extension Options
   #
@@ -102,6 +94,11 @@ Trestle.configure do |config|
   # Подключаем Font Awesome 6 Free
   config.hook(:stylesheets) do
     stylesheet_link_tag "fontawesome/all", media: "all"
+    stylesheet_link_tag "trestle/dashboard", media: "all"
+  end
+
+  config.hook(:javascripts) do
+    javascript_include_tag "trestle/dashboard"
   end
 
   # Specify the parameters that should persist across requests when

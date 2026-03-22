@@ -77,10 +77,12 @@
         </div>
 
         <div class="categories-tree">
-          <% if @categories_tree.any? %>
-            <%= render partial: 'trestle/categories/category_node', collection: @categories_tree, as: :node %>
-          <% else %>
-            <div class="alert alert-info">Категории не найдены</div>
+          <% cache [@categories_tree_cache_key, "tree_html_v9"] do %>
+            <% if @categories_tree.any? %>
+              <%= render partial: 'trestle/categories/category_node', collection: @categories_tree, as: :node %>
+            <% else %>
+              <div class="alert alert-info">Категории не найдены</div>
+            <% end %>
           <% end %>
         </div>
       </div>
@@ -161,6 +163,45 @@
     display: flex;
     align-items: center;
     gap: 15px;
+  }
+
+  .category-images {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-start;
+    min-width: 80px; /* Space for two 32px icons + 8px gap + some padding */
+  }
+
+  .category-icon-img,
+  .category-pictogram-img {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    object-fit: contain;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    background: #fff;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .category-pictogram-img svg {
+    max-width: 28px;
+    max-height: 28px;
+    width: auto;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+
+  .category-pictogram-img {
+    border-color: #17a2b8;
+    background-color: #f0faff;
   }
 
   .category-name {

@@ -70,6 +70,7 @@ gem "dotenv"
 gem "trestle", "~> 0.9"
 gem "trestle-auth", "~> 0.4"
 gem "sprockets-rails", "~> 3.4"
+gem "sassc-rails"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
@@ -97,3 +98,5 @@ end
 
 
 gem "trestle-tinymce", "~> 0.4.0"
+gem "groupdate"
+gem "slim-rails"

@@ -1,12 +1,12 @@
 # Админ-панель для управления cron расписаниями
 Trestle.resource :cron_schedules, model: CronSchedule do
   menu do
-    item :cron_schedules, icon: "fa fa-clock", priority: 2, label: "Cron расписания", group: "Parser"
+    item :cron_schedules, icon: "fa fa-clock", priority: 2, label: "Cron расписания", group: "Парсер"
   end
 
   # Таблица
   table do
-    column :task_type, header: "Тип задачи" do |schedule|
+    column :task_type, label: "Тип задачи" do |schedule|
       case schedule.task_type
       when 'categories' then 'Категории'
       when 'products' then 'Продукты'
@@ -19,48 +19,59 @@ Trestle.resource :cron_schedules, model: CronSchedule do
       else schedule.task_type
       end
     end
-    column :schedule, header: "Расписание"
-    column :enabled, header: "Включено" do |schedule|
+    column :schedule, label: "Расписание"
+    column :enabled, label: "Включено" do |schedule|
       enabled = schedule.enabled?
       color = enabled ? 'success' : 'secondary'
       text = enabled ? 'Да' : 'Нет'
       content_tag(:span, text, class: "badge badge-#{color}")
     end
-    column :last_run_at, header: "Последний запуск"
-    column :next_run_at, header: "Следующий запуск"
-    column :created_at, header: "Создано"
+    column :last_run_at, label: "Последний запуск"
+    column :next_run_at, label: "Следующий запуск"
+    column :created_at, label: "Создано", align: :center
     actions
   end
 
-  # Форма
   form do |schedule|
-    row do
-      col(sm: 6) do
-        task_types_options = CronSchedule::TASK_TYPES.map do |t|
-          label = case t
-                  when 'categories' then 'Категории'
-                  when 'products' then 'Продукты'
-                  when 'bestsellers' then 'Хиты продаж'
-                  when 'popular_categories' then 'Популярные категории'
-                  when 'category_images' then 'Картинки категорий'
-                  when 'product_images' then 'Картинки продуктов'
-                  when 'extended_attributes' then 'Расширенные атрибуты продуктов'
-                  when 'currency_rates' then 'Курсы валют'
-                  else t
-                  end
-          [label, t]
+    tab :basic, label: "Основное" do
+      row do
+        col(sm: 12) do
+          task_types_options = CronSchedule::TASK_TYPES.map do |t|
+            label = case t
+                    when 'categories' then 'Категории'
+                    when 'products' then 'Продукты'
+                    when 'bestsellers' then 'Хиты продаж'
+                    when 'popular_categories' then 'Популярные категории'
+                    when 'category_images' then 'Картинки категорий'
+                    when 'product_images' then 'Картинки продуктов'
+                    when 'extended_attributes' then 'Расширенные атрибуты продуктов'
+                    when 'currency_rates' then 'Курсы валют'
+                    else t
+                    end
+            [label, t]
+          end
+          select :task_type, task_types_options, label: "Тип задачи"
         end
-        select :task_type, task_types_options
       end
-      col(sm: 6) { check_box :enabled }
+      
+      text_field :schedule, label: "Расписание (Cron)", placeholder: "0 2 * * * (каждый день в 2:00)", 
+                 help: "Cron выражение. Примеры: '0 2 * * *' (каждый день в 2:00), '0 */6 * * *' (каждые 6 часов)"
     end
-    
-    text_field :schedule, placeholder: "0 2 * * * (каждый день в 2:00)", 
-               help: "Cron выражение. Примеры: '0 2 * * *' (каждый день в 2:00), '0 */6 * * *' (каждые 6 часов)"
-    
-    row do
-      col(sm: 6) { datetime_field :last_run_at, readonly: true }
-      col(sm: 6) { datetime_field :next_run_at, readonly: true }
+
+    sidebar do
+      form_group :status, label: "Статус" do
+        check_box :enabled, label: "Включено"
+      end
+
+      form_group :runs, label: "Запуски" do
+        static_field :last_run_at, label: "Последний запуск"
+        static_field :next_run_at, label: "Следующий запуск"
+      end
+
+      form_group :meta, label: "Метаданные" do
+        static_field :created_at, label: "Дата создания"
+        static_field :updated_at, label: "Дата изменения"
+      end
     end
   end
 

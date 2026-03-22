@@ -79,5 +79,8 @@ module IkeaApi
 
     # Переносим маршруты ActiveStorage под префикс /admin, который уже проброшен в NPM
     config.active_storage.routes_prefix = '/admin/storage'
+
+    # Добавляем пути к шрифтам Font Awesome 6
+    config.assets.paths << Rails.root.join("vendor", "assets", "fontawesome")
   end
 end

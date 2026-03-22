@@ -1,16 +1,16 @@
 Trestle.resource(:promo_code_categories, model: PromoCodeCategory) do
   menu do
-    item :promo_code_categories, icon: "fa fa-folder-open", label: "Промо-категории", group: "Marketing"
+    item :promo_code_categories, icon: "fa fa-folder-open", label: "Промо-категории", group: "Маркетинг"
   end
 
   table do
-    column :promo_code do |record|
+    column :promo_code, label: "Промокод" do |record|
       record.promo_code&.code
     end
-    column :category do |record|
+    column :category, label: "Категория" do |record|
       record.category&.name || record.category_id
     end
-    column :created_at
+    column :created_at, label: "Дата привязки", align: :center
     actions
   end
 

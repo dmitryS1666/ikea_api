@@ -17,7 +17,7 @@
             </tr>
             <% if @product.item_no.present? %>
               <tr>
-                <th>Item No:</th>
+                <th>Артикул IKEA (Item No):</th>
                 <td><%= @product.item_no %></td>
               </tr>
             <% end %>
@@ -145,7 +145,7 @@
             <% end %>
             <% if @product.environmental_info.present? %>
               <tr>
-                <th>Экологическая информация:</th>
+                <th>Экологическая информация (PL):</th>
                 <td><%= @product.environmental_info %></td>
               </tr>
             <% end %>
@@ -157,7 +157,7 @@
             <% end %>
             <% if @product.short_description_ru.present? %>
               <tr>
-                <th>Краткое описание:</th>
+                <th>Краткое описание (RU):</th>
                 <td><%= @product.short_description_ru %></td>
               </tr>
             <% end %>

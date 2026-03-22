@@ -1,14 +1,14 @@
 Trestle.resource(:promo_code_products, model: PromoCodeProduct) do
   menu do
-    item :promo_code_products, icon: "fa fa-link", label: "Промо-артикулы", group: "Marketing"
+    item :promo_code_products, icon: "fa fa-link", label: "Промо-артикулы", group: "Маркетинг"
   end
 
   table do
-    column :promo_code do |record|
+    column :promo_code, label: "Промокод" do |record|
       record.promo_code&.code
     end
-    column :product_sku
-    column :created_at
+    column :product_sku, label: "SKU товара"
+    column :created_at, label: "Дата привязки", align: :center
     actions
   end
 

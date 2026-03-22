@@ -1,6 +1,6 @@
 Trestle.resource(:content_articles, model: ContentArticle) do
   menu do
-    item :content_articles, icon: "fa fa-newspaper", label: "Контент", group: "Content"
+    item :content_articles, icon: "fa fa-newspaper", group: :content, label: "Статьи и Контент"
   end
 
   scopes do
@@ -27,20 +27,20 @@ Trestle.resource(:content_articles, model: ContentArticle) do
   end
 
   table do
-    column :content_type do |article|
+    column :content_type, label: "Тип" do |article|
       ContentArticle.human_attribute_name("content_types.#{article.content_type}")
     end
     
-    column :status do |article|
+    column :status, label: "Статус" do |article|
       ContentArticle.human_attribute_name("statuses.#{article.status}")
     end
-    column :rubric
-    column :title, link: true
-    column :slug
-    column :pinned do |article|
+    column :rubric, label: "Рубрика"
+    column :title, label: "Заголовок", link: true
+    column :slug, label: "Slug (ЧПУ)"
+    column :pinned, label: "Закреплен" do |article|
       article.pinned? ? "Да" : "Нет"
     end
-    column :published_at
+    column :published_at, label: "Дата публикации"
     actions
   end
 
@@ -75,7 +75,7 @@ Trestle.resource(:content_articles, model: ContentArticle) do
       end
     end
 
-    tab :filters, label: "Фильтры" do
+    tab :filters, label: "Фильтры и рубрики" do
       row do
         col(sm: 12) do
           select :rubric,
@@ -86,24 +86,24 @@ Trestle.resource(:content_articles, model: ContentArticle) do
       end
       row do
         col(sm: 6) do
-          text_area :components_input, rows: 3, help: "Одна строка = один компонент"
+          text_area :components_input, rows: 3, label: "Компоненты", help: "Одна строка = один компонент"
         end
         col(sm: 6) do
-          text_area :projects_input, rows: 3, help: "Одна строка = один проект"
+          text_area :projects_input, rows: 3, label: "Проекты", help: "Одна строка = один проект"
         end
       end
     end
 
-    tab :links, label: "Ссылки" do
+    tab :links, label: "Связи с товарами" do
       row do
         col(sm: 6) do
-          text_area :product_skus_input, rows: 4, help: "SKU товаров (строки, разделенные переносами)"
-          file_field :product_csv, label: "Или загрузить SKU из CSV", accept: ".csv", help: "Первая колонка = SKU"
+          text_area :product_skus_input, rows: 4, label: "SKU товаров", help: "Артикул каждого товара с новой строки"
+          file_field :product_csv, label: "Или загрузить из CSV", accept: ".csv", help: "Файл CSV, где первая колонка — SKU"
         end
         col(sm: 6) do
           select :category_ids_input, 
                  Category.all.order(:name).map { |c| [c.translated_name, c.ikea_id] }, 
-                 { label: "Связанные категории", help: "Советы будут показаны в товарах этих категорий" }, 
+                 { label: "Связанные категории", help: "Статья будет отображаться в товарах этих категорий" }, 
                  { multiple: true, data: { ui: "select2" } }
         end
       end

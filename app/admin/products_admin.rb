@@ -1,6 +1,6 @@
 Trestle.resource(:products, model: Product) do
   menu do
-    item :products, icon: "fa fa-cube", priority: 2, label: "Продукты", group: "Catalog"
+    item :products, icon: "fa fa-cube", group: :catalog, priority: 1, label: "Товары"
   end
 
   routes do
@@ -40,34 +40,34 @@ Trestle.resource(:products, model: Product) do
   end
 
   table do
-    column :sku, link: true
-    column :name
-    column :name_ru
-    column :category do |product|
+    column :sku, label: "Артикул", link: true
+    column :name, label: "Название (PL)"
+    column :name_ru, label: "Название (RU)"
+    column :category, label: "Категория" do |product|
       product.category&.name || 'Без категории'
     end
-    column :price do |product|
+    column :price, label: "Цена" do |product|
       number_to_currency(product.price, unit: 'Zl', format: '%n %u')
     end
-    column :quantity, sortable: true
-    column :is_bestseller do |product|
+    column :quantity, label: "Кол-во", sortable: true
+    column :is_bestseller, label: "Хит" do |product|
       status_tag(product.is_bestseller? ? 'Да' : 'Нет', 
                  product.is_bestseller? ? :success : :secondary)
     end
-    column :is_new do |product|
+    column :is_new, label: "Новинка" do |product|
       status_tag(product.is_new? ? 'Да' : 'Нет', 
                  product.is_new? ? :success : :secondary)
     end
-    column :is_popular do |product|
+    column :is_popular, label: "Поп." do |product|
       status_tag(product.is_popular? ? 'Да' : 'Нет', 
                  product.is_popular? ? :success : :secondary)
     end
-    column :is_recommended do |product|
+    column :is_recommended, label: "Рек." do |product|
       status_tag(product.is_recommended? ? 'Да' : 'Нет', 
                  product.is_recommended? ? :success : :secondary)
     end
-    column :created_at, align: :center
-    column :updated_at, align: :center
+    column :created_at, label: "Создан", align: :center
+    column :updated_at, label: "Обновлен", align: :center
     actions do |toolbar, instance, admin|
       toolbar.edit if admin.actions.include?(:edit)
       toolbar.delete if admin.actions.include?(:destroy)
@@ -268,84 +268,32 @@ Trestle.resource(:products, model: Product) do
   end
 
   form do |product|
-    tab :basic, label: "Главный баннер" do
-      text_field :sku, label: "Артикул (SKU)"
-      # text_field :unique_id, label: "Уникальный ID (Unique ID)"
-      # text_field :item_no, label: "Номер позиции (Item No)"
-      text_field :url, label: "Ссылка (URL)"
-      text_field :name, label: "Название (Name)"
-      text_field :name_ru, label: "Название RU"
-      # text_field :collection, label: "Коллекция (Collection)"
-      select :category_id, Category.all.map { |c| [c.translated_name, c.ikea_id] }, { label: "Категория (Category)", include_blank: "Без категории" }
+    tab :basic, label: "Основное" do
+      text_field :sku, label: "Артикул"
+      text_field :url, label: "Ссылка"
+      text_field :name, label: "Название (PL)"
+      text_field :name_ru, label: "Название (RU)"
+      select :category_id, Category.all.map { |c| [c.translated_name, c.ikea_id] }, { label: "Основная категория", include_blank: "Без категории" }
       
-      form_group :categories, label: "Дополнительные категории (Additional Categories)" do
+      form_group :categories, label: "Дополнительные категории" do
         select :category_ids, Category.all.map { |c| [c.translated_name, c.ikea_id] }, { label: "Категории" }, { multiple: true, data: { ui: "select2" } }
       end
     end
 
     tab :pricing, label: "Цена и наличие" do
-      number_field :price, label: "Цена (Price)"
-      number_field :quantity, label: "Количество (Quantity)"
-      text_field :home_delivery, label: "Доставка на дом (Home Delivery)"
-      
-      static_field :calculated_duty_info, label: "Таможенная пошлина (BYN)" do
-        if product.price && product.weight
-          eur_rate = ExchangeRate.fetch_or_create('EUR', Date.today)&.rate_per_unit
-          pln_rate = ExchangeRate.fetch_or_create('PLN', Date.today)&.rate_per_unit
-          if eur_rate && pln_rate
-            price_eur = (product.price * pln_rate / eur_rate).round(2)
-            calculation = CustomsDutyService.calculate(price_eur, product.weight, eur_rate)
-            "#{calculation[:total_byn]} BYN (Пошлина: #{calculation[:duty_byn]} + Сбор: #{calculation[:fee_byn]})"
-          else
-            "Курсы валют не найдены"
-          end
-        else
-          "Недостаточно данных для расчета"
-        end
-      end
-    end
-
-    tab :flags, label: "Флаги" do
-      check_box :is_bestseller, label: "Хит продаж (Is Bestseller)"
-      check_box :is_new, label: "Новинка (Is New)"
-      check_box :is_popular, label: "Популярный (Is Popular)"
-      check_box :is_recommended, label: "Рекомендованный (Is Recommended)"
-      number_field :popularity_score, label: "Оценка популярности (Popularity Score)"
-      number_field :views_count, label: "Количество просмотров (Views Count)"
-      number_field :sales_count, label: "Количество продаж (Sales Count)"
+      number_field :price, label: "Цена (PLN)"
+      number_field :quantity, label: "Количество"
+      text_field :home_delivery, label: "Доставка на дом"
     end
 
     tab :delivery, label: "Доставка" do
-      select :delivery_type, [['Курьер', 'courier'], ['Самовывоз', 'pickup']], { label: "Тип доставки (Delivery Type)" }
-      text_field :delivery_name, label: "Название доставки (Delivery Name)"
-      number_field :delivery_cost, label: "Стоимость доставки (Delivery Cost)"
-      text_field :delivery_reason, label: "Причина доставки (Delivery Reason)"
+      select :delivery_type, [['Курьер', 'courier'], ['Самовывоз', 'pickup']], { label: "Тип доставки" }
+      text_field :delivery_name, label: "Название способа доставки"
+      number_field :delivery_cost, label: "Стоимость доставки"
+      text_field :delivery_reason, label: "Комментарий к доставке"
     end
 
-    tab :extended, label: "Расширенные данные" do
-      row do
-        # check_box :is_parcel, label: "Посылка (Is Parcel)" 
-
-        col(sm: 1) { number_field :weight, label: "Вес (Weight)" }
-        col(sm: 6) { }
-      end
-      row do
-        col(sm: 4) { text_area :care_instructions, label: "Описание (PL)" }
-        col(sm: 8) { text_area :care_instructions_ru, label: "Описание (RU)" }
-      end
-      row do
-        col(sm: 4) { text_area :short_description, label: "Краткое описание (PL)" }
-        col(sm: 8) { text_area :short_description_ru, label: "Краткое описание (RU)" }
-      end
-      row do
-        col(sm: 4) { text_area :materials, label: "Материалы (PL)" }
-        col(sm: 8) { text_area :materials_ru, label: "Материалы (RU)" }
-      end
-      row do
-        col(sm: 4) { text_area :care_instructions, label: "Инструкции по уходу (PL)" }
-        col(sm: 8) { text_area :care_instructions_ru, label: "Инструкции по уходу (RU)" }
-      end
-
+    tab :extended, label: "Характеристики" do
       static_field :full_attributes_json, label: "Документы и атрибуты" do
         accordion_id = "product-full-attrs-#{product.id}"
         assembly_collapse_id = "#{accordion_id}-assembly"
@@ -554,6 +502,26 @@ Trestle.resource(:products, model: Product) do
         end
       end
     end
+
+    sidebar do
+      form_group :flags, label: "Флаги и метки" do
+        check_box :is_bestseller, label: "Хит продаж"
+        check_box :is_new, label: "Новинка"
+        check_box :is_popular, label: "Популярный"
+        check_box :is_recommended, label: "Рекомендованный"
+      end
+
+      form_group :stats, label: "Статистика" do
+        number_field :popularity_score, label: "Рейтинг популярности"
+        number_field :views_count, label: "Просмотры"
+        number_field :sales_count, label: "Продажи"
+      end
+
+      form_group :meta, label: "Метаданные" do
+        static_field :created_at, label: "Дата создания"
+        static_field :updated_at, label: "Дата обновления"
+      end
+    end
   end
 
   params do |params|
@@ -570,4 +538,3 @@ Trestle.resource(:products, model: Product) do
     )
   end
 end
-

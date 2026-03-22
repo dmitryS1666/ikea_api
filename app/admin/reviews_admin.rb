@@ -1,6 +1,6 @@
 Trestle.resource(:reviews, model: Review) do
   menu do
-    item :reviews, icon: "fa fa-star", label: "Отзывы", group: "Content"
+    item :reviews, icon: "fa fa-star", group: :sales, label: "Отзывы"
   end
 
   scopes do
@@ -12,84 +12,66 @@ Trestle.resource(:reviews, model: Review) do
   end
 
   table do
-    column :id, link: true
-    column :product_sku
-    column :user do |review|
+    column :id, label: "ID", link: true
+    column :product_sku, label: "SKU товара"
+    column :user, label: "Пользователь" do |review|
       review.user&.username || review.user_id
     end
-    column :rating
-    column :status do |review|
+    column :rating, label: "Рейтинг"
+    column :status, label: "Статус" do |review|
       status_tag(review.status, review.status == 'published' ? :success : :secondary)
     end
-    column :helpful_count
+    column :helpful_count, label: "Полезно"
     column "Фото" do |review|
       "#{review.photos.count} шт."
     end
-    column :pinned do |review|
+    column :pinned, label: "Закреплен" do |review|
       status_tag(review.pinned? ? 'Да' : 'Нет',
                  review.pinned? ? :success : :secondary)
     end
-    column :excluded_from_rating do |review|
+    column :excluded_from_rating, label: "Исключен" do |review|
       status_tag(review.excluded_from_rating? ? 'Да' : 'Нет',
                  review.excluded_from_rating? ? :warning : :secondary)
     end
-    column :created_at
+    column :created_at, label: "Дата", align: :center
     actions
   end
 
   form do |review|
-    row do
-      col(sm: 4) { number_field :rating }
-      col(sm: 4) do
+    tab :basic, label: "Основное" do
+      row do
+        col(sm: 12) { text_field :product_sku, disabled: true, label: "SKU товара", help: "Артикул товара" }
+      end
+
+      row do
+        col(sm: 12) { text_area :body, rows: 4, label: "Текст отзыва" }
+      end
+
+      row do
+        col(sm: 12) { text_area :admin_note, rows: 3, label: "Примечание модератора" }
+      end
+    end
+
+    tab :photos, label: "Фотографии" do
+      # ...
+    end
+
+    sidebar do
+      form_group :status_group, label: "Статус и оценка" do
+        number_field :rating, label: "Рейтинг"
         select :status,
                Review.statuses.keys.map { |status| [status.humanize, status] },
                label: "Статус"
       end
-      col(sm: 4) { check_box :pinned }
-    end
 
-    row do
-      col(sm: 6) { check_box :excluded_from_rating, label: "Исключить из рейтинга" }
-      col(sm: 6) { text_field :product_sku, disabled: true, hint: "SKU товара" }
-    end
-
-    row do
-      col(sm: 12) { text_area :body, rows: 4 }
-    end
-
-    row do
-      col(sm: 12) { text_area :admin_note, rows: 3, label: "Примечание модератора" }
-    end
-
-    if review.photos.attached?
-      row do
-        col do
-          form_group :existing_photos, label: "Текущие фотографии" do
-            content_tag(:div, class: "row") do
-              review.photos.each do |photo|
-                concat(
-                  content_tag(:div, class: "col-xs-3 col-sm-2", style: "margin-bottom: 20px;") do
-                    content_tag(:div, class: "thumbnail", style: "margin-bottom: 5px;") do
-                      image_tag(main_app.rails_blob_path(photo, only_path: true), style: "width: 100%; height: 100px; object-fit: cover;")
-                    end +
-                    link_to("Удалить", admin.instance_path(review, action: :delete_photo, photo_id: photo.id), 
-                      class: "btn btn-danger btn-xs btn-block", 
-                      data: { confirm: "Удалить это фото?" })
-                  end
-                )
-              end
-            end
-          end
-        end
+      form_group :flags, label: "Настройки" do
+        check_box :pinned, label: "Закрепить вверху"
+        check_box :excluded_from_rating, label: "Исключить из рейтинга"
       end
-    end
 
-    row do
-      col do
-        file_field :photos, multiple: true, label: "Добавить фото (макс. 5)", id: "js-review-photos-input"
-        content_tag(:div, id: "js-photos-preview", class: "row", style: "margin-top: 10px;") do
-          # Сюда JS будет вставлять превью
-        end
+      form_group :meta, label: "Метаданные" do
+        static_field :created_at, label: "Дата создания"
+        static_field :updated_at, label: "Дата изменения"
       end
     end
   end

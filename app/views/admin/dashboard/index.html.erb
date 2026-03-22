@@ -1,0 +1,258 @@
+<div class="dashboard-container">
+  <div class="dashboard-header">
+    <div class="header-content">
+      <h1 class="dashboard-title">Добро пожаловать, <%= current_user.first_name_display %>! 👋</h1>
+      <p class="dashboard-subtitle">Сегодня <%= I18n.l(Date.current, format: :long) %>. Вот краткий обзор состояния вашего магазина.</p>
+    </div>
+    <div class="header-actions">
+      <button id="refresh-btn" class="btn btn-outline-primary">
+        <i class="fa fa-sync-alt"></i>
+        <span>Обновить данные</span>
+      </button>
+    </div>
+  </div>
+
+  <%# Быстрые ссылки %>
+  <div class="quick-links-section mb-4">
+    <div class="row">
+      <div class="col-md-2">
+        <a href="<%= products_admin_index_path %>" class="quick-link-card">
+          <i class="fa fa-box"></i>
+          <span>Товары</span>
+        </a>
+      </div>
+      <div class="col-md-2">
+        <a href="<%= orders_admin_index_path %>" class="quick-link-card">
+          <i class="fa fa-shopping-bag"></i>
+          <span>Заказы</span>
+        </a>
+      </div>
+      <div class="col-md-2">
+        <a href="<%= categories_admin_index_path %>" class="quick-link-card">
+          <i class="fa fa-tags"></i>
+          <span>Категории</span>
+        </a>
+      </div>
+      <div class="col-md-2">
+        <a href="<%= users_admin_index_path %>" class="quick-link-card">
+          <i class="fa fa-user-friends"></i>
+          <span>Клиенты</span>
+        </a>
+      </div>
+      <div class="col-md-2">
+        <a href="<%= exchange_rates_admin_index_path %>" class="quick-link-card">
+          <i class="fa fa-dollar-sign"></i>
+          <span>Валюты</span>
+        </a>
+      </div>
+      <div class="col-md-2">
+        <a href="<%= calculator_setting_admin_index_path %>" class="quick-link-card">
+          <i class="fa fa-cog"></i>
+          <span>Настройки</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-section">
+    <div class="stats-grid">
+      <div class="stat-card revenue-card">
+        <div class="stat-icon">💰</div>
+        <div class="stat-info">
+          <span class="stat-label">Выручка (30д)</span>
+          <h3 class="stat-value" data-field="revenue"><%= number_to_currency(@stats[:revenue], unit: "BYN") %></h3>
+          <div class="stat-pill positive">+12% за месяц</div>
+        </div>
+      </div>
+      <div class="stat-card clients-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-info">
+          <span class="stat-label">Новые клиенты (30д)</span>
+          <h3 class="stat-value" data-field="new_clients"><%= @stats[:new_clients] %></h3>
+          <div class="stat-pill positive"><%= @stats[:new_clients] %> чел.</div>
+        </div>
+      </div>
+      <div class="stat-card products-card">
+        <div class="stat-icon">📦</div>
+        <div class="stat-info">
+          <span class="stat-label">Активные товары</span>
+          <h3 class="stat-value" data-field="active_products"><%= @stats[:active_products] %></h3>
+          <div class="stat-pill neutral">В наличии</div>
+        </div>
+      </div>
+      <div class="stat-card avg-check-card">
+        <div class="stat-icon">💳</div>
+        <div class="stat-info">
+          <span class="stat-label">Средний чек (30д)</span>
+          <h3 class="stat-value" data-field="avg_check"><%= number_to_currency(@stats[:avg_check], unit: "BYN") %></h3>
+          <div class="stat-pill positive">Стабильно</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main-grid">
+    <div class="chart-card">
+      <div class="card-header">
+        <h4 class="card-title">График заказов</h4>
+        <span class="card-subtitle">Количество созданных заказов по дням</span>
+      </div>
+      <div class="chart-container">
+        <div class="custom-chart" id="orders-chart">
+          <% max_count = @chart_data.map { |d| d[:count] }.max %>
+          <% @chart_data.each do |day| %>
+            <% height = max_count.to_f > 0 ? (day[:count].to_f / max_count * 100).round : 0 %>
+            <div class="chart-bar" style="height: <%= height %>%" data-value="<%= day[:count] %>">
+              <div class="bar-tooltip"><%= day[:date] %>: <%= day[:count] %></div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <div class="top-products-card">
+      <div class="card-header">
+        <h4 class="card-title">Топ товаров</h4>
+        <span class="card-subtitle">Самые просматриваемые позиции</span>
+      </div>
+      <div class="top-products-list">
+        <% @top_products.each_with_index do |product, index| %>
+          <div class="product-item">
+            <div class="product-rank"><%= index + 1 %></div>
+            <div class="product-details">
+              <span class="product-name"><%= product[:name] %></span>
+              <span class="product-sku"><%= product[:sku] %></span>
+            </div>
+            <div class="product-views">
+              <span class="views-count"><%= product[:views] %></span>
+              <span class="views-label">просмотров</span>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-grid mb-4">
+    <div class="recent-orders-card">
+      <div class="card-header">
+        <h4 class="card-title">Последние заказы</h4>
+        <span class="card-subtitle">Оперативная лента активности</span>
+      </div>
+      <div class="orders-list">
+        <% @recent_orders.each do |order| %>
+          <div class="order-item">
+            <div class="order-status-dot status-<%= order[:status] %>" title="<%= order[:status] %>"></div>
+            <div class="order-details">
+              <span class="order-customer"><%= order[:customer] %></span>
+              <span class="order-time"><%= time_ago_in_words(order[:created_at]) %> назад</span>
+            </div>
+            <div class="order-total"><%= number_to_currency(order[:total], unit: "BYN") %></div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="progress-card">
+      <div class="card-header">
+        <h4 class="card-title">Состояние системы</h4>
+        <span class="card-subtitle">Процент выполнения KPI</span>
+      </div>
+      <div class="progress-list">
+        <div class="progress-item">
+          <div class="progress-info">
+            <span class="progress-label">Наполнение контентом</span>
+            <span class="progress-value"><%= @progress[:catalog] %>%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" style="width: <%= @progress[:catalog] %>%"></div>
+          </div>
+        </div>
+        <div class="progress-item">
+          <div class="progress-info">
+            <span class="progress-label">Обработка текущих заказов</span>
+            <span class="progress-value"><%= @progress[:orders] %>%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" style="width: <%= @progress[:orders] %>%"></div>
+          </div>
+        </div>
+        <div class="progress-item">
+          <div class="progress-info">
+            <span class="progress-label">Ответы на отзывы</span>
+            <span class="progress-value"><%= @progress[:reviews] %>%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" style="width: <%= @progress[:reviews] %>%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <%# База знаний администратора (скрывающаяся внизу) %>
+  <div class="readme-section mt-5">
+    <details class="guide-details readme-card">
+      <summary class="guide-summary readme-header">
+        <div class="d-flex align-items-center">
+          <i class="fa fa-book-open text-primary mr-2"></i>
+          <h4 class="card-title mb-0">База знаний администратора (Руководство)</h4>
+        </div>
+        <i class="fa fa-chevron-down toggle-icon"></i>
+      </summary>
+      <div class="guide-content bg-white p-4">
+        <div class="readme-grid">
+          <div class="readme-column">
+            <section class="mb-4">
+              <h5><i class="fa fa-calculator text-primary"></i> Ценообразование и Финансы</h5>
+              <div class="formula-block mb-3">
+                <code>Коэффициент K = (87 / цена_PLN) - 0.187</code>
+              </div>
+              <ul class="guide-list">
+                <li><strong>Валютный буфер:</strong> Ко всем курсам НБРБ автоматически добавляется <strong>5%</strong> (параметр <code>exchange_rate_buffer = 1.05</code>). Это защищает от резких скачков курса между закупкой и доставкой.</li>
+                <li><strong>Минимальная маржа:</strong> Наценка не может опуститься ниже <strong>10%</strong> (<code>min_markup = 0.10</code>), даже если формула выдает меньше.</li>
+                <li><strong>Логистика по Польше:</strong> Ступенчатые тарифы IKEA (79zl, 119zl и т.д.) хранятся в <code>poland_delivery_rates</code> в формате JSON.</li>
+                <li><strong>Логистика в РБ:</strong> Стоимость за кг уменьшается при росте веса (от 16.85 PLN до 8.58 PLN за кг). Редактируется в <code>belarus_delivery_rates</code>.</li>
+                <li><strong>Таможня:</strong> Лимиты 200€ и 31кг. Пошлина 15% или 2€/кг + сбор 10 BYN. Все расчеты автоматизированы.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h5><i class="fa fa-sync-alt text-success"></i> Синхронизация с IKEA</h5>
+              <ul class="guide-list">
+                <li><strong>Авто-парсинг:</strong> Раздел «Cron расписания» управляет временем запуска обновления цен и остатков.</li>
+                <li><strong>Ручное обновление:</strong> В карточке любого товара есть кнопка «Перепарсить». Она поставит задачу в очередь Sidekiq.</li>
+                <li><strong>Новые товары:</strong> Чтобы добавить товар, которого нет в базе, введите его SKU в разделе «Категории» -> вкладка «Товары».</li>
+              </ul>
+            </section>
+          </div>
+
+          <div class="readme-column">
+            <section class="mb-4">
+              <h5><i class="fa fa-shopping-cart text-warning"></i> Работа с заказами</h5>
+              <ul class="guide-list">
+                <li><strong>Статусы:</strong> Перевод заказа в статус <code>paid</code> или <code>purchased</code> отправляет клиенту уведомление.</li>
+                <li><strong>Трекинг:</strong> Как только заказ отправлен из Польши, внесите <code>track_number</code>. Это активирует отслеживание в личном кабинете пользователя.</li>
+                <li><strong>CRM:</strong> Поле <code>crm_external_id</code> связывает заказ с внешней системой учета (если подключена).</li>
+              </ul>
+            </section>
+
+            <section class="mb-4">
+              <h5><i class="fa fa-search text-info"></i> SEO и Продвижение</h5>
+              <ul class="guide-list">
+                <li><strong>Категории:</strong> Можно создавать свои «Кастомные» категории для акций. У них можно менять иконки и фоны.</li>
+                <li><strong>Мета-теги:</strong> Вкладка SEO в категориях и товарах позволяет переопределить Title и Description. Если оставить пустыми — сгенерируются по шаблонам.</li>
+                <li><strong>Шаблоны:</strong> Общие правила генерации имен настраиваются в «Глобальные SEO».</li>
+              </ul>
+            </section>
+
+            <div class="alert alert-info border-0 shadow-sm mt-4">
+              <h6><i class="fa fa-lightbulb"></i> Совет для профи:</h6>
+              <p class="small mb-0">Для быстрой проверки корректности настроек используйте <strong>«Калькулятор цен»</strong>. Там можно ввести цену в злотых и вес, чтобы увидеть детальную расшифровку итоговой стоимости в BYN.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
+  </div>
+</div>

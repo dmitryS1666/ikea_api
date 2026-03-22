@@ -5,15 +5,15 @@ Trestle.resource(:users, model: User) do
   end
 
   menu do
-    item :users, icon: "fa fa-users", priority: 5, label: "Пользователи", group: "Settings"
+    item :users, icon: "fa fa-users", group: :sales, priority: 2, label: "Пользователи"
   end
 
   table do
-    column :id
-    column :username, link: true
-    column :phone
-    column :email
-    column :role do |user|
+    column :id, label: "ID"
+    column :username, label: "Логин", link: true
+    column :phone, label: "Телефон"
+    column :email, label: "Электронная почта"
+    column :role, label: "Роль" do |user|
       case user.role
       when 'admin'
         status_tag('Администратор', :success)
@@ -23,15 +23,15 @@ Trestle.resource(:users, model: User) do
         status_tag('Пользователь', :secondary)
       end
     end
-    column :passport_verified? do |user|
+    column :passport_verified?, label: "Паспорт" do |user|
       status_tag(user.passport_verified? ? 'Верифицирован' : 'Не верифицирован', 
                  user.passport_verified? ? :success : :warning)
     end
-    column :is_active do |user|
-      status_tag(user.is_active? ? 'Активен' : 'Неактивен', 
+    column :is_active, label: "Активен" do |user|
+      status_tag(user.is_active? ? 'Да' : 'Нет', 
                  user.is_active? ? :success : :danger)
     end
-    column :created_at, align: :center
+    column :created_at, label: "Зарегистрирован", align: :center
     actions do |toolbar, user|
       toolbar.link "Запрос звонка", admin.instance_path(user, action: :request_call), method: :post, icon: "fa fa-phone", class: "btn btn-info"
     end
@@ -86,16 +86,16 @@ Trestle.resource(:users, model: User) do
         col(sm: 4) { text_field :middle_name, label: "Отчество" }
       end
       row do
-        col(sm: 6) { text_field :username, label: "Username (публичный)" }
-        col(sm: 6) { text_field :email }
+        col(sm: 6) { text_field :username, label: "Логин (публичный)" }
+        col(sm: 6) { text_field :email, label: "Электронная почта" }
       end
       row do
-        col(sm: 6) { text_field :phone }
-        col(sm: 6) { select :country_code, %w[RB РФ РК] }
+        col(sm: 6) { text_field :phone, label: "Телефон" }
+        col(sm: 6) { select :country_code, %w[RB РФ РК], label: "Страна" }
       end
       row do
         col(sm: 6) { date_field :dob, label: "Дата рождения" }
-        col(sm: 6) { select :gender, %w[Male Female], label: "Пол" }
+        col(sm: 6) { select :gender, [['Мужской', 'Male'], ['Женский', 'Female']], label: "Пол" }
       end
       
       row do
@@ -207,20 +207,20 @@ Trestle.resource(:users, model: User) do
     end
 
     sidebar do
-      password_field :password
-      password_field :password_confirmation
+      password_field :password, label: "Пароль"
+      password_field :password_confirmation, label: "Подтверждение пароля"
       
       row do
-        col(sm: 12) { select :role, { 'Пользователь' => 'user', 'Менеджер' => 'manager', 'Администратор' => 'admin' } }
+        col(sm: 12) { select :role, { 'Пользователь' => 'user', 'Менеджер' => 'manager', 'Администратор' => 'admin' }, label: "Роль" }
       end
       row do
-        col(sm: 12) { check_box :is_active }
+        col(sm: 12) { check_box :is_active, label: "Активен" }
       end
       row do
-        col(sm: 12) { static_field :created_at }
+        col(sm: 12) { static_field :created_at, label: "Дата регистрации" }
       end
       row do
-        col(sm: 12) { static_field :updated_at }
+        col(sm: 12) { static_field :updated_at, label: "Последнее обновление" }
       end
     end
   end

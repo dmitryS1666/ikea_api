@@ -2,6 +2,7 @@ class Category < ApplicationRecord
   self.primary_key = 'ikea_id'
   
   has_one_attached :icon
+  has_one_attached :pictogram
   has_one_attached :background_image
   
   validates :ikea_id, presence: true, uniqueness: true
@@ -184,14 +185,25 @@ class Category < ApplicationRecord
 
     private
 
-    def build_tree_recursive(parents, children_index)
+    def build_tree_recursive(parents, children_index, visited = [])
       parents.map do |parent|
+        parent_id = parent.ikea_id.to_s
+        
+        # Предотвращаем бесконечную рекурсию при наличии циклов в данных
+        if visited.include?(parent_id)
+          Rails.logger.warn "Circular dependency detected for category #{parent_id}. Skipping children."
+          next {
+            category: parent,
+            children: []
+          }
+        end
+        
         # Используем индекс для быстрого поиска дочерних категорий
-        children = children_index[parent.ikea_id.to_s] || []
+        children = children_index[parent_id] || []
         
         {
           category: parent,
-          children: build_tree_recursive(children, children_index)
+          children: build_tree_recursive(children, children_index, visited + [parent_id])
         }
       end
     end

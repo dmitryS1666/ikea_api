@@ -1,32 +1,42 @@
 Trestle.resource(:breadcrumb_rules, model: BreadcrumbRule) do
   menu do
-    item :breadcrumb_rules, icon: "fa fa-list", priority: 1, label: "Breadcrumb Rules", group: "SEO"
+    item :breadcrumb_rules, icon: "fa fa-list", priority: 1, label: "Правила хлебных крошек", group: "SEO"
   end
 
   table do
-    column :entity_type
-    column :rule_type do |rule|
+    column :entity_type, label: "Тип сущности"
+    column :rule_type, label: "Тип правила" do |rule|
       rule.rule_type.humanize
     end
-    column :active do |rule|
+    column :active, label: "Активно" do |rule|
       status_tag(rule.active? ? "Да" : "Нет", rule.active? ? :success : :secondary)
     end
-    column :created_at
+    column :created_at, label: "Создано", align: :center
     actions
   end
 
   form do |rule|
-    static_field :hint, label: false do
-      "build_tree: получает полную цепочку категорий (предки + актуальная категория)"
+    tab :basic, label: "Основное" do
+      static_field :hint, label: false do
+        "build_tree: получает полную цепочку категорий (предки + актуальная категория)"
+      end
+      static_field :hint, label: false do
+        "build_primary_category_only: только primary_category"
+      end
+      
+      select :entity_type, BreadcrumbRule::ENTITY_TYPES.map { |entity| [entity.humanize, entity] }, label: "Тип сущности"
+      select :rule_type, BreadcrumbRule.rule_types.keys.map { |type| [type.humanize, type] }, label: "Тип правила"
     end
-    static_field :hint, label: false do
-      "build_primary_category_only: только primary_category"
-    end
-    
-    select :entity_type, BreadcrumbRule::ENTITY_TYPES.map { |entity| [entity.humanize, entity] }
-    select :rule_type, BreadcrumbRule.rule_types.keys.map { |type| [type.humanize, type] }
 
-    check_box :active
-    # text_area :payload, rows: 3, label: "Payload (JSON)"
+    sidebar do
+      form_group :status, label: "Статус" do
+        check_box :active, label: "Активно"
+      end
+
+      form_group :meta, label: "Метаданные" do
+        static_field :created_at, label: "Дата создания"
+        static_field :updated_at, label: "Дата изменения"
+      end
+    end
   end
 end
