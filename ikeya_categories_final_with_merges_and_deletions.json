@@ -442,7 +442,8 @@
               "effective_name": "Напольные шкафы BESTÅ",
               "children": [
 
-              ]
+              ],
+              "ikea_id": "55031"
             }
           ],
           "ikea_id": "46053"
@@ -2419,7 +2420,8 @@
                       "effective_name": "Фасады для кухни белые VEDDINGE",
                       "children": [
 
-                      ]
+                      ],
+                      "ikea_id": "700365"
                     },
                     {
                       "row": 239,
@@ -2507,7 +2509,8 @@
                       "effective_name": "Фасады для кухни черные LERHYTTAN",
                       "children": [
 
-                      ]
+                      ],
+                      "ikea_id": "700374"
                     },
                     {
                       "row": 248,
@@ -2575,7 +2578,8 @@
                       "effective_name": "Фасады для кухни кремовые BODBYN",
                       "children": [
 
-                      ]
+                      ],
+                      "ikea_id": "700393"
                     },
                     {
                       "row": 255,
@@ -2584,7 +2588,8 @@
                       "effective_name": "Фасады для кухни под ясень ASKERSUND",
                       "children": [
 
-                      ]
+                      ],
+                      "ikea_id": "700399"
                     },
                     {
                       "row": 256,
@@ -2603,7 +2608,8 @@
                       "effective_name": "Фасады для кухни под дуб FORSBACKA",
                       "children": [
 
-                      ]
+                      ],
+                      "ikea_id": "700514"
                     },
                     {
                       "row": 258,
@@ -2612,7 +2618,8 @@
                       "effective_name": "Фасады для кухни под грецкий орех TISTORP",
                       "children": [
 
-                      ]
+                      ],
+                      "ikea_id": "700515"
                     },
                     {
                       "row": 259,
@@ -2641,7 +2648,8 @@
                       "effective_name": "Фасады для кухни коричнево-бежевые HAVSTORP",
                       "children": [
 
-                      ]
+                      ],
+                      "ikea_id": "700386"
                     },
                     {
                       "row": 262,
@@ -2660,7 +2668,8 @@
                       "effective_name": "Фасады для кухни темно-коричневые STENSTA",
                       "children": [
 
-                      ]
+                      ],
+                      "ikea_id": "700607"
                     },
                     {
                       "row": 264,
@@ -2689,7 +2698,8 @@
                       "effective_name": "Фасады для кухни черные BODBYN",
                       "children": [
 
-                      ]
+                      ],
+                      "ikea_id": "700635"
                     },
                     {
                       "row": 267,
@@ -2718,7 +2728,8 @@
                       "effective_name": "Фасады для кухни синие LERHYTTAN",
                       "children": [
 
-                      ]
+                      ],
+                      "ikea_id": "700697"
                     },
                     {
                       "row": 270,
@@ -2737,7 +2748,8 @@
                       "effective_name": "Фасады для кухни темно-зеленые ASPUDDEN",
                       "children": [
 
-                      ]
+                      ],
+                      "ikea_id": "700711"
                     }
                   ],
                   "ikea_id": "50005"
@@ -3392,7 +3404,8 @@
               "effective_name": "Индукционные варочные панели с вытяжкой",
               "children": [
 
-              ]
+              ],
+              "ikea_id": "700712"
             }
           ],
           "ikea_id": "700712"
@@ -3676,7 +3689,8 @@
               "effective_name": "Мини-кухни готовые ÖNNERUP",
               "children": [
 
-              ]
+              ],
+              "ikea_id": "700534"
             },
             {
               "row": 363,
@@ -3695,7 +3709,8 @@
               "effective_name": "Техника для кухни ÖNNERUP",
               "children": [
 
-              ]
+              ],
+              "ikea_id": "700535"
             },
             {
               "row": 365,
@@ -3704,7 +3719,8 @@
               "effective_name": "Раковины, краны и смесители для кухни ÖNNERUP",
               "children": [
 
-              ]
+              ],
+              "ikea_id": "700536"
             }
           ],
           "ikea_id": "700533"
@@ -3838,7 +3854,8 @@
           "effective_name": "Фурнитура и ручки для кухонных шкафов",
           "children": [
 
-          ]
+          ],
+          "ikea_id": "700674"
         },
         {
           "row": 381,
@@ -6355,7 +6372,8 @@
           ],
           "ikea_id": "700424"
         }
-      ]
+      ],
+      "ikea_id": "fu004"
     },
     {
       "row": 635,
@@ -7753,7 +7771,8 @@
               ],
               "ikea_id": "55021"
             }
-          ]
+          ],
+          "ikea_id": "45780"
         },
         {
           "row": 778,
@@ -8228,7 +8247,8 @@
           "effective_name": "Штабелируемые кровати с матрасами",
           "children": [
 
-          ]
+          ],
+          "ikea_id": "700513"
         }
       ],
       "ikea_id": "bm001"
@@ -8517,7 +8537,8 @@
           "url": "https://www.ikea.com/pl/pl/cat/lustra-lazienkowe-20498/",
           "children": [
 
-          ]
+          ],
+          "ikea_id": "20498"
         },
         {
           "row": 858,
@@ -8556,7 +8577,8 @@
           "effective_name": "Шкафы и стеллажи для прачечной",
           "children": [
 
-          ]
+          ],
+          "ikea_id": "48925"
         },
         {
           "row": 862,
@@ -8575,7 +8597,8 @@
           "effective_name": "Полки, стойки, этажерки для ванной",
           "children": [
 
-          ]
+          ],
+          "ikea_id": "20615"
         },
         {
           "row": 864,
@@ -8634,7 +8657,8 @@
           "effective_name": "Мебель для ванных комнат",
           "children": [
 
-          ]
+          ],
+          "ikea_id": "700450"
         },
         {
           "row": 870,
@@ -8689,7 +8713,8 @@
               "effective_name": "Тумбы под умывальник без раковины HAVBÄCK",
               "children": [
 
-              ]
+              ],
+              "ikea_id": "700464"
             },
             {
               "row": 876,
@@ -8757,7 +8782,8 @@
               "effective_name": "Тумбы с раковиной ÄNGSJÖN",
               "children": [
 
-              ]
+              ],
+              "ikea_id": "700470"
             },
             {
               "row": 883,
@@ -8874,7 +8900,8 @@
               "effective_name": "Тумбы под умывальник без раковины HEMNES",
               "children": [
 
-              ]
+              ],
+              "ikea_id": "700480"
             },
             {
               "row": 895,
@@ -8883,7 +8910,8 @@
               "effective_name": "Тумбы с раковиной HEMNES",
               "children": [
 
-              ]
+              ],
+              "ikea_id": "700481"
             }
           ],
           "ikea_id": "700457"
@@ -8970,7 +8998,8 @@
               "effective_name": "Комплекты мебели для ванной комнаты ENHET",
               "children": [
 
-              ]
+              ],
+              "ikea_id": "700491"
             },
             {
               "row": 905,
@@ -8989,7 +9018,8 @@
               "effective_name": "Тумбы с раковиной ENHET",
               "children": [
 
-              ]
+              ],
+              "ikea_id": "700493"
             }
           ],
           "ikea_id": "700458"
@@ -9007,7 +9037,8 @@
               "effective_name": "Шкафы для ванной комнаты NYSJÖN",
               "children": [
 
-              ]
+              ],
+              "ikea_id": "700494"
             },
             {
               "row": 909,
