@@ -23,8 +23,12 @@ module Api
             current_passport = current_user.passport_data
             
             if !UserPassportService.same?(passport_input, current_passport)
-              UserPassportService.write!(user: current_user, passport_hash: passport_input)
-              current_user.update!(passport_verified_at: nil) # Reset verification when changed
+              begin
+                UserPassportService.write!(user: current_user, passport_hash: passport_input)
+                current_user.update!(passport_verified_at: nil) # Reset verification when changed
+              rescue ArgumentError => e
+                return render json: { error: e.message }, status: :unprocessable_entity
+              end
             end
           end
 

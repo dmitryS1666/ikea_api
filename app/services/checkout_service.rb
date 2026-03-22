@@ -8,7 +8,15 @@ class CheckoutService
     passport_input = params[:passport].is_a?(Hash) ? params[:passport] : (params[:passport].to_unsafe_h rescue nil)
     if passport_input.present?
       number = passport_input['passport_number'] || passport_input[:passport_number] || passport_input['number'] || passport_input[:number]
-      if number.present? && !PassportNumberValidator.valid?(number)
+      series = passport_input['series'] || passport_input[:series]
+      
+      full_number = if series.present? && number.present? && !number.to_s.match?(/[a-zA-Z\u0400-\u04FF]/)
+                      "#{series}#{number}"
+                    else
+                      number
+                    end
+
+      if full_number.present? && !PassportNumberValidator.valid?(full_number)
         return { error: 'Номер паспорта должен быть в формате: 2 буквы и 7 цифр (например, MP1234567)', code: 'invalid_passport_number' }
       end
     end
