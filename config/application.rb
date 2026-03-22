@@ -82,5 +82,12 @@ module IkeaApi
 
     # Добавляем пути к шрифтам Font Awesome 6
     config.assets.paths << Rails.root.join("vendor", "assets", "fontawesome")
+
+    # Active Record Encryption Configuration
+    # NOTE: In production, these should be moved to credentials or environment variables.
+    # These defaults are here to prevent application crashes when encryption is used.
+    config.active_record.encryption.primary_key = ENV['ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY'] || "test_primary_key_must_be_32_chars_long_123"
+    config.active_record.encryption.deterministic_key = ENV['ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY'] || "test_deterministic_key_must_be_32_chars_long"
+    config.active_record.encryption.key_derivation_salt = ENV['ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT'] || "test_salt"
   end
 end

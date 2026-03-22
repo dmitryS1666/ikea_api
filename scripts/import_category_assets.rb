@@ -28,16 +28,16 @@ stats = { icons_attached: 0, pictograms_attached: 0, skipped: 0 }
 
 Category.find_each do |cat|
   name = cat.translated_name.to_s.strip
-  is_top = Array(cat.parent_ids).empty?
+  is_top = Array(cat.parent_ids).empty? || cat.is_important?
   
+  attached_now = false
+  
+  # 1. Handle ICON (PNG)
   icon_path = nil
-  
   if is_top
-    # Search in Katalog for top level
     potential_path = File.join(CATALOG_DIR, "#{name}.png")
     icon_path = potential_path if File.exist?(potential_path)
   else
-    # Search in root-named folder for subcategories
     root_name = find_root_name(cat, top_map)
     if root_name
       potential_path = File.join(BASE_ICONS_DIR, root_name, "#{name}.png")
@@ -46,34 +46,42 @@ Category.find_each do |cat|
   end
 
   if icon_path
-    # Attach icon
     begin
       cat.icon.purge if cat.icon.attached?
       cat.icon.attach(io: File.open(icon_path), filename: "#{name}.png", content_type: 'image/png')
       stats[:icons_attached] += 1
-      
-      # Also attach pictogram for top-level if SVG exists
-      if is_top
-        pic_path = File.join(PICTOGRAMS_DIR, "#{name}.svg")
-        if File.exist?(pic_path)
-          cat.pictogram.purge if cat.pictogram.attached?
-          cat.pictogram.attach(io: File.open(pic_path), filename: "#{name}.svg", content_type: 'image/svg+xml')
-          stats[:pictograms_attached] += 1
-        else
-          # Fallback to PNG icon if no SVG found
-          cat.pictogram.purge if cat.pictogram.attached?
-          cat.pictogram.attach(io: File.open(icon_path), filename: "#{name}_pictogram.png", content_type: 'image/png')
-          stats[:pictograms_attached] += 1
-        end
-      end
-      
-      # puts "Attached assets for: #{name}"
+      attached_now = true
     rescue => e
-      puts "Error attaching assets for #{name}: #{e.message}"
+      puts "Error attaching icon for #{name}: #{e.message}"
     end
-  else
+  end
+
+  # 2. Handle PICTOGRAM (SVG or PNG fallback) for top-level
+  if is_top
+    pic_path = File.join(PICTOGRAMS_DIR, "#{name}.svg")
+    found_svg = File.exist?(pic_path)
+    
+    # If no SVG, try use the icon_path we found earlier as fallback
+    final_pic_path = found_svg ? pic_path : icon_path
+    
+    if final_pic_path
+      begin
+        cat.pictogram.purge if cat.pictogram.attached?
+        content_type = found_svg ? 'image/svg+xml' : 'image/png'
+        ext = found_svg ? 'svg' : 'png'
+        cat.pictogram.attach(io: File.open(final_pic_path), filename: "#{name}.#{ext}", content_type: content_type)
+        stats[:pictograms_attached] += 1
+        attached_now = true
+        # puts "[OK] Attached pictogram (#{ext}) for: #{name}"
+      rescue => e
+        puts "Error attaching pictogram for #{name}: #{e.message}"
+      end
+    end
+  end
+
+  unless attached_now
     stats[:skipped] += 1
-    # puts "No icon found for: #{name}"
+    # puts "[SKIP] No assets found for: #{name}"
   end
 end
 
