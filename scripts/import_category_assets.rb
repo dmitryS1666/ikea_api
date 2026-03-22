@@ -5,14 +5,22 @@ require 'json'
 
 BASE_ICONS_DIR = Rails.root.join('icons').to_s
 CATALOG_DIR = File.join(BASE_ICONS_DIR, 'Каталог')
+# Try both Cyrillic and potential Latin/escaped names if necessary
 PICTOGRAMS_DIR = Rails.root.join('Пиктограммы верхних категорий').to_s
 
 puts "Starting category assets import..."
+puts "Icons directory: #{BASE_ICONS_DIR} (exists: #{File.directory?(BASE_ICONS_DIR)})"
+puts "Pictograms directory: #{PICTOGRAMS_DIR} (exists: #{File.directory?(PICTOGRAMS_DIR)})"
 
-# 1. Build a map of top-level categories for easy lookup
-top_categories = Category.where("parent_ids IS NULL OR parent_ids::text = '[]' OR parent_ids::text = ''")
+if File.directory?(PICTOGRAMS_DIR)
+  puts "Files in Pictograms directory: #{Dir.entries(PICTOGRAMS_DIR).reject{|e| e.start_with?('.')}.size}"
+end
+
+# 1. Build a map of top-level categories
+top_categories = Category.top_level
 top_map = {}
 top_categories.each { |c| top_map[c.ikea_id] = c.translated_name }
+puts "Found #{top_categories.count} top-level categories in DB."
 
 def find_root_name(cat, top_map)
   p_ids = Array(cat.parent_ids)
@@ -72,10 +80,17 @@ Category.find_each do |cat|
         cat.pictogram.attach(io: File.open(final_pic_path), filename: "#{name}.#{ext}", content_type: content_type)
         stats[:pictograms_attached] += 1
         attached_now = true
-        # puts "[OK] Attached pictogram (#{ext}) for: #{name}"
+        if found_svg
+          puts "[OK] Attached SVG pictogram for: #{name}"
+        else
+          puts "[OK] Attached PNG as fallback pictogram for: #{name}"
+        end
       rescue => e
         puts "Error attaching pictogram for #{name}: #{e.message}"
       end
+    else
+      # Only output if it's a top category and we found nothing
+      # puts "[NOT FOUND] No SVG or PNG found for top category: #{name} (Expected: #{name}.svg in #{PICTOGRAMS_DIR})"
     end
   end
 
