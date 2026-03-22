@@ -30,7 +30,8 @@ def sync_node(categories, parent_ids, active_ids, stats)
         db_cat.update!(
           translated_name: name,
           parent_ids: parent_ids,
-          is_deleted: false
+          is_deleted: false,
+          is_important: parent_ids.empty?
         )
         stats[:updated] += 1
       else
@@ -39,7 +40,8 @@ def sync_node(categories, parent_ids, active_ids, stats)
           translated_name: name,
           name: name, # fallback to translated if original name unknown
           parent_ids: parent_ids,
-          is_deleted: false
+          is_deleted: false,
+          is_important: parent_ids.empty?
         )
         stats[:created] += 1
       end
