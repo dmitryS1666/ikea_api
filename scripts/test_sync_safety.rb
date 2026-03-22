@@ -3,7 +3,7 @@ require 'json'
 # Safety Test Script
 # This script simulates the production sync and verifies product cleanup logic.
 
-json_path = '/home/sushi/Documents/ikea_api/ikeya_categories_final_with_merges_and_deletions.json'
+json_path = Rails.root.join('ikeya_categories_final_with_merges_and_deletions.json').to_s
 data = JSON.parse(File.read(json_path))
 categories_tree = data['categories']
 

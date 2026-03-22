@@ -3,7 +3,7 @@ require 'json'
 # MASTER synchronization script for Production/Local
 # This script aligns the database with the final JSON structure.
 
-json_path = '/home/sushi/Documents/ikea_api/ikeya_categories_final_with_merges_and_deletions.json'
+json_path = Rails.root.join('ikeya_categories_final_with_merges_and_deletions.json').to_s
 
 unless File.exist?(json_path)
   puts "Error: Master JSON file not found at #{json_path}"

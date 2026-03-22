@@ -3,7 +3,7 @@ require 'json'
 # Script to import category icons and pictograms
 # Icons source: /home/sushi/Documents/ikea_api/icons
 
-BASE_ICONS_DIR = '/home/sushi/Documents/ikea_api/icons'
+BASE_ICONS_DIR = Rails.root.join('icons').to_s
 CATALOG_DIR = File.join(BASE_ICONS_DIR, 'Каталог')
 
 puts "Starting category assets import..."
