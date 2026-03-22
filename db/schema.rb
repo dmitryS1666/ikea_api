@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_20_072015) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_22_205013) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -314,6 +314,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_20_072015) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.text "description"
+    t.string "custom_url"
     t.index ["category_id"], name: "index_home_banners_on_category_id"
     t.index ["section", "active", "position"], name: "index_home_banners_on_section_and_active_and_position"
   end

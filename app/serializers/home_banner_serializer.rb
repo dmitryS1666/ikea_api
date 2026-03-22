@@ -3,7 +3,10 @@ class HomeBannerSerializer
   
   attributes :section, 
              :variant, 
-             :position
+             :position,
+             :active,
+             :created_at,
+             :updated_at
 
   attribute :image_url do |banner|
     if banner.image.attached?
@@ -14,6 +17,6 @@ class HomeBannerSerializer
   end
   
   attribute :link_url do |banner|
-    "/categories/#{banner.category.ikea_id}" if banner.category.present?
+    banner.final_link
   end
 end

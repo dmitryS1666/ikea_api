@@ -46,6 +46,7 @@ class ImportExtendedAttributesFromFileJob < ApplicationJob
 
       result = importer.process_item(item)
       task.increment_processed!
+      task.increment_created! if result == :created
       task.increment_updated! if result == :updated
       task.increment_errors! if result == :error
 

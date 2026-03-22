@@ -2588,7 +2588,7 @@ components:
             link_url:
               type: string
               nullable: true
-              description: URL ссылки на категорию
+              description: URL ссылки на категорию или кастомная ссылка
             created_at:
               type: string
               format: date-time

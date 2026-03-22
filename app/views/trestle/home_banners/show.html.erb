@@ -43,6 +43,12 @@
               <% end %>
             </dd>
 
+            <dt class="col-sm-3">Кастомная ссылка:</dt>
+            <dd class="col-sm-9"><%= @banner.custom_url.presence || '—' %></dd>
+
+            <dt class="col-sm-3">Итоговая ссылка:</dt>
+            <dd class="col-sm-9"><code><%= @banner.final_link || '—' %></code></dd>
+
             <dt class="col-sm-3">Позиция:</dt>
             <dd class="col-sm-9"><%= @banner.position %></dd>
 

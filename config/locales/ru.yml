@@ -164,6 +164,28 @@ ru:
         Finance: "Финансы"
         Settings: "Настройки"
         Sales: "Продажи"
+      items:
+        home_banners: "Баннеры на главной"
+    resources:
+      home_banners:
+        label: "Слайдер на главной"
+        index:
+          title: "Баннеры на главной"
+  activerecord:
+    models:
+      home_banner: "Баннер на главной"
+    attributes:
+      home_banner:
+        section: "Секция"
+        variant: "Размер"
+        description: "Описание"
+        category_id: "Категория"
+        custom_url: "Кастомная ссылка"
+        position: "Позиция"
+        active: "Активен"
+        image: "Изображение"
+        created_at: "Создан"
+        updated_at: "Обновлен"
   number:
     nth:
       ordinalized: "%{number}"

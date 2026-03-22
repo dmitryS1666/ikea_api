@@ -13,6 +13,8 @@ Trestle.resource(:content_articles, model: ContentArticle) do
   routes do
     post :remove_product, on: :member
     get :remove_product, on: :member
+    post :duplicate, on: :member
+    get :duplicate, on: :member
   end
 
   controller do
@@ -23,6 +25,44 @@ Trestle.resource(:content_articles, model: ContentArticle) do
       
       flash[:message] = "Товар #{sku} удален из статьи."
       redirect_to admin.path(:show, id: article.id)
+    end
+
+    def duplicate
+      original = admin.find_instance(params)
+      copy = original.dup
+      copy.title = "#{original.title} (Копия)"
+      copy.slug = nil # Будет сгенерирован автоматически из заголовка
+      copy.status = :draft
+      copy.published_at = nil
+      copy.active = false
+      
+      if copy.save
+        # Копируем SEO-мета
+        if original.seo_meta
+          copy_seo = original.seo_meta.dup
+          copy_seo.seoable = copy
+          copy_seo.save
+        end
+        
+        # Копируем привязанные товары
+        original.content_article_products.each do |cap|
+          copy.content_article_products.create(cap.attributes.except("id", "content_article_id", "created_at", "updated_at"))
+        end
+        
+        # Копируем привязанные категории
+        original.content_article_categories.each do |cac|
+          copy.content_article_categories.create(cac.attributes.except("id", "content_article_id", "created_at", "updated_at"))
+        end
+
+        # Изображения в блоках подцепятся автоматически через after_save :sync_body_block_images
+        # так как signed_id остались в body_blocks (JSON).
+
+        flash[:message] = "Статья успешно скопирована. Вы находитесь в режиме редактирования копии."
+        redirect_to admin.path(:edit, id: copy.id)
+      else
+        flash[:error] = "Ошибка при копировании статьи: #{copy.errors.full_messages.join(", ")}"
+        redirect_to admin.path(:show, id: original.id)
+      end
     end
   end
 
@@ -41,6 +81,17 @@ Trestle.resource(:content_articles, model: ContentArticle) do
       article.pinned? ? "Да" : "Нет"
     end
     column :published_at, label: "Дата публикации"
+    
+    column :actions, label: "Действия" do |article|
+      link_to admin.path(:duplicate, id: article.id), 
+              method: :post, 
+              class: "btn btn-xs btn-outline-info", 
+              title: "Копировать", 
+              data: { confirm: "Создать копию этой статьи?", turbo_method: :post } do
+        tag.i(class: "fa fa-copy")
+      end
+    end
+    
     actions
   end
 
@@ -96,13 +147,21 @@ Trestle.resource(:content_articles, model: ContentArticle) do
 
     tab :links, label: "Связи с товарами" do
       row do
+        col(sm: 12) do
+          # Мощный селект с поиском и поддержкой вставки тегов
+          select :product_skus_input, 
+                 Product.where(sku: article.linked_product_skus).map { |p| ["#{p.name_ru || p.name} (#{p.sku})", p.sku] }, 
+                 { label: "Связанные товары", help: "Начните ввод названия или артикула для поиска. Также можно вставлять список артикулов (через пробел или запятую)." }, 
+                 { multiple: true, data: { ui: "select2-ajax", ajax_url: main_app.admin_products_search_path, tags: "true" } }
+        end
+      end
+      row do
         col(sm: 6) do
-          text_area :product_skus_input, rows: 4, label: "SKU товаров", help: "Артикул каждого товара с новой строки"
-          file_field :product_csv, label: "Или загрузить из CSV", accept: ".csv", help: "Файл CSV, где первая колонка — SKU"
+          file_field :product_csv, label: "Загрузить из CSV", accept: ".csv", help: "Файл CSV, где первая колонка — SKU. Текущие связи будут заменены."
         end
         col(sm: 6) do
           select :category_ids_input, 
-                 Category.all.order(:name).map { |c| [c.translated_name, c.ikea_id] }, 
+                 Category.all.order(:translated_name).map { |c| ["#{c.translated_name.presence || c.name} (#{c.ikea_id})", c.ikea_id] }, 
                  { label: "Связанные категории", help: "Статья будет отображаться в товарах этих категорий" }, 
                  { multiple: true, data: { ui: "select2" } }
         end
@@ -173,6 +232,15 @@ Trestle.resource(:content_articles, model: ContentArticle) do
     end
 
     sidebar do
+      if article.persisted?
+        link_to admin.path(:duplicate, id: article.id), 
+                method: :post, 
+                class: "btn btn-outline-info btn-block mb-4", 
+                data: { confirm: "Создать копию этой статьи для редактирования?", turbo_method: :post } do
+          content_tag(:i, nil, class: "fa fa-copy") + " Копировать статью"
+        end
+      end
+      
       row do
         col(sm: 12) do
           datetime_field :published_at, label: "Дата публикации"

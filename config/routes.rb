@@ -12,6 +12,7 @@ Rails.application.routes.draw do
 
   namespace :admin do
     get "products/by_category", to: "products#by_category"
+    get "products/search", to: "products#search"
   end
   
   namespace :api do

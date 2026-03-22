@@ -13,7 +13,11 @@ Trestle.resource(:home_banners, model: HomeBanner) do
   table do
     column :id, label: "ID"
     column :image, label: "Изображение", align: :center do |banner|
-      # ...
+      if banner.image.attached?
+        image_tag(Rails.application.routes.url_helpers.rails_blob_path(banner.image, only_path: true), style: "max-width: 100px; max-height: 50px;")
+      else
+        "—"
+      end
     end
     column :section, label: "Секция" do |banner|
       case banner.section
@@ -43,6 +47,7 @@ Trestle.resource(:home_banners, model: HomeBanner) do
     column :category, label: "Категория" do |banner|
       banner.category&.name || '—'
     end
+    column :custom_url, label: "Кастомная ссылка"
     column :position, label: "Позиция", sortable: true
     column :active, label: "Активен" do |banner|
       status_tag(banner.active? ? 'Да' : 'Нет', 
@@ -98,6 +103,9 @@ Trestle.resource(:home_banners, model: HomeBanner) do
               ["#{level_indicator}#{name}", cat.ikea_id]
             end
             select :category_id, categories, { include_blank: 'Выберите категорию...' }, label: "Категория"
+          end
+          col(sm: 6) do
+            text_field :custom_url, label: "Кастомная ссылка (приоритетнее категории)", placeholder: "/search?q=table"
           end
         end
         row do
@@ -270,7 +278,7 @@ Trestle.resource(:home_banners, model: HomeBanner) do
     private
     def home_banner_params
       permitted = params.require(:home_banner).permit(
-        :section, :variant, :description, :category_id, :position, :active, :image
+        :section, :variant, :description, :category_id, :custom_url, :position, :active, :image
       )
       permitted[:category_id] = nil if permitted[:category_id].blank?
       if permitted.key?(:active)
@@ -324,7 +332,7 @@ Trestle.resource(:home_banners, model: HomeBanner) do
 
   params do |params|
     permitted = params.require(:home_banner).permit(
-      :section, :variant, :description, :category_id, :position, :active, :image
+      :section, :variant, :description, :category_id, :custom_url, :position, :active, :image
     )
     # Normalize empty category_id to nil
     permitted[:category_id] = nil if permitted[:category_id].blank?

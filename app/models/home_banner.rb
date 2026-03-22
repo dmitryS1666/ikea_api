@@ -57,6 +57,12 @@ class HomeBanner < ApplicationRecord
     end
   end
   
+  def final_link
+    return custom_url if custom_url.present?
+    return "/categories/#{category.ikea_id}" if category.present?
+    nil
+  end
+  
   private
   
   def validate_image_presence
