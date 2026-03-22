@@ -5,6 +5,7 @@ require 'json'
 
 BASE_ICONS_DIR = Rails.root.join('icons').to_s
 CATALOG_DIR = File.join(BASE_ICONS_DIR, 'Каталог')
+PICTOGRAMS_DIR = Rails.root.join('Пиктограммы верхних категорий').to_s
 
 puts "Starting category assets import..."
 
@@ -51,11 +52,19 @@ Category.find_each do |cat|
       cat.icon.attach(io: File.open(icon_path), filename: "#{name}.png", content_type: 'image/png')
       stats[:icons_attached] += 1
       
-      # Also attach pictogram for top-level
+      # Also attach pictogram for top-level if SVG exists
       if is_top
-        cat.pictogram.purge if cat.pictogram.attached?
-        cat.pictogram.attach(io: File.open(icon_path), filename: "#{name}_pictogram.png", content_type: 'image/png')
-        stats[:pictograms_attached] += 1
+        pic_path = File.join(PICTOGRAMS_DIR, "#{name}.svg")
+        if File.exist?(pic_path)
+          cat.pictogram.purge if cat.pictogram.attached?
+          cat.pictogram.attach(io: File.open(pic_path), filename: "#{name}.svg", content_type: 'image/svg+xml')
+          stats[:pictograms_attached] += 1
+        else
+          # Fallback to PNG icon if no SVG found
+          cat.pictogram.purge if cat.pictogram.attached?
+          cat.pictogram.attach(io: File.open(icon_path), filename: "#{name}_pictogram.png", content_type: 'image/png')
+          stats[:pictograms_attached] += 1
+        end
       end
       
       # puts "Attached assets for: #{name}"
