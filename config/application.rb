@@ -80,6 +80,10 @@ module IkeaApi
     # Переносим маршруты ActiveStorage под префикс /admin, который уже проброшен в NPM
     config.active_storage.routes_prefix = '/admin/storage'
 
+    # Разрешаем отображение SVG в браузере вместо скачивания
+    config.active_storage.content_types_to_serve_as_binary -= ['image/svg+xml']
+    config.active_storage.content_types_allowed_inline += ['image/svg+xml']
+
     # Добавляем пути к шрифтам Font Awesome 6
     config.assets.paths << Rails.root.join("vendor", "assets", "fontawesome")
 
