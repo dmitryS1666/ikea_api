@@ -23,8 +23,11 @@ module ImageStorage
         ext = get_ext_from_url(normalized_url)
         sharded_path = build_sharded_path(hash, ext, product_sku: product_sku, category_id: category_id)
         
-        # Проверяем, не существует ли уже файл
-        return sharded_path[:rel] if File.exist?(sharded_path[:abs])
+        # Проверяем, не существует ли уже файл и здоров ли он
+        return sharded_path[:rel] if healthy?(sharded_path[:rel])
+        
+        # Если файл есть, но он битый - удаляем перед загрузкой
+        delete(sharded_path[:rel]) if exists?(sharded_path[:rel])
         
         # Создаем директорию и загружаем
         FileUtils.mkdir_p(File.dirname(sharded_path[:abs]))
@@ -38,7 +41,17 @@ module ImageStorage
       
       def exists?(path)
         return false unless path.present?
-        File.exist?(Rails.root.join('public', path))
+        file_path = Rails.root.join('public', path.sub(%r{^/}, ''))
+        File.exist?(file_path)
+      end
+
+      def healthy?(path)
+        return false unless exists?(path)
+        file_path = Rails.root.join('public', path.sub(%r{^/}, ''))
+        # Проверяем, что файл не пустой и имеет размер > 100 байт (минимум для картинки)
+        File.size(file_path) > 100
+      rescue
+        false
       end
       
       def url(path)

@@ -4,13 +4,13 @@ Trestle.resource(:promo_code_categories, model: PromoCodeCategory) do
   end
 
   table do
-    column :promo_code, label: "Промокод" do |record|
+    column :promo_code do |record|
       record.promo_code&.code
     end
-    column :category, label: "Категория" do |record|
+    column :category do |record|
       record.category&.name || record.category_id
     end
-    column :created_at, label: "Дата привязки", align: :center
+    column :created_at, align: :center
     actions
   end
 

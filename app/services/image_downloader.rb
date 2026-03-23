@@ -66,7 +66,10 @@ class ImageDownloader
       
       return [] if urls.empty?
       
-      # Получаем уже загруженные изображения
+      # Убираем дубликаты и пустые значения из исходных URL
+      urls = urls.compact.map(&:to_s).map(&:strip).uniq
+      
+      # 1. Получаем уже загруженные изображения и проверяем их целостность
       existing_local_images = if product.local_images.is_a?(String)
                                 begin
                                   JSON.parse(product.local_images) || []
@@ -77,19 +80,36 @@ class ImageDownloader
                                 Array(product.local_images) || []
                               end
       
-      local_paths = Set.new(existing_local_images)
+      # Очищаем от дублей и пустых значений
+      existing_local_images = existing_local_images.compact.uniq
+      
+      # Проверяем существующие изображения на "здоровье"
+      healthy_local_images = []
+      existing_local_images.each do |path|
+        if storage.respond_to?(:healthy?) ? storage.healthy?(path) : storage.exists?(path)
+          healthy_local_images << path
+        else
+          # Если картинка битая или отсутствует - удаляем
+          Rails.logger.warn "ImageDownloader: Image #{path} is broken or missing, deleting from product #{product.sku}"
+          storage.delete(path) if storage.exists?(path)
+        end
+      end
+      
+      local_paths = Set.new(healthy_local_images)
       downloaded = 0
       failed = 0
-      urls_to_download = limit ? urls.first(limit) : urls
       
-      Rails.logger.info "ImageDownloader: Starting download of #{urls_to_download.length} images for product #{product.sku} (existing: #{local_paths.size}, storage: #{storage.name})"
+      # Выбираем только те URL, которые еще не загружены (или были битыми)
+      urls_to_process = limit ? urls.first(limit) : urls
+      
+      Rails.logger.info "ImageDownloader: Starting download/verification of #{urls_to_process.length} images for product #{product.sku} (healthy: #{local_paths.size}, storage: #{storage.name})"
       
       # Параллельная загрузка с ограничением конкурентности
       mutex = Mutex.new
       threads = []
       active_threads = 0
       
-      urls_to_download.each do |image_url|
+      urls_to_process.each do |image_url|
         next unless image_url.present?
         
         # Ждем, пока освободится место для нового потока
@@ -107,7 +127,7 @@ class ImageDownloader
             if stored_path
               # Для облачных хранилищ получаем URL, для локального - путь
               path_or_url = if storage == ImageStorage::Local
-                            stored_path
+                            stored_path.start_with?('/') ? stored_path : "/#{stored_path}"
                           else
                             storage.url(stored_path)
                           end
@@ -116,14 +136,12 @@ class ImageDownloader
                 local_paths.add(path_or_url)
                 downloaded += 1
               end
-              Rails.logger.debug "ImageDownloader: Successfully uploaded image for #{product.sku}: #{path_or_url}"
             else
               mutex.synchronize { failed += 1 }
-              Rails.logger.warn "ImageDownloader: Failed to upload image #{image_url} for #{product.sku}"
             end
           rescue => e
             mutex.synchronize { failed += 1 }
-            Rails.logger.error "ImageDownloader: Failed to download product image #{image_url} for #{product.sku}: #{e.message}\n#{e.backtrace.first(3).join("\n")}"
+            Rails.logger.error "ImageDownloader: Failed to download product image #{image_url} for #{product.sku}: #{e.message}"
           ensure
             mutex.synchronize { active_threads -= 1 }
           end
@@ -137,10 +155,10 @@ class ImageDownloader
       images_total = urls.length
       images_stored = local_paths.size
       images_incomplete = images_stored < images_total
-      local_images_array = local_paths.to_a
+      local_images_array = local_paths.to_a.compact.uniq
       
       # Обновляем только если что-то изменилось
-      if downloaded > 0 || images_incomplete != product.images_incomplete || local_images_array != existing_local_images
+      if downloaded > 0 || images_incomplete != product.images_incomplete || local_images_array != existing_local_images || images_stored != product.images_stored
         product.update_columns(
           local_images: local_images_array.to_json,
           images_stored: images_stored,
@@ -155,5 +173,3 @@ class ImageDownloader
 
   end
 end
-
-

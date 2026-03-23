@@ -4,14 +4,14 @@ Trestle.resource(:breadcrumb_rules, model: BreadcrumbRule) do
   end
 
   table do
-    column :entity_type, label: "Тип сущности"
-    column :rule_type, label: "Тип правила" do |rule|
+    column :entity_type
+    column :rule_type do |rule|
       rule.rule_type.humanize
     end
-    column :active, label: "Активно" do |rule|
+    column :active do |rule|
       status_tag(rule.active? ? "Да" : "Нет", rule.active? ? :success : :secondary)
     end
-    column :created_at, label: "Создано", align: :center
+    column :created_at, align: :center
     actions
   end
 

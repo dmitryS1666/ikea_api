@@ -4,9 +4,9 @@ Trestle.resource(:calculator_setting, model: CalculatorSetting) do
   end
 
   table do
-    column :key, label: "Ключ"
-    column :value, label: "Значение"
-    column :updated_at, label: "Обновлено", align: :center
+    column :key
+    column :value
+    column :updated_at, align: :center
     actions
   end
 

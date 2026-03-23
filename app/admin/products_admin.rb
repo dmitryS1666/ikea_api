@@ -41,34 +41,34 @@ Trestle.resource(:products, model: Product) do
   end
 
   table do
-    column :sku, label: "Артикул", link: true
-    column :name, label: "Название (PL)"
-    column :name_ru, label: "Название (RU)"
-    column :category, label: "Категория" do |product|
+    column :sku, link: true
+    column :name
+    column :name_ru
+    column :category do |product|
       product.category&.name || 'Без категории'
     end
-    column :price, label: "Цена" do |product|
+    column :price do |product|
       number_to_currency(product.price, unit: 'Zl', format: '%n %u')
     end
-    column :quantity, label: "Кол-во", sortable: true
-    column :is_bestseller, label: "Хит" do |product|
+    column :quantity, sortable: true
+    column :is_bestseller do |product|
       status_tag(product.is_bestseller? ? 'Да' : 'Нет', 
                  product.is_bestseller? ? :success : :secondary)
     end
-    column :is_new, label: "Новинка" do |product|
+    column :is_new do |product|
       status_tag(product.is_new? ? 'Да' : 'Нет', 
                  product.is_new? ? :success : :secondary)
     end
-    column :is_popular, label: "Поп." do |product|
+    column :is_popular do |product|
       status_tag(product.is_popular? ? 'Да' : 'Нет', 
                  product.is_popular? ? :success : :secondary)
     end
-    column :is_recommended, label: "Рек." do |product|
+    column :is_recommended do |product|
       status_tag(product.is_recommended? ? 'Да' : 'Нет', 
                  product.is_recommended? ? :success : :secondary)
     end
-    column :created_at, label: "Создан", align: :center
-    column :updated_at, label: "Обновлен", align: :center
+    column :created_at, align: :center
+    column :updated_at, align: :center
     actions do |toolbar, instance, admin|
       toolbar.edit if admin.actions.include?(:edit)
       toolbar.delete if admin.actions.include?(:destroy)

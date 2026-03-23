@@ -9,11 +9,11 @@ Trestle.resource(:users, model: User) do
   end
 
   table do
-    column :id, label: "ID"
-    column :username, label: "Логин", link: true
-    column :phone, label: "Телефон"
+    column :id
+    column :username, link: true
+    column :phone
     column :email, label: "Электронная почта"
-    column :role, label: "Роль" do |user|
+    column :role do |user|
       case user.role
       when 'admin'
         status_tag('Администратор', :success)
@@ -27,11 +27,11 @@ Trestle.resource(:users, model: User) do
       status_tag(user.passport_verified? ? 'Верифицирован' : 'Не верифицирован', 
                  user.passport_verified? ? :success : :warning)
     end
-    column :is_active, label: "Активен" do |user|
+    column :is_active do |user|
       status_tag(user.is_active? ? 'Да' : 'Нет', 
                  user.is_active? ? :success : :danger)
     end
-    column :created_at, label: "Зарегистрирован", align: :center
+    column :created_at, align: :center
     actions do |toolbar, user|
       toolbar.link "Запрос звонка", admin.instance_path(user, action: :request_call), method: :post, icon: "fa fa-phone", class: "btn btn-info"
     end

@@ -157,23 +157,160 @@ ru:
   admin:
     format:
       blank: "—"
-    navigation:
-      groups:
-        Catalog: "Каталог"
-        Parser: "Парсер"
-        Finance: "Финансы"
-        Settings: "Настройки"
-        Sales: "Продажи"
-      items:
-        home_banners: "Баннеры на главной"
-    resources:
-      home_banners:
-        label: "Слайдер на главной"
-        index:
-          title: "Баннеры на главной"
+    titles:
+      index: "Список: %{pluralized_model_name}"
+      listing: "Список: %{pluralized_model_name}"
+      new: "Создание: %{model_name}"
+      edit: "Редактирование: %{model_name}"
+      editing: "Редактирование: %{model_name}"
+      show: "Просмотр: %{model_name}"
+      showing: "Просмотр: %{model_name}"
+  trestle:
+    admin:
+      format:
+        blank: "—"
+      navigation:
+        groups:
+          Catalog: "Каталог"
+          Parser: "Парсер"
+          Finance: "Финансы"
+          Settings: "Настройки"
+          Sales: "Продажи"
+          Content: "Контент"
+          SEO: "SEO"
+          Analytics: "Аналитика"
+          Delivery: "Доставка"
+          Customers: "Клиенты"
+          Marketing: "Маркетинг"
+        items:
+          home_banners: "Баннеры на главной"
+      buttons:
+        save: "Сохранить"
+        save_and_continue: "Сохранить и продолжить"
+        delete: "Удалить"
+        cancel: "Отмена"
+        new: "Создать"
+        edit: "Редактировать"
+        back: "Назад"
+        confirm: "Подтвердить"
+        yes: "Да"
+        no: "Нет"
+      titles:
+        index: "Список: %{pluralized_model_name}"
+        listing: "Список: %{pluralized_model_name}"
+        new: "Создание: %{model_name}"
+        edit: "Редактирование: %{model_name}"
+        editing: "Редактирование: %{model_name}"
+        show: "Просмотр: %{model_name}"
+        showing: "Просмотр: %{model_name}"
+      resources:
+        account: { label: "Моя учетная запись" }
+        breadcrumb_rules: { label: "Правила хлебных крошек" }
+        calculator_setting: { label: "Настройки калькулятора" }
+        categories: { label: "Категории" }
+        content_articles: { label: "Статьи" }
+        cron_schedules: { label: "Cron расписания" }
+        customs_duty_calculator: { label: "Калькулятор пошлин" }
+        exchange_rates: { label: "Курсы валют" }
+        favorites: { label: "Избранное" }
+        feed_setting: { label: "Настройки фида" }
+        global_seo_settings: { label: "Глобальные SEO настройки" }
+        home_banners: { label: "Слайдер на главной" }
+        orders: { label: "Заказы" }
+        parser_control: { label: "Управление парсером" }
+        phone_verification_requests: { label: "Запросы верификации" }
+        pickup_points: { label: "Пункты выдачи" }
+        popular_search_queries: { label: "Популярные запросы" }
+        price_calculator: { label: "Калькулятор цен" }
+        products: { label: "Товары" }
+        promo_code_categories: { label: "Категории промокодов" }
+        promo_code_products: { label: "Товары промокодов" }
+        promo_codes: { label: "Промокоды" }
+        return_requests: { label: "Запросы на возврат" }
+        reviews: { label: "Отзывы" }
+        review_settings: { label: "Настройки отзывов" }
+        search_query_logs: { label: "Логи поиска" }
+        users: { label: "Пользователи" }
   activerecord:
     models:
-      home_banner: "Баннер на главной"
+      breadcrumb_rule:
+        one: "Правило хлебных крошек"
+        other: "Правила хлебных крошек"
+      calculator_setting:
+        one: "Настройка калькулятора"
+        other: "Настройки калькулятора"
+      category:
+        one: "Категория"
+        other: "Категории"
+      content_article:
+        one: "Статья"
+        other: "Статьи"
+      cron_schedule:
+        one: "Cron расписание"
+        other: "Cron расписания"
+      customs_duty_calculator:
+        one: "Калькулятор пошлин"
+        other: "Калькуляторы пошлин"
+      exchange_rate:
+        one: "Курс валют"
+        other: "Курсы валют"
+      favorite:
+        one: "Избранное"
+        other: "Избранное"
+      feed_setting:
+        one: "Настройка фида"
+        other: "Настройки фида"
+      global_seo_setting:
+        one: "Глобальная SEO настройка"
+        other: "Глобальные SEO настройки"
+      home_banner:
+        one: "Баннер на главной"
+        other: "Баннеры на главной"
+      order:
+        one: "Заказ"
+        other: "Заказы"
+      parser_control:
+        one: "Управление парсером"
+        other: "Управление парсером"
+      phone_verification_request:
+        one: "Запрос верификации"
+        other: "Запросы верификации"
+      pickup_point:
+        one: "Пункт выдачи"
+        other: "Пункты выдачи"
+      popular_search_query:
+        one: "Популярный запрос"
+        other: "Популярные запросы"
+      price_calculator:
+        one: "Калькулятор цен"
+        other: "Калькуляторы цен"
+      product:
+        one: "Товар"
+        other: "Товары"
+      promo_code:
+        one: "Промокод"
+        other: "Промокоды"
+      promo_code_category:
+        one: "Категория промокода"
+        other: "Категории промокодов"
+      promo_code_product:
+        one: "Товар промокода"
+        other: "Товары промокодов"
+      return_request:
+        one: "Запрос на возврат"
+        other: "Запросы на возврат"
+      review:
+        one: "Отзыв"
+        other: "Отзывы"
+      review_setting:
+        one: "Настройка отзывов"
+        other: "Настройки отзывов"
+      search_query_log:
+        one: "Лог поиска"
+        other: "Логи поиска"
+      user:
+        one: "Пользователь"
+        other: "Пользователи"
     attributes:
       home_banner:
         section: "Секция"
@@ -186,6 +323,195 @@ ru:
         image: "Изображение"
         created_at: "Создан"
         updated_at: "Обновлен"
+      product:
+        sku: "Артикул"
+        name: "Название (PL)"
+        name_ru: "Название (RU)"
+        category_id: "Категория"
+        price: "Цена"
+        quantity: "Количество"
+        is_bestseller: "Хит"
+        is_new: "Новинка"
+        is_popular: "Популярный"
+        is_recommended: "Рекомендованный"
+        created_at: "Создан"
+        updated_at: "Обновлен"
+        url: "Ссылка"
+        delivery_type: "Тип доставки"
+        delivery_cost: "Стоимость доставки"
+      category:
+        ikea_id: "IKEA ID"
+        name: "Название (PL)"
+        translated_name: "Название (RU)"
+        is_popular: "Популярная"
+        is_deleted: "Отключена"
+        is_top: "ТОП-категория"
+        is_custom: "Кастомная"
+        products_count: "Товаров"
+        created_at: "Создана"
+        updated_at: "Обновлена"
+      order:
+        id: "ID заказа"
+        customer_name: "Покупатель"
+        status: "Статус"
+        statuses:
+          created: "Новый"
+          processing: "В работе"
+          confirmed: "Подтвержден"
+          paid: "Оплачен"
+          purchased: "Выкуплен"
+          received_poland: "Получен на склад"
+          export_eu: "Экспорт из ЕС"
+          customs_poland: "Экспорт из ЕС"
+          on_border: "На границе"
+          customs_belarus: "Прибыл на таможню"
+          shipped: "Передано в доставку"
+          arrived_pvz: "Прибыло в отделение"
+          handed_to_courier: "Выдано курьеру"
+          completed: "Доставлено"
+          cancelled: "Отменен"
+        total_amount: "Сумма"
+        created_at: "Дата создания"
+        updated_at: "Дата изменения"
+        full_name: "ФИО получателя"
+        phone: "Телефон"
+        delivery_price: "Стоимость доставки"
+        discount_amount: "Скидка"
+      user:
+        username: "Логин"
+        phone: "Телефон"
+        email: "Email"
+        role: "Роль"
+        created_at: "Зарегистрирован"
+      review:
+        rating: "Рейтинг"
+        status: "Статус"
+        statuses:
+          pending: "На модерации"
+          published: "Опубликован"
+          rejected: "Отклонен"
+          hidden: "Скрыт"
+        helpful_count: "Полезно"
+        pinned: "Закреплен"
+        created_at: "Дата"
+        product_sku: "SKU товара"
+        user: "Пользователь"
+        body: "Текст отзыва"
+        admin_note: "Примечание модератора"
+        excluded_from_rating: "Исключен из рейтинга"
+      content_article:
+        title: "Заголовок"
+        content_type: "Тип"
+        status: "Статус"
+        published_at: "Дата публикации"
+        rubric: "Рубрика"
+        slug: "Slug (ЧПУ)"
+        pinned: "Закреплен"
+        excerpt: "Краткое описание"
+        active: "Активно"
+      global_seo_setting:
+        target_type: "Тип страницы"
+        title_template: "Шаблон Title"
+        description_template: "Шаблон Description"
+        keywords_template: "Шаблон Keywords"
+        robots: "Robots"
+        seo_text: "SEO Текст"
+      breadcrumb_rule:
+        entity_type: "Тип сущности"
+        rule_type: "Тип правила"
+        active: "Активно"
+      return_request:
+        user: "Пользователь"
+        order: "Заказ"
+        reason: "Причина"
+        status: "Статус"
+        comment: "Комментарий"
+        created_at: "Дата"
+      popular_search_query:
+        query: "Запрос"
+        weight: "Вес"
+        active: "Активен"
+        created_at: "Создан"
+        updated_at: "Обновлен"
+      promo_code_category:
+        promo_code: "Промокод"
+        category: "Категория"
+        created_at: "Дата привязки"
+      promo_code_product:
+        promo_code: "Промокод"
+        product_sku: "SKU товара"
+        created_at: "Дата привязки"
+      phone_verification_request:
+        phone: "Телефон"
+        code: "Код"
+        context: "Контекст"
+        user_id: "Пользователь"
+        status: "Статус"
+        error_message: "Ошибка"
+        created_at: "Дата"
+      favorite:
+        user: "Пользователь"
+        items_count: "Кол-во товаров"
+        updated_at: "Обновлено"
+      favorite_item:
+        product_sku: "SKU"
+        product: "Товар"
+        created_at: "Добавлен"
+      feed_setting:
+        feeds_enabled: "Фиды включены"
+        feed_access_mode: "Режим доступа"
+        feed_token: "Токен доступа"
+        base_url: "Базовый URL"
+        currency_default: "Валюта по умолчанию"
+        store_name: "Название магазина"
+        store_company: "Компания"
+        store_platform_brand: "Бренд"
+        yml_delivery_cost: "Стоимость доставки (YML)"
+        yml_delivery_days: "Срок доставки (YML)"
+        include_out_of_stock: "Показывать отсутствующие"
+      pickup_point:
+        name: "Название"
+        city: "Город"
+        address: "Адрес"
+        provider: "Провайдер"
+        providers:
+          ikea: "IKEA"
+          europost: "Европочта"
+          autolight: "Автолайт"
+        priority: "Приоритет"
+        active: "Активен"
+        updated_at: "Обновлено"
+      exchange_rate:
+        date: "Дата"
+        currency_code: "Валюта"
+        rate: "Курс"
+        scale: "Масштаб"
+        rate_per_unit: "Курс за 1 ед."
+        created_at: "Загружен"
+      promo_code:
+        code: "Код"
+        discount_value: "Скидка"
+        discount_type: "Тип скидки"
+        discount_types:
+          percent: "Процент (%)"
+          fixed_byn: "Фиксированная сумма (BYN)"
+        starts_at: "Начало"
+        ends_at: "Конец"
+        active: "Активен"
+        usage_limit: "Лимит использований"
+        usage_count: "Использовано"
+      cron_schedule:
+        task_type: "Тип задачи"
+        schedule: "Расписание"
+        enabled: "Включено"
+      calculator_setting:
+        key: "Ключ"
+        value: "Значение"
+        updated_at: "Обновлено"
+      search_query_log:
+        query: "Запрос"
+        results_count: "Результатов"
+        created_at: "Дата"
   number:
     nth:
       ordinalized: "%{number}"

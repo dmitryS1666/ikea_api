@@ -4,26 +4,28 @@ Trestle.resource(:pickup_points, model: PickupPoint) do
   end
 
   table do
-    column :provider, label: "Провайдер", link: true
-    column :name, label: "Название"
-    column :city, label: "Город"
-    column :address, label: "Адрес"
-    column :priority, label: "Приоритет" do |p|
+    column :provider, link: true do |p|
+      I18n.t("activerecord.attributes.pickup_point.providers.#{p.provider}", default: p.provider)
+    end
+    column :name
+    column :city
+    column :address
+    column :priority do |p|
       status_tag(p.priority ? 'Да' : 'Нет', p.priority ? :info : :secondary)
     end
-    column :active, label: "Активен" do |p|
+    column :active do |p|
       status_tag(p.active ? 'Да' : 'Нет', p.active ? :success : :secondary)
     end
-    column :updated_at, label: "Обновлено", align: :center
+    column :updated_at, align: :center
     actions
   end
 
   form do |p|
     tab :basic, label: "Основное" do
-      select :provider, PickupPoint::PROVIDERS.map { |x| [x, x] }, label: "Провайдер"
-      text_field :name, label: "Название"
-      text_field :city, label: "Город"
-      text_field :address, label: "Адрес"
+      select :provider, PickupPoint::PROVIDERS.map { |x| [I18n.t("activerecord.attributes.pickup_point.providers.#{x}", default: x), x] }
+      text_field :name
+      text_field :city
+      text_field :address
       text_field :phone, label: "Телефон"
       text_field :working_hours, label: "Режим работы"
     end

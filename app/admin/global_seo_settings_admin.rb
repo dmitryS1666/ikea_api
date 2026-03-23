@@ -4,7 +4,7 @@ Trestle.resource(:global_seo_settings, model: GlobalSeoSetting) do
   end
 
   table do
-    column :target_type, label: "Тип страницы" do |setting|
+    column :target_type do |setting|
       case setting.target_type
       when 'home' then 'Главная'
       when 'category' then 'Категории (общие)'
@@ -14,7 +14,7 @@ Trestle.resource(:global_seo_settings, model: GlobalSeoSetting) do
       else setting.target_type
       end
     end
-    column :title_template, label: "Шаблон Title"
+    column :title_template
     actions
   end
 

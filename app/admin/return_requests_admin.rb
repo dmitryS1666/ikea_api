@@ -4,14 +4,14 @@ Trestle.resource(:return_requests, model: ReturnRequest) do
   end
 
   table do
-    column :id, label: "ID", link: true
-    column :user, label: "Пользователь"
-    column :order, label: "Заказ"
-    column :reason, label: "Причина"
-    column :status, label: "Статус" do |r|
+    column :id, link: true
+    column :user
+    column :order
+    column :reason
+    column :status do |r|
       status_tag(r.status, :info)
     end
-    column :created_at, label: "Дата", align: :center
+    column :created_at, align: :center
     actions
   end
 

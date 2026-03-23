@@ -67,20 +67,20 @@ Trestle.resource(:content_articles, model: ContentArticle) do
   end
 
   table do
-    column :content_type, label: "Тип" do |article|
+    column :content_type do |article|
       ContentArticle.human_attribute_name("content_types.#{article.content_type}")
     end
     
-    column :status, label: "Статус" do |article|
+    column :status do |article|
       ContentArticle.human_attribute_name("statuses.#{article.status}")
     end
-    column :rubric, label: "Рубрика"
-    column :title, label: "Заголовок", link: true
-    column :slug, label: "Slug (ЧПУ)"
-    column :pinned, label: "Закреплен" do |article|
+    column :rubric
+    column :title, link: true
+    column :slug
+    column :pinned do |article|
       article.pinned? ? "Да" : "Нет"
     end
-    column :published_at, label: "Дата публикации"
+    column :published_at
     
     column :actions, label: "Действия" do |article|
       link_to admin.path(:duplicate, id: article.id), 

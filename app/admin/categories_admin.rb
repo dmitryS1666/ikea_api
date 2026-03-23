@@ -209,16 +209,16 @@ Trestle.resource(:categories, model: Category) do
   end
 
   table do
-    column :ikea_id, label: "IKEA ID"
-    column :translated_name, label: "Название (RU)"
-    column :name, label: "Название (PL)", link: true
-    column :is_popular, label: "Популярная" do |category|
+    column :ikea_id
+    column :translated_name
+    column :name, link: true
+    column :is_popular do |category|
       status_tag(category.is_popular? ? 'Да' : 'Нет', category.is_popular? ? :success : :secondary)
     end
-    column :is_deleted, label: "Статус" do |category|
+    column :is_deleted do |category|
       status_tag(category.is_deleted? ? 'Отключена' : 'Активна', category.is_deleted? ? :danger : :success)
     end
-    column :products_count, label: "Товаров" do |category|
+    column :products_count do |category|
       product_counts = instance_variable_get(:@_product_counts_cache)
       unless product_counts
         product_counts = Rails.cache.fetch("categories_product_counts", expires_in: 30.minutes) do
@@ -227,7 +227,7 @@ Trestle.resource(:categories, model: Category) do
       end
       product_counts[category.ikea_id] || 0
     end
-    column :created_at, label: "Создана", align: :center
+    column :created_at, align: :center
     actions
   end
 

@@ -4,18 +4,20 @@ Trestle.resource(:promo_codes, model: PromoCode) do
   end
 
   table do
-    column :code, label: "Код", link: true
-    column :name, label: "Название"
-    column :discount_type, label: "Тип скидки"
-    column :discount_value, label: "Значение скидки" do |promo_code|
+    column :code, link: true
+    column :name
+    column :discount_type do |pc|
+      I18n.t("activerecord.attributes.promo_code.discount_types.#{pc.discount_type}", default: pc.discount_type)
+    end
+    column :discount_value do |promo_code|
       number_to_currency(promo_code.discount_value, unit: 'BYN', format: '%n %u')
     end
-    column :active, label: "Активен" do |promo_code|
+    column :active do |promo_code|
       status_tag(promo_code.active? ? 'Да' : 'Нет', promo_code.active? ? :success : :secondary)
     end
-    column :starts_at, label: "Начало"
-    column :ends_at, label: "Конец"
-    column :updated_at, label: "Обновлено", align: :center
+    column :starts_at
+    column :ends_at
+    column :updated_at, align: :center
     actions
   end
 
@@ -27,8 +29,8 @@ Trestle.resource(:promo_codes, model: PromoCode) do
           text_field :name, label: "Название (описание)"
         end
         col(sm: 6) do
-          select :discount_type, PromoCode.discount_types.keys.map { |type| [type.humanize, type] }, label: "Тип скидки"
-          number_field :discount_value, step: 0.01, label: "Значение скидки"
+          select :discount_type, PromoCode.discount_types.keys.map { |type| [I18n.t("activerecord.attributes.promo_code.discount_types.#{type}", default: type.humanize), type] }
+          number_field :discount_value, step: 0.01
         end
       end
     end

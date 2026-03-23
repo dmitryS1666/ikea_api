@@ -9,10 +9,10 @@ Trestle.resource(:phone_verification_requests) do
   end
 
   table do
-    column :id, label: "ID"
-    column :phone, label: "Телефон"
-    column :code, label: "Код"
-    column :context, label: "Контекст" do |request|
+    column :id
+    column :phone
+    column :code
+    column :context do |request|
       case request.context
       when 'auth'
         status_tag('Вход/Рег', :primary)
@@ -24,14 +24,14 @@ Trestle.resource(:phone_verification_requests) do
         request.context
       end
     end
-    column :user_id, label: "Пользователь" do |request|
+    column :user_id do |request|
       if request.user_id
         link_to(request.user_id, admin.path(:users, action: :show, id: request.user_id))
       else
         "-"
       end
     end
-    column :status, label: "Статус" do |request|
+    column :status do |request|
       case request.status
       when 'success'
         status_tag(request.status, :success)
@@ -41,8 +41,8 @@ Trestle.resource(:phone_verification_requests) do
         status_tag(request.status, :info)
       end
     end
-    column :error_message, label: "Ошибка"
-    column :created_at, label: "Дата", align: :center
+    column :error_message
+    column :created_at, align: :center
     actions
   end
 

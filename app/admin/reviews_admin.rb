@@ -17,11 +17,12 @@ Trestle.resource(:reviews, model: Review) do
     column :user, label: "Пользователь" do |review|
       review.user&.username || review.user_id
     end
-    column :rating, label: "Рейтинг"
-    column :status, label: "Статус" do |review|
-      status_tag(review.status, review.status == 'published' ? :success : :secondary)
+    column :rating
+    column :status do |review|
+      status_text = I18n.t("activerecord.attributes.review.statuses.#{review.status}")
+      status_tag(status_text, review.status == 'published' ? :success : :secondary)
     end
-    column :helpful_count, label: "Полезно"
+    column :helpful_count
     column "Фото" do |review|
       "#{review.photos.count} шт."
     end
@@ -33,7 +34,7 @@ Trestle.resource(:reviews, model: Review) do
       status_tag(review.excluded_from_rating? ? 'Да' : 'Нет',
                  review.excluded_from_rating? ? :warning : :secondary)
     end
-    column :created_at, label: "Дата", align: :center
+    column :created_at, align: :center
     actions
   end
 
@@ -60,8 +61,7 @@ Trestle.resource(:reviews, model: Review) do
       form_group :status_group, label: "Статус и оценка" do
         number_field :rating, label: "Рейтинг"
         select :status,
-               Review.statuses.keys.map { |status| [status.humanize, status] },
-               label: "Статус"
+               Review.statuses.keys.map { |status| [I18n.t("activerecord.attributes.review.statuses.#{status}"), status] }
       end
 
       form_group :flags, label: "Настройки" do

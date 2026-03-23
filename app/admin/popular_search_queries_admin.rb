@@ -4,15 +4,15 @@ Trestle.resource(:popular_search_queries, model: PopularSearchQuery) do
   end
 
   table do
-    column :query, label: "Запрос"
-    column :weight, label: "Вес" do |record|
+    column :query
+    column :weight do |record|
       number_with_precision(record.weight || 0, precision: 0)
     end
-    column :active, label: "Активен" do |record|
+    column :active do |record|
       status_tag(record.active ? 'Да' : 'Нет', record.active ? :success : :secondary)
     end
-    column :created_at, label: "Создан", align: :center
-    column :updated_at, label: "Обновлен", align: :center
+    column :created_at, align: :center
+    column :updated_at, align: :center
     actions
   end
 

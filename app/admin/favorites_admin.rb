@@ -9,12 +9,12 @@ Trestle.resource(:favorites) do
   end
 
   table do
-    column :id, label: "ID"
-    column :user, label: "Пользователь", link: true
-    column :items_count, label: "Товаров" do |favorite|
+    column :id
+    column :user, link: true
+    column :items_count do |favorite|
       favorite.favorite_items.count
     end
-    column :updated_at, label: "Обновлено", align: :center
+    column :updated_at, align: :center
     actions
   end
 
@@ -26,14 +26,12 @@ Trestle.resource(:favorites) do
     end
 
     tab :items, label: "Товары" do
-      table favorite.favorite_items.includes(:product), label: "Товары в избранном" do
-        column :product_sku, label: "SKU"
-        column :product, label: "Товар" do |item|
+      table favorite.favorite_items.includes(:product) do
+        column :product_sku
+        column :product do |item|
           item.product&.name || "Товар не найден"
         end
-        column :added_at, label: "Добавлен" do |item|
-          item.created_at
-        end
+        column :created_at, align: :center
       end
     end
   end

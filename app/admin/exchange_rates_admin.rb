@@ -7,13 +7,13 @@ Trestle.resource(:exchange_rates, model: ExchangeRate) do
   end
 
   table do
-    column :date, label: "Дата", sort: { default: true, direction: :desc }
-    column :currency_code, label: "Валюта"
+    column :date, sort: { default: true, direction: :desc }
+    column :currency_code
     column :rate, label: "Курс НБРБ" do |rate|
       number_with_precision(rate.rate, precision: 4)
     end
-    column :scale, label: "Масштаб"
-    column :rate_per_unit, label: "Курс за 1 ед." do |rate|
+    column :scale
+    column :rate_per_unit do |rate|
       number_with_precision(rate.rate_per_unit, precision: 4)
     end
     column :created_at, label: "Загружен", align: :center
@@ -88,11 +88,11 @@ Trestle.resource(:exchange_rates, model: ExchangeRate) do
 
   form do |rate|
     tab :basic, label: "Основное" do
-      date_field :date, label: "Дата"
-      select :currency_code, [['USD', 'USD'], ['EUR', 'EUR'], ['PLN', 'PLN'], ['RUB', 'RUB']], label: "Валюта"
+      date_field :date
+      select :currency_code, [['USD', 'USD'], ['EUR', 'EUR'], ['PLN', 'PLN'], ['RUB', 'RUB']]
       number_field :rate, step: 0.0001, label: "Курс НБРБ"
       number_field :official_rate, step: 0.0001, label: "Официальный курс"
-      number_field :scale, label: "Масштаб"
+      number_field :scale
     end
 
     sidebar do

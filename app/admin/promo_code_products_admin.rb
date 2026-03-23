@@ -4,11 +4,11 @@ Trestle.resource(:promo_code_products, model: PromoCodeProduct) do
   end
 
   table do
-    column :promo_code, label: "Промокод" do |record|
+    column :promo_code do |record|
       record.promo_code&.code
     end
-    column :product_sku, label: "SKU товара"
-    column :created_at, label: "Дата привязки", align: :center
+    column :product_sku
+    column :created_at, align: :center
     actions
   end
 

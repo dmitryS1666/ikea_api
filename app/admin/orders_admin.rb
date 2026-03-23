@@ -4,9 +4,9 @@ Trestle.resource(:orders) do
   end
 
   table do
-    column :id, label: "ID"
-    column :customer_name, label: "Покупатель"
-    column :status, label: "Статус" do |order|
+    column :id
+    column :customer_name
+    column :status do |order|
       if order.status
         status_text = I18n.t("activerecord.attributes.order.statuses.#{order.status}")
         case order.status.to_sym
@@ -23,8 +23,8 @@ Trestle.resource(:orders) do
         status_tag("Неизвестно (#{order.attributes['status']})", :secondary)
       end
     end
-    column :total_amount, label: "Сумма"
-    column :created_at, label: "Дата", align: :center
+    column :total_amount
+    column :created_at, align: :center
     actions
   end
 

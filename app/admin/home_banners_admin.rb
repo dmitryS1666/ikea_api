@@ -19,7 +19,7 @@ Trestle.resource(:home_banners, model: HomeBanner) do
         "—"
       end
     end
-    column :section, label: "Секция" do |banner|
+    column :section do |banner|
       case banner.section
       when 'main'
         status_tag('Главный баннер', :info)
@@ -29,7 +29,7 @@ Trestle.resource(:home_banners, model: HomeBanner) do
         banner.section
       end
     end
-    column :variant, label: "Размер" do |banner|
+    column :variant do |banner|
       case banner.variant
       when 'main_1500x516'
         '1500×516'
@@ -43,17 +43,17 @@ Trestle.resource(:home_banners, model: HomeBanner) do
         banner.variant
       end
     end
-    column :description, label: "Описание (служебное)", link: true
-    column :category, label: "Категория" do |banner|
+    column :description, link: true
+    column :category do |banner|
       banner.category&.name || '—'
     end
-    column :custom_url, label: "Кастомная ссылка"
-    column :position, label: "Позиция", sortable: true
-    column :active, label: "Активен" do |banner|
+    column :custom_url
+    column :position, sortable: true
+    column :active do |banner|
       status_tag(banner.active? ? 'Да' : 'Нет', 
                  banner.active? ? :success : :danger)
     end
-    column :created_at, label: "Создан", align: :center
+    column :created_at, align: :center
     actions do |actions|
       actions.show
       actions.edit
