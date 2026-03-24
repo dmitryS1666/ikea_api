@@ -18,11 +18,11 @@ Trestle.resource(:categories, model: Category) do
       @current_scope = params[:scope] || 'all'
       
       cache_ttl = Rails.env.development? ? 1.minute : 30.minutes
-      
+
       @product_counts = Rails.cache.fetch("categories_product_counts", expires_in: cache_ttl) do
         CategoryProduct.group(:category_id).count
       end
-      
+
       @children_counts = Rails.cache.fetch("categories_children_counts", expires_in: cache_ttl) do
         counts = Hash.new(0)
         Category.pluck(:parent_ids).each do |parent_ids_raw|
@@ -31,15 +31,16 @@ Trestle.resource(:categories, model: Category) do
         end
         counts
       end
-      
+
       @_product_counts_cache = @product_counts
       @_children_counts_cache = @children_counts
-      
+
       max_updated_at = Rails.cache.fetch("categories_max_updated_at", expires_in: cache_ttl) do
         Category.maximum(:updated_at)
       end
+
       @categories_tree_cache_key = "categories_tree_#{@current_scope}_#{max_updated_at&.to_i || 0}"
-      
+
       @categories_tree = Rails.cache.fetch(@categories_tree_cache_key, expires_in: cache_ttl) do
         base_query = Category.all
         case @current_scope
@@ -51,17 +52,37 @@ Trestle.resource(:categories, model: Category) do
         end
 
         categories = base_query.with_attached_icon
-                             .with_attached_pictogram
-                             .order(:name)
-                             .to_a
-        
+                               .with_attached_pictogram
+                               .order(:name)
+                               .to_a
         Category.build_tree(categories)
       end
-      
+
       @filters_reindex_task = ParserTask.by_type('category_filters').recent.first
       @filters_reindex_running = ParserTask.by_type('category_filters').where(status: ['running', 'pending']).exists?
-      
+
       render "trestle/categories/index"
+    end
+
+    def move_node
+      moved = Category.unscoped.find_by!(ikea_id: params[:moved_id].to_s)
+      new_parent = params[:new_parent_id].present? ? Category.unscoped.find_by!(ikea_id: params[:new_parent_id].to_s) : nil
+      result = Categories::MoveNodeService.new(
+        moved_category: moved,
+        new_parent_category: new_parent,
+        actor: try(:current_user)
+      ).call
+      render json: {
+        ok: true,
+        moved_id: moved.ikea_id.to_s,
+        new_parent_id: new_parent&.ikea_id&.to_s,
+        updated_ids: result.updated_ids
+      }, status: :ok
+    rescue Categories::MoveNodeService::Error, ActiveRecord::RecordNotFound => e
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
+    rescue => e
+      Rails.logger.error("categories#move_node failed: #{e.class}: #{e.message}\n#{e.backtrace.first(10).join("\n")}")
+      render json: { ok: false, error: "Внутренняя ошибка при перемещении категории" }, status: :internal_server_error
     end
 
     def new
@@ -206,6 +227,7 @@ Trestle.resource(:categories, model: Category) do
     post :import_products_csv, on: :member
     post :add_product, on: :member
     post :remove_product, on: :member
+    post :move_node, on: :collection
   end
 
   table do
@@ -287,11 +309,6 @@ Trestle.resource(:categories, model: Category) do
             content.html_safe
           end)
           file_field :pictogram, label: "Пиктограмма (SVG)"
-          if category.pictogram.attached?
-            static_field :pictogram_url, label: "URL пиктограммы" do
-              main_app.rails_storage_proxy_path(category.pictogram, only_path: true)
-            end
-          end
         end
 
         col(sm: 4) do
@@ -409,6 +426,36 @@ Trestle.resource(:categories, model: Category) do
         end
       else
         row { col { content_tag(:p, "Сохраните категорию, чтобы управлять списком товаров.", class: "alert alert-info") } }
+      end
+    end
+
+    tab :filters, label: "Фильтры" do
+      if category.persisted?
+        filters = category.available_filters
+    
+        h4 "Фильтры категории"
+    
+        if filters.present?
+          static_field :available_filters_json, label: "JSON" do
+            content_tag(
+              :pre,
+              JSON.pretty_generate(filters),
+              style: "max-height: 700px; overflow:auto; background:#f8f9fa; padding:15px; border:1px solid #ddd; border-radius:6px; font-size:12px; line-height:1.45;"
+            )
+          end
+        else
+          row do
+            col do
+              content_tag(:p, "У этой категории фильтры отсутствуют.", class: "alert alert-info")
+            end
+          end
+        end
+      else
+        row do
+          col do
+            content_tag(:p, "Сначала сохраните категорию, затем можно посмотреть фильтры.", class: "alert alert-info")
+          end
+        end
       end
     end
 

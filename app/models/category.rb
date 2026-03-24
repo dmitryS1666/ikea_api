@@ -41,7 +41,7 @@ class Category < ApplicationRecord
   scope :not_deleted, -> { where(is_deleted: [false, nil]) }
   
   def display_filters
-    available_filters_ru.presence || available_filters || []
+    available_filters || []
   end
 
   private
@@ -120,45 +120,42 @@ class Category < ApplicationRecord
 
   # Класс для построения дерева категорий
   class << self
-    def build_tree(categories = nil)
-      categories ||= Category.select(:ikea_id, :name, :translated_name, :parent_ids, :is_popular, :is_top, :top_position, :is_custom, :is_deleted, :is_important)
-                             .order(:name)
-                             .to_a
+    def build_tree(categories)
+      categories = Array(categories)
+
+      grouped = categories.group_by { |c| c.ikea_id.to_s }
+      categories = grouped.values.map(&:last)
+
+      by_ikea_id = categories.index_by { |category| category.ikea_id.to_s }
+      children_map = Hash.new { |h, k| h[k] = [] }
+      roots = []
+
+      categories.each do |category|
+        parent_ids = normalize_parent_ids(category.parent_ids).map(&:to_s)
+        direct_parent_id = parent_ids.last
       
-      # Создаем быстрый поиск по ID для проверки наличия родителей в наборе
-      category_ids = categories.map { |c| c.ikea_id.to_s }.to_set
+        node = {
+          category: category,
+          children: []
+        }
       
-      # Оптимизация: создаем индекс для быстрого поиска дочерних категорий
-      children_index = {}
-      categories.each do |cat|
-        parent_ids = self.normalize_parent_ids(cat.parent_ids)
-        next unless parent_ids.present? && parent_ids.any?
-        
-        parent_ids.each do |parent_id|
-          parent_key = parent_id.to_s
-          children_index[parent_key] ||= []
-          children_index[parent_key] << cat
+        if direct_parent_id.present? && by_ikea_id.key?(direct_parent_id)
+          children_map[direct_parent_id] << node
+        else
+          roots << node
         end
       end
-      
-      # Находим верхнеуровневые категории ДЛЯ ДАННОГО НАБОРА
-      # Категория считается корневой, если:
-      # 1. Она помечена как is_important
-      # 2. У нее нет родителей
-      # 3. Ни один из ее родителей не представлен в текущем наборе (важно для фильтров типа "ТОП")
-      top_level = categories.select do |c|
-        parent_ids = self.normalize_parent_ids(c.parent_ids)
-        
-        # Категория считается корневой, если:
-        # 1. Она помечена как is_important
-        # 2. У нее нет родителей
-        # 3. Ни один из ее родителей не представлен в текущем наборе (важно для фильтров типа "ТОП")
-        c.is_important || 
-          parent_ids.blank? || 
-          parent_ids.none? { |pid| category_ids.include?(pid.to_s) }
+    
+      attach_children = lambda do |nodes|
+        nodes.each do |node|
+          ikea_id = node[:category].ikea_id.to_s
+          node[:children] = children_map[ikea_id]
+          attach_children.call(node[:children]) if node[:children].any?
+        end
       end
-      
-      build_tree_recursive(top_level, children_index)
+    
+      attach_children.call(roots)
+      roots
     end
 
     # Публичный метод для нормализации parent_ids (используется в контроллерах)

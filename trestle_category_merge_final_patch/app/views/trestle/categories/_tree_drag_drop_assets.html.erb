@@ -1,0 +1,228 @@
+<style>
+  .category-tree-drop-root {
+    border: 2px dashed #c7d2fe;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    background: #f8fafc;
+    color: #475569;
+    text-align: center;
+    transition: all .15s ease;
+  }
+
+  .category-tree-drop-root.is-over,
+  .category-node.drop-inside {
+    border-color: #2563eb;
+    background: #eff6ff;
+  }
+
+  .category-item {
+    position: relative;
+  }
+
+  .category-drag-handle {
+    cursor: grab;
+    user-select: none;
+    color: #64748b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    margin-right: 8px;
+    font-size: 14px;
+  }
+
+  .category-item.dragging .category-drag-handle {
+    cursor: grabbing;
+  }
+
+  .category-item.dragging {
+    opacity: .55;
+  }
+
+  .category-node.drop-inside > .category-item {
+    outline: 2px solid #60a5fa;
+    border-radius: 10px;
+    background: #eff6ff;
+  }
+</style>
+
+<script>
+  (function() {
+    function boot() {
+      var tree = document.querySelector('[data-category-tree]');
+      if (!tree || tree.dataset.dragDropBound === '1') return;
+      tree.dataset.dragDropBound = '1';
+
+      var moveUrl = tree.dataset.moveUrl;
+      var mergeUrl = tree.dataset.mergeUrl;
+      var csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      var dragCategoryId = null;
+      var draggedElement = null;
+      var rootDropZone = document.querySelector('[data-category-root-dropzone]');
+
+      function clearHighlights() {
+        document.querySelectorAll('.category-node.drop-inside').forEach(function(node) {
+          node.classList.remove('drop-inside');
+        });
+        document.querySelectorAll('.category-tree-drop-root.is-over').forEach(function(node) {
+          node.classList.remove('is-over');
+        });
+      }
+
+      tree.querySelectorAll('[data-category-drag-handle]').forEach(function(handle) {
+        if (handle.dataset.dragBound === '1') return;
+        handle.dataset.dragBound = '1';
+
+        handle.addEventListener('dragstart', function(event) {
+          dragCategoryId = handle.dataset.categoryId;
+          draggedElement = handle.closest('.category-item');
+          if (draggedElement) draggedElement.classList.add('dragging');
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', dragCategoryId);
+        });
+
+        handle.addEventListener('dragend', function() {
+          if (draggedElement) draggedElement.classList.remove('dragging');
+          dragCategoryId = null;
+          draggedElement = null;
+          clearHighlights();
+        });
+      });
+
+      tree.querySelectorAll('.category-node').forEach(function(node) {
+        if (node.dataset.dropBound === '1') return;
+        node.dataset.dropBound = '1';
+
+        node.addEventListener('dragover', function(event) {
+          if (!dragCategoryId) return;
+          var targetId = node.dataset.categoryId;
+          if (!targetId || targetId === dragCategoryId) return;
+          event.preventDefault();
+          node.classList.add('drop-inside');
+        });
+
+        node.addEventListener('dragleave', function(event) {
+          if (!node.contains(event.relatedTarget)) node.classList.remove('drop-inside');
+        });
+
+        node.addEventListener('drop', function(event) {
+          event.preventDefault();
+          node.classList.remove('drop-inside');
+          var targetId = node.dataset.categoryId;
+          if (!dragCategoryId || !targetId || targetId === dragCategoryId) return;
+          submitMove(dragCategoryId, targetId);
+        });
+      });
+
+      tree.querySelectorAll('[data-category-merge-trigger]').forEach(function(button) {
+        if (button.dataset.mergeBound === '1') return;
+        button.dataset.mergeBound = '1';
+
+        button.addEventListener('click', function() {
+          var sourceId = button.dataset.sourceId;
+          var sourceName = button.dataset.sourceName || sourceId;
+          var rawValue = window.prompt(
+            'Введите ikea_id или точное имя категории, в которую нужно слить:\n\nИсточник: ' + sourceName + ' (' + sourceId + ')'
+          );
+
+          if (!rawValue) return;
+          var value = rawValue.trim();
+          if (!value) return;
+
+          if (!window.confirm('Слить категорию "' + sourceName + '" в "' + value + '"? Источник будет отключен.')) {
+            return;
+          }
+
+          if (/^[A-Za-z0-9_-]+$/.test(value)) {
+            submitMerge(sourceId, { target_id: value, target_name: '' });
+          } else {
+            submitMerge(sourceId, { target_id: '', target_name: value });
+          }
+        });
+      });
+
+      if (rootDropZone && rootDropZone.dataset.dropBound !== '1') {
+        rootDropZone.dataset.dropBound = '1';
+
+        rootDropZone.addEventListener('dragover', function(event) {
+          if (!dragCategoryId) return;
+          event.preventDefault();
+          rootDropZone.classList.add('is-over');
+        });
+
+        rootDropZone.addEventListener('dragleave', function(event) {
+          if (!rootDropZone.contains(event.relatedTarget)) rootDropZone.classList.remove('is-over');
+        });
+
+        rootDropZone.addEventListener('drop', function(event) {
+          event.preventDefault();
+          rootDropZone.classList.remove('is-over');
+          if (!dragCategoryId) return;
+          submitMove(dragCategoryId, null);
+        });
+      }
+
+      function requestJson(url, payload) {
+        return fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-Token': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: JSON.stringify(payload),
+          credentials: 'same-origin'
+        }).then(async function(response) {
+          var rawText = await response.text();
+          var data = {};
+
+          try {
+            data = rawText ? JSON.parse(rawText) : {};
+          } catch (_) {
+            data = { ok: false, error: rawText || 'Сервер вернул не-JSON ответ' };
+          }
+
+          if (!response.ok || data.ok === false) {
+            throw new Error(data.error || ('HTTP ' + response.status));
+          }
+
+          return data;
+        });
+      }
+
+      function submitMove(movedId, newParentId) {
+        requestJson(moveUrl, { moved_id: movedId, new_parent_id: newParentId })
+          .then(function() { window.location.reload(); })
+          .catch(function(error) {
+            console.error('move_node failed', error);
+            alert(error.message || 'Не удалось переместить категорию');
+          });
+      }
+
+      function submitMerge(sourceId, targetPayload) {
+        var payload = Object.assign({ source_id: sourceId }, targetPayload);
+        requestJson(mergeUrl, payload)
+          .then(function(data) {
+            var stats = data.stats || {};
+            console.info('merge_node ok', data);
+            alert('Merge выполнен. Обновлено связей: ' + JSON.stringify(stats));
+            window.location.reload();
+          })
+          .catch(function(error) {
+            console.error('merge_node failed', error);
+            alert(error.message || 'Не удалось слить категории');
+          });
+      }
+    }
+
+    if (document.readyState !== 'loading') {
+      boot();
+    } else {
+      document.addEventListener('DOMContentLoaded', boot, { once: true });
+    }
+
+    document.addEventListener('turbo:load', boot);
+  })();
+</script>

@@ -2,6 +2,8 @@
   Категории
 <% end %>
 
+<%= render 'trestle/categories/tree_drag_drop_assets' %>
+
 <% content_for :main_actions do %>
   <%= link_to new_categories_admin_path("category[is_custom]": true), class: "btn btn-primary" do %>
     <i class="fa fa-plus"></i> Добавить кастомную категорию
@@ -76,10 +78,16 @@
           </button>
         </div>
 
+        <div class="category-tree-drop-root" data-category-root-dropzone>
+          Перетащи сюда, чтобы сделать категорию корневой
+        </div>
+
         <div class="categories-tree">
-          <% cache [@categories_tree_cache_key, "tree_html_v9"] do %>
+          <% cache [@categories_tree_cache_key, "tree_html_v10"] do %>
             <% if @categories_tree.any? %>
-              <%= render partial: 'trestle/categories/category_node', collection: @categories_tree, as: :node %>
+              <div data-category-tree data-move-url="<%= admin.path(:move_node) %>">
+                <%= render partial: 'trestle/categories/category_node', collection: @categories_tree, as: :node %>
+              </div>
             <% else %>
               <div class="alert alert-info">Категории не найдены</div>
             <% end %>

@@ -5,13 +5,19 @@
 
 <div class="category-node" data-category-id="<%= category.ikea_id %>">
   <div class="category-item <%= 'disabled' if category.is_deleted? %>">
-    <span class="category-toggle <%= has_children ? 'has-children' : 'no-children' %>" 
+    <span class="category-toggle <%= has_children ? 'has-children' : 'no-children' %>"
           id="toggle-<%= node_id %>"
           onclick="<%= has_children ? "toggleCategory('#{node_id}')" : '' %>">
     </span>
 
-    <%# Иконки отображаются на основе уровня вложенности %>
-    
+    <span class="category-drag-handle"
+          data-category-drag-handle
+          data-category-id="<%= category.ikea_id %>"
+          draggable="true"
+          title="Перетащить в другую категорию">
+      <i class="fa fa-bars"></i>
+    </span>
+
     <div class="category-info">
       <div class="category-images">
         <% if category.icon.attached? %>
@@ -35,11 +41,11 @@
       <div class="category-name <%= 'disabled' if category.is_deleted? %>">
         <%= category.translated_name.presence || category.name %>
       </div>
-      
+
       <div class="category-id">
         ID: <%= category.ikea_id %>
       </div>
-      
+
       <div class="category-badges">
         <% if category.is_top? %>
           <span class="badge badge-top" title="Позиция: <%= category.top_position %>">ТОП</span>
@@ -54,7 +60,7 @@
           <span class="badge badge-disabled">Отключена</span>
         <% end %>
       </div>
-      
+
       <div class="category-stats">
         <span title="Продуктов">
           <i class="fa fa-box"></i> <%= @product_counts&.dig(category.ikea_id) || 0 %>
@@ -66,7 +72,7 @@
         <% end %>
       </div>
     </div>
-    
+
     <div class="category-actions">
       <%= link_to categories_admin_path(category.ikea_id), 
                   class: "btn btn-sm btn-info", 
@@ -124,7 +130,7 @@
       <% end %>
     </div>
   </div>
-  
+
   <% if has_children %>
     <div class="category-children" id="children-<%= node_id %>">
       <%= render partial: 'trestle/categories/category_node', collection: children, as: :node %>

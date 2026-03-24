@@ -1,0 +1,102 @@
+<% content_for :page_title do %>
+  Категории
+<% end %>
+
+<%= render 'trestle/categories/tree_drag_drop_assets' %>
+
+<% content_for :main_actions do %>
+  <%= link_to new_categories_admin_path("category[is_custom]": true), class: "btn btn-primary" do %>
+    <i class="fa fa-plus"></i> Добавить кастомную категорию
+  <% end %>
+<% end %>
+
+<div class="row">
+  <div class="col-md-2">
+    <div class="card mb-3">
+      <div class="card-header">Переиндексация</div>
+      <div class="card-body">
+        <%= form_tag admin.path(:reindex_all_filters),
+                    method: :post,
+                    data: { turbo: false, confirm: "Переиндексировать фильтры для всех категорий?" } do %>
+          <%= submit_tag "Переиндексировать все",
+                        class: "btn btn-outline-success btn-sm w-100",
+                        disabled: @filters_reindex_running %>
+        <% end %>
+        <% if @filters_reindex_task %>
+          <div class="small text-muted mt-2">
+            Статус: <strong><%= @filters_reindex_task.status %></strong><br>
+            Начало: <%= @filters_reindex_task.started_at&.strftime('%Y-%m-%d %H:%M') || '-' %><br>
+            Завершение: <%= @filters_reindex_task.completed_at&.strftime('%Y-%m-%d %H:%M') || '-' %><br>
+            Обработано: <%= @filters_reindex_task.processed %><br>
+            Ошибок: <%= @filters_reindex_task.error_count %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header">Импорт фильтров</div>
+      <div class="card-body">
+        <%= form_tag admin.path(:import_available_filters),
+                    method: :post,
+                    multipart: true,
+                    data: { turbo: false } do %>
+          <%= file_field_tag :file, accept: "application/json", class: "form-control mb-2" %>
+          <%= submit_tag "Загрузить available_filters",
+                        class: "btn btn-success btn-sm",
+                        data: { confirm: "Загрузить available_filters из JSON файла?" } %>
+          <div class="text-muted small mt-2">
+            JSON: объект, массив, { categories: [...] } или JSONL.
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="sidebar-section card">
+      <div class="card-header">Фильтры</div>
+      <div class="list-group list-group-flush">
+        <%= link_to "Все", { scope: 'all' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'all'}" %>
+        <%= link_to "ТОП-категории", { scope: 'top' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'top'}" %>
+        <%= link_to "Кастомные (Спецпредложения)", { scope: 'custom' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'custom'}" %>
+        <%= link_to "Верхнеуровневые", { scope: 'top_level' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'top_level'}" %>
+        <%= link_to "Популярные", { scope: 'popular' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'popular'}" %>
+        <%= link_to "Активные", { scope: 'active' }, class: "list-group-item list-group-item-action #{'active' if @current_scope == 'active'}" %>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-10">
+    <div class="categories-tree-container card">
+      <div class="card-body">
+        <div class="tree-controls mb-3">
+          <%= link_to new_categories_admin_path("category[is_custom]": true), class: "btn btn-sm btn-primary" do %>
+            <i class="fa fa-plus"></i> Создать кастомную страницу
+          <% end %>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="expandAll()">
+            <i class="fa fa-plus-circle"></i> Развернуть все
+          </button>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="collapseAll()">
+            <i class="fa fa-minus-circle"></i> Свернуть все
+          </button>
+        </div>
+
+        <div class="category-tree-drop-root" data-category-root-dropzone>
+          Перетащи сюда, чтобы сделать категорию корневой
+        </div>
+
+        <div class="categories-tree"
+             data-category-tree
+             data-move-url="<%= admin.path(:move_node, format: :json) %>"
+             data-merge-url="<%= admin.path(:merge_node, format: :json) %>">
+          <% cache [@categories_tree_cache_key, "tree_html_v12"] do %>
+            <% if @categories_tree.any? %>
+              <%= render partial: 'trestle/categories/category_node', collection: @categories_tree, as: :node %>
+            <% else %>
+              <div class="alert alert-info">Категории не найдены</div>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
