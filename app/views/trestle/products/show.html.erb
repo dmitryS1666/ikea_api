@@ -29,14 +29,10 @@
                 </td>
               </tr>
             <% end %>
-            <tr>
-              <th>Название (PL):</th>
-              <td><%= @product.name %></td>
-            </tr>
             <% if @product.name_ru.present? %>
               <tr>
-                <th>Название (RU):</th>
-                <td><%= @product.name_ru %></td>
+                <th>Название:</th>
+                <td><%= @product.name_ru %><br><%= @product.small_desc_name %></td>
               </tr>
             <% end %>
             <% if @product.collection.present? %>
@@ -56,7 +52,7 @@
             <% if @product.price.present? %>
               <tr>
                 <th>Цена:</th>
-                <td><%= number_to_currency(@product.price, unit: 'Zl', format: '%n %u') %></td>
+                <td><%= number_to_currency(@product.price, unit: 'EUR', format: '%n %u') %></td>
               </tr>
             <% end %>
             <% if @product.quantity.present? %>
@@ -382,7 +378,7 @@
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                       <% if related_product %>
                         <%= link_to "#{related_product.name} (#{item_no})", "/admin/products/#{related_product.id}", class: 'text-decoration-none' %>
-                        <span class="badge badge-primary badge-pill"><%= related_product.price ? number_to_currency(related_product.price, unit: 'Zl', format: '%n %u') : 'N/A' %></span>
+                        <span class="badge badge-primary badge-pill"><%= related_product.price ? number_to_currency(related_product.price, unit: 'EUR', format: '%n %u') : 'N/A' %></span>
                       <% else %>
                         <span><%= item_no %></span>
                         <span class="badge badge-secondary badge-pill">Не найден</span>
@@ -402,7 +398,7 @@
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                       <% if set_product %>
                         <%= link_to "#{set_product.name} (#{item_no})", "/admin/products/#{set_product.id}", class: 'text-decoration-none' %>
-                        <span class="badge badge-primary badge-pill"><%= set_product.price ? number_to_currency(set_product.price, unit: 'Zl', format: '%n %u') : 'N/A' %></span>
+                        <span class="badge badge-primary badge-pill"><%= set_product.price ? number_to_currency(set_product.price, unit: 'EUR', format: '%n %u') : 'N/A' %></span>
                       <% else %>
                         <span><%= item_no %></span>
                         <span class="badge badge-secondary badge-pill">Не найден</span>
@@ -422,7 +418,7 @@
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                       <% if bundle_product %>
                         <%= link_to "#{bundle_product.name} (#{item_no})", "/admin/products/#{bundle_product.id}", class: 'text-decoration-none' %>
-                        <span class="badge badge-primary badge-pill"><%= bundle_product.price ? number_to_currency(bundle_product.price, unit: 'Zl', format: '%n %u') : 'N/A' %></span>
+                        <span class="badge badge-primary badge-pill"><%= bundle_product.price ? number_to_currency(bundle_product.price, unit: 'EUR', format: '%n %u') : 'N/A' %></span>
                       <% else %>
                         <span><%= item_no %></span>
                         <span class="badge badge-secondary badge-pill">Не найден</span>
@@ -462,7 +458,7 @@
               <% if @product.delivery_cost.present? %>
                 <tr>
                   <th>Стоимость доставки:</th>
-                  <td><%= number_to_currency(@product.delivery_cost, unit: 'Zl', format: '%n %u') %></td>
+                  <td><%= number_to_currency(@product.delivery_cost, unit: 'EUR', format: '%n %u') %></td>
                 </tr>
               <% end %>
               <% if @product.delivery_reason.present? %>

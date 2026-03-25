@@ -3,6 +3,7 @@ class ProductSerializer
   
   attributes :sku,
              :name_ru,
+             :small_desc_name,
              :slug,
              :price, 
              :price_pln,

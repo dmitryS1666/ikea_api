@@ -325,8 +325,8 @@ ru:
         updated_at: "Обновлен"
       product:
         sku: "Артикул"
-        name: "Название (PL)"
-        name_ru: "Название (RU)"
+        name_ru: "Название"
+        small_desc_name: "Краткое описание для названия"
         category_id: "Категория"
         price: "Цена"
         quantity: "Количество"
@@ -341,8 +341,7 @@ ru:
         delivery_cost: "Стоимость доставки"
       category:
         ikea_id: "IKEA ID"
-        name: "Название (PL)"
-        translated_name: "Название (RU)"
+        translated_name: "Название"
         is_popular: "Популярная"
         is_deleted: "Отключена"
         is_top: "ТОП-категория"

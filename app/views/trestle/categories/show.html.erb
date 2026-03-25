@@ -49,11 +49,7 @@
               </td>
             </tr>
             <tr>
-              <th>Название (PL):</th>
-              <td><%= @category.name %></td>
-            </tr>
-            <tr>
-              <th>Название (RU):</th>
+              <th>Название:</th>
               <td><%= @category.translated_name || content_tag(:em, "Нет перевода", class: "text-muted") %></td>
             </tr>
             <tr>
@@ -227,7 +223,7 @@
                     <td><%= product.sku %></td>
                     <td><%= product.name %></td>
                     <td><%= product.name_ru || content_tag(:em, "Нет", class: "text-muted") %></td>
-                    <td><%= product.price ? number_to_currency(product.price, unit: 'Zl', format: '%n %u') : '-' %></td>
+                    <td><%= product.price ? number_to_currency(product.price, unit: 'EUR', format: '%n %u') : '-' %></td>
                     <%
 =begin%>
  <td>

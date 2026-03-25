@@ -42,13 +42,13 @@ Trestle.resource(:products, model: Product) do
 
   table do
     column :sku, link: true
-    column :name
     column :name_ru
+    column :small_desc_name
     column :category do |product|
       product.category&.name || 'Без категории'
     end
     column :price do |product|
-      number_to_currency(product.price, unit: 'Zl', format: '%n %u')
+      number_to_currency(product.price, unit: 'EUR', format: '%n %u')
     end
     column :quantity, sortable: true
     column :is_bestseller do |product|
@@ -294,8 +294,8 @@ Trestle.resource(:products, model: Product) do
     tab :basic, label: "Основное" do
       text_field :sku, label: "Артикул"
       text_field :url, label: "Ссылка"
-      text_field :name, label: "Название (PL)"
-      text_field :name_ru, label: "Название (RU)"
+      text_field :name_ru, label: "Название"
+      text_field :small_desc_name, label: "Краткое описание к названию"
       select :category_id, Category.all.map { |c| [c.translated_name, c.ikea_id] }, { label: "Основная категория", include_blank: "Без категории" }
       
       form_group :categories, label: "Дополнительные категории" do
@@ -304,7 +304,7 @@ Trestle.resource(:products, model: Product) do
     end
 
     tab :pricing, label: "Цена и наличие" do
-      number_field :price, label: "Цена (PLN)"
+      number_field :price, label: "Цена (EUR)"
       number_field :quantity, label: "Количество"
       text_field :home_delivery, label: "Доставка на дом"
     end

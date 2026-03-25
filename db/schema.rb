@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_22_205013) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_25_081442) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -583,6 +583,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_22_205013) do
     t.boolean "is_new"
     t.boolean "is_recommended"
     t.string "cached_slug"
+    t.text "small_desc_name"
     t.index ["cached_slug"], name: "index_products_on_cached_slug"
     t.index ["category_id"], name: "index_products_on_category_id"
     t.index ["is_bestseller"], name: "index_products_on_is_bestseller"
