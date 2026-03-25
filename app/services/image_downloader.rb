@@ -1,175 +1,320 @@
-# Сервис для загрузки изображений
-# Использует ImageStorage для абстракции над различными хранилищами (локальное, S3, Cloudinary)
-require_relative 'image_storage/base'
-require_relative 'image_storage/local'
-require_relative 'image_storage/s3'
-require_relative 'image_storage/cloudinary'
+# frozen_string_literal: true
+
+require "json"
+require "set"
+require "digest"
+require "open-uri"
+require "fileutils"
+require "pathname"
 
 class ImageDownloader
-  # Конкурентность загрузки (можно настроить через ENV)
-  CONCURRENCY_IMAGES = ENV.fetch('IMG_DL_IMAGES', '6').to_i
-  
-  # Определяем, какое хранилище использовать (по умолчанию локальное)
-  def self.storage
-    @storage ||= begin
-      storage_type = ENV.fetch('IMAGE_STORAGE_TYPE', 'local').downcase
-      case storage_type
-      when 's3'
-        ImageStorage::S3
-      when 'cloudinary'
-        ImageStorage::Cloudinary
-      else
-        ImageStorage::Local
-      end
-    end
-  end
+  DEFAULT_OPEN_TIMEOUT = 20
+  DEFAULT_READ_TIMEOUT = 20
 
   class << self
-    # Загрузить изображение категории
-    def download_category_image(category, image_url)
-      return nil unless image_url.present?
-      
-      begin
-        stored_path = storage.upload(image_url, category_id: category.ikea_id)
-        return nil unless stored_path
-        
-        # Сохраняем путь или URL в зависимости от типа хранилища
-        if storage == ImageStorage::Local
-          category.update_column(:local_image_path, stored_path)
-        else
-          # Для облачных хранилищ сохраняем URL
-          category.update_column(:local_image_path, storage.url(stored_path))
-        end
-        
-        stored_path
-      rescue => e
-        Rails.logger.error "Failed to download category image #{image_url}: #{e.message}"
-        nil
-      end
-    end
+    # Главная точка входа для джобы
+    def sync_product_images(product, limit: nil)
+      image_urls = normalize_string_array(product.images).uniq
+      image_urls = image_urls.first(limit) if limit.present?
 
-    # Загрузить изображения продукта
-    def download_product_images(product, image_urls, limit: nil)
-      return [] unless image_urls.present?
-      
-      # Нормализуем image_urls - может быть массив или строка (JSON)
-      urls = if image_urls.is_a?(String)
-               begin
-                 JSON.parse(image_urls)
-               rescue JSON::ParserError
-                 Rails.logger.warn "ImageDownloader: Failed to parse image_urls JSON: #{image_urls[0..100]}"
-                 []
-               end
-             else
-               Array(image_urls)
-             end
-      
-      return [] if urls.empty?
-      
-      # Убираем дубликаты и пустые значения из исходных URL
-      urls = urls.compact.map(&:to_s).map(&:strip).uniq
-      
-      # 1. Получаем уже загруженные изображения и проверяем их целостность
-      existing_local_images = if product.local_images.is_a?(String)
-                                begin
-                                  JSON.parse(product.local_images) || []
-                                rescue JSON::ParserError
-                                  []
-                                end
-                              else
-                                Array(product.local_images) || []
-                              end
-      
-      # Очищаем от дублей и пустых значений
-      existing_local_images = existing_local_images.compact.uniq
-      
-      # Проверяем существующие изображения на "здоровье"
-      healthy_local_images = []
-      existing_local_images.each do |path|
-        if storage.respond_to?(:healthy?) ? storage.healthy?(path) : storage.exists?(path)
-          healthy_local_images << path
-        else
-          # Если картинка битая или отсутствует - удаляем
-          Rails.logger.warn "ImageDownloader: Image #{path} is broken or missing, deleting from product #{product.sku}"
-          storage.delete(path) if storage.exists?(path)
-        end
+      current_local_images = normalize_string_array(product.local_images)
+      healthy_local_images = unique_healthy_paths(current_local_images)
+
+      changed = false
+
+      # 1. Сначала очищаем local_images от битых/несуществующих/дублей
+      if healthy_local_images != current_local_images
+        persist_local_images!(product, healthy_local_images)
+        changed = true
       end
-      
-      local_paths = Set.new(healthy_local_images)
-      downloaded = 0
-      failed = 0
-      
-      # Выбираем только те URL, которые еще не загружены (или были битыми)
-      urls_to_process = limit ? urls.first(limit) : urls
-      
-      Rails.logger.info "ImageDownloader: Starting download/verification of #{urls_to_process.length} images for product #{product.sku} (healthy: #{local_paths.size}, storage: #{storage.name})"
-      
-      # Параллельная загрузка с ограничением конкурентности
-      mutex = Mutex.new
-      threads = []
-      active_threads = 0
-      
-      urls_to_process.each do |image_url|
-        next unless image_url.present?
-        
-        # Ждем, пока освободится место для нового потока
-        while active_threads >= CONCURRENCY_IMAGES
-          sleep(0.1)
-        end
-        
-        threads << Thread.new do
-          mutex.synchronize { active_threads += 1 }
-          
-          begin
-            # Используем storage для загрузки
-            stored_path = storage.upload(image_url, product_sku: product.sku)
-            
-            if stored_path
-              # Для облачных хранилищ получаем URL, для локального - путь
-              path_or_url = if storage == ImageStorage::Local
-                            stored_path.start_with?('/') ? stored_path : "/#{stored_path}"
-                          else
-                            storage.url(stored_path)
-                          end
-              
-              mutex.synchronize do
-                local_paths.add(path_or_url)
-                downloaded += 1
-              end
-            else
-              mutex.synchronize { failed += 1 }
-            end
-          rescue => e
-            mutex.synchronize { failed += 1 }
-            Rails.logger.error "ImageDownloader: Failed to download product image #{image_url} for #{product.sku}: #{e.message}"
-          ensure
-            mutex.synchronize { active_threads -= 1 }
-          end
-        end
-      end
-      
-      # Ждем завершения всех потоков
-      threads.each(&:join)
-      
-      # Обновляем данные продукта
-      images_total = urls.length
-      images_stored = local_paths.size
-      images_incomplete = images_stored < images_total
-      local_images_array = local_paths.to_a.compact.uniq
-      
-      # Обновляем только если что-то изменилось
-      if downloaded > 0 || images_incomplete != product.images_incomplete || local_images_array != existing_local_images || images_stored != product.images_stored
-        product.update_columns(
-          local_images: local_images_array.to_json,
-          images_stored: images_stored,
-          images_total: images_total,
-          images_incomplete: images_incomplete
+
+      return build_sync_result(
+        changed: changed,
+        downloaded: [],
+        skipped: [],
+        failed: [],
+        final_local_images: healthy_local_images
+      ) if image_urls.empty?
+
+      target_count = limit.presence || image_urls.size
+      if healthy_local_images.size >= target_count
+        return build_sync_result(
+          changed: changed,
+          downloaded: [],
+          skipped: [],
+          failed: [],
+          final_local_images: healthy_local_images.first(target_count)
         )
-        Rails.logger.info "ImageDownloader: Product #{product.sku} - downloaded: #{downloaded}, failed: #{failed}, total: #{images_total}, stored: #{images_stored}, incomplete: #{images_incomplete}"
       end
-      
-      local_images_array
+
+      download_result = download_product_images(
+        product,
+        image_urls,
+        limit: target_count,
+        existing_paths: healthy_local_images
+      )
+
+      final_local_images = unique_healthy_paths(download_result[:final_local_images])
+
+      persisted_now = normalize_string_array(product.reload.local_images)
+      if persisted_now != final_local_images
+        persist_local_images!(product, final_local_images)
+        changed = true
+      end
+
+      build_sync_result(
+        changed: changed || download_result[:changed],
+        downloaded: download_result[:downloaded],
+        skipped: download_result[:skipped],
+        failed: download_result[:failed],
+        final_local_images: final_local_images
+      )
     end
 
+    # Низкоуровневая загрузка недостающих картинок
+    def download_product_images(product, image_urls, limit: nil, existing_paths: nil)
+      urls = normalize_string_array(image_urls).uniq
+      current_paths = existing_paths ? normalize_string_array(existing_paths) : unique_healthy_paths(normalize_string_array(product.local_images))
+
+      result = {
+        changed: false,
+        downloaded: [],
+        skipped: [],
+        failed: [],
+        final_local_images: current_paths.dup
+      }
+
+      return result if urls.empty?
+
+      final_paths = current_paths.dup
+      seen_urls = Set.new
+      content_fingerprints = build_existing_fingerprints(final_paths)
+
+      target_count = limit.presence || urls.size
+
+      urls.each do |url|
+        break if final_paths.size >= target_count
+        next if url.blank?
+        next if seen_urls.include?(url)
+
+        seen_urls << url
+
+        if already_downloaded_for_url?(product, url, final_paths)
+          result[:skipped] << { url: url, reason: "already_downloaded" }
+          next
+        end
+
+        begin
+          downloaded_path = download_single_image(product, url)
+
+          unless downloaded_path.present?
+            result[:failed] << { url: url, reason: "empty_path" }
+            next
+          end
+
+          unless ImageStorage::Local.healthy?(downloaded_path)
+            safe_delete_local_file(downloaded_path)
+            result[:failed] << { url: url, reason: "unhealthy_file" }
+            next
+          end
+
+          fingerprint = fingerprint_for_path(downloaded_path)
+
+          if fingerprint.present? && content_fingerprints.include?(fingerprint)
+            safe_delete_local_file(downloaded_path)
+            result[:skipped] << { url: url, reason: "duplicate_content" }
+            next
+          end
+
+          if final_paths.include?(downloaded_path)
+            safe_delete_local_file(downloaded_path)
+            result[:skipped] << { url: url, reason: "duplicate_path" }
+            next
+          end
+
+          final_paths << downloaded_path
+          result[:downloaded] << downloaded_path
+          content_fingerprints << fingerprint if fingerprint.present?
+          result[:changed] = true
+        rescue StandardError => e
+          result[:failed] << {
+            url: url,
+            reason: "download_error",
+            error: e.message
+          }
+        end
+      end
+
+      result[:final_local_images] = unique_healthy_paths(final_paths).first(target_count)
+      result
+    end
+
+    private
+
+    def build_sync_result(changed:, downloaded:, skipped:, failed:, final_local_images:)
+      {
+        changed: changed,
+        downloaded: downloaded,
+        skipped: skipped,
+        failed: failed,
+        final_local_images: final_local_images
+      }
+    end
+
+    def download_single_image(product, url)
+      io = URI.open(
+        url,
+        open_timeout: DEFAULT_OPEN_TIMEOUT,
+        read_timeout: DEFAULT_READ_TIMEOUT
+      )
+
+      content_type =
+        if io.respond_to?(:content_type)
+          io.content_type
+        elsif io.respond_to?(:meta) && io.meta.is_a?(Hash)
+          io.meta["content-type"]
+        end
+
+      extension = detect_extension(url, content_type)
+      filename = build_filename(product, url, extension)
+      folder = product_images_folder(product)
+
+      # Подстрой под свой реальный интерфейс хранилища,
+      # если метод называется иначе.
+      ImageStorage::Local.save(
+        io.read,
+        filename: filename,
+        folder: folder
+      )
+    ensure
+      io&.close if defined?(io) && io.respond_to?(:close)
+    end
+
+    def normalize_string_array(value)
+      case value
+      when Array
+        value.map(&:to_s).map(&:strip).reject(&:blank?)
+      when String
+        begin
+          parsed = JSON.parse(value)
+          parsed.is_a?(Array) ? parsed.map(&:to_s).map(&:strip).reject(&:blank?) : []
+        rescue JSON::ParserError
+          []
+        end
+      else
+        []
+      end
+    end
+
+    def unique_healthy_paths(paths)
+      seen = Set.new
+
+      paths.each_with_object([]) do |path, result|
+        next if path.blank?
+        next if seen.include?(path)
+        next unless ImageStorage::Local.healthy?(path)
+
+        seen << path
+        result << path
+      end
+    end
+
+    def persist_local_images!(product, paths)
+      attribute_type = product.class.type_for_attribute("local_images").type
+
+      value =
+        if [:json, :jsonb].include?(attribute_type)
+          paths
+        else
+          paths.to_json
+        end
+
+      product.update_column(:local_images, value)
+    end
+
+    def product_images_folder(product)
+      identifier = product.id.presence || product.sku.presence || "unknown_product"
+      "products/#{identifier}"
+    end
+
+    def build_filename(product, url, extension)
+      prefix = build_filename_prefix(product, url)
+      "#{prefix}#{extension}"
+    end
+
+    def build_filename_prefix(product, url)
+      identifier = product.sku.presence || product.id
+      url_hash = Digest::SHA256.hexdigest(url)[0, 16]
+      [identifier, url_hash].compact.join("_")
+    end
+
+    def detect_extension(url, content_type)
+      ext = File.extname(URI.parse(url).path).to_s.downcase
+      return ext if ext.present? && ext.match?(/\A\.[a-z0-9]+\z/)
+
+      case content_type.to_s.downcase
+      when "image/jpeg", "image/jpg" then ".jpg"
+      when "image/png" then ".png"
+      when "image/webp" then ".webp"
+      when "image/gif" then ".gif"
+      when "image/avif" then ".avif"
+      else
+        ".jpg"
+      end
+    rescue URI::InvalidURIError
+      ".jpg"
+    end
+
+    def already_downloaded_for_url?(product, url, current_paths)
+      expected_prefix = build_filename_prefix(product, url)
+
+      current_paths.any? do |path|
+        next false unless ImageStorage::Local.healthy?(path)
+
+        File.basename(path).start_with?(expected_prefix)
+      end
+    end
+
+    def build_existing_fingerprints(paths)
+      paths.each_with_object(Set.new) do |path, acc|
+        fingerprint = fingerprint_for_path(path)
+        acc << fingerprint if fingerprint.present?
+      end
+    end
+
+    def fingerprint_for_path(path)
+      absolute_path = absolute_local_path(path)
+      return nil unless absolute_path.present?
+      return nil unless File.exist?(absolute_path)
+      return nil unless File.file?(absolute_path)
+
+      Digest::SHA256.file(absolute_path).hexdigest
+    rescue StandardError
+      nil
+    end
+
+    def safe_delete_local_file(path)
+      absolute_path = absolute_local_path(path)
+      return if absolute_path.blank?
+      return unless File.exist?(absolute_path)
+
+      File.delete(absolute_path)
+    rescue StandardError
+      nil
+    end
+
+    def absolute_local_path(path)
+      return nil if path.blank?
+
+      pathname = Pathname.new(path.to_s)
+
+      if pathname.absolute?
+        pathname.to_s
+      elsif ImageStorage::Local.respond_to?(:path_for)
+        ImageStorage::Local.path_for(path)
+      else
+        Rails.root.join(path).to_s
+      end
+    end
   end
 end

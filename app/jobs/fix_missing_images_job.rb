@@ -24,7 +24,7 @@ class FixMissingImagesJob < ApplicationJob
       products = Product.where.not(images: [nil, "", "[]"])
       products = products.limit(limit) if limit
       
-      total = products.count
+      products.count
       
       products.find_each do |product|
         # Проверяем, не остановлена ли задача

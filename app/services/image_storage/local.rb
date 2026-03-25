@@ -45,15 +45,6 @@ module ImageStorage
         File.exist?(file_path)
       end
 
-      def healthy?(path)
-        return false unless exists?(path)
-        file_path = Rails.root.join('public', path.sub(%r{^/}, ''))
-        # Проверяем, что файл не пустой и имеет размер > 100 байт (минимум для картинки)
-        File.size(file_path) > 100
-      rescue
-        false
-      end
-      
       def url(path)
         return nil unless path.present?
         # Для локального хранилища возвращаем относительный путь
@@ -68,6 +59,29 @@ module ImageStorage
       rescue => e
         Rails.logger.error "ImageStorage::Local: Failed to delete image #{path}: #{e.message}"
         false
+      end
+
+      def save(content, filename:, folder:)
+        base_dir = Rails.root.join("public", "uploads", folder)
+        FileUtils.mkdir_p(base_dir)
+  
+        full_path = base_dir.join(filename)
+        File.binwrite(full_path, content)
+  
+        full_path.to_s
+      end
+  
+      def path_for(path)
+        return path if Pathname.new(path).absolute?
+  
+        Rails.root.join(path).to_s
+      end
+  
+      def healthy?(path)
+        absolute_path = path_for(path)
+        File.exist?(absolute_path) &&
+          File.file?(absolute_path) &&
+          File.size(absolute_path).positive?
       end
       
       private

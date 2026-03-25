@@ -1,102 +1,85 @@
-# Задача для загрузки изображений продуктов
+# frozen_string_literal: true
+
 class DownloadProductImagesJob < ApplicationJob
   queue_as :parser
 
-  def perform(limit: nil, product_id: nil, images_limit: nil, task_id: nil)
-    # Если task_id передан, используем существующую задачу, иначе создаем новую
-    task = task_id ? ParserTask.find(task_id) : create_parser_task('product_images', limit: limit)
-    
-    # Проверяем, не остановлена ли задача перед началом выполнения
-    check_task_not_stopped!(task)
-    
-    task.mark_as_running!
-    
-    notify_started('product_images', limit: limit)
-    start_time = Time.current
-    
+  BATCH_SIZE = 100
+
+  def perform(limit: nil, product_id: nil, sku: nil, images_limit: nil, task_id: nil)
+    task = task_id ? ParserTask.find(task_id) : create_parser_task("product_images", limit: limit)
+
     stats = {
       processed: 0,
-      created: 0,
       updated: 0,
+      skipped: 0,
       errors: 0
     }
-    
+
+    start_time = Time.current
+
     begin
-      products = if product_id
-                   Product.where(sku: product_id)
-                 else
-                   # Ищем продукты с непустыми images (массив или JSON строка)
-                   Product.where.not(images: nil)
-                          .where("images != '[]' AND images != '' AND images != 'null'")
-                          .limit(limit || 1000)
-                 end
-      
-      products.find_each do |product|
-        break if limit && stats[:processed] >= limit
-        
-        # Проверяем, не остановлена ли задача
+      check_task_not_stopped!(task)
+      task.mark_as_running!
+      notify_started("product_images", limit: limit)
+
+      products = build_products_scope(limit: limit, product_id: product_id, sku: sku)
+
+      products.find_each(batch_size: BATCH_SIZE) do |product|
         check_task_not_stopped!(task)
-        
-        # Получаем массив URL изображений
-        image_urls = if product.images.is_a?(Array)
-                      product.images
-                    elsif product.images.is_a?(String)
-                      begin
-                        parsed = JSON.parse(product.images)
-                        parsed.is_a?(Array) ? parsed : []
-                      rescue
-                        []
-                      end
-                    else
-                      []
-                    end
-        
-        next if image_urls.empty?
-        
+
         begin
-          result = ImageDownloader.download_product_images(product, image_urls, limit: images_limit)
-          
-          if result.any?
+          result = ImageDownloader.sync_product_images(product, limit: images_limit)
+
+          if result[:changed]
             stats[:updated] += 1
             task.increment_updated!
+          else
+            stats[:skipped] += 1
           end
-          
+
           stats[:processed] += 1
           task.increment_processed!
-        rescue => e
-          Rails.logger.error "Error downloading images for product #{product.sku}: #{e.message}"
+        rescue StandardError => e
+          Rails.logger.error(
+            "DownloadProductImagesJob: error for product id=#{product.id} sku=#{product.sku}: #{e.class} - #{e.message}"
+          )
+          Rails.logger.error(e.backtrace.first(10).join("\n")) if e.backtrace.present?
+
           stats[:errors] += 1
           task.increment_errors!
         end
       end
-      
-      task.mark_as_completed!(stats)
+
       stats[:duration] = Time.current - start_time
-      notify_completed('product_images', stats)
-      
+      task.mark_as_completed!(stats)
+      notify_completed("product_images", stats)
+    rescue TaskStoppedError
+      Rails.logger.info("DownloadProductImagesJob: task #{task.id} was stopped manually")
+      return
     rescue StandardError => e
-      # Если задача была остановлена вручную - просто прерываем выполнение
-      if e.message == 'Task was stopped manually'
-        Rails.logger.info "DownloadProductImagesJob: Task #{task.id} was stopped manually, aborting"
-        return
-      end
-      
-      Rails.logger.error "DownloadProductImagesJob error: #{e.message}\n#{e.backtrace.join("\n")}"
+      Rails.logger.error("DownloadProductImagesJob fatal error: #{e.class} - #{e.message}")
+      Rails.logger.error(e.backtrace.join("\n")) if e.backtrace.present?
+
       task.mark_as_failed!(e.message)
-      notify_error('product_images', e)
+      notify_error("product_images", e)
       raise
-    rescue => e
-      # Если задача была остановлена вручную - просто прерываем выполнение
-      if e.message == 'Task was stopped manually'
-        Rails.logger.info "DownloadProductImagesJob: Task #{task.id} was stopped manually, aborting"
-        return
-      end
-      
-      Rails.logger.error "DownloadProductImagesJob unexpected error: #{e.class} - #{e.message}\n#{e.backtrace.first(10).join("\n")}"
-      task.mark_as_failed!("Unexpected error: #{e.message}")
-      notify_error('product_images', e)
     end
   end
+
+  private
+
+  def build_products_scope(limit:, product_id:, sku:)
+    scope =
+      if product_id.present?
+        Product.where(id: product_id)
+      elsif sku.present?
+        Product.where(sku: sku)
+      else
+        Product.where.not(images: nil)
+               .where("images != '[]' AND images != '' AND images != 'null'")
+      end
+
+    scope = scope.limit(limit) if limit.present? && product_id.blank? && sku.blank?
+    scope
+  end
 end
-
-
