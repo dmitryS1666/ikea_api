@@ -41,6 +41,7 @@ class Product < ApplicationRecord
   serialize :assembly_documents, coder: JSON
 
   before_save :cache_slug, if: -> { name_changed? || name_ru_changed? || cached_slug.blank? }
+  before_validation :normalize_included_products!
 
   def slug
     cached_slug || generate_slug
@@ -85,5 +86,28 @@ class Product < ApplicationRecord
     return if category_ids.empty?
 
     ReindexProductFiltersJob.perform_later(id, category_ids)
+  end
+
+  def normalize_included_products!
+    self.included_products =
+      case included_products
+      when nil
+        []
+      when Array
+        included_products
+      when String
+        included_products.split(/[\n,\r;]+/)
+      else
+        Array(included_products)
+      end
+        .flatten
+        .filter_map do |item|
+          if item.is_a?(Hash)
+            item["sku"] || item[:sku]
+          else
+            item.to_s.strip.presence
+          end
+        end
+        .uniq
   end
 end

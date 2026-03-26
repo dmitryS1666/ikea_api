@@ -51,6 +51,18 @@ Trestle.resource(:products, model: Product) do
       number_to_currency(product.price, unit: 'EUR', format: '%n %u')
     end
     column :quantity, sortable: true
+    column :included_products, header: "Included products" do |product|
+      items = Array(product.included_products).compact.map(&:to_s).map(&:strip).reject(&:blank?).uniq
+  
+      if items.any?
+        safe_join([
+          content_tag(:div, items.first(3).join(", ")),
+          (content_tag(:small, "ещё #{items.size - 3}", class: "text-muted") if items.size > 3)
+        ].compact)
+      else
+        content_tag(:span, "—", class: "text-muted")
+      end
+    end
     column :is_bestseller do |product|
       status_tag(product.is_bestseller? ? 'Да' : 'Нет', 
                  product.is_bestseller? ? :success : :secondary)
@@ -301,6 +313,16 @@ Trestle.resource(:products, model: Product) do
       form_group :categories, label: "Дополнительные категории" do
         select :category_ids, Category.all.map { |c| [c.translated_name, c.ikea_id] }, { label: "Категории" }, { multiple: true, data: { ui: "select2" } }
       end
+
+      form_group :included_products, label: "Продукты в наборе" do
+        text_area_tag(
+          "product[included_products]",
+          Array(product.included_products).join("\n"),
+          rows: 8,
+          class: "form-control"
+        ) +
+        content_tag(:small, "Один SKU на строку. Допустимы также запятые и ;", class: "form-text text-muted")
+      end
     end
 
     tab :pricing, label: "Цена и наличие" do
@@ -548,7 +570,7 @@ Trestle.resource(:products, model: Product) do
   end
 
   params do |params|
-    params.require(:product).permit(
+    raw = params.require(:product).permit(
       :sku, :unique_id, :item_no, :url, :name, :name_ru, :collection, :category_id,
       :price, :quantity, :home_delivery, :weight, :net_weight, :package_volume,
       :package_dimensions, :dimensions, :dimensions_ru, :is_parcel,
@@ -556,8 +578,19 @@ Trestle.resource(:products, model: Product) do
       :delivery_type, :delivery_name, :delivery_cost, :delivery_reason,
       :short_description, :short_description_ru, :materials, :materials_ru,
       :care_instructions, :care_instructions_ru,
+      :included_products,
       category_ids: [],
       seo_meta_attributes: [:id, :title, :description, :keywords, :robots, :seo_text, :_destroy]
     )
+  
+    if raw[:included_products].is_a?(String)
+      raw[:included_products] = raw[:included_products]
+        .split(/[\n,\r;]+/)
+        .map { |v| v.to_s.strip }
+        .reject(&:blank?)
+        .uniq
+    end
+  
+    raw
   end
 end
