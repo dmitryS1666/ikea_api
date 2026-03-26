@@ -34,12 +34,16 @@ class Admin::ProductsController < ApplicationController
   # GET /admin/products/search?q=table
   def search
     q = params[:q].to_s.strip
-    return render(json: []) if q.length < 3
+    sku_like = q.match?(/\A[\d\.]{2,}\z/)
+    return render(json: []) if q.length < 3 && !sku_like
 
     products = Product.all
     if q.present?
       query = "%#{q}%"
-      products = products.where("sku ILIKE :q OR name ILIKE :q OR name_ru ILIKE :q", q: query)
+      products = products.where(
+        "sku ILIKE :q OR item_no ILIKE :q OR name ILIKE :q OR name_ru ILIKE :q",
+        q: query
+      )
     end
 
     products = products.limit(50).order(:name_ru)

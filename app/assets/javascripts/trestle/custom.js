@@ -47,7 +47,7 @@
           },
           cache: true
         },
-        minimumInputLength: 3,
+        minimumInputLength: 2,
         placeholder: $el.attr('placeholder') || 'Начните ввод для поиска...',
         allowClear: true
       });
