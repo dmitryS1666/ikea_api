@@ -1,124 +1,131 @@
+# frozen_string_literal: true
+
 class Category < ApplicationRecord
-  self.primary_key = 'ikea_id'
-  
+  self.primary_key = "ikea_id"
+
+  attr_accessor :parent_ikea_id
+
   has_one_attached :icon
   has_one_attached :pictogram
   has_one_attached :background_image
-  
+
   validates :ikea_id, presence: true, uniqueness: true
   validates :name, presence: true
-  
-  # Старая связь (для обратной совместимости, будет удалена после миграции)
+
   has_many :products, foreign_key: :category_id, primary_key: :ikea_id
-  
-  # Новая связь many-to-many
+
   has_many :category_products, foreign_key: :category_id, primary_key: :ikea_id, dependent: :destroy
   has_many :products_through_categories, through: :category_products, source: :product
   has_many :product_filter_values, foreign_key: :category_id, primary_key: :ikea_id, dependent: :delete_all
-  
-  has_one :seo_meta, as: :seoable, class_name: 'SeoMetum', dependent: :destroy
+
+  has_one :seo_meta, as: :seoable, class_name: "SeoMetum", dependent: :destroy
   accepts_nested_attributes_for :seo_meta, allow_destroy: true, update_only: true
-  
+
   serialize :parent_ids, coder: JSON
-  
+
   before_save :cache_slug, if: -> { name_changed? || translated_name_changed? || cached_slug.blank? }
+  before_validation :assign_parent_ikea_id_from_parent_ids
+
+  validate :parent_cannot_be_self
+  validate :parent_cannot_be_descendant
 
   enum :default_sort, {
-    popular: 'popular',
-    newest: 'newest',
-    cheapest: 'cheapest',
-    expensive: 'expensive'
+    popular: "popular",
+    newest: "newest",
+    cheapest: "cheapest",
+    expensive: "expensive"
+  }
+
+  scope :with_numeric_id, -> { where("ikea_id ~ '^[0-9]+$'") }
+  scope :top, -> { where(is_top: true).order(top_position: :asc) }
+  scope :popular, -> { where(is_popular: true) }
+  scope :custom, -> { where(is_custom: true) }
+  scope :active, -> { where(is_deleted: [false, nil]) }
+  scope :not_deleted, -> { where(is_deleted: [false, nil]) }
+
+  scope :top_level, -> {
+    where(
+      "is_important = ? OR parent_ids IS NULL OR parent_ids::text = ? OR parent_ids::text = ? OR parent_ids::text = ?",
+      true, "[]", "\"\"", ""
+    )
   }
 
   def slug
     cached_slug || generate_slug
   end
 
-  scope :top, -> { where(is_top: true).order(top_position: :asc) }
-  scope :popular, -> { where(is_popular: true) }
-  scope :custom, -> { where(is_custom: true) }
-  scope :active, -> { where(is_deleted: [false, nil]) }
-  scope :not_deleted, -> { where(is_deleted: [false, nil]) }
-  
   def display_filters
     available_filters || []
   end
 
-  private
-
-  def cache_slug
-    self.cached_slug = generate_slug
-  end
-
-  def generate_slug
-    source = translated_name.presence || name
-    SlugifyService.call(source)
-  end
-
-  # Категории с цифровым кодом (ikea_id состоит только из цифр)
-  scope :with_numeric_id, -> { where("ikea_id ~ '^[0-9]+$'") }
-  # Верхнеуровневые категории (без родительских категорий)
-  # Используем поле is_important для определения верхнеуровневых категорий
-  # Также проверяем parent_ids на nil или пустой массив для совместимости
-  scope :top_level, -> {
-    where(
-      "is_important = ? OR parent_ids IS NULL OR parent_ids::text = ? OR parent_ids::text = ? OR parent_ids::text = ?",
-      true, '[]', '""', ''
-    )
-  }
+  # фильтры текущей категории + всех прямых дочерних
+  def display_filters_with_children
+    all_filters = normalize_filters(display_filters)
   
-  # Подсчет дочерних категорий (категории, у которых текущая категория в parent_ids)
-  # Кэшируем результат для каждой категории
-  def children_count
-    return 0 unless ikea_id.present?
-    
-    Rails.cache.fetch("category_#{ikea_id}_children_count", expires_in: 30.minutes) do
-      # Оптимизированный запрос - используем только COUNT без загрузки записей
-      Category.where(
-        "parent_ids::text LIKE ? OR parent_ids::text LIKE ?",
-        "%\"#{ikea_id}\"%",  # JSON массив: ["parent_id"]
-        "%#{ikea_id}%"      # Путь: "parent_id/child_id" или просто строка
-      ).where.not(ikea_id: ikea_id) # Исключаем саму категорию
-       .count
+    direct_children.each do |child|
+      all_filters.concat(normalize_filters(child.display_filters))
     end
+  
+    all_filters.uniq { |filter| filter["key"] || filter[:key] }
   end
 
-  # Получить дочерние категории
+  def current_parent_ikea_id
+    ids = self.class.normalize_parent_ids(parent_ids)
+    return nil if ids.blank?
+
+    ids.last == ikea_id.to_s ? ids[-2] : ids.last
+  end
+
+  def descendant_ikea_ids
+    return [] if ikea_id.blank?
+
+    Category.where("parent_ids::text LIKE ?", "%#{ikea_id}%")
+            .where.not(ikea_id: ikea_id.to_s)
+            .pluck(:ikea_id)
+            .map(&:to_s)
+            .select do |candidate_id|
+              category = Category.find_by(ikea_id: candidate_id)
+              next false unless category
+
+              self.class.normalize_parent_ids(category.parent_ids).include?(ikea_id.to_s)
+            end
+  end
+
+  def children_count
+    direct_children.count
+  end
+
+  # прямые дочерние категории
+  def direct_children
+    return [] unless ikea_id.present?
+  
+    Category.not_deleted
+            .to_a
+            .select { |category| self.class.direct_parent_id_for(category) == ikea_id.to_s }
+            .sort_by { |category| category.translated_name.presence || category.name.to_s }
+  end
+
+  # если где-то в проекте уже используется children — можно оставить алиасом
   def children
-    return Category.none unless ikea_id.present?
-    
-    # Оптимизированный запрос - загружаем только нужные поля
-    Category.select(:ikea_id, :name, :translated_name, :parent_ids, :is_popular, :is_deleted, :is_important)
-            .where(
-              "parent_ids::text LIKE ? OR parent_ids::text LIKE ?",
-              "%\"#{ikea_id}\"%",
-              "%#{ikea_id}%"
-            )
-            .where.not(ikea_id: ikea_id)
-            .order(:name)
+    direct_children
   end
 
-  # Проверка, является ли категория родительской (имеет дочерние)
   def has_children?
     children_count > 0
   end
 
-  # Проверка наличия продуктов в категории
   def has_products?
     products.exists?
   end
 
-  # Проверка, является ли ID категории числовым
   def numeric_id?
     ikea_id.to_s.match?(/^\d+$/)
   end
 
-  # Проверка, является ли ID категории UUID
   def uuid_id?
     ikea_id.to_s.match?(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
   end
 
-  # Класс для построения дерева категорий
   class << self
     def build_tree(categories)
       categories = Array(categories)
@@ -131,78 +138,92 @@ class Category < ApplicationRecord
       roots = []
 
       categories.each do |category|
-        parent_ids = normalize_parent_ids(category.parent_ids).map(&:to_s)
-        direct_parent_id = parent_ids.last
-      
+        direct_parent_id = direct_parent_id_for(category)
+
         node = {
           category: category,
           children: []
         }
-      
-        if direct_parent_id.present? && by_ikea_id.key?(direct_parent_id)
+
+        if direct_parent_id.present? && by_ikea_id.key?(direct_parent_id) && direct_parent_id != category.ikea_id.to_s
           children_map[direct_parent_id] << node
         else
           roots << node
         end
       end
-    
-      attach_children = lambda do |nodes|
+
+      attach_children = lambda do |nodes, visited_ids = []|
         nodes.each do |node|
           ikea_id = node[:category].ikea_id.to_s
+
+          if visited_ids.include?(ikea_id)
+            Rails.logger.warn("Circular dependency detected for category #{ikea_id}")
+            node[:children] = []
+            next
+          end
+
           node[:children] = children_map[ikea_id]
-          attach_children.call(node[:children]) if node[:children].any?
+          attach_children.call(node[:children], visited_ids + [ikea_id]) if node[:children].any?
         end
       end
-    
+
       attach_children.call(roots)
       roots
     end
 
-    # Публичный метод для нормализации parent_ids (используется в контроллерах)
-    def normalize_parent_ids(parent_ids)
-      return [] if parent_ids.blank?
-      
-      # Если это уже массив, возвращаем как есть
-      return parent_ids if parent_ids.is_a?(Array)
-      
-      # Если это строка JSON, парсим
-      if parent_ids.is_a?(String)
-        begin
-          parsed = JSON.parse(parent_ids)
-          return parsed if parsed.is_a?(Array)
-          return [parsed] if parsed.present?
-        rescue JSON::ParserError
-          # Если не JSON, пробуем как простую строку
-          return [parent_ids] if parent_ids.present?
-        end
-      end
-      
-      []
-    end
-
-    private
-
-    def build_tree_recursive(parents, children_index, visited = [])
-      parents.map do |parent|
-        parent_id = parent.ikea_id.to_s
-        
-        # Предотвращаем бесконечную рекурсию при наличии циклов в данных
-        if visited.include?(parent_id)
-          Rails.logger.warn "Circular dependency detected for category #{parent_id}. Skipping children."
-          next {
-            category: parent,
-            children: []
-          }
-        end
-        
-        # Используем индекс для быстрого поиска дочерних категорий
-        children = children_index[parent_id] || []
-        
-        {
-          category: parent,
-          children: build_tree_recursive(children, children_index, visited + [parent_id])
-        }
+    def normalize_parent_ids(value)
+      case value
+      when nil
+        []
+      when Array
+        value.compact.map(&:to_s).reject(&:blank?)
+      else
+        Array(value).compact.map(&:to_s).reject(&:blank?)
       end
     end
+
+    def direct_parent_id_for(category)
+      ids = normalize_parent_ids(category.parent_ids)
+      return nil if ids.blank?
+
+      ids.last == category.ikea_id.to_s ? ids[-2] : ids.last
+    end
+  end
+
+  private
+
+  def normalize_filters(filters)
+    Array(filters).compact.map do |filter|
+      filter.is_a?(Hash) ? filter.deep_stringify_keys : filter
+    end
+  end
+
+  def assign_parent_ikea_id_from_parent_ids
+    self.parent_ikea_id = current_parent_ikea_id if parent_ikea_id.blank?
+  end
+
+  def parent_cannot_be_self
+    return if parent_ikea_id.blank?
+    return unless parent_ikea_id.to_s == ikea_id.to_s
+
+    errors.add(:parent_ikea_id, "не может совпадать с текущей категорией")
+  end
+
+  def parent_cannot_be_descendant
+    return if parent_ikea_id.blank?
+    return if ikea_id.blank?
+
+    if descendant_ikea_ids.include?(parent_ikea_id.to_s)
+      errors.add(:parent_ikea_id, "не может быть дочерней категорией текущей категории")
+    end
+  end
+
+  def cache_slug
+    self.cached_slug = generate_slug
+  end
+
+  def generate_slug
+    source = translated_name.presence || name
+    SlugifyService.call(source)
   end
 end

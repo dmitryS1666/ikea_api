@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 Trestle.resource(:categories, model: Category) do
   menu do
     item :categories, icon: "fa fa-folder", group: :catalog, priority: 2, label: "Категории"
@@ -14,9 +16,8 @@ Trestle.resource(:categories, model: Category) do
 
   controller do
     def index
-      # Получаем текущий scope из параметров
-      @current_scope = params[:scope] || 'all'
-      
+      @current_scope = params[:scope] || "all"
+
       cache_ttl = Rails.env.development? ? 1.minute : 30.minutes
 
       @product_counts = Rails.cache.fetch("categories_product_counts", expires_in: cache_ttl) do
@@ -42,36 +43,123 @@ Trestle.resource(:categories, model: Category) do
       @categories_tree_cache_key = "categories_tree_#{@current_scope}_#{max_updated_at&.to_i || 0}"
 
       @categories_tree = Rails.cache.fetch(@categories_tree_cache_key, expires_in: cache_ttl) do
-        base_query = Category.all
-        case @current_scope
-        when 'top_level' then base_query = Category.top_level
-        when 'top'       then base_query = Category.top
-        when 'custom'    then base_query = Category.custom
-        when 'popular'   then base_query = Category.popular
-        when 'active'    then base_query = Category.active
-        end
+        base_query =
+          case @current_scope
+          when "top_level" then Category.top_level
+          when "top"       then Category.top
+          when "custom"    then Category.custom
+          when "popular"   then Category.popular
+          when "active"    then Category.active
+          else Category.all
+          end
 
         categories = base_query.with_attached_icon
                                .with_attached_pictogram
                                .order(:name)
                                .to_a
+
         Category.build_tree(categories)
       end
 
-      @filters_reindex_task = ParserTask.by_type('category_filters').recent.first
-      @filters_reindex_running = ParserTask.by_type('category_filters').where(status: ['running', 'pending']).exists?
+      @filters_reindex_task = ParserTask.by_type("category_filters").recent.first
+      @filters_reindex_running = ParserTask.by_type("category_filters").where(status: %w[running pending]).exists?
 
       render "trestle/categories/index"
+    end
+
+    def new
+      @category = Category.new(params[:category]&.to_unsafe_h || {})
+      @category.ikea_id ||= "custom-#{SecureRandom.hex(4)}" if @category.is_custom?
+      @category.parent_ikea_id ||= @category.current_parent_ikea_id
+    end
+
+    def edit
+      @category = admin.find_instance(params)
+      @category.parent_ikea_id ||= @category.current_parent_ikea_id
+    end
+
+    def create
+      category_params = admin.permitted_params(params)
+      new_parent_ikea_id = category_params.delete(:parent_ikea_id).presence
+
+      @category = Category.new(category_params)
+      @category.parent_ikea_id = new_parent_ikea_id
+
+      if @category.invalid?
+        flash.now[:error] = @category.errors.full_messages.to_sentence
+        return render :new, status: :unprocessable_entity
+      end
+
+      Category.transaction do
+        @category.save!
+
+        if new_parent_ikea_id.present?
+          new_parent = Category.unscoped.find_by!(ikea_id: new_parent_ikea_id.to_s)
+
+          Categories::MoveNodeService.new(
+            moved_category: @category,
+            new_parent_category: new_parent,
+            actor: try(:current_user)
+          ).call
+        end
+      end
+
+      clear_categories_cache
+      redirect_to admin.path(:show, id: @category), notice: "Категория создана"
+    rescue Categories::MoveNodeService::Error, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound => e
+      @category.parent_ikea_id = new_parent_ikea_id
+      flash.now[:error] = e.message
+      render :new, status: :unprocessable_entity
+    end
+
+    def update
+      @category = admin.find_instance(params)
+      category_params = admin.permitted_params(params)
+      new_parent_ikea_id = category_params.delete(:parent_ikea_id).presence
+      old_parent_ikea_id = @category.current_parent_ikea_id
+
+      @category.assign_attributes(category_params)
+      @category.parent_ikea_id = new_parent_ikea_id
+
+      if @category.invalid?
+        flash.now[:error] = @category.errors.full_messages.to_sentence
+        return render :edit, status: :unprocessable_entity
+      end
+
+      Category.transaction do
+        @category.save!
+
+        if new_parent_ikea_id.to_s != old_parent_ikea_id.to_s
+          new_parent = new_parent_ikea_id.present? ? Category.unscoped.find_by!(ikea_id: new_parent_ikea_id.to_s) : nil
+
+          Categories::MoveNodeService.new(
+            moved_category: @category,
+            new_parent_category: new_parent,
+            actor: try(:current_user)
+          ).call
+        end
+      end
+
+      clear_categories_cache
+      redirect_to admin.path(:show, id: @category), notice: "Категория обновлена"
+    rescue Categories::MoveNodeService::Error, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound => e
+      @category.parent_ikea_id = new_parent_ikea_id
+      flash.now[:error] = e.message
+      render :edit, status: :unprocessable_entity
     end
 
     def move_node
       moved = Category.unscoped.find_by!(ikea_id: params[:moved_id].to_s)
       new_parent = params[:new_parent_id].present? ? Category.unscoped.find_by!(ikea_id: params[:new_parent_id].to_s) : nil
+
       result = Categories::MoveNodeService.new(
         moved_category: moved,
         new_parent_category: new_parent,
         actor: try(:current_user)
       ).call
+
+      clear_categories_cache
+
       render json: {
         ok: true,
         moved_id: moved.ikea_id.to_s,
@@ -85,29 +173,25 @@ Trestle.resource(:categories, model: Category) do
       render json: { ok: false, error: "Внутренняя ошибка при перемещении категории" }, status: :internal_server_error
     end
 
-    def new
-      @category = Category.new(params[:category]&.to_unsafe_h || {})
-      @category.ikea_id ||= "custom-#{SecureRandom.hex(4)}" if @category.is_custom?
-    end
-
     def toggle_top
       @category = admin.find_instance(params)
       @category.update(is_top: !@category.is_top)
       clear_categories_cache
-      redirect_to '/admin/categories', notice: "Категория #{@category.is_top? ? 'добавлена в ТОП' : 'удалена из ТОП'}"
+      redirect_to "/admin/categories", notice: "Категория #{@category.is_top? ? 'добавлена в ТОП' : 'удалена из ТОП'}"
     end
 
     def toggle_custom
       @category = admin.find_instance(params)
       @category.update(is_custom: !@category.is_custom)
       clear_categories_cache
-      redirect_to '/admin/categories', notice: "Категория #{@category.is_custom? ? 'сделана кастомной' : 'сделана обычной'}"
+      redirect_to "/admin/categories", notice: "Категория #{@category.is_custom? ? 'сделана кастомной' : 'сделана обычной'}"
     end
 
     def import_products_csv
       @category = admin.find_instance(params)
       file = params[:file]
       result = Categories::ProductImportService.new(@category, file).call
+
       if result.error_message
         flash[:error] = result.error_message
       else
@@ -116,6 +200,7 @@ Trestle.resource(:categories, model: Category) do
         flash[:notice] = msg
         flash[:warning] = "Не найдены SKU: #{result.skipped_skus.join(', ')}" if result.skipped > 0
       end
+
       redirect_back fallback_location: edit_categories_admin_path(@category.ikea_id)
     end
 
@@ -123,6 +208,7 @@ Trestle.resource(:categories, model: Category) do
       @category = admin.find_instance(params)
       sku = params[:sku].to_s.strip
       product = Product.find_by(sku: sku)
+
       if product
         if @category.category_products.exists?(product_id: product.id)
           flash[:error] = "Товар с SKU #{sku} уже есть в этой категории."
@@ -133,18 +219,21 @@ Trestle.resource(:categories, model: Category) do
       else
         flash[:error] = "Товар с SKU #{sku} не найден в базе."
       end
+
       redirect_back fallback_location: edit_categories_admin_path(@category.ikea_id)
     end
 
     def remove_product
       @category = admin.find_instance(params)
       cp = @category.category_products.find_by(product_id: params[:product_id])
+
       if cp
         cp.destroy
         flash[:notice] = "Товар удален из категории."
       else
         flash[:error] = "Связь не найдена."
       end
+
       redirect_back fallback_location: edit_categories_admin_path(@category.ikea_id)
     end
 
@@ -157,21 +246,21 @@ Trestle.resource(:categories, model: Category) do
       @category = admin.find_instance(params)
       @category.update(is_deleted: !@category.is_deleted)
       clear_categories_cache
-      redirect_to '/admin/categories', notice: "Категория #{@category.is_deleted? ? 'отключена' : 'включена'}"
+      redirect_to "/admin/categories", notice: "Категория #{@category.is_deleted? ? 'отключена' : 'включена'}"
     end
 
     def toggle_popular
       @category = admin.find_instance(params)
       @category.update(is_popular: !@category.is_popular)
       clear_categories_cache
-      redirect_to '/admin/categories', notice: "Категория #{@category.is_popular? ? 'добавлена в популярные' : 'удалена из популярных'}"
+      redirect_to "/admin/categories", notice: "Категория #{@category.is_popular? ? 'добавлена в популярные' : 'удалена из популярных'}"
     end
 
     def soft_delete
       @category = admin.find_instance(params)
       @category.update(is_deleted: true)
       clear_categories_cache
-      redirect_to '/admin/categories', notice: "Категория отключена (мягкое удаление)"
+      redirect_to "/admin/categories", notice: "Категория отключена (мягкое удаление)"
     end
 
     def reindex_filters
@@ -182,22 +271,26 @@ Trestle.resource(:categories, model: Category) do
     end
 
     def reindex_all_filters
-      if ParserTask.by_type('category_filters').where(status: ['running', 'pending']).exists?
+      if ParserTask.by_type("category_filters").where(status: %w[running pending]).exists?
         redirect_to admin.path(:index), alert: "Переиндексация фильтров уже запущена."
         return
       end
-      task = ParserTask.create!(task_type: 'category_filters', status: 'pending')
+
+      task = ParserTask.create!(task_type: "category_filters", status: "pending")
       job = ReindexAllCategoryFiltersJob.perform_later(task_id: task.id)
       task.update!(job_id: job.job_id) if job.respond_to?(:job_id)
+
       redirect_to admin.path(:index), notice: "Запущена переиндексация фильтров для всех категорий."
     end
 
     def import_available_filters
       file = params[:file]
+
       unless file.respond_to?(:read)
         flash[:error] = "Не выбран файл."
         return redirect_to admin.path(:index)
       end
+
       result = Categories::AvailableFiltersImportService.new(file).call
       clear_categories_cache
       flash[:notice] = "Импорт завершен: обновлено #{result.updated}, пропущено #{result.skipped}, ошибок #{result.errors}."
@@ -234,21 +327,27 @@ Trestle.resource(:categories, model: Category) do
     column :ikea_id
     column :translated_name
     column :name, link: true
+
     column :is_popular do |category|
-      status_tag(category.is_popular? ? 'Да' : 'Нет', category.is_popular? ? :success : :secondary)
+      status_tag(category.is_popular? ? "Да" : "Нет", category.is_popular? ? :success : :secondary)
     end
+
     column :is_deleted do |category|
-      status_tag(category.is_deleted? ? 'Отключена' : 'Активна', category.is_deleted? ? :danger : :success)
+      status_tag(category.is_deleted? ? "Отключена" : "Активна", category.is_deleted? ? :danger : :success)
     end
+
     column :products_count do |category|
       product_counts = instance_variable_get(:@_product_counts_cache)
+
       unless product_counts
         product_counts = Rails.cache.fetch("categories_product_counts", expires_in: 30.minutes) do
           CategoryProduct.select(:category_id).group(:category_id).count
         end
       end
+
       product_counts[category.ikea_id] || 0
     end
+
     column :created_at, align: :center
     actions
   end
@@ -260,14 +359,35 @@ Trestle.resource(:categories, model: Category) do
       else
         text_field :ikea_id, label: "IKEA ID"
       end
-    
+
       text_field :name, label: "Название (оригинальное)"
       text_field :translated_name, label: "Название (перевод)"
-      
+
       divider
-      
+
+      excluded_ids = [category.ikea_id.to_s]
+      if category.persisted? && category.ikea_id.present?
+        excluded_ids.concat(category.descendant_ikea_ids)
+      end
+
+      parent_options = Category.order(:translated_name).pluck(:translated_name, :ikea_id).reject do |_, ikea_id|
+        excluded_ids.include?(ikea_id.to_s)
+      end
+
+      select :parent_ikea_id,
+             parent_options,
+             { include_blank: "Без родителя (верхний уровень)" },
+             label: "Родительская категория",
+             selected: category.parent_ikea_id.presence || category.current_parent_ikea_id,
+             class: "trestle-parent-category-select",
+             help: "Нельзя выбрать саму категорию или любую из ее дочерних категорий."
+
+      divider
+
       row do
-        col(sm: 6) { number_field :delivery_days, label: "Срок доставки", help: "В днях. Если не задано, используется значение по умолчанию" }
+        col(sm: 6) do
+          number_field :delivery_days, label: "Срок доставки", help: "В днях. Если не задано, используется значение по умолчанию"
+        end
       end
 
       divider
@@ -329,17 +449,18 @@ Trestle.resource(:categories, model: Category) do
           file_field :background_image, label: "Фон (спецпредложение)"
         end
       end
-      
+
       concat(content_tag(:script, type: "text/javascript") do
         raw <<-JS.strip_heredoc
           (function() {
-            function initPreviews() {
+            function initCategoryForm() {
               function setupPreview(inputName, previewId, containerId, currentClass) {
                 var fileInput = document.querySelector('input[type="file"][name*="[' + inputName + ']"]');
                 if (!fileInput) return;
                 var preview = document.getElementById(previewId);
                 var container = document.getElementById(containerId);
                 var currentPreview = document.querySelector('.' + currentClass);
+
                 fileInput.addEventListener('change', function(e) {
                   if (e.target.files && e.target.files[0]) {
                     var reader = new FileReader();
@@ -355,25 +476,46 @@ Trestle.resource(:categories, model: Category) do
                   }
                 });
               }
+
               setupPreview('icon', 'icon-preview', 'new-icon-preview', 'current-icon-preview');
               setupPreview('pictogram', 'pictogram-preview', 'new-pictogram-preview', 'current-pictogram-preview');
               setupPreview('background_image', 'bg-preview', 'new-bg-preview', 'current-bg-preview');
+
+              var parentSelect = document.querySelector('.trestle-parent-category-select');
+              if (parentSelect && window.jQuery && window.jQuery.fn.select2) {
+                var $parentSelect = window.jQuery(parentSelect);
+
+                if ($parentSelect.data('select2')) {
+                  $parentSelect.select2('destroy');
+                }
+
+                $parentSelect.select2({
+                  width: '100%',
+                  placeholder: 'Выберите родительскую категорию',
+                  allowClear: true
+                });
+              }
             }
-            document.addEventListener('turbo:load', initPreviews);
+
+            document.addEventListener('turbo:load', initCategoryForm);
             if (document.readyState === 'loading') {
-              document.addEventListener('DOMContentLoaded', initPreviews);
-            } else { initPreviews(); }
+              document.addEventListener('DOMContentLoaded', initCategoryForm);
+            } else {
+              initCategoryForm();
+            }
           })();
         JS
       end)
 
-      divider 
+      divider
       h3 "Отображение блоков"
-      divider 
+      divider
+
       row do
         col(sm: 6) { check_box :is_bulky, label: "Крупногабаритный товар" }
         col(sm: 6) { check_box :show_delivery_block, label: "Показывать доставку" }
       end
+
       row do
         col(sm: 6) { check_box :show_reviews_block, label: "Показывать отзывы" }
         col(sm: 6) { check_box :show_tips_block, label: "Показывать советы" }
@@ -393,6 +535,7 @@ Trestle.resource(:categories, model: Category) do
             </div>
           <% end %>
         ERB
+
         divider
         h4 "Импорт товаров (CSV)"
         render inline: <<-ERB, locals: { category: category, admin: admin }
@@ -406,21 +549,28 @@ Trestle.resource(:categories, model: Category) do
             <p class="help-block">Один SKU на строку. Текущий список товаров будет заменен.</p>
           <% end %>
         ERB
+
         divider
         h4 "Список товаров в категории"
+
         table category.category_products.includes(:product), label: "Товары" do
           column :sku do |cp|
             cp.product.sku
           end
+
           column :name do |cp|
-            link_to cp.product.name_ru || cp.product.name, admin_url_for(cp.product) rescue (cp.product.name_ru || cp.product.name)
+            link_to(cp.product.name_ru || cp.product.name, admin_url_for(cp.product)) rescue (cp.product.name_ru || cp.product.name)
           end
+
           column :price do |cp|
             cp.product.price
           end
+
           column :actions, header: false do |cp|
-            link_to "Удалить", admin.path(:remove_product, id: category.ikea_id, product_id: cp.product_id), 
-                    method: :post, class: "btn btn-danger btn-xs", 
+            link_to "Удалить",
+                    admin.path(:remove_product, id: category.ikea_id, product_id: cp.product_id),
+                    method: :post,
+                    class: "btn btn-danger btn-xs",
                     data: { confirm: "Вы уверены, что хотите удалить этот товар из категории?" }
           end
         end
@@ -432,9 +582,9 @@ Trestle.resource(:categories, model: Category) do
     tab :filters, label: "Фильтры" do
       if category.persisted?
         filters = category.available_filters
-    
+
         h4 "Фильтры категории"
-    
+
         if filters.present?
           static_field :available_filters_json, label: "JSON" do
             content_tag(
@@ -461,6 +611,7 @@ Trestle.resource(:categories, model: Category) do
 
     tab :seo, label: "SEO" do
       seo_obj = category.seo_meta || category.build_seo_meta
+
       fields_for :seo_meta, seo_obj do |seo|
         row { col(sm: 12) { seo.text_field :title, label: "SEO Title", help: "Если пусто, будет сгенерировано автоматически" } }
         row { col(sm: 12) { seo.text_area :description, label: "SEO Description", help: "Если пусто, будет сгенерировано автоматически" } }
@@ -480,6 +631,7 @@ Trestle.resource(:categories, model: Category) do
         number_field :top_position, label: "Позиция в ТОП"
         check_box :is_custom, label: "Кастомная (Спецпредложение)"
       end
+
       form_group :meta, label: "Метаданные" do
         static_field :created_at, label: "Дата создания"
         static_field :updated_at, label: "Дата обновления"
@@ -489,10 +641,26 @@ Trestle.resource(:categories, model: Category) do
 
   params do |params|
     params.require(:category).permit(
-      :ikea_id, :name, :translated_name, :is_popular, :is_top, :top_position, :is_custom, :default_sort,
-      :header_menu, :is_deleted, :header_menu_position, :delivery_days,
-      :is_bulky, :show_delivery_block, :show_reviews_block, :show_tips_block,
-      :icon, :pictogram, :background_image,
+      :ikea_id,
+      :name,
+      :translated_name,
+      :is_popular,
+      :is_top,
+      :top_position,
+      :is_custom,
+      :default_sort,
+      :header_menu,
+      :is_deleted,
+      :header_menu_position,
+      :delivery_days,
+      :is_bulky,
+      :show_delivery_block,
+      :show_reviews_block,
+      :show_tips_block,
+      :icon,
+      :pictogram,
+      :background_image,
+      :parent_ikea_id,
       seo_meta_attributes: [:id, :title, :description, :keywords, :robots, :seo_text, :_destroy]
     )
   end

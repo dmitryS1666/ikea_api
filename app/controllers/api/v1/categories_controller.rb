@@ -99,15 +99,17 @@ module Api
       end
       
       def tree
-        # Кешируем все дерево категорий целиком
-        json = Rails.cache.fetch('categories_tree_json', expires_in: 1.day) do
-          categories = Category.active
-                               .includes(:seo_meta)
-                               .with_attached_icon
-                               .with_attached_background_image
-          CategorySerializer.new(categories).serializable_hash.to_json
+        tree = Rails.cache.fetch("categories_tree_v1", expires_in: 12.hours) do
+          categories = Category
+            .where(is_deleted: false)
+            .select(:id, :ikea_id, :translated_name, :cached_slug, :parent_ids, :top_position)
+            .with_attached_icon
+            .with_attached_pictogram
+      
+          Categories::TreeBuilder.new(categories).call
         end
-        render json: json
+      
+        render json: tree
       end
       
       def map

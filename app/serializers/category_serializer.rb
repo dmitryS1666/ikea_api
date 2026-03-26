@@ -1,16 +1,16 @@
 class CategorySerializer
   include FastJsonapi::ObjectSerializer
-  
+
   set_id :ikea_id
 
   attribute :slug do |category|
     category.slug
   end
 
-  attributes :translated_name, 
-             :local_image_path, 
+  attributes :translated_name,
+             :local_image_path,
              :is_deleted,
-             :is_important, 
+             :is_important,
              :is_popular,
              :is_top,
              :top_position,
@@ -21,32 +21,31 @@ class CategorySerializer
              :is_bulky,
              :show_delivery_block,
              :show_reviews_block,
-            :show_tips_block,
-            :icon_url,
-            :pictogram_url,
-            :background_image_url,
-            :available_filters
+             :show_tips_block,
+             :icon_url,
+             :pictogram_url,
+             :background_image_url,
+             :available_filters
 
+  attribute :icon_url do |category|
+    if category.icon.attached?
+      begin
+        Rails.application.routes.url_helpers.rails_blob_url(category.icon, only_path: true)
+      rescue
+        nil
+      end
+    end
+  end
 
- attribute :icon_url do |category|
-   if category.icon.attached?
-     begin
-       Rails.application.routes.url_helpers.rails_blob_url(category.icon, only_path: true)
-     rescue
-       nil
-     end
-   end
- end
-
- attribute :pictogram_url do |category|
-   if category.pictogram.attached?
-     begin
-       Rails.application.routes.url_helpers.rails_blob_url(category.pictogram, only_path: true)
-     rescue
-       nil
-     end
-   end
- end
+  attribute :pictogram_url do |category|
+    if category.pictogram.attached?
+      begin
+        Rails.application.routes.url_helpers.rails_blob_url(category.pictogram, only_path: true)
+      rescue
+        nil
+      end
+    end
+  end
 
   attribute :background_image_url do |category|
     if category.background_image.attached?
@@ -62,12 +61,45 @@ class CategorySerializer
     category.parent_ids || []
   end
 
+  attribute :children do |category|
+    serialize_children(category.children)
+  end
+
   attribute :available_filters do |category|
-    category.display_filters
+    category.display_filters_with_children
   end
 
   attribute :seo do |category, params|
     SeoHelper.meta_for(category, params[:city])
   end
-end
 
+  class << self
+    private
+
+    def serialize_children(children)
+      children.map do |child|
+        {
+          ikea_id: child.ikea_id,
+          name: child.name,
+          translated_name: child.translated_name,
+          slug: child.slug,
+          icon_url: attachment_url(child, :icon),
+          is_deleted: child.is_deleted,
+          is_important: child.is_important,
+          is_popular: child.is_popular,
+          parent_ids: child.parent_ids || [],
+          children: serialize_children(child.children)
+        }
+      end
+    end
+
+    def attachment_url(record, attachment_name)
+      attachment = record.public_send(attachment_name)
+      return nil unless attachment.attached?
+
+      Rails.application.routes.url_helpers.rails_blob_url(attachment, only_path: true)
+    rescue
+      nil
+    end
+  end
+end

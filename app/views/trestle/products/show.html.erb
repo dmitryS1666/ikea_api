@@ -335,11 +335,11 @@
                          []
                        end
     
-    set_items = if @product.set_items.is_a?(Array)
-                  @product.set_items
-                elsif @product.set_items.is_a?(String) && @product.set_items.present?
+    included_products = if @product.included_products.is_a?(Array)
+                  @product.included_products
+                elsif @product.included_products.is_a?(String) && @product.included_products.present?
                   begin
-                    JSON.parse(@product.set_items)
+                    JSON.parse(@product.included_products)
                   rescue
                     []
                   end
@@ -360,7 +360,7 @@
                    end
   %>
   
-  <% if related_products.any? || set_items.any? || bundle_items.any? %>
+  <% if related_products.any? || included_products.any? || bundle_items.any? %>
     <div class="row mt-4">
       <div class="col-12">
         <div class="card">
@@ -389,11 +389,11 @@
               </div>
             <% end %>
             
-            <% if set_items.any? %>
-              <h6 class="mb-3">Элементы набора (<%= set_items.length %>)</h6>
+            <% if included_products.any? %>
+              <h6 class="mb-3">Элементы набора (<%= included_products.length %>)</h6>
               <div class="mb-4">
                 <ul class="list-group">
-                  <% set_items.each do |item_no| %>
+                  <% included_products.each do |item_no| %>
                     <% set_product = Product.find_by(item_no: item_no) || Product.find_by(sku: item_no) %>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                       <% if set_product %>
