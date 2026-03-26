@@ -2,51 +2,46 @@ class Product < ApplicationRecord
   # Валидации
   validates :sku, presence: true, uniqueness: true
   validates :name, presence: true
-  
+
   # Ассоциации
-  # Старая связь (для обратной совместимости, будет удалена после миграции)
   belongs_to :category, foreign_key: :category_id, primary_key: :ikea_id, optional: true
-  
-  # Новая связь many-to-many
+
   has_many :category_products, dependent: :destroy
   has_many :categories, through: :category_products, source: :category
-  
+
   has_many :product_filter_values, dependent: :delete_all
-  
+
   has_one :seo_meta, as: :seoable, class_name: 'SeoMetum', dependent: :destroy
   accepts_nested_attributes_for :seo_meta, allow_destroy: true, update_only: true
-  
+
   def primary_category
     category || categories.order(:name).first
   end
 
   # Scopes
-  scope :active, -> { all } # Placeholder if you want to add logic like where(is_deleted: false)
+  scope :active, -> { all }
   scope :bestsellers, -> { where(is_bestseller: true) }
   scope :new_arrivals, -> { where(is_new: true) }
   scope :popular, -> { where(is_popular: true) }
   scope :recommended, -> { where(is_recommended: true) }
   scope :with_category, -> { where.not(category_id: nil) }
   scope :by_rating, -> { order(rating_weighted: :desc, rating_count: :desc) }
-  
+
   # Сериализация массивов
   serialize :variants, coder: JSON
   serialize :related_products, coder: JSON
   serialize :set_items, coder: JSON
   serialize :bundle_items, coder: JSON
+  serialize :included_products, coder: JSON
   serialize :images, coder: JSON
   serialize :local_images, coder: JSON
   serialize :videos, coder: JSON
   serialize :manuals, coder: JSON
   serialize :features, coder: JSON
   serialize :assembly_documents, coder: JSON
-  
+
   before_save :cache_slug, if: -> { name_changed? || name_ru_changed? || cached_slug.blank? }
 
-  # Динамические атрибуты (JSONB поля в PostgreSQL не требуют serialize)
-  # serialize :full_attributes, coder: JSON
-  # serialize :packaging, coder: JSON
-  
   def slug
     cached_slug || generate_slug
   end
@@ -54,9 +49,9 @@ class Product < ApplicationRecord
   # Callbacks
   before_save :calculate_delivery, if: :weight_changed?
   after_commit :enqueue_filters_reindex, on: [:create, :update]
-  
+
   private
-  
+
   def cache_slug
     self.cached_slug = generate_slug
   end

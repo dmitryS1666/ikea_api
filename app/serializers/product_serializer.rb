@@ -20,7 +20,8 @@ class ProductSerializer
              :rating_count,
              :rating_updated_at,
              :promo,
-             :customs_duty
+             :customs_duty,
+             :included_products
 
   attribute :promo do |product, params|
     promos = params[:active_promos] || PromoCode.active_now.to_a
@@ -426,5 +427,9 @@ class ProductSerializer
         item.to_s.presence
       end
     end
+  end
+
+  attribute :included_products do |product|
+    Array(product.included_products).filter_map { |sku| sku.to_s.strip.presence }.uniq
   end
 end
