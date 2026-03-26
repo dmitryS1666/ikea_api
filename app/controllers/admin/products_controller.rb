@@ -40,20 +40,24 @@ class Admin::ProductsController < ApplicationController
     products = Product.all
     if q.present?
       query = "%#{q}%"
-      products = products.where(
-        "sku ILIKE :q OR item_no ILIKE :q OR name ILIKE :q OR name_ru ILIKE :q",
-        q: query
-      )
+      columns = %w[sku item_no name name_ru small_desc_name]
+      columns << "small_desc_name_ru" if Product.column_names.include?("small_desc_name_ru")
+      predicates = columns.map { |col| "COALESCE(#{col}::text, '') ILIKE :q" }.join(" OR ")
+      products = products.where(predicates, q: query)
     end
 
     products = products.limit(50).order(:name_ru)
 
     render json: products.map { |p|
-      { 
-        id: p.sku, 
-        text: "#{p.name_ru || p.name} (#{p.sku})",
-        sku: p.sku, 
-        name: (p.name_ru.presence || p.sku) 
+      display_name = p.name_ru.presence || p.name.presence || p.sku
+      extra = p.small_desc_name.to_s.strip
+      label = extra.present? ? "#{display_name} — #{extra}" : display_name
+      {
+        id: p.sku,
+        text: "#{label} (#{p.sku})",
+        sku: p.sku,
+        name: display_name,
+        small_desc_name: extra.presence
       }
     }
   end

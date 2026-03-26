@@ -28,13 +28,19 @@ Trestle.resource(:products, model: Product) do
     # Стандартный поиск Trestle (параметр q)
     if params[:q].present?
       q = "%#{params[:q]}%"
-      products = products.where("sku ILIKE :q OR name ILIKE :q OR name_ru ILIKE :q", q: q)
+      products = products.where(
+        "sku ILIKE :q OR item_no ILIKE :q OR name ILIKE :q OR name_ru ILIKE :q OR small_desc_name ILIKE :q",
+        q: q
+      )
     end
 
     # Поиск из "Умной панели" (параметр query)
     if params[:query].present?
       q = "%#{params[:query]}%"
-      products = products.where("sku ILIKE :q OR name ILIKE :q OR name_ru ILIKE :q", q: q)
+      products = products.where(
+        "sku ILIKE :q OR item_no ILIKE :q OR name ILIKE :q OR name_ru ILIKE :q OR small_desc_name ILIKE :q",
+        q: q
+      )
     end
     
     products
@@ -115,22 +121,30 @@ Trestle.resource(:products, model: Product) do
 
     def search
       q = params[:q].to_s.strip
-      return render(json: []) if q.length < 3
+      sku_like = q.match?(/\A[\d\.]{2,}\z/)
+      return render(json: []) if q.length < 3 && !sku_like
 
       products = Product.all
       if q.present?
         query = "%#{q}%"
-        products = products.where("sku ILIKE :q OR name ILIKE :q OR name_ru ILIKE :q", q: query)
+        products = products.where(
+          "sku ILIKE :q OR item_no ILIKE :q OR name ILIKE :q OR name_ru ILIKE :q OR small_desc_name ILIKE :q",
+          q: query
+        )
       end
 
       products = products.limit(50).order(:name_ru)
 
       render json: products.map { |p|
-        { 
-          id: p.sku, 
-          text: "#{p.name_ru || p.name} (#{p.sku})",
-          sku: p.sku, 
-          name: (p.name_ru.presence || p.sku) 
+        display_name = p.name_ru.presence || p.name.presence || p.sku
+        extra = p.small_desc_name.to_s.strip
+        label = extra.present? ? "#{display_name} — #{extra}" : display_name
+        {
+          id: p.sku,
+          text: "#{label} (#{p.sku})",
+          sku: p.sku,
+          name: display_name,
+          small_desc_name: extra.presence
         }
       }
     end
