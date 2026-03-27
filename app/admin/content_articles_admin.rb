@@ -12,6 +12,7 @@ Trestle.resource(:content_articles, model: ContentArticle) do
 
   routes do
     post :remove_product, on: :member
+    post :add_product, on: :member
     get :remove_product, on: :member
     post :duplicate, on: :member
     get :duplicate, on: :member
@@ -24,7 +25,27 @@ Trestle.resource(:content_articles, model: ContentArticle) do
       article.content_article_products.where(product_sku: sku).delete_all
       
       flash[:message] = "Товар #{sku} удален из статьи."
-      redirect_to admin.path(:show, id: article.id)
+      redirect_to admin.path(:edit, id: article.id)
+    end
+
+    def add_product
+      article = admin.find_instance(params)
+      sku = params[:sku].to_s.strip
+      product = Product.find_by(sku: sku)
+
+      if product
+        if article.content_article_products.exists?(product_sku: sku)
+          flash[:message] = "Товар #{sku} уже привязан."
+        else
+          position = article.content_article_products.maximum(:position).to_i + 1
+          article.content_article_products.create!(product_sku: sku, position: position, source: :manual)
+          flash[:message] = "Товар #{sku} добавлен."
+        end
+      else
+        flash[:error] = "Товар #{sku} не найден."
+      end
+
+      redirect_to admin.path(:edit, id: article.id)
     end
 
     def duplicate
@@ -83,11 +104,10 @@ Trestle.resource(:content_articles, model: ContentArticle) do
     column :published_at
     
     column :actions, label: "Действия" do |article|
-      link_to admin.path(:duplicate, id: article.id), 
-              method: :post, 
-              class: "btn btn-xs btn-outline-info", 
-              title: "Копировать", 
-              data: { confirm: "Создать копию этой статьи?", turbo_method: :post } do
+      link_to admin.path(:duplicate, id: article.id),
+              class: "btn btn-xs btn-outline-info",
+              title: "Копировать",
+              data: { confirm: "Создать копию этой статьи?", turbo: false } do
         tag.i(class: "fa fa-copy")
       end
     end
@@ -149,10 +169,17 @@ Trestle.resource(:content_articles, model: ContentArticle) do
       row do
         col(sm: 12) do
           # Мощный селект с поиском и поддержкой вставки тегов
-          select :product_skus_input, 
-                 Product.where(sku: article.linked_product_skus).map { |p| ["#{p.name_ru || p.name} (#{p.sku})", p.sku] }, 
-                 { label: "Связанные товары", help: "Начните ввод названия или артикула для поиска. Также можно вставлять список артикулов (через пробел или запятую)." }, 
-                 { multiple: true, data: { ui: "select2-ajax", ajax_url: main_app.admin_products_search_path, tags: "true" } }
+          content_tag(:div, class: "article-links-box") do
+            concat(select_tag :product_sku_search,
+                   "",
+                   class: "form-control article-links-search",
+                   placeholder: "Начните ввод названия или SKU...",
+                   data: { ui: "select2-ajax", ajax_url: main_app.admin_products_search_path })
+            concat(content_tag(:button, "Добавить товар",
+                               type: "button",
+                               class: "btn btn-primary article-links-add-btn",
+                               data: { add_url: admin.path(:add_product, id: article.id) }))
+          end
         end
       end
       row do
@@ -167,29 +194,30 @@ Trestle.resource(:content_articles, model: ContentArticle) do
         end
       end
 
-      if article.content_article_products.any?
+      linked_products = ContentArticleProduct.where(content_article_id: article.id).includes(:product).order(:position)
+      if linked_products.any?
         row do
           col(sm: 12) do
             accordion_id = "linked-products-accordion-#{article.id}"
             collapse_id = "linked-products-collapse-#{article.id}"
-            
-            static_field :linked_products_list, label: "Привязанные товары (#{article.content_article_products.count})" do
+
+            static_field :linked_products_list, label: "Привязанные товары (#{linked_products.size})" do
               content_tag(:div, class: "accordion", id: accordion_id) do
                 content_tag(:div, class: "accordion-item") do
                   header = content_tag(:h2, class: "accordion-header", id: "#{collapse_id}-header") do
-                    content_tag(:button, "Показать список привязанных товаров", 
-                                class: "accordion-button collapsed", 
-                                type: "button", 
-                                data: { "bs-toggle": "collapse", "bs-target": "##{collapse_id}" }, 
+                    content_tag(:button, "Показать список привязанных товаров",
+                                class: "accordion-button collapsed",
+                                type: "button",
+                                data: { "bs-toggle": "collapse", "bs-target": "##{collapse_id}" },
                                 aria: { expanded: "false", controls: collapse_id })
                   end
-                  
-                  body = content_tag(:div, id: collapse_id, 
-                                     class: "accordion-collapse collapse", 
-                                     aria: { labelledby: "#{collapse_id}-header" }, 
+
+                  body = content_tag(:div, id: collapse_id,
+                                     class: "accordion-collapse collapse",
+                                     aria: { labelledby: "#{collapse_id}-header" },
                                      data: { "bs-parent": "##{accordion_id}" }) do
                     content_tag(:div, class: "accordion-body") do
-                      table article.content_article_products.includes(:product), class: "table table-condensed" do
+                      table linked_products, class: "table table-condensed" do
                         column :product_sku, label: "SKU" do |cap|
                           if cap.product
                             link_to cap.product_sku, Trestle.lookup(:products).path(:show, id: cap.product.id)
@@ -198,20 +226,22 @@ Trestle.resource(:content_articles, model: ContentArticle) do
                           end
                         end
                         column :name, label: "Название" do |cap|
-                          cap.product&.name_ru || "—"
+                          name = cap.product&.name_ru || cap.product&.name
+                          extra = cap.product&.small_desc_name.to_s.strip
+                          extra.present? ? "#{name} — #{extra}" : (name || "—")
                         end
                         column :actions, label: "" do |cap|
-                          link_to admin.path(:remove_product, id: article.id, sku: cap.product_sku), 
-                                  method: :post, 
-                                  class: "btn btn-xs btn-outline-danger", 
-                                  data: { confirm: "Удалить связь с этим товаром?" } do
+                          link_to admin.path(:remove_product, id: article.id, sku: cap.product_sku),
+                                  method: :post,
+                                  class: "btn btn-xs btn-outline-danger",
+                                  data: { confirm: "Удалить связь с этим товаром?", turbo: false } do
                             tag.i(class: "fa fa-trash")
                           end
                         end
                       end
                     end
                   end
-                  
+
                   header + body
                 end
               end
@@ -231,12 +261,33 @@ Trestle.resource(:content_articles, model: ContentArticle) do
       end
     end
 
+    concat(content_tag(:script, type: "text/javascript") do
+      raw <<-JS.strip_heredoc
+        (function() {
+          if (window.__contentArticleReloadOnSave) return;
+          window.__contentArticleReloadOnSave = true;
+
+          function handleSubmitEnd(event) {
+            var form = event.target;
+            if (!form || !form.action) return;
+            if (!/\\/admin\\/content_articles\\/\\d+$/.test(form.action)) return;
+            if (!event.detail || event.detail.success !== true) return;
+
+            // Force full reload to edit page and land on the first tab
+            window.location = form.action + "/edit";
+          }
+
+          document.addEventListener("turbo:submit-end", handleSubmitEnd);
+          document.addEventListener("turbolinks:submit-end", handleSubmitEnd);
+        })();
+      JS
+    end)
+
     sidebar do
       if article.persisted?
-        link_to admin.path(:duplicate, id: article.id), 
-                method: :post, 
-                class: "btn btn-outline-info btn-block mb-4", 
-                data: { confirm: "Создать копию этой статьи для редактирования?", turbo_method: :post } do
+        link_to admin.path(:duplicate, id: article.id),
+                class: "btn btn-outline-info btn-block mb-4",
+                data: { confirm: "Создать копию этой статьи для редактирования?", turbo: false } do
           content_tag(:i, nil, class: "fa fa-copy") + " Копировать статью"
         end
       end
@@ -268,13 +319,13 @@ Trestle.resource(:content_articles, model: ContentArticle) do
       :rubric,
       :components_input,
       :projects_input,
-      :product_skus_input,
-      :category_ids_input,
       :product_csv,
       :pinned,
       :pinned_position,
       :published_at,
       :active,
+      product_skus_input: [],
+      category_ids_input: [],
       seo_meta_attributes: [:id, :title, :description, :keywords, :robots, :seo_text, :_destroy]
     )
   end

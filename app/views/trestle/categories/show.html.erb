@@ -72,6 +72,19 @@
               <th>Количество продуктов:</th>
               <td><%= @category.products.count %></td>
             </tr>
+            <% if @category.current_parent_ikea_id.present? %>
+              <tr>
+                <th>Текущая родительская категория:</th>
+                <td>
+                  <% parent_category = Category.find_by(ikea_id: @category.current_parent_ikea_id.to_s) %>
+                  <% if parent_category %>
+                    <%= link_to "#{parent_category.name} (#{parent_category.ikea_id})", admin.instance_path(parent_category), class: 'btn btn-sm btn-link p-0 text-left', data: { turbo: false } %>
+                  <% else %>
+                    <span class="text-muted"><%= @category.current_parent_ikea_id %></span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
             <% if @category.parent_ids.present? %>
               <tr>
                 <th>Родительские категории:</th>
@@ -81,7 +94,7 @@
                     <% parent_links = parent_ids.map do |parent_id|
                          parent_category = Category.find_by(ikea_id: parent_id)
                          if parent_category
-                           link_to("#{parent_category.name} (#{parent_id})", admin.instance_path(parent_category), class: 'btn btn-sm btn-link p-0 text-left')
+                           link_to("#{parent_category.name} (#{parent_id})", admin.instance_path(parent_category), class: 'btn btn-sm btn-link p-0 text-left', data: { turbo: false })
                          else
                            content_tag(:span, parent_id, class: 'text-muted')
                          end
@@ -221,7 +234,11 @@
                 <% @category.products.limit(20).each do |product| %>
                   <tr>
                     <td><%= product.sku %></td>
-                    <td><%= product.name %></td>
+                    <td>
+                      <% name = product.name_ru.presence || product.name %>
+                      <% extra = product.small_desc_name.to_s.strip %>
+                      <%= extra.present? ? "#{name} — #{extra}" : name %>
+                    </td>
                     <td><%= product.name_ru || content_tag(:em, "Нет", class: "text-muted") %></td>
                     <td><%= product.price ? number_to_currency(product.price, unit: 'EUR', format: '%n %u') : '-' %></td>
                     <%
@@ -254,4 +271,3 @@
     transform: scale(1.05);
   }
 </style>
-

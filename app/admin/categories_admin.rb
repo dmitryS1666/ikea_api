@@ -237,6 +237,91 @@ Trestle.resource(:categories, model: Category) do
       redirect_back fallback_location: edit_categories_admin_path(@category.ikea_id)
     end
 
+    def reassign_products
+      @category = admin.find_instance(params)
+      target_id = params[:target_category_id].to_s.strip
+
+      if target_id.blank?
+        flash[:error] = "Выберите целевую категорию."
+        return redirect_back fallback_location: edit_categories_admin_path(@category.ikea_id)
+      end
+
+      if target_id.to_s == @category.ikea_id.to_s
+        flash[:error] = "Целевая категория должна отличаться от исходной."
+        return redirect_back fallback_location: edit_categories_admin_path(@category.ikea_id)
+      end
+
+      target_category = Category.unscoped.find_by(ikea_id: target_id)
+      unless target_category
+        flash[:error] = "Целевая категория не найдена."
+        return redirect_back fallback_location: edit_categories_admin_path(@category.ikea_id)
+      end
+
+      source_category_id = @category.ikea_id.to_s
+      target_category_id = target_category.ikea_id.to_s
+
+      source_product_ids = CategoryProduct.where(category_id: source_category_id).pluck(:product_id)
+      if source_product_ids.empty?
+        flash[:warning] = "В исходной категории нет товаров для переноса."
+        return redirect_back fallback_location: edit_categories_admin_path(@category.ikea_id)
+      end
+
+      existing_target_ids = CategoryProduct.where(
+        category_id: target_category_id,
+        product_id: source_product_ids
+      ).pluck(:product_id)
+
+      to_add_ids = source_product_ids - existing_target_ids
+
+      CategoryProduct.transaction do
+        if to_add_ids.any?
+          now = Time.current
+          rows = to_add_ids.map do |product_id|
+            { category_id: target_category_id, product_id: product_id, created_at: now, updated_at: now }
+          end
+
+          CategoryProduct.insert_all(rows)
+        end
+
+        CategoryProduct.where(category_id: source_category_id, product_id: source_product_ids).delete_all
+      end
+
+      delete_source = params[:delete_source] == "1"
+      message = "Товары перенесены (#{to_add_ids.size} добавлено, #{existing_target_ids.size} уже было)."
+
+      if delete_source
+        @category.destroy
+        message += " Исходная категория удалена."
+      end
+
+      clear_categories_cache
+
+      respond_to do |format|
+        format.json do
+          redirect_to =
+            if delete_source
+              admin.path(:edit, id: target_category_id)
+            else
+              admin.path(:edit, id: @category.ikea_id)
+            end
+          render json: {
+            ok: true,
+            added: to_add_ids.size,
+            existed: existing_target_ids.size,
+            redirect_to: redirect_to,
+            message: message
+          }, status: :ok
+        end
+        format.html do
+          flash[:notice] = message
+          redirect_to admin.path(:edit, id: (delete_source ? target_category_id : @category.ikea_id))
+        end
+      end
+    rescue ActiveRecord::RecordInvalid => e
+      flash[:error] = "Ошибка переноса: #{e.message}"
+      redirect_back fallback_location: edit_categories_admin_path(@category.ikea_id)
+    end
+
     def show
       @category = admin.find_instance(params)
       render "trestle/categories/show"
@@ -320,6 +405,7 @@ Trestle.resource(:categories, model: Category) do
     post :import_products_csv, on: :member
     post :add_product, on: :member
     post :remove_product, on: :member
+    post :reassign_products, on: :member
     post :move_node, on: :collection
   end
 
@@ -364,6 +450,28 @@ Trestle.resource(:categories, model: Category) do
       text_field :translated_name, label: "Название (перевод)"
 
       divider
+
+      if category.current_parent_ikea_id.present?
+        parent_category = Category.find_by(ikea_id: category.current_parent_ikea_id.to_s)
+        parent_label = if parent_category
+                         "#{parent_category.translated_name.presence || parent_category.name} (#{parent_category.ikea_id})"
+                       else
+                         category.current_parent_ikea_id.to_s
+                       end
+        row do
+          col(sm: 12) do
+            static_field :current_parent, label: "Текущая родительская категория" do
+              if parent_category
+                link_to(parent_label, admin.instance_path(parent_category))
+              else
+                content_tag(:span, parent_label, class: "text-muted")
+              end
+            end
+          end
+        end
+
+        divider
+      end
 
       excluded_ids = [category.ikea_id.to_s]
       if category.persisted? && category.ikea_id.present?
@@ -495,6 +603,77 @@ Trestle.resource(:categories, model: Category) do
                   allowClear: true
                 });
               }
+
+              var reassignSelect = document.querySelector('.trestle-reassign-category-select');
+              if (reassignSelect && window.jQuery && window.jQuery.fn.select2) {
+                var $reassignSelect = window.jQuery(reassignSelect);
+
+                if ($reassignSelect.data('select2')) {
+                  $reassignSelect.select2('destroy');
+                }
+
+                $reassignSelect.select2({
+                  width: '100%',
+                  placeholder: 'Выберите целевую категорию',
+                  allowClear: true
+                });
+              }
+
+              var reassignContainer = document.querySelector('.trestle-reassign-products');
+              if (reassignContainer) {
+                var reassignButton = reassignContainer.querySelector('.trestle-reassign-button');
+                var reassignDelete = reassignContainer.querySelector('.trestle-reassign-delete-source');
+                var reassignSelectEl = reassignContainer.querySelector('.trestle-reassign-category-select');
+                var reassignUrl = reassignContainer.dataset.reassignUrl;
+                var sourceId = reassignContainer.dataset.sourceId;
+
+                if (reassignButton) {
+                  reassignButton.addEventListener('click', function() {
+                    var targetId = reassignSelectEl ? reassignSelectEl.value : "";
+                    if (!targetId) {
+                      alert("Выберите целевую категорию.");
+                      return;
+                    }
+
+                    var confirmText = reassignButton.dataset.confirm || "Перенести все товары в выбранную категорию?";
+                    if (!confirm(confirmText)) return;
+
+                    var csrf = document.querySelector('meta[name="csrf-token"]');
+                    var params = new URLSearchParams();
+                    params.append('target_category_id', targetId);
+                    if (reassignDelete && reassignDelete.checked) {
+                      params.append('delete_source', '1');
+                    }
+
+                    reassignButton.disabled = true;
+                    reassignButton.textContent = "Переносим...";
+
+                    fetch(reassignUrl, {
+                      method: 'POST',
+                      headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'X-CSRF-Token': csrf ? csrf.content : ''
+                      },
+                      body: params.toString()
+                    }).then(function(resp) {
+                      if (!resp.ok) throw new Error('Request failed');
+                      return resp.json();
+                    }).then(function(data) {
+                      if (data && data.redirect_to) {
+                        window.location = data.redirect_to;
+                      } else {
+                        window.location = window.location.href;
+                      }
+                    }).catch(function() {
+                      alert("Ошибка переноса. Проверьте логи.");
+                    }).finally(function() {
+                      reassignButton.disabled = false;
+                      reassignButton.textContent = "Перепривязать товары";
+                    });
+                  });
+                }
+              }
             }
 
             document.addEventListener('turbo:load', initCategoryForm);
@@ -524,6 +703,40 @@ Trestle.resource(:categories, model: Category) do
 
     tab :products, label: "Товары" do
       if category.persisted?
+        h4 "Массовая перепривязка товаров"
+        render inline: <<-'ERB', locals: { category: category, admin: admin }
+          <% reassign_options = Category.order(:translated_name).where.not(ikea_id: category.ikea_id).map do |c|
+               ["#{c.translated_name.presence || c.name} (#{c.ikea_id})", c.ikea_id]
+             end %>
+          <div class="trestle-reassign-products"
+               data-reassign-url="<%= admin.path(:reassign_products, id: category.ikea_id) %>"
+               data-source-id="<%= category.ikea_id %>">
+            <div class="row" style="margin-bottom: 10px;">
+              <div class="col-sm-8">
+                <%= select_tag :target_category_id,
+                      options_for_select(reassign_options),
+                      include_blank: "Выберите целевую категорию",
+                      class: "form-control trestle-reassign-category-select" %>
+              </div>
+              <div class="col-sm-4">
+                <div class="checkbox" style="margin-top: 6px;">
+                  <label>
+                    <%= check_box_tag :delete_source, "1", false, class: "trestle-reassign-delete-source" %>
+                    Удалить исходную после переноса
+                  </label>
+                </div>
+              </div>
+            </div>
+            <p class="help-block">Переносит все товары из текущей категории в выбранную. Дубли не создаются.</p>
+            <button type="button"
+                    class="btn btn-warning trestle-reassign-button"
+                    data-confirm="Перенести все товары в выбранную категорию?">
+              Перепривязать товары
+            </button>
+          </div>
+        ERB
+
+        divider
         h4 "Добавить товар вручную"
         render inline: <<-ERB, locals: { category: category, admin: admin }
           <%= form_tag admin.path(:add_product, id: category.ikea_id), method: :post do %>
@@ -559,7 +772,14 @@ Trestle.resource(:categories, model: Category) do
           end
 
           column :name do |cp|
-            link_to(cp.product.name_ru || cp.product.name, admin_url_for(cp.product)) rescue (cp.product.name_ru || cp.product.name)
+            name = cp.product&.name_ru || cp.product&.name
+            extra = cp.product&.small_desc_name.to_s.strip
+            label = extra.present? ? "#{name} — #{extra}" : name
+            if cp.product
+              link_to(label, Trestle.lookup(:products).path(:show, id: cp.product.id), data: { turbo: false })
+            else
+              label || "—"
+            end
           end
 
           column :price do |cp|

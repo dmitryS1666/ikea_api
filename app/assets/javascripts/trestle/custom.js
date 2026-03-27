@@ -18,7 +18,7 @@
       $el.select2({
         theme: 'bootstrap',
         width: '100%',
-        multiple: true,
+        multiple: $el.prop('multiple'),
         tags: $el.data('tags') === true,
         tokenSeparators: [',', ' ', '\n', '\r'],
         ajax: {
@@ -45,11 +45,62 @@
               }
             };
           },
-          cache: true
+        cache: true
+      },
+      minimumInputLength: 2,
+      placeholder: $el.attr('placeholder') || 'Начните ввод для поиска...',
+      allowClear: true
+    });
+
+      // Make search active by default and visible
+      setTimeout(function() {
+        if ($el.data('select2')) {
+          $el.select2('open');
+        }
+      }, 0);
+    });
+
+    // Handle "add product" button for article links
+    $('.article-links-add-btn').off('click.articleLinks').on('click.articleLinks', function() {
+      var $btn = $(this);
+      var addUrl = $btn.data('add-url');
+      if (!addUrl) return;
+
+      var $select = $btn.closest('.article-links-box').find('select.article-links-search');
+      if (!$select.length) return;
+
+      var data = $select.select2('data');
+      var selected = data && data.length ? (data[0].id || data[0].sku || data[0].text) : $select.val();
+      if (selected && typeof selected === 'string') {
+        var match = selected.match(/\(([^)]+)\)\s*$/);
+        if (match) selected = match[1].trim();
+      }
+      if (!selected) {
+        alert("Выберите товар.");
+        return;
+      }
+
+      var csrf = document.querySelector('meta[name="csrf-token"]');
+      var params = new URLSearchParams();
+      params.append('sku', selected);
+
+      $btn.prop('disabled', true).text('Добавляем...');
+
+      fetch(addUrl, {
+        method: 'POST',
+        headers: {
+          'Accept': 'text/html',
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          'X-CSRF-Token': csrf ? csrf.content : ''
         },
-        minimumInputLength: 2,
-        placeholder: $el.attr('placeholder') || 'Начните ввод для поиска...',
-        allowClear: true
+        body: params.toString()
+      }).then(function(resp) {
+        if (!resp.ok) throw new Error('Request failed');
+        window.location.reload();
+      }).catch(function() {
+        alert("Не удалось добавить товар. Проверьте логи.");
+      }).finally(function() {
+        $btn.prop('disabled', false).text('Добавить товар');
       });
     });
   }
