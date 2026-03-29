@@ -50,7 +50,7 @@ module Categories
         attributes: {
           translated_name: category.translated_name,
           slug: category.slug,
-          icon_url: depth == 2 ? blob_path(category.icon) : nil,
+          icon_url: depth == 2 || depth == 1 ? blob_path(category.icon) : nil,
           pictogram_url: depth == 1 ? blob_path(category.pictogram) : nil
         },
         children: children.filter_map do |child|

@@ -16,7 +16,8 @@ module CartResponseFormatter
         items: build_items(cart_items, pricing_map),
         totals: format_totals(totals),
         rules: format_rules(rules_data[:rules]),
-        flags: format_flags(rules_data[:flags])
+        flags: format_flags(rules_data[:flags]),
+        recommendations: build_recommendations(cart_items)
       }
     }
   end
@@ -65,10 +66,12 @@ module CartResponseFormatter
       category_id: product.category_id,
       collection: product.collection,
       images: {
-        local_images: product.local_images || []
+        local_images: product.local_images || [],
+        images: product.images || []
       }
     }
   end
+
   def build_similar_products(product)
     SimilarProductsService.for(product: product, limit: 8).map do |similar|
       {
@@ -84,6 +87,33 @@ module CartResponseFormatter
         }
       }
     end
+  end
+
+  def build_recommendations(cart_items)
+    exclude_skus = cart_items.map(&:product_sku)
+  
+    ProductRecommendationsResolver.call(
+      placement: :cart,
+      limit: 8,
+      exclude_skus: exclude_skus
+    ).map do |product|
+      recommendation_payload(product)
+    end
+  end
+  
+  def recommendation_payload(product)
+    {
+      sku: product.sku,
+      name: product.name,
+      price_byn: format_byn(product.price),
+      quantity: product.quantity,
+      category_id: product.category_id,
+      collection: product.collection,
+      images: {
+        local_images: product.local_images || [],
+        images: product.images || []
+      }
+    }
   end
 
   def issue_reason_for(product, available)

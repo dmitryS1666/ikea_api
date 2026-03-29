@@ -21,9 +21,14 @@ Trestle.resource(:content_articles, model: ContentArticle) do
   controller do
     def remove_product
       article = admin.find_instance(params)
-      sku = params[:sku]
-      article.content_article_products.where(product_sku: sku).delete_all
-      
+      sku = params[:sku].to_s.strip
+
+      if article.news?
+        article.remove_product_from_body_blocks!(sku)
+      else
+        article.content_article_products.where(product_sku: sku).delete_all
+      end
+
       flash[:message] = "Товар #{sku} удален из статьи."
       redirect_to admin.path(:edit, id: article.id)
     end
@@ -33,7 +38,9 @@ Trestle.resource(:content_articles, model: ContentArticle) do
       sku = params[:sku].to_s.strip
       product = Product.find_by(sku: sku)
 
-      if product
+      if article.news?
+        flash[:error] = "Для новости связи с товарами формируются из блока 'Сетка товаров'."
+      elsif product
         if article.content_article_products.exists?(product_sku: sku)
           flash[:message] = "Товар #{sku} уже привязан."
         else
@@ -166,31 +173,38 @@ Trestle.resource(:content_articles, model: ContentArticle) do
     end
 
     tab :links, label: "Связи с товарами" do
-      row do
-        col(sm: 12) do
-          # Мощный селект с поиском и поддержкой вставки тегов
-          content_tag(:div, class: "article-links-box") do
-            concat(select_tag :product_sku_search,
-                   "",
-                   class: "form-control article-links-search",
-                   placeholder: "Начните ввод названия или SKU...",
-                   data: { ui: "select2-ajax", ajax_url: main_app.admin_products_search_path })
-            concat(content_tag(:button, "Добавить товар",
-                               type: "button",
-                               class: "btn btn-primary article-links-add-btn",
-                               data: { add_url: admin.path(:add_product, id: article.id) }))
+      if article.news?
+        row do
+          col(sm: 12) do
+            content_tag(:div, "Для новости связи с товарами используются данные из блока 'Сетка товаров'. Здесь доступен только просмотр и удаление.", class: "alert alert-info")
           end
         end
-      end
-      row do
-        col(sm: 6) do
-          file_field :product_csv, label: "Загрузить из CSV", accept: ".csv", help: "Файл CSV, где первая колонка — SKU. Текущие связи будут заменены."
+      else
+        row do
+          col(sm: 12) do
+            content_tag(:div, class: "article-links-box") do
+              concat(select_tag :product_sku_search,
+                     "",
+                     class: "form-control article-links-search",
+                     placeholder: "Начните ввод названия или SKU...",
+                     data: { ui: "select2-ajax", ajax_url: main_app.admin_products_search_path })
+              concat(content_tag(:button, "Добавить товар",
+                                 type: "button",
+                                 class: "btn btn-primary article-links-add-btn",
+                                 data: { add_url: admin.path(:add_product, id: article.id) }))
+            end
+          end
         end
-        col(sm: 6) do
-          select :category_ids_input, 
-                 Category.all.order(:translated_name).map { |c| ["#{c.translated_name.presence || c.name} (#{c.ikea_id})", c.ikea_id] }, 
-                 { label: "Связанные категории", help: "Статья будет отображаться в товарах этих категорий" }, 
-                 { multiple: true, data: { ui: "select2" } }
+        row do
+          col(sm: 6) do
+            file_field :product_csv, label: "Загрузить из CSV", accept: ".csv", help: "Файл CSV, где первая колонка — SKU. Текущие связи будут заменены."
+          end
+          col(sm: 6) do
+            select :category_ids_input, 
+                   Category.all.order(:translated_name).map { |c| ["#{c.translated_name.presence || c.name} (#{c.ikea_id})", c.ikea_id] }, 
+                   { label: "Связанные категории", help: "Статья будет отображаться в товарах этих категорий" }, 
+                   { multiple: true, data: { ui: "select2" } }
+          end
         end
       end
 

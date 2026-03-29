@@ -77,6 +77,7 @@ class ContentArticle < ApplicationRecord
 
   validates :title, :slug, presence: true
   validates :slug, uniqueness: true
+  validate :validate_body_block_products
 
   before_validation :normalize_slug
   before_validation :normalize_array_fields
@@ -84,6 +85,7 @@ class ContentArticle < ApplicationRecord
 
   after_save :sync_linked_products
   after_save :sync_linked_categories
+  after_save :sync_products_from_body_blocks
   after_save :sync_body_block_images
 
   scope :published_and_active, -> { where(status: statuses[:published], active: true) }
@@ -234,6 +236,22 @@ class ContentArticle < ApplicationRecord
     body_blocks.flat_map { |block| block["grid_category_ids"] }.compact
   end
 
+  def remove_product_from_body_blocks!(sku)
+    normalized_sku = sku.to_s.strip
+    return false if normalized_sku.blank?
+
+    updated_blocks = Array.wrap(body_blocks).map do |block|
+      next block unless block["type"] == "products_grid"
+
+      next block.merge(
+        "slider_product_skus" => Array.wrap(block["slider_product_skus"]).map(&:to_s).reject { |value| value == normalized_sku }
+      )
+    end
+
+    self.body_blocks = updated_blocks
+    save!
+  end
+
   private
 
   def normalize_slug
@@ -278,7 +296,7 @@ class ContentArticle < ApplicationRecord
     end
   
     slider_category_id =
-      if template[:slider_enabled]
+      if template[:slider_enabled] || template[:products_grid_enabled]
         raw_block&.fetch("slider_category_id", nil).presence
       end
   
@@ -381,6 +399,25 @@ class ContentArticle < ApplicationRecord
     value.to_s.parameterize
   end
 
+  def validate_body_block_products
+    skus = body_block_product_skus
+    return if skus.empty?
+
+    existing_skus = Product.where(sku: skus).pluck(:sku)
+    invalid_skus = skus - existing_skus
+    return if invalid_skus.empty?
+
+    errors.add(:body_blocks, "содержат несуществующие SKU: #{invalid_skus.join(', ')}")
+  end
+
+  def body_block_product_skus
+    Array.wrap(body_blocks).flat_map do |block|
+      next [] unless block["type"] == "products_grid"
+
+      Array.wrap(block["slider_product_skus"]).map(&:to_s).map(&:strip).reject(&:blank?)
+    end.uniq
+  end
+
   def sync_linked_products
     return unless defined?(@product_skus_input) || product_csv.present?
 
@@ -421,6 +458,33 @@ class ContentArticle < ApplicationRecord
       content_article_categories.create!(
         category_id: category_id,
         position: index
+      )
+    end
+  end
+
+  def sync_products_from_body_blocks
+    return unless news?
+
+    desired_skus = []
+    Array.wrap(body_blocks).each do |block|
+      next unless block["type"] == "products_grid"
+
+      Array.wrap(block["slider_product_skus"]).each do |sku|
+        normalized_sku = sku.to_s.strip
+        desired_skus << normalized_sku if normalized_sku.present?
+      end
+    end
+    desired_skus.uniq!
+
+    existing_skus = content_article_products.order(:position).pluck(:product_sku)
+    return if existing_skus == desired_skus
+
+    content_article_products.delete_all
+    desired_skus.each_with_index do |sku, index|
+      content_article_products.create!(
+        product_sku: sku,
+        position: index,
+        source: :auto
       )
     end
   end

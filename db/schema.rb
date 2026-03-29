@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_26_075400) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_29_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -497,6 +497,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_26_075400) do
     t.index ["category_id", "parameter", "value_id", "product_id"], name: "index_product_filter_values_on_category_param_value_product"
     t.index ["product_id", "category_id", "parameter", "value_id"], name: "index_product_filter_values_unique", unique: true
     t.index ["product_id", "category_id"], name: "index_product_filter_values_on_product_and_category"
+  end
+
+  create_table "product_recommendation_settings", force: :cascade do |t|
+    t.integer "placement", null: false
+    t.integer "source_type", default: 0, null: false
+    t.boolean "active", default: true, null: false
+    t.string "category_id"
+    t.jsonb "product_skus", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_product_recommendation_settings_on_active"
+    t.index ["placement"], name: "index_product_recommendation_settings_on_placement", unique: true
+    t.index ["product_skus"], name: "index_product_recommendation_settings_on_product_skus", using: :gin
   end
 
   create_table "product_title_templates", force: :cascade do |t|
