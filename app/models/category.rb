@@ -129,48 +129,59 @@ class Category < ApplicationRecord
   class << self
     def build_tree(categories)
       categories = Array(categories)
-
+  
       grouped = categories.group_by { |c| c.ikea_id.to_s }
       categories = grouped.values.map(&:last)
-
+  
       by_ikea_id = categories.index_by { |category| category.ikea_id.to_s }
       children_map = Hash.new { |h, k| h[k] = [] }
       roots = []
-
+  
       categories.each do |category|
         direct_parent_id = direct_parent_id_for(category)
-
+  
         node = {
           category: category,
           children: []
         }
-
+  
         if direct_parent_id.present? && by_ikea_id.key?(direct_parent_id) && direct_parent_id != category.ikea_id.to_s
           children_map[direct_parent_id] << node
         else
           roots << node
         end
       end
-
-      attach_children = lambda do |nodes, visited_ids = []|
+  
+      attach_children = lambda do |nodes, depth = 1, visited_ids = []|
         nodes.each do |node|
           ikea_id = node[:category].ikea_id.to_s
-
+  
           if visited_ids.include?(ikea_id)
             Rails.logger.warn("Circular dependency detected for category #{ikea_id}")
             node[:children] = []
             next
           end
-
-          node[:children] = children_map[ikea_id]
-          attach_children.call(node[:children], visited_ids + [ikea_id]) if node[:children].any?
+  
+          children = children_map[ikea_id]
+  
+          # сортируем только 2 уровень
+          children = sort_tree_nodes(children) if depth == 1
+  
+          node[:children] = children
+  
+          if node[:children].any?
+            attach_children.call(node[:children], depth + 1, visited_ids + [ikea_id])
+          end
         end
       end
-
+  
+      # сортируем только 1 уровень
+      roots = sort_tree_nodes(roots)
+  
       attach_children.call(roots)
       roots
     end
-
+  
     def normalize_parent_ids(value)
       case value
       when nil
@@ -181,12 +192,21 @@ class Category < ApplicationRecord
         Array(value).compact.map(&:to_s).reject(&:blank?)
       end
     end
-
+  
     def direct_parent_id_for(category)
       ids = normalize_parent_ids(category.parent_ids)
       return nil if ids.blank?
-
+  
       ids.last == category.ikea_id.to_s ? ids[-2] : ids.last
+    end
+  
+    private
+  
+    def sort_tree_nodes(nodes)
+      nodes.sort_by do |node|
+        category = node[:category]
+        (category.translated_name.presence || category.name).to_s.mb_chars.downcase.to_s
+      end
     end
   end
 

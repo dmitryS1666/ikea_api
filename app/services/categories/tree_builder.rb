@@ -26,7 +26,9 @@ module Categories
       end
 
       {
-        data: roots.filter_map { |category| serialize_node(category, children_map, 1, Set.new) }
+        data: sort_alphabetically(roots).filter_map do |category|
+          serialize_node(category, children_map, 1, Set.new)
+        end
       }
     end
 
@@ -39,6 +41,9 @@ module Categories
 
       visited.add(category_id)
 
+      children = children_map[category_id]
+      children = sort_alphabetically(children) if depth == 1
+
       {
         id: category_id,
         type: "category",
@@ -48,12 +53,18 @@ module Categories
           icon_url: depth == 2 ? blob_path(category.icon) : nil,
           pictogram_url: depth == 1 ? blob_path(category.pictogram) : nil
         },
-        children: children_map[category_id].filter_map do |child|
+        children: children.filter_map do |child|
           serialize_node(child, children_map, depth + 1, visited)
         end
       }
     ensure
       visited.delete(category_id) if category_id.present?
+    end
+
+    def sort_alphabetically(categories)
+      categories.sort_by do |category|
+        category.translated_name.to_s.mb_chars.downcase.to_s
+      end
     end
 
     def parent_id(category)

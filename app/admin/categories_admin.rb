@@ -70,12 +70,12 @@ Trestle.resource(:categories, model: Category) do
     def new
       @category = Category.new(params[:category]&.to_unsafe_h || {})
       @category.ikea_id ||= "custom-#{SecureRandom.hex(4)}" if @category.is_custom?
-      @category.parent_ikea_id ||= @category.current_parent_ikea_id
+      @category.parent_ikea_id = @category.current_parent_ikea_id
     end
 
     def edit
       @category = admin.find_instance(params)
-      @category.parent_ikea_id ||= @category.current_parent_ikea_id
+      @category.parent_ikea_id = @category.current_parent_ikea_id
     end
 
     def create
@@ -482,11 +482,21 @@ Trestle.resource(:categories, model: Category) do
         excluded_ids.include?(ikea_id.to_s)
       end
 
+      selected_parent_id = category.parent_ikea_id.presence || category.current_parent_ikea_id
+
+      parent_options = Category.order(:translated_name).map do |c|
+        ["#{c.translated_name.presence || c.name} (#{c.ikea_id})", c.ikea_id.to_s]
+      end.reject do |_, ikea_id|
+        excluded_ids.include?(ikea_id.to_s)
+      end
+
       select :parent_ikea_id,
              parent_options,
-             { include_blank: "Без родителя (верхний уровень)" },
+             {
+               include_blank: "Без родителя (верхний уровень)",
+               selected: selected_parent_id.to_s
+             },
              label: "Родительская категория",
-             selected: category.parent_ikea_id.presence || category.current_parent_ikea_id,
              class: "trestle-parent-category-select",
              help: "Нельзя выбрать саму категорию или любую из ее дочерних категорий."
 
