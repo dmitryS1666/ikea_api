@@ -29,6 +29,7 @@ info:
     - `GET /api/v1/homepage/slider/main` — Слайдер на главной
     - `GET /api/v1/homepage/recommendations` — Рекомендации товаров для главной страницы
     - `POST /api/v1/auth/login` — Вход (только для админов/менеджеров)
+    - `POST /api/v1/auth/phone/check` — Проверка, существует ли номер телефона в базе
     - `POST /api/v1/auth/phone/send` — Запрос звонка для входа/регистрации
     - `POST /api/v1/auth/phone/verify` — Подтверждение кода из звонка (вход/регистрация)
     - `GET /api/v1/favorites` — Список избранного (поддержка гостевых токенов)
@@ -603,6 +604,48 @@ paths:
           description: Неверные учетные данные
         '403':
           description: Доступ запрещен (для обычных пользователей)
+
+  /api/v1/auth/phone/check:
+    post:
+      summary: Проверить, существует ли номер телефона
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+              properties:
+                phone:
+                  type: string
+                  example: "375291234567"
+      responses:
+        '200':
+          description: Результат проверки номера телефона
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  phone:
+                    type: string
+                    example: "375291234567"
+                  exists:
+                    type: boolean
+                    example: true
+        '422':
+          description: Неверный формат телефона
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Неверный формат телефона
 
   /api/v1/auth/phone/send:
     post:

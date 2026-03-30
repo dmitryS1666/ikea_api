@@ -91,6 +91,7 @@ Rails.application.routes.draw do
       post 'auth/register', to: 'auth#register'
       post 'auth/phone/send', to: 'auth#send_phone_code'
       post 'auth/phone/verify', to: 'auth#verify_phone_code'
+      post 'auth/phone/check', to: 'auth#check_phone'
 
       # A1 verification (stub for now)
       post 'a1/request', to: 'a1_verifications#request_call'

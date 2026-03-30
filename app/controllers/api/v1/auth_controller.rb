@@ -31,14 +31,27 @@ module Api
             context: 'auth'
           }
         )
-        
+
         if result[:success]
           render json: { message: result[:message] }
         else
           render json: { error: result[:error] }, status: :unprocessable_entity
         end
       end
-      
+
+      def check_phone
+        phone = normalized_phone(params[:phone])
+
+        if phone.blank? || phone.length < 10
+          return render json: { error: 'Неверный формат телефона' }, status: :unprocessable_entity
+        end
+
+        render json: {
+          phone: phone,
+          exists: User.exists?(phone: phone)
+        }
+      end
+
       def verify_phone_code
         result = PhoneAuthService.verify_code(
           phone: params[:phone], 
@@ -107,6 +120,10 @@ module Api
       
       def user_params
         params.require(:user).permit(:username, :email, :password, :password_confirmation)
+      end
+
+      def normalized_phone(value)
+        value.to_s.gsub(/\D/, '')
       end
     end
   end
