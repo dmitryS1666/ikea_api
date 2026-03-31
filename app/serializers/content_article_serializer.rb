@@ -7,8 +7,11 @@ class ContentArticleSerializer
              :published_at, :tile_blocks,
              :components, :projects, :pinned, :pinned_position, :active
 
-  attribute :body_blocks do |article|
-    article.serialized_body_blocks
+  attribute :body_blocks do |article, params|
+    article.serialized_body_blocks(
+      products_map: params&.dig(:body_block_products_map) || {},
+      product_serializer_params: params&.dig(:product_serializer_params) || {}
+    )
   end
 
   attribute :linked_products, if: Proc.new { |_record, params| params&.dig(:detail) } do |article, params|

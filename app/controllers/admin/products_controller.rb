@@ -20,13 +20,14 @@ class Admin::ProductsController < ApplicationController
       .joins(:categories)
       .where(categories: { ikea_id: category_ikea_id })
       .distinct
-      .order(:name)
+      .order(:name_ru, :name, :sku)
       .limit(500)
 
     render json: products.map { |p|
       {
         sku: p.sku,
-        name: (p.name.presence || p.sku)
+        name: (p.name_ru.presence || p.name.presence || p.sku),
+        small_desc_name: p.small_desc_name.to_s.strip.presence
       }
     }
   end

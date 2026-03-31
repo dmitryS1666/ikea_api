@@ -114,6 +114,50 @@ class ContentArticle < ApplicationRecord
       .distinct
   }
 
+  after_commit :sync_auto_product_links_from_body_blocks!, on: %i[create update]
+
+  def grid_product_skus_from_body_blocks
+    Array(body_blocks)
+      .select { |block| block["type"] == "products_grid" }
+      .sort_by { |block| block["position"].to_i }
+      .flat_map { |block| Array(block["slider_product_skus"]) }
+      .map(&:to_s)
+      .map(&:strip)
+      .reject(&:blank?)
+  end
+
+  def sync_auto_product_links_from_body_blocks!
+    desired_skus = grid_product_skus_from_body_blocks
+
+    auto_scope = ContentArticleProduct.where(
+      content_article_id: id,
+      source: ContentArticleProduct.sources[:auto]
+    )
+
+    existing_by_sku = auto_scope.index_by(&:product_sku)
+
+    # удаляем лишние auto-связи
+    auto_scope.where.not(product_sku: desired_skus).delete_all
+
+    # создаём/обновляем нужные auto-связи
+    desired_skus.each_with_index do |sku, idx|
+      record = existing_by_sku[sku]
+
+      if record
+        if record.position != idx
+          record.update_columns(position: idx, updated_at: Time.current)
+        end
+      else
+        ContentArticleProduct.create!(
+          content_article_id: id,
+          product_sku: sku,
+          position: idx,
+          source: :auto
+        )
+      end
+    end
+  end
+
   def components_input
     @components_input || components.to_a.join("\n")
   end
@@ -199,10 +243,28 @@ class ContentArticle < ApplicationRecord
   end
 
   def body_blocks_for_admin
-    body_blocks.map { |block| decorate_block(block, include_preview: true) }
+    products_map = Product.where(sku: body_block_product_skus).index_by(&:sku)
+
+    body_blocks.map do |block|
+      block_data = decorate_block(block, include_preview: true)
+      next block_data unless block_data["type"] == "products_grid"
+
+      selected_products = Array.wrap(block_data["slider_product_skus"]).filter_map do |sku|
+        product = products_map[sku.to_s]
+        next unless product
+
+        {
+          "sku" => product.sku,
+          "name" => (product.name_ru.presence || product.name.presence || product.sku),
+          "small_desc_name" => product.small_desc_name.to_s.strip.presence
+        }
+      end
+
+      block_data.merge("selected_products" => selected_products)
+    end
   end
 
-  def serialized_body_blocks
+  def serialized_body_blocks(products_map: {}, product_serializer_params: {}, **_)
     all_category_ids = (button_category_ids + slider_category_ids + grid_category_ids).compact.uniq
     categories = Category.where(ikea_id: all_category_ids).index_by(&:ikea_id)
   

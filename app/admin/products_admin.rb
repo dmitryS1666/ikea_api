@@ -115,7 +115,14 @@ Trestle.resource(:products, model: Product) do
         .limit(500)
 
       render json: products.map { |p|
-        { sku: p.sku, name: (p.name_ru.presence || p.sku) }
+        display_name = p.name_ru.presence || p.name.presence || p.sku
+        extra = p.small_desc_name.to_s.strip
+
+        {
+          sku: p.sku,
+          name: display_name,
+          small_desc_name: extra.presence
+        }
       }
     end
 

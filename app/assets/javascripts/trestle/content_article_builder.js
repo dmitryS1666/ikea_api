@@ -4,7 +4,10 @@
 
   function initBuilders() {
     document.querySelectorAll(BUILDER_SELECTOR).forEach(container => {
-      // Re-instantiate a fresh builder on every load to avoid state issues with Turbo/Turbolinks
+      const existing = builderInstances.get(container);
+      if (existing && typeof existing.destroy === "function") {
+        existing.destroy();
+      }
       builderInstances.set(container, new ContentArticleBlockBuilder(container));
     });
   }
@@ -102,7 +105,8 @@
         categories_grid_enabled: template.categories_grid_enabled,
         slider_category_id: existing.slider_category_id || null,
         slider_product_skus: Array.isArray(existing.slider_product_skus) ? existing.slider_product_skus : [],
-        grid_category_ids: Array.isArray(existing.grid_category_ids) ? existing.grid_category_ids : [],      
+        grid_category_ids: Array.isArray(existing.grid_category_ids) ? existing.grid_category_ids : [],
+        selected_products: Array.isArray(existing.selected_products) ? existing.selected_products : [],
         images: template.image_slots.map(slot => {
           const matched = (existing.images || []).find(image => image.slot === slot.name);
           return {
@@ -252,7 +256,11 @@
             name = name.replace(/\s*\(\s*[\w-]+\s*\)\s*$/, "");
           }
     
-          return sku ? { sku: String(sku), name: String(name || sku) } : null;
+          return sku ? {
+            sku: String(sku),
+            name: String(name || sku),
+            small_desc_name: item.small_desc_name ? String(item.small_desc_name) : ""
+          } : null;
         })
         .filter(Boolean);
     
@@ -274,7 +282,8 @@
 
       return results.map(item => ({
         sku: String(item.sku || item.id),
-        name: String(item.name || item.text || item.sku)
+        name: String(item.name || item.text || item.sku),
+        small_desc_name: item.small_desc_name ? String(item.small_desc_name) : ""
       }));
     }
     
@@ -377,6 +386,7 @@
       // локальное состояние
       let currentProducts = [];
       const selectedSkus = new Set(Array.isArray(block.slider_product_skus) ? block.slider_product_skus : []);
+      let selectedProducts = Array.isArray(block.selected_products) ? block.selected_products.slice() : [];
     
       const renderSelected = () => {
         selectedWrap.innerHTML = "";
@@ -400,7 +410,7 @@
           chip.style.background = "#fff";
           chip.style.fontSize = "12px";
     
-          const product = currentProducts.find(p => String(p.sku) === String(sku));
+          const product = currentProducts.find(p => String(p.sku) === String(sku)) || selectedProducts.find(p => String(p.sku) === String(sku));
           const label = document.createElement("span");
           label.textContent = product ? `${product.name} (${product.sku})` : String(sku);
           chip.appendChild(label);
@@ -415,7 +425,9 @@
           removeBtn.style.lineHeight = "1";
           removeBtn.addEventListener("click", () => {
             selectedSkus.delete(sku);
+            selectedProducts = selectedProducts.filter(product => String(product.sku) !== String(sku));
             this.blocks[index].slider_product_skus = Array.from(selectedSkus);
+            this.blocks[index].selected_products = selectedProducts.slice();
             this.syncHiddenField();
             renderSelected();
           });
@@ -459,8 +471,12 @@
             if (!currentProducts.find(p => p.sku === item.sku)) {
               currentProducts.push(item);
             }
+            if (!selectedProducts.find(p => String(p.sku) === String(item.sku))) {
+              selectedProducts.push(item);
+            }
 
             this.blocks[index].slider_product_skus = Array.from(selectedSkus);
+            this.blocks[index].selected_products = selectedProducts.slice();
             this.syncHiddenField();
             renderSelected();
     
@@ -484,7 +500,11 @@
         // Если категория выбрана — фильтруем локально
         if (categorySelect.value) {
           const filtered = currentProducts
-            .filter(p => String(p.name || "").toLowerCase().includes(q) || String(p.sku || "").toLowerCase().includes(q))
+            .filter(p => {
+              const haystack = [p.name, p.sku, p.small_desc_name]
+                .map(value => String(value || "").toLowerCase());
+              return haystack.some(value => value.includes(q));
+            })
             .slice(0, 50);
           renderList(filtered);
           openList();
@@ -508,9 +528,13 @@
       // события поиска
       searchInput.addEventListener("input", applyFilter);
       searchInput.addEventListener("focus", applyFilter);
-      document.addEventListener("click", (e) => {
+      if (this._documentClickHandler) {
+        document.removeEventListener("click", this._documentClickHandler);
+      }
+      this._documentClickHandler = (e) => {
         if (!container.contains(e.target)) closeList();
-      });
+      };
+      document.addEventListener("click", this._documentClickHandler);
     
       // подгружаем товары при выборе категории
       const loadCategory = async (categoryId) => {
@@ -519,7 +543,9 @@
     
         // при смене категории логично сбросить выбранные товары
         selectedSkus.clear();
+        selectedProducts = [];
         this.blocks[index].slider_product_skus = [];
+        this.blocks[index].selected_products = [];
         this.syncHiddenField();
     
         currentProducts = [];
@@ -546,6 +572,10 @@
           // важно: НЕ сбрасываем выбранное при первом рендере
           const products = await this.fetchProductsByCategory(initialCategory);
           currentProducts = Array.isArray(products) ? products : [];
+          selectedProducts = selectedProducts.concat(
+            currentProducts.filter(product => selectedSkus.has(String(product.sku)))
+          ).filter((product, idx, arr) => arr.findIndex(other => String(other.sku) === String(product.sku)) === idx);
+          this.blocks[index].selected_products = selectedProducts.slice();
           renderSelected();
         } else {
           renderSelected();
@@ -1092,14 +1122,13 @@
         content: block.content,
         button_text: block.button_text,
         button_category_id: block.button_category_id || null,
-    
-        slider_enabled: block.slider_enabled,
-        button_enabled: block.button_enabled,
-    
-        // NEW:
+        slider_enabled: !!block.slider_enabled,
+        button_enabled: !!block.button_enabled,
+        products_grid_enabled: !!block.products_grid_enabled,
+        categories_grid_enabled: !!block.categories_grid_enabled,
         slider_category_id: block.slider_category_id || null,
         slider_product_skus: Array.isArray(block.slider_product_skus) ? block.slider_product_skus : [],
-    
+        grid_category_ids: Array.isArray(block.grid_category_ids) ? block.grid_category_ids : [],
         images: block.images.map(image => ({
           slot: image.slot,
           signed_id: image.signed_id,
@@ -1107,7 +1136,21 @@
         })),
         position: index
       }));
-    }    
+    }
+
+    destroy() {
+      if (this._submitHandler && this._boundForm) {
+        this._boundForm.removeEventListener("submit", this._submitHandler);
+      }
+      if (this._documentClickHandler) {
+        document.removeEventListener("click", this._documentClickHandler);
+      }
+      if (window.tinymce && this.blockList) {
+        this.blockList.querySelectorAll('.content-article-block-content').forEach(el => {
+          tinymce.remove(`#${el.id}`);
+        });
+      }
+    }
 
     syncHiddenField() {
       if (!this.hiddenField) return;
@@ -1117,15 +1160,18 @@
     attachSubmitSync() {
       const form = this.container.closest("form");
       if (!form) return;
-    
-      // привязываем один раз на форму
-      if (form.dataset.blocksSyncBound === "1") return;
-      form.dataset.blocksSyncBound = "1";
-    
-      form.addEventListener("submit", () => {
+
+      if (this._submitHandler && this._boundForm) {
+        this._boundForm.removeEventListener("submit", this._submitHandler);
+      }
+
+      this._boundForm = form;
+      this._submitHandler = () => {
         this.pullSignedIdsFromForm();
         this.syncHiddenField();
-      });
+      };
+
+      form.addEventListener("submit", this._submitHandler);
     }
 
     blobRedirectUrl(image) {
