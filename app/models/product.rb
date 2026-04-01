@@ -25,7 +25,10 @@ class Product < ApplicationRecord
   scope :popular, -> { where(is_popular: true) }
   scope :recommended, -> { where(is_recommended: true) }
   scope :with_category, -> { where.not(category_id: nil) }
-  scope :by_rating, -> { order(rating_weighted: :desc, rating_count: :desc) }
+
+  scope :by_rating, -> { order(rating_weighted: :desc, rating_count: :desc, id: :asc) }
+  scope :cheapest_first,  -> { order(Arel.sql('products.price ASC NULLS LAST, products.id ASC')) }
+  scope :expensive_first, -> { order(Arel.sql('products.price DESC NULLS LAST, products.id DESC')) }
 
   # Сериализация массивов
   serialize :variants, coder: JSON

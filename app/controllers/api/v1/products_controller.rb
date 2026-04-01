@@ -6,9 +6,9 @@ module Api
       
       def index
         products = Product.includes(:category, :seo_meta, :category_products)
-        products = products.by_rating if params[:sort] == 'rating'
+        products = apply_sort(products, params[:sort])
         products = products.page(params[:page]).per(params[:per_page] || 50)
-        
+      
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
         render json: ProductTeaserSerializer.new(products, {
           params: serialization_params.merge(
@@ -120,28 +120,40 @@ module Api
 
       private
 
-  def serialization_params
-    rates = {
-      eur: ExchangeRate.fetch_or_create('EUR')&.rate_per_unit,
-      pln: ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
-    }
-    
-    # Pre-fetch global calculator settings to avoid N+1 in serializers
-    calculator_settings = {
-      'show_delivery_block_global' => CalculatorSetting.get('show_delivery_block_global'),
-      'show_reviews_block_global' => CalculatorSetting.get('show_reviews_block_global'),
-      'show_tips_block_global' => CalculatorSetting.get('show_tips_block_global'),
-      'default_delivery_days' => CalculatorSetting.get('default_delivery_days'),
-      'exchange_rate_buffer' => CalculatorSetting.get('exchange_rate_buffer')
-    }
+      def apply_sort(scope, sort)
+        case sort
+        when 'rating'
+          scope.by_rating
+        when 'cheapest'
+          scope.cheapest_first
+        when 'expensive'
+          scope.expensive_first
+        else
+          scope
+        end
+      end
 
-    {
-      favorite_skus: current_favorite_skus,
-      active_promos: PromoCode.active_now.to_a,
-      rates: rates,
-      calculator_settings: calculator_settings
-    }
-  end
+      def serialization_params
+        rates = {
+          eur: ExchangeRate.fetch_or_create('EUR')&.rate_per_unit,
+          pln: ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
+        }
+        
+        calculator_settings = {
+          'show_delivery_block_global' => CalculatorSetting.get('show_delivery_block_global'),
+          'show_reviews_block_global' => CalculatorSetting.get('show_reviews_block_global'),
+          'show_tips_block_global' => CalculatorSetting.get('show_tips_block_global'),
+          'default_delivery_days' => CalculatorSetting.get('default_delivery_days'),
+          'exchange_rate_buffer' => CalculatorSetting.get('exchange_rate_buffer')
+        }
+
+        {
+          favorite_skus: current_favorite_skus,
+          active_promos: PromoCode.active_now.to_a,
+          rates: rates,
+          calculator_settings: calculator_settings
+        }
+      end
     end
   end
 end

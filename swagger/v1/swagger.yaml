@@ -83,6 +83,16 @@ paths:
           in: query
           schema:
             type: boolean
+        - name: sort
+          in: query
+          description: |
+            Сортировка товаров:
+            - `rating` — по рейтингу
+            - `cheapest` — сначала более дешёвые
+            - `expensive` — сначала более дорогие
+          schema:
+            type: string
+            enum: [rating, cheapest, expensive]
         - name: favorite_token
           in: query
           description: Токен гостевого списка избранного
@@ -451,7 +461,12 @@ paths:
             type: number
         - name: sort
           in: query
-          description: Сортировка (popular, newest, cheapest, expensive)
+          description: |
+            Сортировка товаров:
+            - `popular` — популярные (по внутренней логике)
+            - `newest` — новинки
+            - `cheapest` — сначала более дешёвые
+            - `expensive` — сначала более дорогие
           schema:
             type: string
             enum: [popular, newest, cheapest, expensive]
