@@ -126,58 +126,66 @@ class Category < ApplicationRecord
     ikea_id.to_s.match?(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
   end
 
+  def root_level?
+    current_parent_ikea_id.blank?
+  end
+
   class << self
-    def build_tree(categories)
+    def build_tree(categories, sort_roots_by_position: false)
       categories = Array(categories)
-  
+    
       grouped = categories.group_by { |c| c.ikea_id.to_s }
       categories = grouped.values.map(&:last)
-  
+    
       by_ikea_id = categories.index_by { |category| category.ikea_id.to_s }
       children_map = Hash.new { |h, k| h[k] = [] }
       roots = []
-  
+    
       categories.each do |category|
         direct_parent_id = direct_parent_id_for(category)
-  
+    
         node = {
           category: category,
           children: []
         }
-  
+    
         if direct_parent_id.present? && by_ikea_id.key?(direct_parent_id) && direct_parent_id != category.ikea_id.to_s
           children_map[direct_parent_id] << node
         else
           roots << node
         end
       end
-  
+    
       attach_children = lambda do |nodes, depth = 1, visited_ids = []|
         nodes.each do |node|
           ikea_id = node[:category].ikea_id.to_s
-  
+    
           if visited_ids.include?(ikea_id)
             Rails.logger.warn("Circular dependency detected for category #{ikea_id}")
             node[:children] = []
             next
           end
-  
+    
           children = children_map[ikea_id]
-  
-          # сортируем только 2 уровень
-          children = sort_tree_nodes(children) if depth == 1
-  
+    
+          # 2 уровень и глубже — по алфавиту
+          children = sort_tree_nodes(children)
+    
           node[:children] = children
-  
+    
           if node[:children].any?
             attach_children.call(node[:children], depth + 1, visited_ids + [ikea_id])
           end
         end
       end
-  
-      # сортируем только 1 уровень
-      roots = sort_tree_nodes(roots)
-  
+    
+      roots =
+        if sort_roots_by_position
+          sort_root_nodes(roots)
+        else
+          sort_tree_nodes(roots)
+        end
+    
       attach_children.call(roots)
       roots
     end
@@ -199,6 +207,18 @@ class Category < ApplicationRecord
   
       ids.last == category.ikea_id.to_s ? ids[-2] : ids.last
     end
+    
+    def sort_root_nodes(nodes)
+      nodes.sort_by do |node|
+        category = node[:category]
+        [
+          category.root_position.to_i,
+          (category.translated_name.presence || category.name).to_s.mb_chars.downcase.to_s
+        ]
+      end
+    end
+
+    private :sort_root_nodes
   
     private
   

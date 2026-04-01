@@ -68,8 +68,10 @@ module Api
       def search_scope(query)
         return Product.none if query.blank?
         
-        # Аналогично prioritized_products, но без лимита и разделения на exact/fuzzy для общего охвата
-        Product.where("name ILIKE :term OR name_ru ILIKE :term OR sku ILIKE :term", term: "%#{query}%")
+        Product.where(
+          "name ILIKE :term OR name_ru ILIKE :term OR small_desc_name ILIKE :term OR sku ILIKE :term",
+          term: "%#{query}%"
+        )
       end
 
       def get_product_categories(products)
@@ -81,12 +83,10 @@ module Api
       def aggregate_filters_for(products_scope, categories)
         return [] if products_scope.blank? || categories.blank?
 
-        # Получаем все значения фильтров для этих продуктов с их количеством используя подзапрос
         counts = ProductFilterValue.where(product_id: products_scope.select(:id))
                                    .group(:parameter, :value_id)
                                    .count
         
-        # Группируем по параметру для удобства
         param_to_values = {}
         counts.each do |(param, value_id), count|
           param_to_values[param] ||= {}
@@ -103,7 +103,6 @@ module Api
             param = filter["parameter"]
             next unless param_to_values.key?(param)
             
-            # Оставляем только те значения, которые реально присутствуют в продуктах
             matching_values = Array(filter["values"]).filter_map do |v|
               value_id = v["id"].to_s
               count = param_to_values[param][value_id]
@@ -115,7 +114,6 @@ module Api
             next if matching_values.empty?
             
             if aggregated[param]
-              # Объединяем значения, если такой параметр уже есть
               existing_values = aggregated[param]["values"]
               existing_ids = existing_values.map { |v| v["id"].to_s }.to_set
               
@@ -141,12 +139,15 @@ module Api
         return [] if query.blank?
 
         pattern = "#{query}%"
-        products = Product.where("name_ru ILIKE :pattern", pattern: pattern)
-                          .limit(30)
+        products = Product.where(
+                            "name_ru ILIKE :pattern OR small_desc_name ILIKE :pattern",
+                            pattern: pattern
+                          ).limit(30)
         categories = Category.where("translated_name ILIKE :pattern", pattern: pattern)
                              .limit(20)
 
         names = products.map(&:name_ru)
+        names += products.map(&:small_desc_name)
         names += categories.map(&:translated_name)
 
         names.compact.map(&:strip).reject(&:blank?).uniq.take(5)
@@ -163,10 +164,17 @@ module Api
       def prioritized_products(query)
         return Product.none if query.blank?
 
-        exact_matches = Product.includes(:category, :categories, :seo_meta).where("LOWER(sku) = ?", query.downcase).limit(1).to_a
+        exact_matches = Product.includes(:category, :categories, :seo_meta)
+                               .where("LOWER(sku) = ?", query.downcase)
+                               .limit(1)
+                               .to_a
         exact_ids = exact_matches.map(&:id)
 
-        fuzzies = Product.includes(:category, :categories, :seo_meta).where("name ILIKE :term OR name_ru ILIKE :term", term: "%#{query}%")
+        fuzzies = Product.includes(:category, :categories, :seo_meta)
+                         .where(
+                           "name ILIKE :term OR name_ru ILIKE :term OR small_desc_name ILIKE :term",
+                           term: "%#{query}%"
+                         )
                          .where.not(id: exact_ids)
                          .limit([10 - exact_matches.size, 0].max)
 

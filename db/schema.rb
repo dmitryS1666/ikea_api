@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_29_130000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_01_063905) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -113,6 +113,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_29_130000) do
     t.boolean "is_custom", default: false
     t.jsonb "available_filters_ru"
     t.string "cached_slug"
+    t.integer "root_position"
     t.index "to_tsvector('simple'::regconfig, COALESCE(parent_ids, ''::text))", name: "index_categories_on_parent_ids_text", where: "((parent_ids IS NOT NULL) AND (parent_ids <> '[]'::text) AND (parent_ids <> ''::text))", using: :gin
     t.index ["cached_slug"], name: "index_categories_on_cached_slug"
     t.index ["default_sort"], name: "index_categories_on_default_sort"

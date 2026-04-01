@@ -52,13 +52,12 @@ Trestle.resource(:categories, model: Category) do
           when "active"    then Category.active
           else Category.all
           end
-
+      
         categories = base_query.with_attached_icon
                                .with_attached_pictogram
-                               .order(:name)
                                .to_a
-
-        Category.build_tree(categories)
+      
+        Category.build_tree(categories, sort_roots_by_position: true)
       end
 
       @filters_reindex_task = ParserTask.by_type("category_filters").recent.first
@@ -859,6 +858,9 @@ Trestle.resource(:categories, model: Category) do
         check_box :is_popular, label: "Популярная категория"
         check_box :is_top, label: "ТОП-категория"
         number_field :top_position, label: "Позиция в ТОП"
+        number_field :root_position,
+               label: "Позиция верхнего уровня",
+               help: "Используется только для категорий 1-го уровня. Чем меньше число, тем выше категория."
         check_box :is_custom, label: "Кастомная (Спецпредложение)"
       end
 
@@ -877,6 +879,7 @@ Trestle.resource(:categories, model: Category) do
       :is_popular,
       :is_top,
       :top_position,
+      :root_position,
       :is_custom,
       :default_sort,
       :header_menu,
