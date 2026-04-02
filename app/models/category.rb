@@ -58,6 +58,56 @@ class Category < ApplicationRecord
     available_filters || []
   end
 
+  def display_filters_for_api
+    filters = normalize_filters(display_filters)
+  
+    filters.filter_map do |filter|
+      param = filter["parameter"].to_s
+      next if param == "f-availability"
+  
+      prepared_filter = filter.deep_dup
+  
+      if param == "f-price-buckets"
+        price_range = current_category_price_range_byn
+        next if price_range.blank?
+  
+        prepared_filter["values"] = [{
+          "id" => "PRICE_RANGE",
+          "name" => "#{format_byn_amount(price_range[:min])} - #{format_byn_amount(price_range[:max])} BYN",
+          "min" => price_range[:min],
+          "max" => price_range[:max]
+        }]
+      end
+  
+      prepared_filter
+    end
+  end
+
+  def current_category_price_range_byn
+    products_scope = products_through_categories.where.not(price: nil)
+    return nil unless products_scope.exists?
+  
+    eur_rate = ExchangeRate.fetch_or_create('EUR')&.rate_per_unit
+    return nil if eur_rate.blank?
+  
+    buffer = CalculatorSetting.get('exchange_rate_buffer') || PriceCalculationService.exchange_rate_buffer
+  
+    prices_byn = products_scope.pluck(:price).filter_map do |price|
+      eur_price = price.to_f
+      next if eur_price <= 0
+  
+      markup_k = PriceCalculationService.compute_k(eur_price)
+      (eur_price * (1 + markup_k) * eur_rate * buffer).round(2)
+    end
+  
+    return nil if prices_byn.empty?
+  
+    {
+      min: prices_byn.min,
+      max: prices_byn.max
+    }
+  end
+
   # фильтры текущей категории + всех прямых дочерних
   def display_filters_with_children
     all_filters = normalize_filters(display_filters)
@@ -66,7 +116,14 @@ class Category < ApplicationRecord
       all_filters.concat(normalize_filters(child.display_filters))
     end
   
-    all_filters.uniq { |filter| filter["key"] || filter[:key] }
+    all_filters.uniq do |filter|
+      next filter unless filter.is_a?(Hash)
+  
+      filter["parameter"].presence ||
+        filter[:parameter].presence ||
+        filter["name"].presence ||
+        filter[:name].presence
+    end
   end
 
   def current_parent_ikea_id
@@ -231,6 +288,37 @@ class Category < ApplicationRecord
   end
 
   private
+
+  def price_bucket_name_in_byn(value_id, eur_rate)
+    return nil if eur_rate.blank?
+  
+    match = value_id.to_s.match(/\APRICE_(\d+)_(\d+)\z/)
+    return nil unless match
+  
+    from_cents = match[1].to_i
+    to_cents   = match[2].to_i
+  
+    from_eur = from_cents / 100.0
+  
+    if huge_upper_bound?(to_cents)
+      from_byn = from_eur * eur_rate
+      "#{format_byn_amount(from_byn)}+ BYN"
+    else
+      to_eur = (to_cents - 1) / 100.0
+      from_byn = from_eur * eur_rate
+      to_byn   = to_eur * eur_rate
+  
+      "#{format_byn_amount(from_byn)} - #{format_byn_amount(to_byn)} BYN"
+    end
+  end
+
+  def huge_upper_bound?(value)
+    value >= 9_223_372_036_854_775_807
+  end
+  
+  def format_byn_amount(amount)
+    format('%.2f', amount.round(2)).tr('.', ',')
+  end
 
   def normalize_filters(filters)
     Array(filters).compact.map do |filter|

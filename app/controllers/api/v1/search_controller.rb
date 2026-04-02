@@ -2,26 +2,30 @@ module Api
   module V1
     class SearchController < ApplicationController
       include FavoriteHelper
-      
+
       def suggest
         query = params[:q].to_s.strip
+        page = normalized_page
+        per_page = normalized_per_page
+
         suggestions = suggestions_for(query)
         popular_queries = PopularSearchQuery.active.matching(query).ordered.limit(5)
-        
-        # 1. Находим продукты
-        display_products = prioritized_products(query)
-        # Получаем ID всех продуктов, подходящих под поиск, для корректного подсчета фильтров
-        all_matching_products_scope = search_scope(query)
 
-        # 2. Категории: те, что совпали по имени + те, где есть найденные продукты
+        all_matching_products_scope = search_scope(query)
+        paginated_products_scope = paginated_search_scope(all_matching_products_scope, query)
+
+        display_products = paginated_products_scope
+                             .includes(:category, :categories, :seo_meta)
+                             .page(page)
+                             .per(per_page)
+
         matched_categories = matching_categories(query)
         product_categories = get_product_categories(display_products)
         combined_categories = (matched_categories.to_a + product_categories.to_a).uniq(&:ikea_id)
 
-        # 3. Фильтры с подсчетом (на основе всех подходящих продуктов)
         available_filters = aggregate_filters_for(all_matching_products_scope, combined_categories)
 
-        log_search(query, display_products.size) if query.present?
+        log_search(query, all_matching_products_scope.count) if query.present?
 
         rates = {
           eur: ExchangeRate.fetch_or_create('EUR')&.rate_per_unit,
@@ -37,40 +41,140 @@ module Api
         }
 
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
+
         render json: {
           suggestions: suggestions,
-          categories: combined_categories.map do |category|
-            {
-              id: category.ikea_id,
-              slug: category.slug,
-              translated_name: category.translated_name,
-              local_image_path: category.local_image_path
-            }
-          end,
-          products: ProductTeaserSerializer.new(display_products, { 
-            params: { 
+          categories: serialized_category_tree(combined_categories),
+          products: ProductTeaserSerializer.new(display_products, {
+            params: {
               favorite_skus: current_favorite_skus,
               active_promos: promos,
               promo_applicability: get_promo_applicability(display_products, promos),
               rates: rates,
               calculator_settings: calculator_settings
-            } 
+            }
           }).serializable_hash,
           available_filters: available_filters,
           popular_queries: popular_queries.map do |entry|
             { query: entry.query, weight: entry.weight }
-          end
+          end,
+          meta: {
+            total: display_products.total_count,
+            page: page,
+            per_page: per_page,
+            total_pages: display_products.total_pages
+          }
         }
       end
 
       private
 
+      def normalized_sku_query(query)
+        query.to_s.gsub(/[^[:alnum:]]/, '')
+      end
+
+      def serialized_category_tree(categories)
+        categories = Array(categories).compact
+        return [] if categories.blank?
+      
+        categories_for_tree = expand_categories_with_ancestors(categories)
+        tree_nodes = Category.build_tree(categories_for_tree, sort_roots_by_position: true)
+      
+        serialize_category_tree_nodes(tree_nodes)
+      end
+      
+      def expand_categories_with_ancestors(categories)
+        result = {}
+        queue = categories.compact.uniq { |category| category.ikea_id.to_s }
+      
+        queue.each do |category|
+          result[category.ikea_id.to_s] = category
+        end
+      
+        queue.each do |category|
+          Category.normalize_parent_ids(category.parent_ids).each do |parent_id|
+            next if parent_id.to_s == category.ikea_id.to_s
+            next if result.key?(parent_id.to_s)
+      
+            parent = Category.find_by(ikea_id: parent_id)
+            result[parent.ikea_id.to_s] = parent if parent
+          end
+        end
+      
+        result.values
+      end
+      
+      def serialize_category_tree_nodes(nodes)
+        nodes.map do |node|
+          category = node[:category]
+      
+          {
+            id: category.ikea_id,
+            slug: category.slug,
+            translated_name: category.translated_name,
+            local_image_path: category.local_image_path,
+            children: serialize_category_tree_nodes(node[:children] || [])
+          }
+        end
+      end
+
+      def normalized_page
+        page = params[:page].to_i
+        page > 0 ? page : 1
+      end
+
+      def normalized_per_page
+        per_page = params[:per_page].to_i
+        per_page = 50 if per_page <= 0
+        [per_page, 100].min
+      end
+
       def search_scope(query)
         return Product.none if query.blank?
-        
-        Product.where(
-          "name ILIKE :term OR name_ru ILIKE :term OR small_desc_name ILIKE :term OR sku ILIKE :term",
-          term: "%#{query}%"
+      
+        term = "%#{query}%"
+        sku_query = normalized_sku_query(query)
+      
+        if sku_query.present?
+          Product.where(
+            "name ILIKE :term OR name_ru ILIKE :term OR small_desc_name ILIKE :term OR sku ILIKE :term OR regexp_replace(sku, '[^A-Za-z0-9]', '', 'g') ILIKE :sku_term",
+            term: term,
+            sku_term: "%#{sku_query}%"
+          )
+        else
+          Product.where(
+            "name ILIKE :term OR name_ru ILIKE :term OR small_desc_name ILIKE :term OR sku ILIKE :term",
+            term: term
+          )
+        end
+      end
+
+      def paginated_search_scope(scope, query)
+        return Product.none if query.blank?
+      
+        case params[:sort].to_s
+        when 'cheapest'
+          scope.order('products.price ASC')
+        when 'expensive'
+          scope.order('products.price DESC')
+        when 'newest'
+          scope.order('products.created_at DESC')
+        when 'popular'
+          scope.order(Arel.sql('products.popularity_score DESC, products.rating_weighted DESC, products.views_count DESC'))
+        else
+          apply_default_search_order(scope, query)
+        end
+      end
+
+      def apply_default_search_order(scope, query)
+        normalized_query = normalized_sku_query(query).downcase
+      
+        exact_sku_sql = ApplicationRecord.sanitize_sql_array(
+          ["CASE WHEN LOWER(regexp_replace(products.sku, '[^A-Za-z0-9]', '', 'g')) = ? THEN 0 ELSE 1 END", normalized_query]
+        )
+      
+        scope.order(
+          Arel.sql("#{exact_sku_sql}, products.id DESC")
         )
       end
 
@@ -86,7 +190,7 @@ module Api
         counts = ProductFilterValue.where(product_id: products_scope.select(:id))
                                    .group(:parameter, :value_id)
                                    .count
-        
+
         param_to_values = {}
         counts.each do |(param, value_id), count|
           param_to_values[param] ||= {}
@@ -96,27 +200,32 @@ module Api
         aggregated = {}
 
         categories.each do |category|
-          filters_to_use = category.respond_to?(:display_filters) ? category.display_filters : (category.available_filters || [])
+          filters_to_use =
+            if category.respond_to?(:display_filters_for_api)
+              category.display_filters_for_api
+            else
+              category.available_filters || []
+            end
           next if filters_to_use.blank?
-          
+
           filters_to_use.each do |filter|
             param = filter["parameter"]
             next unless param_to_values.key?(param)
-            
+
             matching_values = Array(filter["values"]).filter_map do |v|
               value_id = v["id"].to_s
               count = param_to_values[param][value_id]
-              next if count.nil? || count == 0
-              
+              next if count.nil? || count.zero?
+
               v.merge("count" => count)
             end
-            
+
             next if matching_values.empty?
-            
+
             if aggregated[param]
               existing_values = aggregated[param]["values"]
               existing_ids = existing_values.map { |v| v["id"].to_s }.to_set
-              
+
               matching_values.each do |v|
                 unless existing_ids.include?(v["id"].to_s)
                   existing_values << v
@@ -140,9 +249,10 @@ module Api
 
         pattern = "#{query}%"
         products = Product.where(
-                            "name_ru ILIKE :pattern OR small_desc_name ILIKE :pattern",
-                            pattern: pattern
-                          ).limit(30)
+          "name_ru ILIKE :pattern OR small_desc_name ILIKE :pattern",
+          pattern: pattern
+        ).limit(30)
+
         categories = Category.where("translated_name ILIKE :pattern", pattern: pattern)
                              .limit(20)
 
@@ -159,26 +269,6 @@ module Api
         Category.active
                 .where("name ILIKE :term OR translated_name ILIKE :term", term: "%#{query}%")
                 .limit(5)
-      end
-
-      def prioritized_products(query)
-        return Product.none if query.blank?
-
-        exact_matches = Product.includes(:category, :categories, :seo_meta)
-                               .where("LOWER(sku) = ?", query.downcase)
-                               .limit(1)
-                               .to_a
-        exact_ids = exact_matches.map(&:id)
-
-        fuzzies = Product.includes(:category, :categories, :seo_meta)
-                         .where(
-                           "name ILIKE :term OR name_ru ILIKE :term OR small_desc_name ILIKE :term",
-                           term: "%#{query}%"
-                         )
-                         .where.not(id: exact_ids)
-                         .limit([10 - exact_matches.size, 0].max)
-
-        (exact_matches + fuzzies.to_a).take(10)
       end
 
       def log_search(query, results_count)

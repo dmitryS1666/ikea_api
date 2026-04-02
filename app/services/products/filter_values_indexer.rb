@@ -360,16 +360,25 @@ module Products
     end
 
     def attribute_text_pool(product)
-      attributes = (product.full_attributes || {}).merge(product.full_attributes_ru || {})
-      pool = [product.name.to_s]
-
-      attributes.each do |key, value|
-        pool << key
-        pool.concat(normalize_value(value))
+      pool = [
+        product.name,
+        product.name_ru,
+        product.small_desc_name
+      ].compact.map(&:to_s)
+    
+      (product.full_attributes || {}).each do |k, v|
+        pool << k.to_s
+        Array(v).each { |vv| pool << vv.to_s }
       end
-
-      pool.concat(normalize_value(product.materials)) if product.materials.present?
-      pool.concat(normalize_value(product.features)) if product.features.present?
+    
+      (product.full_attributes_ru || {}).each do |k, v|
+        pool << k.to_s
+        Array(v).each { |vv| pool << vv.to_s }
+      end
+    
+      Array(product.materials).each { |v| pool << v.to_s }
+      Array(product.features).each { |v| pool << v.to_s }
+    
       pool
     end
 

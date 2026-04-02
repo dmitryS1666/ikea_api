@@ -77,8 +77,7 @@ module Api
             page: (params[:page] || 1).to_i,
             per_page: (params[:per_page] || 50).to_i,
             total_pages: products.total_pages,
-            default_sort: category.default_sort,
-            available_filters: category.available_filters || []
+            default_sort: category.default_sort
           }
         })
       end
