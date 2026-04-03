@@ -37,6 +37,8 @@ module Products
       width: ["Szerokość", "Ширина"],
       height: ["Wysokość", "Высота"],
       depth: ["Głębokość", "Глубина"],
+      length: ["Długość", "Dlugosc", "Длина"],
+      diameter: ["Średnica", "Srednica", "Диаметр"],
       volume: ["Pojemność", "Объем", "Объём"]
     }.freeze
 
@@ -130,6 +132,9 @@ module Products
         parameter = filter["parameter"].to_s
         values = Array(filter["values"])
 
+        next if parameter.blank?
+        next if parameter == "f-availability"
+
         if BOOLEAN_PARAMS.include?(parameter)
           results[parameter] << "true" if boolean_filter_match?(parameter, product, promo_skus)
           next
@@ -199,11 +204,28 @@ module Products
     end
 
     def match_series(results, parameter, values, product)
-      series_values = attribute_values_for_keys(product, PARAMETER_KEYS["f-series"])
-      series_values << product.collection if product.collection.present?
-
-      values.each do |value|
-        results[parameter] << value["id"] if text_values_match?(series_values, value["name"])
+      grouped_values = Array(values)
+        .map { |value| value.is_a?(Hash) ? value.deep_stringify_keys : nil }
+        .compact
+        .group_by { |value| normalize_series_name(value["name"].presence || value["id"]) }
+        .reject { |normalized_name, _| normalized_name.blank? }
+    
+      matched_series_names = extract_series_names_from_product(product, grouped_values.keys)
+      return if matched_series_names.blank?
+    
+      grouped_values.each do |normalized_name, grouped_filter_values|
+        next unless matched_series_names.include?(normalized_name)
+    
+        # если внутри категории одна и та же серия встречается в нескольких filter values
+        # (например BILLY = шкафы / двери / фурнитура), не индексируем ее автоматически,
+        # потому что по name/name_ru товара нельзя надежно понять нужный value_id
+        next if grouped_filter_values.size > 1
+    
+        value = grouped_filter_values.first
+        value_id = value["id"].to_s
+        next if value_id.blank?
+    
+        results[parameter] << value_id
       end
     end
 
@@ -265,33 +287,47 @@ module Products
     end
 
     def extract_measurements(product)
-      # Объединяем оба хеша атрибутов, чтобы искать по всем возможным ключам
-      attributes = (product.full_attributes || {}).merge(product.full_attributes_ru || {})
       measurements = {}
-
+    
+      raw_attributes =
+        safe_hash(product.full_attributes)
+          .merge(safe_hash(product.full_attributes_ru))
+          .merge(safe_hash(product.dimensions))
+          .merge(safe_hash(product.dimensions_ru))
+    
+      attributes = flatten_hash(raw_attributes)
+    
       MEASUREMENT_KEYS.each do |type, keys|
+        found = false
+    
         keys.each do |key|
-          value = attributes[key]
-          number = extract_number(value)
-          next if number.nil?
-
-          measurements[type] = number
-          break # Останавливаемся на первом найденном совпадении для этого типа измерения
+          attributes.each do |attr_key, attr_value|
+            next unless normalize_text(attr_key).include?(normalize_text(key))
+    
+            number = extract_number(attr_value)
+            next if number.nil?
+    
+            measurements[type] = number
+            found = true
+            break
+          end
+    
+          break if found
         end
       end
-
+    
       measurements
     end
 
     def parse_measurement_bucket(value_id)
-      match = value_id.to_s.match(/\A(WIDTH|HEIGHT|DEPTH|VOLUME)_(\d+)_([0-9]+)\z/)
+      match = value_id.to_s.match(/\A(WIDTH|HEIGHT|DEPTH|LENGTH|DIAMETER|VOLUME)_(\d+)_([0-9]+)\z/)
       return nil unless match
-
+    
       type = match[1].downcase.to_sym
       min = match[2].to_f
       max = match[3].to_f
       max = Float::INFINITY if max >= 9_223_372_036_854_775_807
-
+    
       { type: type, min: min, max: max }
     end
 
@@ -433,6 +469,81 @@ module Products
       text = text.tr('ё', 'е')
       
       text.tr("\u00A0", " ").squeeze(" ").strip
+    end
+
+    def flatten_hash(hash, result = {})
+      hash.each do |k, v|
+        if v.is_a?(Hash)
+          flatten_hash(v, result)
+        else
+          result[k] = v
+        end
+      end
+    
+      result
+    end
+    
+    def safe_hash(value)
+      return {} if value.blank?
+      return value if value.is_a?(Hash)
+    
+      if value.is_a?(String)
+        parsed = JSON.parse(value) rescue nil
+        return parsed if parsed.is_a?(Hash)
+      end
+    
+      {}
+    end
+
+    def extract_series_names_from_product(product, available_series_names)
+      texts = [
+        product.name,
+        product.name_ru,
+        (product.respond_to?(:collection) ? product.collection : nil)
+      ].compact.map { |text| text.to_s.upcase }.uniq
+    
+      return [] if texts.empty?
+      return [] if available_series_names.blank?
+    
+      available_series_names.select do |series_name|
+        texts.any? { |text| series_name_in_text?(series_name, text) }
+      end
+    end
+    
+    def series_name_in_text?(series_name, text)
+      return false if series_name.blank? || text.blank?
+    
+      normalized_series = series_name.to_s.upcase.strip
+      return false if normalized_series.blank?
+    
+      text.match?(series_name_regex(normalized_series))
+    end
+    
+    def series_name_regex(series_name)
+      /(^|[^[:alnum:]])#{Regexp.escape(series_name)}([^[:alnum:]]|$)/i
+    end
+    
+    def normalize_series_name(name)
+      return nil if name.blank?
+    
+      text = name.to_s.dup.strip
+      text = text.tr("ё", "е")
+    
+      text = text.gsub(/\A\s*[СC]\s*ЕРИЯ\s+ДЛЯ\s+.*?\s+/i, "")
+      text = text.gsub(/\A\s*[СC]\s*ЕРИЯ\s+/i, "")
+      text = text.gsub(/\A\s*СТЕЛЛАЖИ\s+/i, "")
+      text = text.gsub(/\A\s*КНИЖНЫЕ ШКАФЫ\s+/i, "")
+      text = text.gsub(/\A\s*ДВЕРИ\s+/i, "")
+      text = text.gsub(/\A\s*ФУРНИТУРА И ВНУТРЕННИЕ ОРГАНАЙЗЕРЫ\s+/i, "")
+      text = text.gsub(/\A\s*ОБЕДЕННЫЕ СТУЛЬЯ\s+/i, "")
+      text = text.gsub(/\A\s*ОБЕДЕННЫЕ СТОЛЫ\s+/i, "")
+      text = text.gsub(/\A\s*ОБЕДЕННЫЕ ГАРНИТУРЫ\s+/i, "")
+      text = text.gsub(/\A\s*АКСЕССУАРЫ\s+/i, "")
+      text = text.gsub(/\A\s*ПЕРФОРИРОВАННЫЕ ДОСКИ\s+/i, "")
+      text = text.gsub(/\A\s*ВСТАВКИ И АКСЕССУАРЫ ДЛЯ\s+/i, "")
+    
+      text = text.squeeze(" ").strip.upcase
+      text.presence
     end
   end
 end

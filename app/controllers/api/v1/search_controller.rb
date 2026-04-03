@@ -44,7 +44,7 @@ module Api
 
         render json: {
           suggestions: suggestions,
-          categories: serialized_category_tree(combined_categories),
+          categories: serialized_category_tree(combined_categories, query: query, matched_categories: matched_categories),
           products: ProductTeaserSerializer.new(display_products, {
             params: {
               favorite_skus: current_favorite_skus,
@@ -73,14 +73,51 @@ module Api
         query.to_s.gsub(/[^[:alnum:]]/, '')
       end
 
-      def serialized_category_tree(categories)
+      def serialized_category_tree(categories, query: nil, matched_categories: [])
         categories = Array(categories).compact
         return [] if categories.blank?
       
         categories_for_tree = expand_categories_with_ancestors(categories)
         tree_nodes = Category.build_tree(categories_for_tree, sort_roots_by_position: true)
       
+        if query.present?
+          matched_ids = matched_categories.map { |c| c.ikea_id.to_s }.to_set
+          tree_nodes = sort_nodes_by_relevance(tree_nodes, query, matched_ids)
+        end
+
         serialize_category_tree_nodes(tree_nodes)
+      end
+
+      def sort_nodes_by_relevance(nodes, query, matched_ids)
+        lower_query = query.to_s.downcase
+
+        nodes.sort_by do |node|
+          category = node[:category]
+          name = (category.translated_name.presence || category.name).to_s.downcase
+          
+          # Оценка совпадения текущего узла
+          node_priority = 
+            if name.start_with?(lower_query)
+              0
+            elsif name.include?(lower_query)
+              1
+            else
+              2
+            end
+
+          # Оценка совпадения дочерних узлов
+          child_priority = any_node_matches?(node, matched_ids) ? 0 : 1
+
+          [node_priority, child_priority]
+        end.map do |node|
+          node[:children] = sort_nodes_by_relevance(node[:children], query, matched_ids) if node[:children].any?
+          node
+        end
+      end
+
+      def any_node_matches?(node, matched_ids)
+        return true if matched_ids.include?(node[:category].ikea_id.to_s)
+        node[:children].any? { |child| any_node_matches?(child, matched_ids) }
       end
       
       def expand_categories_with_ancestors(categories)
@@ -247,27 +284,58 @@ module Api
       def suggestions_for(query)
         return [] if query.blank?
 
-        pattern = "#{query}%"
-        products = Product.where(
-          "name_ru ILIKE :pattern OR small_desc_name ILIKE :pattern",
-          pattern: pattern
-        ).limit(30)
+        term = "%#{query}%"
+        # Расширенный список аксессуаров и текстиля, которые нужно понизить в выдаче
+        accessory_keywords = %w[чехол аксессуар ножки подушка каркас подлокотник простыня наволочка пододеяльник матрас подзор наматрасник ящик изголовье днище покрывало плед одеяло]
+        
+        # Находим категории, которые начинаются с запроса, чтобы повысить товары из них
+        top_matching_categories = Category.active.where("translated_name ILIKE ?", "#{query}%").pluck(:ikea_id).map(&:to_s)
 
-        categories = Category.where("translated_name ILIKE :pattern", pattern: pattern)
-                             .limit(20)
+        products = Product.where("name_ru ILIKE :term OR small_desc_name ILIKE :term", term: term)
+                          .limit(100)
 
-        names = products.map(&:name_ru)
-        names += products.map(&:small_desc_name)
-        names += categories.map(&:translated_name)
+        suggestions = products.map do |p|
+          display_name = p.small_desc_name.presence || p.name_ru.presence
+          next if display_name.blank?
 
-        names.compact.map(&:strip).reject(&:blank?).uniq.take(5)
+          # Оцениваем, является ли товар аксессуаром
+          is_accessory = accessory_keywords.any? { |kw| display_name.downcase.include?(kw) }
+          
+          # Базовый приоритет: 0 для прямых товаров, 1 для аксессуаров
+          priority = is_accessory ? 1 : 0
+          
+          # Если товар принадлежит к категории, которая начинается с запроса — значительно повышаем приоритет (-2)
+          priority -= 2 if top_matching_categories.include?(p.category_id.to_s)
+          
+          # Дополнительный приоритет, если название начинается с запроса (-1)
+          priority -= 1 if display_name.downcase.start_with?(query.downcase)
+          # Или содержит запрос как отдельное слово (-1)
+          priority -= 1 if display_name.downcase.include?(" #{query.downcase}")
+
+          { name: display_name.strip, priority: priority }
+        end.compact
+           .uniq { |s| s[:name] }
+           .sort_by { |s| [s[:priority], s[:name]] }
+           .take(5)
+           .map { |s| s[:name] }
+
+        return suggestions
       end
 
       def matching_categories(query)
         return Category.none if query.blank?
 
+        term = "%#{query}%"
+        starts_with_term = "#{query}%"
+        sanitized_pattern = Category.connection.quote(starts_with_term)
+
         Category.active
-                .where("name ILIKE :term OR translated_name ILIKE :term", term: "%#{query}%")
+                .where("name ILIKE :term OR translated_name ILIKE :term", term: term)
+                .order(Arel.sql("CASE 
+                  WHEN translated_name ILIKE #{sanitized_pattern} THEN 0 
+                  WHEN name ILIKE #{sanitized_pattern} THEN 1
+                  ELSE 2 
+                END"))
                 .limit(5)
       end
 

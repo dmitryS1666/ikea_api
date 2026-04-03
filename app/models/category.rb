@@ -63,23 +63,14 @@ class Category < ApplicationRecord
   
     filters.filter_map do |filter|
       param = filter["parameter"].to_s
+      next if param.blank?
       next if param == "f-availability"
   
-      prepared_filter = filter.deep_dup
-  
       if param == "f-price-buckets"
-        price_range = current_category_price_range_byn
-        next if price_range.blank?
-  
-        prepared_filter["values"] = [{
-          "id" => "PRICE_RANGE",
-          "name" => "#{format_byn_amount(price_range[:min])} - #{format_byn_amount(price_range[:max])} BYN",
-          "min" => price_range[:min],
-          "max" => price_range[:max]
-        }]
+        build_price_filter_for_api(filter)
+      else
+        build_regular_filter_for_api(filter)
       end
-  
-      prepared_filter
     end
   end
 
@@ -288,6 +279,50 @@ class Category < ApplicationRecord
   end
 
   private
+
+  def build_regular_filter_for_api(filter)
+    param = filter["parameter"].to_s
+  
+    values = Array(filter["values"]).filter_map do |value|
+      value = value.deep_stringify_keys
+      value_id = value["id"].to_s
+      next if value_id.blank?
+  
+      count = working_filter_value_count(param, value_id)
+      next if count.zero?
+  
+      value.merge("count" => count)
+    end
+  
+    return nil if values.empty?
+  
+    filter.merge("values" => values)
+  end
+  
+  def build_price_filter_for_api(filter)
+    price_range = current_category_price_range_byn
+    return nil if price_range.blank?
+  
+    products_count = products_through_categories.where.not(price: nil).distinct.count
+    return nil if products_count.zero?
+  
+    filter.merge(
+      "values" => [{
+        "id" => "PRICE_RANGE",
+        "name" => "#{format_byn_amount(price_range[:min])} - #{format_byn_amount(price_range[:max])} BYN",
+        "min" => price_range[:min],
+        "max" => price_range[:max],
+        "count" => products_count
+      }]
+    )
+  end
+  
+  def working_filter_value_count(parameter, value_id)
+    product_filter_values
+      .where(parameter: parameter.to_s, value_id: value_id.to_s)
+      .distinct
+      .count(:product_id)
+  end
 
   def price_bucket_name_in_byn(value_id, eur_rate)
     return nil if eur_rate.blank?
