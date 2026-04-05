@@ -42,6 +42,7 @@
                     ['Импорт атрибутов из файла (JSON)', 'extended_attrs_import'],
                     ['Загрузка атрибутов по списку SKU', 'extended_attributes_by_skus'],
                     ['Восполнение ссылок на картинки', 'recover_missing_images'],
+                    ['Восстановление битых картинок (по логу/SKU)', 'recover_broken_product_images'],
                     ['Полный перевод продуктов (Google)', 'translate_all_products']
                   ]),
                   { prompt: 'Выберите тип задачи', class: "form-control", required: true, id: "task_type_select" } %>
@@ -63,6 +64,10 @@
             <div class="form-group d-none" id="extra_data_field">
               <%= label_tag :extra_data, "Список SKU (через пробел или запятую)", class: "form-label" %>
               <%= text_area_tag :extra_data, nil, class: "form-control", rows: 5, placeholder: "Например: 123.456.78, 987.654.32" %>
+              <div class="mt-2">
+                <%= label_tag :sku_file_path, "ИЛИ путь к файлу со списком SKU на сервере", class: "form-label" %>
+                <%= text_field_tag :sku_file_path, nil, class: "form-control", placeholder: "/absolute/path/to/file.txt" %>
+              </div>
             </div>
 
             <div class="form-group d-none" id="extra_file_field">
@@ -111,6 +116,7 @@
                         'fix_translations' => 'Исправление битых переводов',
                         'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
                         'recover_missing_images' => 'Восполнение ссылок на картинки',
+                        'recover_broken_product_images' => 'Восстановление битых картинок',
                         'translate_all_products' => 'Полный перевод продуктов (Google)'
                       }[task.task_type] || task.task_type %>
                       <% if task.status == 'pending' %>
@@ -177,6 +183,7 @@
                       'fix_missing_images' => 'Проверка отсутствующих картинок',
                       'fix_translations' => 'Исправление битых переводов',
                       'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
+                      'recover_broken_product_images' => 'Восстановление битых картинок',
                       'translate_all_products' => 'Полный перевод продуктов (Google)'
                     }[task.task_type] || task.task_type %>
                   </td>
@@ -333,6 +340,7 @@
             'fix_missing_images': 'Проверка отсутствующих картинок',
             'fix_translations': 'Исправление битых переводов',
             'extended_attributes_by_skus': 'Загрузка атрибутов по списку SKU',
+            'recover_broken_product_images': 'Восстановление битых картинок',
             'translate_all_products': 'Полный перевод продуктов (Google)'
           }[task.task_type] || task.task_type;
           
@@ -472,7 +480,7 @@
       extraDataField.classList.add('d-none');
       extraFileField.classList.add('d-none');
 
-      if (task === 'extended_attributes_by_skus') {
+      if (task === 'extended_attributes_by_skus' || task === 'recover_broken_product_images') {
         extraDataField.classList.remove('d-none');
       } else if (task === 'extended_attrs_import') {
         extraFileField.classList.remove('d-none');

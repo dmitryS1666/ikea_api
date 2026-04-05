@@ -194,11 +194,37 @@ class CrmIntegrationService
     items_text = order.order_items.map { |oi| "#{oi.product_sku} x #{oi.quantity}" }.join("\n")
 
     # 2. Создаем сделку (Lead)
+    full_name_parts = order.full_name.to_s.split(' ')
+    first_name = full_name_parts[0] || order.user.username || "—"
+    last_name = full_name_parts[1..-1].join(' ').presence || "—"
+    
+    form_data_text = [
+      "Имя - #{first_name}",
+      "Фамилия - #{last_name}",
+      "Телефон - #{order.phone || order.user.phone}",
+      "Сумма - #{order.total_amount} BYN",
+      "Метод оплаты - #{order.payment_method}",
+      "Метод доставки - #{order.delivery_type}"
+    ]
+
+    if order.address_json.present?
+      form_data_text << "Адрес - #{order.address_json.values.join(', ')}"
+    end
+
     lead_payload = {
       name: "Заказ №#{order.id} от #{order.full_name}",
       price: order.total_amount.to_i,
       status_id: Order.statuses[order.status],
+      pipeline_id: 10700202,
       custom_fields_values: [
+        {
+          field_id: contact_field_id('FORM_NAME'),
+          values: [{ value: 'Оформление заказа' }]
+        },
+        {
+          field_id: contact_field_id('FORM_DATA'),
+          values: [{ value: form_data_text.join("\n") }]
+        },
         {
           field_id: contact_field_id('PAYMENT_METHOD'),
           values: [{ value: order.payment_method }]
@@ -322,7 +348,9 @@ class CrmIntegrationService
       'ORDER_NUMBER' => 578801,
       'ORDER_DATE' => 578799,
       'ITEMS_LIST' => 578789,
-      'ADDRESS' => 578793
+      'ADDRESS' => 578793,
+      'FORM_NAME' => 579201,
+      'FORM_DATA' => 579191
     }
     mapping[code] || code
   end

@@ -31,11 +31,14 @@ module Api
         def handle_leads_webhook(leads_params)
           # Example: update order status when lead status changes in AmoCRM
           leads_params.each do |action, leads|
-            leads.each do |lead_data|
-              crm_id = lead_data[:id]
-              status_id = lead_data[:status_id].to_i
+            # leads can be an Array or a Hash (with indices as keys)
+            leads_list = leads.is_a?(Hash) ? leads.values : leads
+            
+            leads_list.each do |lead_data|
+              crm_id = lead_data[:id] || lead_data['id']
+              status_id = (lead_data[:status_id] || lead_data['status_id']).to_i
               
-              order = Order.find_by(crm_external_id: crm_id)
+              order = Order.find_by(crm_external_id: crm_id.to_s)
               next unless order
               
               # Map AmoCRM status_id to internal order status
@@ -55,6 +58,12 @@ module Api
 
         def handle_contacts_webhook(contacts_params)
           # Handle contact updates if needed
+          contacts_list = contacts_params.is_a?(Hash) ? contacts_params.values : contacts_params
+          
+          contacts_list.each do |action_data|
+            # action_data is like {"update" => [...]} or if we use values it depends on structure
+          end
+          
           Rails.logger.info "[AmoCRM Webhook] Contact update received"
         end
       end

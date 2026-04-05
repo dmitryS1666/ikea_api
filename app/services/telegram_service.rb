@@ -75,6 +75,11 @@ class TelegramService
         'product_images' => 'Картинки продуктов',
         'extended_attributes' => 'Расширенные атрибуты продуктов',
         'currency_rates' => 'Курсы валют',
+        'fix_missing_images' => 'Докачка отсутствующих картинок',
+        'fix_translations' => 'Исправление битых переводов',
+        'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
+        'recover_missing_images' => 'Восполнение ссылок на картинки',
+        'recover_broken_product_images' => 'Восстановление битых картинок',
         'translate_all_products' => 'Полный перевод продуктов (Google)'
       }[task_type.to_s] || task_type.to_s
     end

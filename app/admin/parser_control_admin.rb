@@ -47,6 +47,7 @@ Trestle.resource :parser_control, model: ParserControl do
       reset = params[:reset] == '1'
       extra_data = params[:extra_data]
       extra_file = params[:extra_file]
+      sku_file_path = params[:sku_file_path]
       
       Rails.logger.info "ParserControlAdmin#start_task called with task_type=#{task_type}, limit=#{limit}, reset=#{reset}"
       
@@ -65,8 +66,9 @@ Trestle.resource :parser_control, model: ParserControl do
           payload = {}
           
           # Обработка дополнительных данных (SKUs и т.д.)
-          if task_type == 'extended_attributes_by_skus'
+          if task_type == "extended_attributes_by_skus" || task_type == "recover_broken_product_images"
             payload[:skus] = extra_data
+            payload[:sku_file_path] = sku_file_path if sku_file_path.present?
           end
           
           # Обработка файла для импорта
@@ -343,6 +345,8 @@ Trestle.resource :parser_control, model: ParserControl do
         FetchExtendedAttributesBySkusJob
       when 'recover_missing_images'
         RecoverMissingImagesJob
+      when 'recover_broken_product_images'
+        RecoverBrokenProductImagesJob
       when 'translate_all_products'
         TranslateAllProductsJob
       end
@@ -364,6 +368,7 @@ Trestle.resource :parser_control, model: ParserControl do
         'fix_translations' => 'Исправление битых переводов',
         'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
         'recover_missing_images' => 'Поиск и восполнение ссылок на картинки',
+        'recover_broken_product_images' => 'Восстановление битых картинок из лога или по списку SKU',
         'translate_all_products' => 'Полный перевод продуктов (Google)'
       }[type] || type
     end

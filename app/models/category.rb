@@ -65,6 +65,7 @@ class Category < ApplicationRecord
       param = filter["parameter"].to_s
       next if param.blank?
       next if param == "f-availability"
+      next if param == "f-subcategories"
   
       if param == "f-price-buckets"
         build_price_filter_for_api(filter)
