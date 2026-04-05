@@ -100,52 +100,8 @@ class ProductSerializer
     product.slug
   end
 
-  attribute :variants do |product, params|
-    raw_variants = Array(product.variants)
-  
-    variant_skus = raw_variants.filter_map do |variant|
-      case variant
-      when Hash
-        variant["sku"] || variant[:sku] || variant["value"] || variant[:value]
-      when String, Integer
-        variant.to_s
-      end
-    end.map(&:to_s).uniq
-  
-    variants_map =
-      params&.dig(:variant_products_map) ||
-      Product.where(sku: variant_skus).index_by { |p| p.sku.to_s }
-  
-    raw_variants.map do |variant|
-      sku =
-        case variant
-        when Hash
-          variant["sku"] || variant[:sku] || variant["value"] || variant[:value]
-        when String, Integer
-          variant.to_s
-        end
-  
-      sku = sku.to_s
-      variant_product = variants_map[sku]
-  
-      local_images =
-        begin
-          raw = variant_product&.local_images
-          raw = JSON.parse(raw) if raw.is_a?(String)
-          Array(raw).compact
-        rescue JSON::ParserError
-          []
-        end
-  
-      {
-        sku: sku.presence,
-        name_ru: variant_product&.name_ru,
-        small_desc_name: variant_product&.small_desc_name,
-        price: variant_product&.price&.to_s,
-        images: local_images,
-        quantity: variant_product&.quantity
-      }
-    end.compact
+  attribute :variants do |product|
+    product.normalized_variants_for_api
   end
 
   attribute :local_images do |product|

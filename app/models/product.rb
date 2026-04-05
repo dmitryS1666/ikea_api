@@ -1,4 +1,10 @@
 class Product < ApplicationRecord
+  COLOR_PARAM = "f-colors".freeze
+  SIZE_PARAMS = %w[
+    f-measurement-buckets
+    f-shape
+  ].freeze
+
   # Валидации
   validates :sku, presence: true, uniqueness: true
   validates :name, presence: true
@@ -53,6 +59,163 @@ class Product < ApplicationRecord
   # Callbacks
   before_save :calculate_delivery, if: :weight_changed?
   after_commit :enqueue_filters_reindex, on: [:create, :update]
+
+  def normalized_variant_skus
+    Array(variants).filter_map do |variant|
+      case variant
+      when Hash
+        variant["sku"] || variant[:sku] || variant["value"] || variant[:value] || variant["id"] || variant[:id]
+      when String, Integer
+        variant.to_s
+      end.to_s.presence
+    end.uniq
+  end
+
+  def variant_products
+    skus = ([sku.to_s] + normalized_variant_skus).uniq
+    Product.where(sku: skus)
+  end
+
+  def filter_map
+    product_filter_values.each_with_object(Hash.new { |h, k| h[k] = [] }) do |pfv, memo|
+      next if pfv.parameter.blank? || pfv.value_id.blank?
+      memo[pfv.parameter] << pfv.value_id
+    end.transform_values(&:uniq)
+  end
+
+  def variant_group_type
+    products = variant_products.to_a
+    return nil if products.size < 2
+
+    per_product_filters = products.index_with(&:filter_map)
+    all_parameters = per_product_filters.values.flat_map(&:keys).uniq
+
+    differing_parameters = all_parameters.select do |parameter|
+      products.map { |p| Array(per_product_filters[p][parameter]).sort }.uniq.size > 1
+    end
+
+    return "size" if (differing_parameters & SIZE_PARAMS).any?
+    return "color" if differing_parameters.include?(COLOR_PARAM)
+
+    texts = products.map do |p|
+      [p.small_desc_name, p.dimensions_ru, p.dimensions, p.package_dimensions].compact.join(" | ")
+    end
+
+    return "size" if texts.any? { |t| t.match?(/\b\d{2,4}\s?[xх]\s?\d{2,4}\b/i) || t.match?(/\b\d+[.,]?\d*\s?(см|mm|мм|cm|м)\b/i) }
+
+    nil
+  end
+
+  def variant_label_for(parameter)
+    value_id = Array(filter_map[parameter]).first
+    return nil if value_id.blank?
+
+    resolve_filter_label(parameter, value_id)
+  end
+
+  def resolve_filter_label(parameter, value_id)
+    # 1. если есть category.available_filters — берем человекочитаемое значение оттуда
+    category_filters =
+      if primary_category.respond_to?(:available_filters)
+        Array(primary_category.available_filters)
+      else
+        []
+      end
+
+    filter_block = category_filters.find do |f|
+      key = f["parameter"] || f[:parameter] || f["key"] || f[:key]
+      key.to_s == parameter.to_s
+    end
+
+    if filter_block.present?
+      values = filter_block["values"] || filter_block[:values] || []
+      matched = values.find do |v|
+        vid = v["id"] || v[:id] || v["value_id"] || v[:value_id]
+        vid.to_s == value_id.to_s
+      end
+
+      if matched.present?
+        return matched["label"] || matched[:label] ||
+               matched["name"] || matched[:name] ||
+               matched["value"] || matched[:value]
+      end
+    end
+
+    # 2. fallback: по value_id
+    value_id.to_s
+      .sub(/\A[A-Z_]+_/, "")
+      .tr("_", " ")
+      .downcase
+      .presence
+  end
+
+  def variant_item_payload
+    images =
+      begin
+        raw = local_images
+        raw = JSON.parse(raw) if raw.is_a?(String)
+        Array(raw).compact
+      rescue JSON::ParserError
+        []
+      end
+
+    {
+      sku: sku,
+      name_ru: name_ru,
+      small_desc_name: small_desc_name,
+      slug: slug,
+      price: price&.to_s,
+      quantity: quantity,
+      images: images
+    }
+  end
+
+  def normalized_variants_for_api
+    type = variant_group_type
+    return nil if type.blank?
+
+    products = variant_products.to_a
+    return nil if products.size < 2
+
+    data =
+      case type
+      when "color"
+        products.map do |product|
+          label = product.variant_label_for(COLOR_PARAM)
+          next if label.blank?
+
+          {
+            color: label,
+            item: product.variant_item_payload
+          }
+        end.compact
+      when "size"
+        products.map do |product|
+          label =
+            product.variant_label_for("f-measurement-buckets") ||
+            product.variant_label_for("f-shape") ||
+            product.small_desc_name.presence ||
+            product.dimensions_ru.presence ||
+            product.dimensions.presence
+
+          next if label.blank?
+
+          {
+            size: label,
+            item: product.variant_item_payload
+          }
+        end.compact
+      else
+        []
+      end
+
+    return nil if data.size < 2
+
+    {
+      type: type,
+      data: data
+    }
+  end
 
   private
 
