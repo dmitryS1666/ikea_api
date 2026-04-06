@@ -25,7 +25,7 @@ module Api
             if !UserPassportService.same?(passport_input, current_passport)
               begin
                 UserPassportService.write!(user: current_user, passport_hash: passport_input)
-                current_user.update!(passport_verified_at: nil) # Reset verification when changed
+                current_user.update!(passport_verified_at: nil, a1_verification_id: nil) # Reset verification when changed
               rescue ArgumentError => e
                 return render json: { error: e.message }, status: :unprocessable_entity
               end
@@ -104,7 +104,8 @@ module Api
             :dob, :gender, :address, 
             :telegram_marketing, :email_marketing,
             :first_name, :last_name, :middle_name,
-            :region, :city, :postcode, :street, :house, :building, :apartment
+            :region, :city, :postcode, :street, :house, :building, :apartment,
+            :a1_verification_id
           )
         end
 
@@ -133,7 +134,8 @@ module Api
             gdpr_consent: user.gdpr_consent,
             newsletter_consent: user.newsletter_consent,
             passport_verified: user.passport_verified?,
-            passport_data: user.passport_data
+            passport_data: user.passport_data,
+            a1_verification_id: user.a1_verification_id
           }
         end
       end

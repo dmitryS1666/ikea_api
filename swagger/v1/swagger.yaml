@@ -1092,8 +1092,8 @@ paths:
                   type: integer
                   description: "ID ПВЗ (обязательно для delivery_type=pickup)"
                 a1_verification_id:
-                  type: integer
-                  description: "ID верификации A1 (обязательно при изменении паспорта)"
+                  type: string
+                  description: "ID верификации A1 (обязательно при изменении паспорта, может быть получено из профиля)"
                 address:
                   type: object
                   properties:
@@ -1137,7 +1137,19 @@ paths:
           description: Необходима авторизация
         '422':
           description: Ошибка валидации
-
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  code:
+                    type: string
+                  passport_data:
+                    type: object
+                  a1_verification_id:
+                    type: string
   /api/v1/delivery/types:
     get:
       summary: Получить доступные типы доставки и провайдеров
@@ -2482,6 +2494,7 @@ components:
         passport_verified: { type: boolean }
         passport_data:
           $ref: '#/components/schemas/PassportData'
+        a1_verification_id: { type: string }
 
     UserProfileUpdate:
       type: object
@@ -2509,6 +2522,7 @@ components:
         newsletter_consent: { type: boolean }
         passport:
           $ref: '#/components/schemas/PassportData'
+        a1_verification_id: { type: string }
 
     PassportData:
       type: object
@@ -2974,6 +2988,16 @@ components:
                   type: boolean
                 free_delivery_missing_byn:
                   type: string
+            recommendations:
+              type: array
+              items:
+                $ref: '#/components/schemas/CartProductPayload'
+            passport_data:
+              $ref: '#/components/schemas/PassportData'
+              nullable: true
+            a1_verification_id:
+              type: string
+              nullable: true
 
     CartItem:
       type: object
@@ -3148,6 +3172,16 @@ components:
                   type: boolean
                 free_delivery_missing_byn:
                   type: string
+            recommendations:
+              type: array
+              items:
+                $ref: '#/components/schemas/CartProductPayload'
+            passport_data:
+              $ref: '#/components/schemas/PassportData'
+              nullable: true
+            a1_verification_id:
+              type: string
+              nullable: true
 
     CartItem:
       type: object

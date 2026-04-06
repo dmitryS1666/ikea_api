@@ -1,5 +1,5 @@
 class ParserTask < ApplicationRecord
-  TASK_TYPES = %w[recover_broken_product_images categories products bestsellers popular_categories category_images product_images extended_attributes currency_rates category_filters extended_attrs_import fix_missing_images fix_translations extended_attributes_by_skus recover_missing_images translate_all_products translate_category_filters].freeze
+  TASK_TYPES = %w[recover_broken_product_images categories products bestsellers popular_categories category_images product_images extended_attributes currency_rates category_filters extended_attrs_import fix_missing_images fix_translations extended_attributes_by_skus recover_missing_images translate_all_products translate_category_filters recover_missing_weights].freeze
   STATUSES = %w[pending running completed failed].freeze
 
   validates :task_type, presence: true, inclusion: { in: TASK_TYPES }

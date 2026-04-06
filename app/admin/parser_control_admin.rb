@@ -347,8 +347,8 @@ Trestle.resource :parser_control, model: ParserControl do
         RecoverMissingImagesJob
       when 'recover_broken_product_images'
         RecoverBrokenProductImagesJob
-      when 'translate_all_products'
-        TranslateAllProductsJob
+      when 'recover_missing_weights'
+        RecoverMissingWeightsJob
       end
     end
 
@@ -369,7 +369,7 @@ Trestle.resource :parser_control, model: ParserControl do
         'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
         'recover_missing_images' => 'Поиск и восполнение ссылок на картинки',
         'recover_broken_product_images' => 'Восстановление битых картинок из лога или по списку SKU',
-        'translate_all_products' => 'Полный перевод продуктов (Google)'
+        'recover_missing_weights' => 'Восполнение недостающего веса (2 потока + прокси)'
       }[type] || type
     end
   end

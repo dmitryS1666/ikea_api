@@ -12,7 +12,7 @@ module Api
             order_id: result[:order].id 
           }, status: :created
         else
-          render json: { error: result[:error] }, status: :unprocessable_entity
+          render json: result.except(:success), status: :unprocessable_entity
         end
       end
 

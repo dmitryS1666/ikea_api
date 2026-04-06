@@ -5,12 +5,14 @@ class CartPricingService
 
     # Получаем базовые данные для расчета (курс и буфер)
     pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 0
+    eur_rate = ExchangeRate.fetch_or_create('EUR')&.rate_per_unit || 0
     buffer = PriceCalculationService.exchange_rate_buffer
     pln_rate_with_buffer = pln_rate * buffer
 
     items_total_pln = 0.0
     discount_total_pln = 0.0
     total_weight = 0.0
+    total_items_cost_eur = 0.0
 
     # Pre-calculate promo applicability for all items at once
     promos = promo_valid ? [promo] : []
@@ -42,6 +44,14 @@ class CartPricingService
       unit_price_byn = (unit_price_with_markup_pln * pln_rate_with_buffer).round(2)
       line_total_byn = (line_total_pln * pln_rate_with_buffer).round(2)
 
+      # Расчет пошлины для отдельной позиции (line total) для информации
+      item_cost_eur = (product_pln * pln_rate / eur_rate).round(2) if eur_rate.positive?
+      line_cost_eur = (item_cost_eur || 0) * quantity
+      line_weight = weight * quantity
+      total_items_cost_eur += line_cost_eur
+      
+      line_customs = (line_cost_eur.positive? && line_weight.positive?) ? CustomsDutyService.calculate(line_cost_eur, line_weight, eur_rate) : nil
+
       {
         sku: item.product_sku,
         quantity: quantity,
@@ -52,9 +62,15 @@ class CartPricingService
         line_total_byn: line_total_byn,
         promo_applied: promo_applied,
         promo_code: promo_applied ? promo.code : nil,
-        weight: weight
+        weight: weight,
+        customs_duty_byn: line_customs ? line_customs[:duty_byn] : 0,
+        customs_fee_byn: line_customs ? line_customs[:fee_byn] : 0,
+        customs_total_byn: line_customs ? line_customs[:total_byn] : 0
       }
     end
+
+    # Расчет пошлины для всей корзины
+    cart_customs = CustomsDutyService.calculate(total_items_cost_eur, total_weight, eur_rate)
 
     # Расчет логистики для ВСЕЙ корзины
     poland_delivery_pln = PolandDeliveryService.calculate(total_weight)
@@ -84,7 +100,10 @@ class CartPricingService
         delivery_total_byn: delivery_total_byn,
         total_byn: total_byn,
         discount_total_byn: (discount_total_pln * (1 + 0.10) * pln_rate_with_buffer).round(2), # Примерный дисконт в BYN
-        total_weight_kg: total_weight.to_f
+        total_weight_kg: total_weight.to_f,
+        customs_total_byn: cart_customs[:total_byn],
+        customs_duty_byn: cart_customs[:duty_byn],
+        customs_fee_byn: cart_customs[:fee_byn]
       },
       promo: {
         code: promo&.code,

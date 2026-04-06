@@ -22,11 +22,32 @@ class CheckoutService
     end
     current_passport = user.passport_data
     passport_changed = passport_input.present? && !UserPassportService.same?(passport_input, current_passport)
+    
+    verification_id = nil
     if passport_changed
-      last4 = params[:a1_verification_last4] || params[:verification_code]
-      verification = VerificationCode.valid_code(user.phone.to_s.gsub(/\D/, ''), last4).first
-      return { error: 'Требуется подтверждение паспорта через звонок' } unless verification
-      verification.destroy!
+      # Skip verification if a1_verification_id matches and user is already verified with that ID
+      # or if the user is verified and didn't change anything (but passport_changed was true due to formatting)
+      skip_verification = user.passport_verified? && 
+                          params[:a1_verification_id].present? && 
+                          params[:a1_verification_id].to_s == user.a1_verification_id.to_s
+
+      if skip_verification
+        verification_id = user.a1_verification_id
+      else
+        last4 = params[:a1_verification_last4] || params[:verification_code]
+        verification = VerificationCode.valid_code(user.phone.to_s.gsub(/\D/, ''), last4).first
+        
+        if verification.nil?
+          return { 
+            error: 'Требуется подтверждение паспорта через звонок',
+            code: 'passport_verification_required',
+            passport_data: user.passport_data,
+            a1_verification_id: user.a1_verification_id
+          }
+        end
+        verification_id = verification.id
+        verification.destroy!
+      end
     end
 
     # Пересчет и проверка с использованием динамических правил
@@ -86,7 +107,7 @@ class CheckoutService
 
         if passport_changed
           UserPassportService.write!(user: user, passport_hash: passport_input)
-          user.update!(passport_verified_at: Time.current)
+          user.update!(passport_verified_at: Time.current, a1_verification_id: verification_id)
         end
       else
         raise ActiveRecord::Rollback

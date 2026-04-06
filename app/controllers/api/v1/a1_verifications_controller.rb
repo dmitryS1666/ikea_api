@@ -68,7 +68,11 @@ module Api
           
           # Если это паспортное подтверждение и есть пользователь
           if current_user
-            current_user.update!(passport_verified_at: Time.current, phone: phone)
+            current_user.update!(
+              passport_verified_at: Time.current, 
+              phone: phone,
+              a1_verification_id: verification.id
+            )
           end
 
           render json: { success: true }

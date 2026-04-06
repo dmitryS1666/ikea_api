@@ -17,7 +17,9 @@ module CartResponseFormatter
         totals: format_totals(totals),
         rules: format_rules(rules_data[:rules]),
         flags: format_flags(rules_data[:flags]),
-        recommendations: build_recommendations(cart_items)
+        recommendations: build_recommendations(cart_items),
+        passport_data: cart.user&.passport_verified? ? cart.user.passport_data : nil,
+        a1_verification_id: cart.user&.a1_verification_id
       }
     }
   end
@@ -50,6 +52,9 @@ module CartResponseFormatter
       line_total_old_byn: format_byn(pricing_line[:line_total_old_byn]),
       line_total_new_byn: format_byn(pricing_line[:line_total_new_byn]),
       line_discount_byn: format_byn(pricing_line[:line_discount_byn]),
+      customs_duty_byn: format_byn(pricing_line[:customs_duty_byn]),
+      customs_fee_byn: format_byn(pricing_line[:customs_fee_byn]),
+      customs_total_byn: format_byn(pricing_line[:customs_total_byn]),
       promo_applied: pricing_line[:promo_applied] || false,
       promo_code: pricing_line[:promo_code]
     }
@@ -128,6 +133,9 @@ module CartResponseFormatter
       subtotal_old_byn: format_byn(totals[:subtotal_old_byn]),
       subtotal_new_byn: format_byn(totals[:subtotal_new_byn]),
       discount_total_byn: format_byn(totals[:discount_total_byn]),
+      customs_duty_byn: format_byn(totals[:customs_duty_byn]),
+      customs_fee_byn: format_byn(totals[:customs_fee_byn]),
+      customs_total_byn: format_byn(totals[:customs_total_byn]),
       total_weight_kg: totals[:total_weight_kg]
     }
   end
