@@ -73,18 +73,16 @@ class ProductSerializer
   end
 
   attribute :price_byn do |product, params|
-    eur_price = product.price.to_f
+    pln_price = product.price.to_f
   
-    if eur_price > 0
-      markup_k = PriceCalculationService.compute_k(eur_price)
-  
+    if pln_price > 0
       rates = params[:rates] || {}
-      rate = rates[:eur] || ExchangeRate.fetch_or_create('EUR')&.rate_per_unit || 0
+      pln_rate = rates[:pln] || ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 0
   
       settings = params[:calculator_settings] || {}
       buffer = settings['exchange_rate_buffer'] || PriceCalculationService.exchange_rate_buffer
   
-      price = (eur_price * (1 + markup_k) * rate * buffer).round(2)
+      price = PriceCalculationService.product_price_byn(pln_price, pln_rate: pln_rate, buffer: buffer)
   
       ActionController::Base.helpers.number_with_delimiter(price, delimiter: ' ')
     else

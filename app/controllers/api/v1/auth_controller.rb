@@ -70,9 +70,11 @@ module Api
           
           # Merge guest cart if present
           guest_token = request.headers['X-Cart-Token'].presence || params[:cart_token].presence
-          if guest_token
-            CartMergeService.call(guest_token: guest_token, user: user)
-          end
+          cart = if guest_token
+                   CartMergeService.call(guest_token: guest_token, user: user)
+                 else
+                   user.cart || user.create_cart!
+                 end
 
           # Update last login in CRM
           CrmIntegrationService.update_last_login(user)
@@ -83,6 +85,7 @@ module Api
           
           render json: {
             token: token,
+            cart_token: cart.guest_token,
             user: {
               id: user.id,
               username: user.username,
@@ -102,13 +105,16 @@ module Api
       def render_login_success(user)
         # Merge guest cart if present
         guest_token = request.headers['X-Cart-Token'].presence || params[:cart_token].presence
-        if guest_token
-          CartMergeService.call(guest_token: guest_token, user: user)
-        end
+        cart = if guest_token
+                 CartMergeService.call(guest_token: guest_token, user: user)
+               else
+                 user.cart || user.create_cart!
+               end
 
         token = JwtService.encode({ user_id: user.id })
         render json: {
           token: token,
+          cart_token: cart.guest_token,
           user: {
             id: user.id,
             username: user.username,

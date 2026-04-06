@@ -1,6 +1,8 @@
 class ApplicationController < ActionController::API
   include ActionController::HttpAuthentication::Token::ControllerMethods
   
+  before_action :set_noindex_header
+
   def authenticate_user
     token = request.headers['Authorization']&.split(' ')&.last
     
@@ -53,5 +55,11 @@ class ApplicationController < ActionController::API
       applicability[p.sku] = promos.select { |promo| promo.applies_to_sku?(p.sku, cat_ids) }
     end
     applicability
+  end
+
+  private
+
+  def set_noindex_header
+    response.headers['X-Robots-Tag'] = 'noindex, nofollow'
   end
 end

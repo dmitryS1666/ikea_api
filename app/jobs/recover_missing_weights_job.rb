@@ -26,7 +26,7 @@ class RecoverMissingWeightsJob < ApplicationJob
       task.mark_as_running!
       
       # Ищем товары без веса
-      query = Product.where(weight: nil)
+      query = Product.where(weight: [nil, 0])
       query = query.limit(limit) if limit.present?
       
       total_count = query.count
@@ -38,6 +38,7 @@ class RecoverMissingWeightsJob < ApplicationJob
       # Обрабатываем пачками по BATCH_SIZE
       query.find_in_batches(batch_size: BATCH_SIZE) do |batch|
         check_task_not_stopped!(task)
+        Rails.logger.info "[WeightRecoveryJob] Processing batch of #{batch.size} products..."
 
         # Разделяем пачку на потоки
         threads = []
@@ -58,12 +59,14 @@ class RecoverMissingWeightsJob < ApplicationJob
                   else
                     stats[:errors] += 1
                     task.increment_errors!
+                    Rails.logger.error "[WeightRecoveryJob] Error for #{product.sku}: #{result[:message]}"
                   end
                   
                   stats[:processed] += 1
                   task.increment_processed!
                 rescue StandardError => e
-                  Rails.logger.error "RecoverMissingWeightsJob error for SKU #{product.sku}: #{e.message}"
+                  Rails.logger.error "[WeightRecoveryJob] CRITICAL ERROR for SKU #{product.sku}: #{e.class} - #{e.message}"
+                  Rails.logger.error e.backtrace.first(10).join("\n")
                   stats[:errors] += 1
                   task.increment_errors!
                 end
@@ -73,6 +76,7 @@ class RecoverMissingWeightsJob < ApplicationJob
         end
 
         threads.each(&:join)
+        Rails.logger.info "[WeightRecoveryJob] Batch completed. Total processed: #{stats[:processed]}"
       end
 
       stats[:duration] = Time.current - started_at

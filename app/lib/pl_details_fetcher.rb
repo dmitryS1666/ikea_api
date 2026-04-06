@@ -7,6 +7,7 @@ require 'fileutils'
 require 'securerandom'
 require 'json'
 require 'tmpdir'
+require 'strscan'
 
 class PlDetailsFetcher
   def self.fetch(url, use_headless: true)
@@ -75,24 +76,45 @@ class PlDetailsFetcher
     result[:collection] = collection if collection.present?
     
     # Product data (hydration props)
-    product_data_attr = doc.css('.js-product-pip').first&.attribute('data-hydration-props')&.value
     product_data = nil
     
+    # 1. Пробуем найти в атрибуте data-hydration-props (старый формат)
+    product_data_attr = doc.css('.js-product-pip, [data-hydration-props]').first&.attribute('data-hydration-props')&.value
+    
+    # 2. Пробуем найти в скриптах с типом text/hydration или text/hydrate (новый формат)
+    if product_data_attr.blank?
+      doc.css('script[type="text/hydration"], script[type="text/hydrate"]').each do |script|
+        script_text = script.text
+        if script_text.include?('packaging') && script_text.include?('product')
+          product_data_attr = script_text
+          Rails.logger.debug "PlDetailsFetcher: Found product hydration script (length: #{script_text.length})"
+          break
+        end
+      end
+    end
+    
+    # 3. Пробуем найти в window.__FIKA_HYDRATION_DATA__ (еще один формат)
+    if product_data_attr.blank?
+      doc.css('script').each do |script|
+        if script.text.include?('__FIKA_HYDRATION_DATA__')
+          match = script.text.match(/window\.__FIKA_HYDRATION_DATA__\s*=\s*(\{.*?\});/m)
+          product_data_attr = match[1] if match
+          break
+        end
+      end
+    end
+
     if product_data_attr
       begin
-        product_data = JSON.parse(product_data_attr)
+        # Очищаем от возможных комментариев или лишних символов
+        json_str = product_data_attr.strip
+        product_data = JSON.parse(json_str)
         result[:product_data] = product_data
-        
-        # Set items
-        result[:set_items] = extract_set_items(product_data, doc)
-        
-        # Bundle items
-        result[:bundle_items] = extract_bundle_items(product_data, doc)
-        
-        # Related products
-        result[:related_products] = extract_related_products(product_data, doc)
+        Rails.logger.debug "PlDetailsFetcher: Successfully parsed product_data (keys: #{product_data.keys.join(', ')})"
       rescue JSON::ParserError => e
-        Rails.logger.warn("Failed to parse product data: #{e.message}")
+        Rails.logger.warn("PlDetailsFetcher: Failed to parse product data: #{e.message}")
+        # Если не распарсилось как JSON, возможно там JS-код с объектом
+        # (случай window.__FIKA_HYDRATION_DATA__)
       end
     end
     
@@ -476,7 +498,7 @@ class PlDetailsFetcher
         headless: false, # Отключаем стандартный флаг --headless, используем --headless=new через browser_options
         timeout: 60 
       }
-      path = ENV["CHROME_PATH"]
+      path = ENV["CHROME_PATH"] || ENV["BROWSER_PATH"]
       opts[:browser_path] = path if path && path != ""
 
       browser = Ferrum::Browser.new(browser_options: browser_options, **opts)
@@ -910,6 +932,8 @@ class PlDetailsFetcher
     packaging_paths = [
       ['stockcheckSection', 'packagingProps', 'packages'],
       ['stockcheckSection', 'packaging', 'packages'],
+      ['pageProps', 'product', 'packaging', 'packages'],
+      ['packaging', 'contentProps', 'packages'],
       ['packaging', 'packages'],
       ['packagingProps', 'packages'],
       ['packages'],
@@ -924,20 +948,45 @@ class PlDetailsFetcher
     packaging = nil
     packaging_paths.each do |path|
       packaging = product_data&.dig(*path)
-      break if packaging.present?
+      if packaging.present?
+        Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Found packaging at path: #{path.join('.')}"
+        break
+      end
     end
     
-    Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: packaging found: #{packaging.present?}, type: #{packaging.class}"
+    # Дополнительная проверка для нового формата, если через dig не нашли
+    if packaging.nil? && product_data&.dig('pageProps', 'product').is_a?(Hash)
+      p_data = product_data.dig('pageProps', 'product')
+      packaging = p_data['packaging']&.dig('packages') || p_data['packaging']
+    end
+
+    Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: packaging found: #{packaging.present?}, type: #{packaging.class}, count: #{packaging.is_a?(Array) ? packaging.size : 'N/A'}"
     
     if packaging.is_a?(Array) && packaging.any?
       # Общий вес - сумма всех упаковок (в килограммах)
       total_weight = 0
       packaging.each do |pkg|
-        weight = pkg['weight'] || pkg[:weight] || pkg['weightKg'] || pkg[:weightKg] || 0
-        total_weight += weight.to_f
+        # 1. Пробуем найти вес в прямых полях
+        weight = pkg['weight'] || pkg[:weight] || pkg['weightKg'] || pkg[:weightKg]
+        
+        # 2. Пробуем найти в measurements (часто для новых страниц)
+        if weight.blank? && pkg['measurements'].is_a?(Array)
+          # measurements может быть [[{type: 'weight', value: 1.7}]]
+          pkg['measurements'].flatten.each do |m|
+            if m.is_a?(Hash) && (m['type'] == 'weight' || m[:type] == 'weight' || m['label']&.downcase&.include?('вес'))
+              weight = m['value'] || m[:value]
+              break
+            end
+          end
+        end
+        
+        # 3. Количество упаковок
+        qty = pkg.dig('quantity', 'value') || pkg.dig(:quantity, :value) || 1
+        
+        total_weight += weight.to_f * qty.to_i if weight.present?
       end
-      result[:weight] = total_weight if total_weight > 0
-      Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Total weight: #{result[:weight]}"
+      result[:weight] = total_weight.round(2) if total_weight > 0
+      Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Total weight from product_data: #{result[:weight]}"
       
       # Обрабатываем все упаковки для получения полной информации
       packaging.each_with_index do |pkg, idx|
@@ -1021,52 +1070,110 @@ class PlDetailsFetcher
     if result[:weight].blank? || result[:dimensions].blank? || result[:package_dimensions].blank?
       Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Trying to extract from HTML"
       
-      # Ищем в секции "Opakowanie" (Упаковка) - там обычно указаны размеры и вес упаковок
-      # Собираем все секции с упаковкой
-      packaging_sections = doc.css('.pip-product-details__section, .pip-specifications__section, [data-section], section, div, li, ul').select do |section|
-        section_text = section.text.downcase
-        (section_text.include?('opakowanie') || section_text.include?('paczk') || section_text.include?('paczka')) &&
-        (section_text.include?('kg') || section_text.include?('waga') || section_text.include?('cm'))
+      # 1. Сначала ищем именно "Информацию об упаковке" (самый надежный источник для суммы)
+      # Ищем по ключевым словам в заголовках или секциях
+      packaging_info_section = nil
+      doc.css('.pip-product-details__section, .pip-specifications__section, [data-section], section, div, h2, h3, h4').each do |el|
+        text = el.text.strip.downcase
+        if text == 'информация об упаковке' || text == 'informacja o opakowaniu' || text == 'packaging information'
+          # Берем родительский контейнер или следующий элемент
+          packaging_info_section = el.parent if el.name.start_with?('h')
+          packaging_info_section ||= el
+          break
+        end
       end
-      
-      if packaging_sections.any?
-        Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Found #{packaging_sections.length} packaging sections"
+
+      if packaging_info_section
+        Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Found explicit packaging info section"
+        total_weight = 0
+        found_any_weight = false
         
-        # Собираем все веса и берем самый большой (это обычно вес с упаковкой, например 37.55)
-        if result[:weight].blank?
+        # Нормализуем текст (удаляем неразрывные пробелы и т.д.)
+        text_content = packaging_info_section.text.gsub("\u00A0", " ").gsub(/\s+/, " ")
+        
+        # Пробуем найти все вхождения веса и его количества
+        # Мы ищем пары: Вес и Упаковка
+        scanner = StringScanner.new(text_content)
+        while scanner.scan_until(/(?:вес|waga|weight)[:\s]+([\d,\.]+)\s*(?:kg|кг)/i)
+          weight_val = scanner[1].gsub(',', '.').to_f
+          
+          # Ищем "Упаковка(-и): 2" в оставшемся тексте после этого веса
+          # Но не заходим в область следующего веса
+          current_pos = scanner.pos
+          remaining_text = text_content[current_pos..-1] || ""
+          next_weight_pos = remaining_text.index(/(?:вес|waga|weight)/i) || remaining_text.length
+          search_area = remaining_text[0...next_weight_pos]
+          
+          # Улучшенный поиск количества (учитываем разные варианты написания)
+          qty_match = search_area.match(/(?:упаковка|opakowanie|paczka|package).*?(\d+)/i)
+          qty = qty_match ? qty_match[1].to_i : 1
+          
+          total_weight += weight_val * qty
+          found_any_weight = true
+          Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Summing package: #{weight_val} kg x #{qty} (from '#{search_area.strip[0..50]}...')"
+        end
+
+        # Если не нашли паттерн с количеством, просто ищем все веса и суммируем (если их несколько)
+        unless found_any_weight
+          section_weights = text_content.scan(/(?:вес|waga|weight)[:\s]+([\d,\.]+)\s*(?:kg|кг)/i).map { |m| m[0].gsub(',', '.').to_f }
+          if section_weights.any?
+            total_weight = section_weights.sum
+            found_any_weight = true
+            Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Summing all individual weights in section: #{section_weights.inspect}"
+          end
+        end
+
+        if found_any_weight && total_weight > 0 && result[:weight].blank?
+          result[:weight] = total_weight.round(2)
+          Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Final summed weight from section: #{result[:weight]} kg"
+        end
+      end
+
+      # 2. Если вес все еще пуст, ищем в общих секциях, исключая "нагрузку"
+      if result[:weight].blank?
+        packaging_sections = doc.css('.pip-product-details__section, .pip-specifications__section, [data-section], section, div, li, ul').select do |section|
+          section_text = section.text.downcase
+          (section_text.include?('opakowanie') || section_text.include?('paczk') || section_text.include?('paczka') || section_text.include?('упаковка') || section_text.include?('пакет')) &&
+          (section_text.include?('kg') || section_text.include?('кг') || section_text.include?('waga') || section_text.include?('вес') || section_text.include?('cm') || section_text.include?('см'))
+        end
+        
+        if packaging_sections.any?
           weights_found = []
           packaging_sections.each do |section|
-            section.text.scan(/([\d,\.]+)\s*kg/i) do |match|
-              weight_value = match[0].gsub(',', '.').to_f
-              # Собираем все веса в разумном диапазоне (5-100 кг)
-              if weight_value >= 5 && weight_value <= 100
-                weights_found << weight_value unless weights_found.include?(weight_value)
-                Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Found package weight: #{weight_value} kg"
+            # Ищем веса, исключая строки с "нагрузкой"
+            section.text.each_line do |line|
+              next if line.downcase.match?(/нагрузка|load|obciążenie|obciazenie|nośność|nosnosc|obciążenia|obciazenia/)
+              
+              line.scan(/([\d,\.]+)\s*(kg|кг)/i) do |match|
+                weight_value = match[0].gsub(',', '.').to_f
+                if weight_value >= 0.1 && weight_value <= 500
+                  weights_found << weight_value unless weights_found.include?(weight_value)
+                end
               end
             end
           end
           
           if weights_found.any?
-            # Берем самый большой вес (это обычно вес с упаковкой, например 37.55)
             result[:weight] = weights_found.max.round(2)
-            Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Using max weight from #{weights_found.length} found: #{result[:weight]} kg (all: #{weights_found.sort.inspect})"
+            Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Found max weight in sections: #{result[:weight]} kg"
           end
         end
-        
-        # Извлекаем размеры упаковки из первой найденной секции
-        if result[:package_dimensions].blank?
-          packaging_sections.each do |section|
-            section_text = section.text
-            width = section_text.match(/szerokość[:\s]+([\d,\.]+)\s*cm/i)&.captures&.first
-            height = section_text.match(/wysokość[:\s]+([\d,\.]+)\s*cm/i)&.captures&.first
-            length = section_text.match(/długość[:\s]+([\d,\.]+)\s*cm/i)&.captures&.first
-            
-            if width && height && length
-              result[:package_dimensions] = "#{width.gsub(',', '.')} × #{height.gsub(',', '.')} × #{length.gsub(',', '.')} cm"
-              Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Package dimensions from packaging section: #{result[:package_dimensions]}"
+      end
+
+      # 3. Крайний случай - поиск по всей странице, исключая нагрузку
+      if result[:weight].blank?
+        doc.text.each_line do |line|
+          next if line.downcase.match?(/нагрузка|load|obciążenie|obciazenie|nośność|nosnosc|obciążenia|obciazenia|полку|polce|półce|półку/)
+          
+          line.scan(/([\d,\.]+)\s*(kg|кг)/i) do |match|
+            weight_value = match[0].gsub(',', '.').to_f
+            if weight_value >= 0.1 && weight_value <= 500
+              result[:weight] = weight_value.round(2)
+              Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Found weight in global text line: #{result[:weight]} kg"
               break
             end
           end
+          break if result[:weight].present?
         end
       end
       
@@ -1074,16 +1181,15 @@ class PlDetailsFetcher
       doc.css('.pip-product-details__section, .pip-specifications__section, [data-dimensions]').each do |section|
         section_text = section.text.downcase
         
-        if section_text.include?('wymiary') || section_text.include?('rozmiar') || section_text.include?('wymiar')
+        if section_text.include?('wymiary') || section_text.include?('rozmiar') || section_text.include?('wymiar') || section_text.include?('размеры') || section_text.include?('размер')
           Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Found dimensions section"
           
           # Извлекаем размеры продукта
           if result[:dimensions].blank?
-            # Пробуем найти в тексте (например, "Szerokość: 199 cm, Głębokość: 93 cm, Wysokość: 70 cm")
-            width = section.text.match(/szerokość[:\s]+([\d,\.]+)\s*cm/i)&.captures&.first
-            depth = section.text.match(/głębokość[:\s]+([\d,\.]+)\s*cm/i)&.captures&.first || 
-                   section.text.match(/głębokość[:\s]+([\d,\.]+)\s*cm/i)&.captures&.first
-            height = section.text.match(/wysokość[:\s]+([\d,\.]+)\s*cm/i)&.captures&.first
+            # Пробуем найти в тексте (например, "Szerokość: 199 cm, Głębokość: 93 cm, Высота: 70 cm")
+            width = section.text.match(/(?:szerokość|ширина)[:\s]+([\d,\.]+)\s*(?:cm|см)/i)&.captures&.first
+            depth = section.text.match(/(?:głębokość|глубина)[:\s]+([\d,\.]+)\s*(?:cm|см)/i)&.captures&.first
+            height = section.text.match(/(?:wysokość|высота)[:\s]+([\d,\.]+)\s*(?:cm|см)/i)&.captures&.first
             
             if width && depth && height
               result[:dimensions] = "#{width.gsub(',', '.')} × #{depth.gsub(',', '.')} × #{height.gsub(',', '.')} cm"
@@ -1101,8 +1207,8 @@ class PlDetailsFetcher
           
           next unless label && value
           
-          # Вес (Waga)
-          if result[:weight].blank? && (label.include?('waga') || label.include?('weight') || label.include?('masa'))
+          # Вес (Waga/Вес)
+          if result[:weight].blank? && (label.include?('waga') || label.include?('weight') || label.include?('masa') || label.include?('вес'))
             weight_match = value.match(/([\d,\.]+)\s*(kg|кг|g|г)/i)
             if weight_match
               weight_value = weight_match[1].gsub(',', '.').to_f
@@ -1112,8 +1218,8 @@ class PlDetailsFetcher
             end
           end
           
-          # Чистый вес (Waga netto)
-          if result[:net_weight].blank? && (label.include?('waga netto') || label.include?('net weight') || label.include?('netto'))
+          # Чистый вес (Waga netto/Вес нетто)
+          if result[:net_weight].blank? && (label.include?('waga netto') || label.include?('net weight') || label.include?('netto') || label.include?('нетто'))
             weight_match = value.match(/([\d,\.]+)\s*(kg|кг|g|г)/i)
             if weight_match
               weight_value = weight_match[1].gsub(',', '.').to_f
@@ -1123,8 +1229,8 @@ class PlDetailsFetcher
             end
           end
           
-          # Объём (Objętość)
-          if result[:package_volume].blank? && (label.include?('objętość') || label.include?('volume') || label.include?('pojemność'))
+          # Объём (Objętość/Объем)
+          if result[:package_volume].blank? && (label.include?('objętość') || label.include?('volume') || label.include?('pojemność') || label.include?('объем'))
             volume_match = value.match(/([\d,\.]+)\s*(l|л|м³|m³|litr)/i)
             if volume_match
               volume_value = volume_match[1].gsub(',', '.').to_f
@@ -1134,8 +1240,8 @@ class PlDetailsFetcher
             end
           end
           
-          # Размеры продукта (Wymiary produktu)
-          if result[:dimensions].blank? && (label.include?('wymiary produktu') || label.include?('wymiary') || label.include?('rozmiar'))
+          # Размеры продукта (Wymiary produktu/Размеры товара)
+          if result[:dimensions].blank? && (label.include?('wymiary produktu') || label.include?('wymiary') || label.include?('rozmiar') || label.include?('размеры'))
             # Пробуем извлечь из значения
             dims_match = value.match(/([\d,\.]+)\s*[×x]\s*([\d,\.]+)\s*[×x]\s*([\d,\.]+)/i)
             if dims_match
@@ -1144,8 +1250,8 @@ class PlDetailsFetcher
             end
           end
           
-          # Размеры упаковки (Wymiary opakowania)
-          if result[:package_dimensions].blank? && (label.include?('wymiary opakowania') || label.include?('rozmiar opakowania') || label.include?('package'))
+          # Размеры упаковки (Wymiary opakowania/Размеры упаковки)
+          if result[:package_dimensions].blank? && (label.include?('wymiary opakowania') || label.include?('rozmiar opakowania') || label.include?('package') || label.include?('упаковка'))
             dims_match = value.match(/([\d,\.]+)\s*[×x]\s*([\d,\.]+)\s*[×x]\s*([\d,\.]+)/i)
             if dims_match
               result[:package_dimensions] = "#{dims_match[1].gsub(',', '.')} × #{dims_match[2].gsub(',', '.')} × #{dims_match[3].gsub(',', '.')}"
@@ -1158,13 +1264,13 @@ class PlDetailsFetcher
       # Дополнительный поиск в тексте страницы (regex поиск)
       page_text = doc.text
       
-      # Ищем вес в тексте (например, "Waga: 37.55 kg" или "37.55 kg")
+      # Ищем вес в тексте (например, "Waga: 37.55 kg" или "Вес: 37.55 кг")
       if result[:weight].blank?
-        # Паттерн 1: "Waga: 37.55 kg" или "Waga 37.55 kg"
-        page_text.scan(/(?:waga|weight|masa)[:\s]+([\d,\.]+)\s*(kg|кг)/i) do |match|
+        # Паттерн 1: "Waga: 37.55 kg" или "Вес: 37.55 кг"
+        page_text.scan(/(?:waga|weight|masa|вес)[:\s]+([\d,\.]+)\s*(kg|кг)/i) do |match|
           weight_value = match[0].gsub(',', '.').to_f
-          # Берем первый найденный вес в разумном диапазоне (5-100 кг)
-          if weight_value >= 5 && weight_value <= 100
+          # Берем первый найденный вес в разумном диапазоне (от 0.1 до 500 кг)
+          if weight_value >= 0.1 && weight_value <= 500
             result[:weight] = weight_value.round(2)
             Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Weight from page text (pattern 1): #{result[:weight]} kg"
             break
@@ -1173,11 +1279,11 @@ class PlDetailsFetcher
         
         # Паттерн 2: Первый найденный вес в разумном диапазоне (вес с упаковкой)
         if result[:weight].blank?
-          # Ищем первый вес в разумном диапазоне для мебели (5-100 кг)
-          page_text.scan(/([\d,\.]+)\s*kg/i) do |match|
+          # Ищем первый вес в разумном диапазоне для мебели (от 0.1 до 500 кг)
+          page_text.scan(/([\d,\.]+)\s*(kg|кг)/i) do |match|
             weight_value = match[0].gsub(',', '.').to_f
             # Берем первый найденный вес в разумном диапазоне (это вес с упаковкой)
-            if weight_value >= 5 && weight_value <= 100
+            if weight_value >= 0.1 && weight_value <= 500
               result[:weight] = weight_value.round(2)
               Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Found package weight (first match): #{result[:weight]} kg"
               break
@@ -1191,14 +1297,14 @@ class PlDetailsFetcher
         # Ищем в секции упаковки
         packaging_sections = doc.css('*').select { |el| 
           text = el.text.downcase
-          text.include?('opakowanie') || text.include?('paczk')
+          text.include?('opakowanie') || text.include?('paczk') || text.include?('упаковка') || text.include?('пакет')
         }
         
         packaging_sections.each do |section|
-          section_text = section.text
-          width = section_text.match(/szerokość[:\s]+([\d,\.]+)\s*cm/i)&.captures&.first
-          height = section_text.match(/wysokość[:\s]+([\d,\.]+)\s*cm/i)&.captures&.first
-          length = section_text.match(/długość[:\s]+([\d,\.]+)\s*cm/i)&.captures&.first
+          section_text = section.text.downcase
+          width = section_text.match(/(?:szerokość|ширина)[:\s]+([\d,\.]+)\s*(?:cm|см)/i)&.captures&.first
+          height = section_text.match(/(?:wysokość|высота)[:\s]+([\d,\.]+)\s*(?:cm|см)/i)&.captures&.first
+          length = section_text.match(/(?:długość|длина)[:\s]+([\d,\.]+)\s*(?:cm|см)/i)&.captures&.first
           
           if width && height && length
             result[:package_dimensions] = "#{width.gsub(',', '.')} × #{height.gsub(',', '.')} × #{length.gsub(',', '.')} cm"
@@ -1213,14 +1319,14 @@ class PlDetailsFetcher
         # Ищем в секции с размерами
         dimensions_sections = doc.css('*').select { |el| 
           text = el.text.downcase
-          text.include?('wymiary') || text.include?('rozmiar')
+          text.include?('wymiary') || text.include?('rozmiar') || text.include?('размеры') || text.include?('размер')
         }
         
         dimensions_sections.each do |section|
-          section_text = section.text
-          width_match = section_text.match(/szerokość[:\s]+([\d,\.]+)\s*cm/i)
-          depth_match = section_text.match(/głębokość[:\s]+([\d,\.]+)\s*cm/i)
-          height_match = section_text.match(/wysokość[:\s]+([\d,\.]+)\s*cm/i)
+          section_text = section.text.downcase
+          width_match = section_text.match(/(?:szerokość|ширина)[:\s]+([\d,\.]+)\s*(?:cm|см)/i)
+          depth_match = section_text.match(/(?:głębokość|глубина)[:\s]+([\d,\.]+)\s*(?:cm|см)/i)
+          height_match = section_text.match(/(?:wysokość|высота)[:\s]+([\d,\.]+)\s*(?:cm|см)/i)
           
           if width_match && depth_match
             dims = [
@@ -1236,9 +1342,9 @@ class PlDetailsFetcher
         
         # Если не нашли в секциях, ищем по всей странице
         if result[:dimensions].blank?
-          width_match = page_text.match(/szerokość[:\s]+([\d,\.]+)\s*cm/i)
-          depth_match = page_text.match(/głębokość[:\s]+([\d,\.]+)\s*cm/i)
-          height_match = page_text.match(/wysokość[:\s]+([\d,\.]+)\s*cm/i)
+          width_match = page_text.downcase.match(/(?:szerokość|ширина)[:\s]+([\d,\.]+)\s*(?:cm|см)/i)
+          depth_match = page_text.downcase.match(/(?:głębokość|глубина)[:\s]+([\d,\.]+)\s*(?:cm|см)/i)
+          height_match = page_text.downcase.match(/(?:wysokość|высота)[:\s]+([\d,\.]+)\s*(?:cm|см)/i)
           
           if width_match && depth_match
             dims = [

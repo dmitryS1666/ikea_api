@@ -53,6 +53,8 @@ class OrderNotificationService
     
     # Здесь логика отправки клиенту в ТГ/Viber если он подписан
     # Пока используем общий сервис
-    TelegramService.send_message(message) if order.user&.telegram_chat_id.present?
+    if order.user&.respond_to?(:telegram_chat_id) && order.user.telegram_chat_id.present?
+      TelegramService.send_message(message)
+    end
   end
 end

@@ -4,7 +4,7 @@ namespace :products do
     limit = ENV['LIMIT']&.to_i
     
     # 1. Export SKUs
-    skus = Product.where(weight: nil)
+    skus = Product.where(weight: [nil, 0])
     skus = skus.limit(limit) if limit
     sku_list = skus.pluck(:sku)
     

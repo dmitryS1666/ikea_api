@@ -79,17 +79,16 @@ class Category < ApplicationRecord
     products_scope = products_through_categories.where.not(price: nil)
     return nil unless products_scope.exists?
   
-    eur_rate = ExchangeRate.fetch_or_create('EUR')&.rate_per_unit
-    return nil if eur_rate.blank?
+    pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
+    return nil if pln_rate.blank?
   
     buffer = CalculatorSetting.get('exchange_rate_buffer') || PriceCalculationService.exchange_rate_buffer
   
     prices_byn = products_scope.pluck(:price).filter_map do |price|
-      eur_price = price.to_f
-      next if eur_price <= 0
+      pln_price = price.to_f
+      next if pln_price <= 0
   
-      markup_k = PriceCalculationService.compute_k(eur_price)
-      (eur_price * (1 + markup_k) * eur_rate * buffer).round(2)
+      PriceCalculationService.product_price_byn(pln_price, pln_rate: pln_rate, buffer: buffer)
     end
   
     return nil if prices_byn.empty?

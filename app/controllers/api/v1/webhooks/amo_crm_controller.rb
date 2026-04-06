@@ -31,10 +31,21 @@ module Api
         def handle_leads_webhook(leads_params)
           # Example: update order status when lead status changes in AmoCRM
           leads_params.each do |action, leads|
-            # leads can be an Array or a Hash (with indices as keys)
-            leads_list = leads.is_a?(Hash) ? leads.values : leads
+            # leads is usually a Hash/Parameters object with indices as keys: {"0"=>{"id"=>...}, "1"=>{"id"=>...}}
+            # but it could theoretically be an Array
+            leads_list = if leads.respond_to?(:values)
+                           leads.values
+                         elsif leads.respond_to?(:each_value)
+                           values = []
+                           leads.each_value { |v| values << v }
+                           values
+                         else
+                           Array(leads)
+                         end
             
             leads_list.each do |lead_data|
+              next unless lead_data.respond_to?(:[])
+              
               crm_id = lead_data[:id] || lead_data['id']
               status_id = (lead_data[:status_id] || lead_data['status_id']).to_i
               
@@ -58,10 +69,18 @@ module Api
 
         def handle_contacts_webhook(contacts_params)
           # Handle contact updates if needed
-          contacts_list = contacts_params.is_a?(Hash) ? contacts_params.values : contacts_params
+          contacts_list = if contacts_params.respond_to?(:values)
+                            contacts_params.values
+                          elsif contacts_params.respond_to?(:each_value)
+                            values = []
+                            contacts_params.each_value { |v| values << v }
+                            values
+                          else
+                            Array(contacts_params)
+                          end
           
           contacts_list.each do |action_data|
-            # action_data is like {"update" => [...]} or if we use values it depends on structure
+            # ...
           end
           
           Rails.logger.info "[AmoCRM Webhook] Contact update received"

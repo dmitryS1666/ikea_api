@@ -20,6 +20,20 @@ class PriceCalculationService
     CalculatorSetting.get('exchange_rate_buffer') || 1.05
   end
 
+  # Расчет цены товара в BYN (только товар + наценка, без доставки)
+  # @param product_price_zl [Float] Цена товара в злотых
+  # @return [Float] Цена в BYN
+  def self.product_price_byn(product_price_zl, pln_rate: nil, buffer: nil)
+    product_price_zl = product_price_zl.to_f
+    return 0.0 if product_price_zl <= 0
+
+    pln_rate ||= ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 0
+    buffer ||= exchange_rate_buffer
+    
+    markup_k = compute_k(product_price_zl)
+    (product_price_zl * (1 + markup_k) * pln_rate * buffer).round(2)
+  end
+
   # Расчет итоговой цены товара
   # @param product_price_zl [Float] Цена товара в злотых
   # @param weight_kg [Float] Вес товара в килограммах

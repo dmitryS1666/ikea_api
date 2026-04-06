@@ -18,7 +18,8 @@ module CartResponseFormatter
         rules: format_rules(rules_data[:rules]),
         flags: format_flags(rules_data[:flags]),
         recommendations: build_recommendations(cart_items),
-        passport_data: cart.user&.passport_verified? ? cart.user.passport_data : nil,
+        passport_data: cart.user&.passport_data,
+        passport_verified: cart.user&.passport_verified? || false,
         a1_verification_id: cart.user&.a1_verification_id
       }
     }
@@ -66,7 +67,7 @@ module CartResponseFormatter
     {
       sku: product.sku,
       name: product.name,
-      price_byn: format_byn(product.price),
+      price_byn: format_byn(PriceCalculationService.product_price_byn(product.price)),
       quantity: product.quantity,
       category_id: product.category_id,
       collection: product.collection,
@@ -82,7 +83,7 @@ module CartResponseFormatter
       {
         sku: similar.sku,
         name: similar.name,
-        price_byn: format_byn(similar.price),
+        price_byn: format_byn(PriceCalculationService.product_price_byn(similar.price)),
         quantity: similar.quantity,
         category_id: similar.category_id,
         collection: similar.collection,
@@ -110,7 +111,7 @@ module CartResponseFormatter
     {
       sku: product.sku,
       name: product.name,
-      price_byn: format_byn(product.price),
+      price_byn: format_byn(PriceCalculationService.product_price_byn(product.price)),
       quantity: product.quantity,
       category_id: product.category_id,
       collection: product.collection,

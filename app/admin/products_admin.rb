@@ -56,6 +56,7 @@ Trestle.resource(:products, model: Product) do
     column :price do |product|
       number_to_currency(product.price, unit: 'EUR', format: '%n %u')
     end
+    column :weight, label: "Вес (кг)"
     column :quantity, sortable: true
     column :included_products, header: "Included products" do |product|
       items = Array(product.included_products).compact.map(&:to_s).map(&:strip).reject(&:blank?).uniq
@@ -329,6 +330,7 @@ Trestle.resource(:products, model: Product) do
       text_field :url, label: "Ссылка"
       text_field :name_ru, label: "Название"
       text_field :small_desc_name, label: "Краткое описание к названию"
+      number_field :weight, label: "Вес (кг)", step: 0.001
       select :category_id, Category.all.map { |c| [c.translated_name, c.ikea_id] }, { label: "Основная категория", include_blank: "Без категории" }
       
       form_group :categories, label: "Дополнительные категории" do
