@@ -1,10 +1,10 @@
 namespace :products do
-  desc "Export products without weight to CSV and launch recovery job"
+  desc "Export ALL products for weight update/recovery and launch job"
   task recover_missing_weights: :environment do
     limit = ENV['LIMIT']&.to_i
     
     # 1. Export SKUs
-    skus = Product.where(weight: [nil, 0])
+    skus = Product.all
     skus = skus.limit(limit) if limit
     sku_list = skus.pluck(:sku)
     

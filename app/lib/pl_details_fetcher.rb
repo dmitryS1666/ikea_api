@@ -966,24 +966,39 @@ class PlDetailsFetcher
       # Общий вес - сумма всех упаковок (в килограммах)
       total_weight = 0
       packaging.each do |pkg|
-        # 1. Пробуем найти вес в прямых полях
-        weight = pkg['weight'] || pkg[:weight] || pkg['weightKg'] || pkg[:weightKg]
+        # 1. Пробуем найти вес в measurements (массив упаковок)
+        pkg_total_weight = 0
+        found_pkg_weight = false
         
-        # 2. Пробуем найти в measurements (часто для новых страниц)
-        if weight.blank? && pkg['measurements'].is_a?(Array)
-          # measurements может быть [[{type: 'weight', value: 1.7}]]
-          pkg['measurements'].flatten.each do |m|
-            if m.is_a?(Hash) && (m['type'] == 'weight' || m[:type] == 'weight' || m['label']&.downcase&.include?('вес'))
-              weight = m['value'] || m[:value]
-              break
+        if pkg['measurements'].is_a?(Array)
+          # measurements может быть [[{type: 'weight', value: 36.7}], [{type: 'weight', value: 32.3}]]
+          pkg['measurements'].each do |m_group|
+            m_group = [m_group] unless m_group.is_a?(Array)
+            m_group.each do |m|
+              if m.is_a?(Hash) && (m['type'] == 'weight' || m[:type] == 'weight' || m['label']&.downcase&.include?('вес'))
+                weight = m['value'] || m[:value]
+                if weight.present?
+                  pkg_total_weight += weight.to_f
+                  found_pkg_weight = true
+                end
+              end
             end
           end
         end
         
-        # 3. Количество упаковок
+        # 2. Если в measurements не нашли, пробуем прямые поля
+        if !found_pkg_weight
+          weight = pkg['weight'] || pkg[:weight] || pkg['weightKg'] || pkg[:weightKg]
+          if weight.present?
+            pkg_total_weight = weight.to_f
+            found_pkg_weight = true
+          end
+        end
+        
+        # 3. Количество этих предметов (например, 2 подлокотника)
         qty = pkg.dig('quantity', 'value') || pkg.dig(:quantity, :value) || 1
         
-        total_weight += weight.to_f * qty.to_i if weight.present?
+        total_weight += pkg_total_weight * qty.to_i if found_pkg_weight
       end
       result[:weight] = total_weight.round(2) if total_weight > 0
       Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Total weight from product_data: #{result[:weight]}"
@@ -1088,41 +1103,28 @@ class PlDetailsFetcher
         total_weight = 0
         found_any_weight = false
         
-        # Нормализуем текст (удаляем неразрывные пробелы и т.д.)
+        # Нормализуем текст
         text_content = packaging_info_section.text.gsub("\u00A0", " ").gsub(/\s+/, " ")
         
-        # Пробуем найти все вхождения веса и его количества
-        # Мы ищем пары: Вес и Упаковка
-        scanner = StringScanner.new(text_content)
-        while scanner.scan_until(/(?:вес|waga|weight)[:\s]+([\d,\.]+)\s*(?:kg|кг)/i)
-          weight_val = scanner[1].gsub(',', '.').to_f
-          
-          # Ищем "Упаковка(-и): 2" в оставшемся тексте после этого веса
-          # Но не заходим в область следующего веса
-          current_pos = scanner.pos
-          remaining_text = text_content[current_pos..-1] || ""
-          next_weight_pos = remaining_text.index(/(?:вес|waga|weight)/i) || remaining_text.length
-          search_area = remaining_text[0...next_weight_pos]
-          
-          # Улучшенный поиск количества (учитываем разные варианты написания)
-          qty_match = search_area.match(/(?:упаковка|opakowanie|paczka|package).*?(\d+)/i)
-          qty = qty_match ? qty_match[1].to_i : 1
-          
-          total_weight += weight_val * qty
-          found_any_weight = true
-          Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Summing package: #{weight_val} kg x #{qty} (from '#{search_area.strip[0..50]}...')"
-        end
-
-        # Если не нашли паттерн с количеством, просто ищем все веса и суммируем (если их несколько)
-        unless found_any_weight
-          section_weights = text_content.scan(/(?:вес|waga|weight)[:\s]+([\d,\.]+)\s*(?:kg|кг)/i).map { |m| m[0].gsub(',', '.').to_f }
-          if section_weights.any?
-            total_weight = section_weights.sum
+        # Разбиваем на блоки по слову "Вес" (или аналогам), чтобы правильно привязать количество к весу
+        # Используем позитивную опережающую проверку (?=...), чтобы слово "Вес" осталось в начале блока
+        parts = text_content.split(/(?=вес|waga|weight)/i)
+        
+        parts.each do |part|
+          # Ищем вес в этом блоке
+          if part.match(/(?:вес|waga|weight)[:\s]+([\d,\.]+)\s*(?:kg|кг)/i)
+            weight_val = $1.gsub(',', '.').to_f
+            
+            # Ищем количество в этом же блоке (после веса, но до следующего веса)
+            qty_match = part.match(/(?:упаковка|opakowanie|paczka|package).*?(\d+)/i)
+            qty = qty_match ? qty_match[1].to_i : 1
+            
+            total_weight += weight_val * qty
             found_any_weight = true
-            Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Summing all individual weights in section: #{section_weights.inspect}"
+            Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: HTML part weight: #{weight_val} kg x #{qty}"
           end
         end
-
+        
         if found_any_weight && total_weight > 0 && result[:weight].blank?
           result[:weight] = total_weight.round(2)
           Rails.logger.debug "PlDetailsFetcher.extract_packaging_info: Final summed weight from section: #{result[:weight]} kg"

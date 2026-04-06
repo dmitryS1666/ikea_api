@@ -42,18 +42,39 @@ module Api
 
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
 
+        serialized_products_data = ProductTeaserSerializer.new(display_products, {
+          params: {
+            favorite_skus: current_favorite_skus,
+            active_promos: promos,
+            promo_applicability: get_promo_applicability(display_products, promos),
+            rates: rates,
+            calculator_settings: calculator_settings
+          }
+        }).serializable_hash[:data]
+
+        products_payload = serialized_products_data.map.with_index do |p, index|
+          attributes = p[:attributes]
+          # Если normalized_variants_for_api вернул nil, попробуем взять сырые данные из БД
+          if attributes[:variants].nil?
+            product = display_products[index]
+            raw_variants = product.variants
+            if raw_variants.present?
+              attributes[:variants] = {
+                type: "raw",
+                data: Array(raw_variants).map do |v|
+                  next v if v.is_a?(Hash)
+                  { name: v.to_s }
+                end.compact
+              }
+            end
+          end
+          attributes
+        end
+
         render json: {
           suggestions: suggestions,
           categories: serialized_category_tree(combined_categories, query: query, matched_categories: matched_categories),
-          products: ProductTeaserSerializer.new(display_products, {
-            params: {
-              favorite_skus: current_favorite_skus,
-              active_promos: promos,
-              promo_applicability: get_promo_applicability(display_products, promos),
-              rates: rates,
-              calculator_settings: calculator_settings
-            }
-          }).serializable_hash,
+          products: products_payload,
           available_filters: available_filters,
           popular_queries: popular_queries.map do |entry|
             { query: entry.query, weight: entry.weight }

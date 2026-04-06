@@ -25,8 +25,8 @@ class RecoverMissingWeightsJob < ApplicationJob
       check_task_not_stopped!(task)
       task.mark_as_running!
       
-      # Ищем товары без веса
-      query = Product.where(weight: [nil, 0])
+      # Ищем все товары
+      query = Product.all
       query = query.limit(limit) if limit.present?
       
       total_count = query.count
