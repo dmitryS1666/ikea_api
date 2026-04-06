@@ -934,10 +934,6 @@ class PlDetailsFetcher
       total_weight = 0
       packaging.each do |pkg|
         weight = pkg['weight'] || pkg[:weight] || pkg['weightKg'] || pkg[:weightKg] || 0
-        # Если вес в граммах, конвертируем в килограммы
-        if weight.to_f > 0 && weight.to_f < 1
-          weight = weight.to_f * 1000  # Предполагаем, что это уже в кг, но если < 1, возможно это в тоннах
-        end
         total_weight += weight.to_f
       end
       result[:weight] = total_weight if total_weight > 0
