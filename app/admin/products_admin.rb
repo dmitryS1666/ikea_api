@@ -59,7 +59,7 @@ Trestle.resource(:products, model: Product) do
     column :weight, label: "Вес (кг)"
     column :quantity, sortable: true
     column :included_products, header: "Included products" do |product|
-      items = Array(product.included_products).compact.map(&:to_s).map(&:strip).reject(&:blank?).uniq
+      items = Array(product.included_products).filter_map { |sku| sku.to_s.gsub(/[\[\]\"]/, '').strip.presence }.uniq
   
       if items.any?
         safe_join([

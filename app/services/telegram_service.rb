@@ -79,8 +79,7 @@ class TelegramService
         'fix_translations' => 'Исправление битых переводов',
         'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
         'recover_missing_images' => 'Восполнение ссылок на картинки',
-        'recover_broken_product_images' => 'Восстановление битых картинок',
-        'translate_all_products' => 'Полный перевод продуктов (Google)'
+        'recover_broken_product_images' => 'Восстановление битых картинок'
       }[task_type.to_s] || task_type.to_s
     end
 

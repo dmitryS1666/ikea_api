@@ -335,17 +335,7 @@
                          []
                        end
     
-    included_products = if @product.included_products.is_a?(Array)
-                  @product.included_products
-                elsif @product.included_products.is_a?(String) && @product.included_products.present?
-                  begin
-                    JSON.parse(@product.included_products)
-                  rescue
-                    []
-                  end
-                else
-                  []
-                end
+    included_products = Array(@product.included_products).filter_map { |sku| sku.to_s.gsub(/[\[\]\"]/, '').strip.presence }.uniq
     
     bundle_items = if @product.bundle_items.is_a?(Array)
                      @product.bundle_items

@@ -45,11 +45,12 @@ Trestle.resource :parser_control, model: ParserControl do
       task_type = params[:task_type]
       limit = params[:limit].present? && params[:limit].to_i > 0 ? params[:limit].to_i : nil
       reset = params[:reset] == '1'
+      threads = params[:threads].present? ? params[:threads].to_i : 2
       extra_data = params[:extra_data]
       extra_file = params[:extra_file]
       sku_file_path = params[:sku_file_path]
       
-      Rails.logger.info "ParserControlAdmin#start_task called with task_type=#{task_type}, limit=#{limit}, reset=#{reset}"
+      Rails.logger.info "ParserControlAdmin#start_task called with task_type=#{task_type}, limit=#{limit}, reset=#{reset}, threads=#{threads}"
       
       if task_type.blank?
         flash[:error] = "Необходимо выбрать тип задачи"
@@ -65,14 +66,14 @@ Trestle.resource :parser_control, model: ParserControl do
         else
           payload = {}
           
-          # Обработка дополнительных данных (SKUs и т.д.)
-          if task_type == "extended_attributes_by_skus" || task_type == "recover_broken_product_images"
-            payload[:skus] = extra_data
-            payload[:sku_file_path] = sku_file_path if sku_file_path.present?
-          end
-          
-          # Обработка файла для импорта
-          if task_type == 'extended_attrs_import' && extra_file.present?
+      # Обработка дополнительных данных (SKUs и т.д.)
+      if task_type == "extended_attributes_by_skus" || task_type == "recover_broken_product_images" || task_type == "update_all_product_images"
+        payload[:skus] = extra_data
+        payload[:sku_file_path] = sku_file_path if sku_file_path.present?
+      end
+      
+      # Обработка файла для импорта
+      if task_type == 'extended_attrs_import' && extra_file.present?
             import_path = prepare_import_file(extra_file)
             if import_path
               payload[:file_path] = import_path
@@ -94,8 +95,10 @@ Trestle.resource :parser_control, model: ParserControl do
           )
           
           # Передаем task_id в job и сохраняем job_id
-          job = if %w[extended_attrs_import extended_attributes_by_skus fix_translations fix_missing_images translate_all_products].include?(task_type)
-                  job_class.perform_later(task_id: task.id, reset: reset)
+          job = if %w[extended_attrs_import extended_attributes_by_skus fix_translations fix_missing_images translate_all_products update_all_product_images].include?(task_type)
+                  # Для полного обновления картинок передаем cleanup: true по умолчанию
+                  cleanup = params[:cleanup] == '1' || params[:cleanup].nil?
+                  job_class.perform_later(task_id: task.id, reset: reset, cleanup: cleanup, threads: threads)
                 else
                   job_class.perform_later(limit: limit, task_id: task.id)
                 end
@@ -158,7 +161,7 @@ Trestle.resource :parser_control, model: ParserControl do
         return redirect_to admin.instance_path(ParserControl.new(id: 'show'))
       end
 
-      unless %w[extended_attrs_import translate_all_products fix_translations].include?(task.task_type)
+      unless %w[extended_attrs_import fix_translations update_all_product_images].include?(task.task_type)
         flash[:error] = "Эта задача не поддерживает продолжение"
         return redirect_to admin.instance_path(ParserControl.new(id: 'show'))
       end
@@ -347,6 +350,8 @@ Trestle.resource :parser_control, model: ParserControl do
         RecoverMissingImagesJob
       when 'recover_broken_product_images'
         RecoverBrokenProductImagesJob
+      when 'update_all_product_images'
+        UpdateAllProductImagesJob
       when 'recover_missing_weights'
         RecoverMissingWeightsJob
       end
@@ -369,6 +374,7 @@ Trestle.resource :parser_control, model: ParserControl do
         'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
         'recover_missing_images' => 'Поиск и восполнение ссылок на картинки',
         'recover_broken_product_images' => 'Восстановление битых картинок из лога или по списку SKU',
+        'update_all_product_images' => 'Полное обновление всех картинок (WebP + Resumable)',
         'recover_missing_weights' => 'Восполнение недостающего веса (2 потока + прокси)'
       }[type] || type
     end

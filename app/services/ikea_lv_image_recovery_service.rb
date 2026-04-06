@@ -12,85 +12,76 @@ require "tempfile"
 class IkeaLvImageRecoveryService
   # Список доменов и шаблонов URL для поиска продукта
   PRODUCT_URL_TEMPLATES = [
-    "https://www.ikea.com/lt/ru/p/-%{sku}/",
-    "https://www.ikea.com/lv/ru/p/-%{sku}/",
-    "https://www.ikea.com/pl/pl/p/-%{sku}/",
-    "https://www.ikea.com/us/en/p/-%{sku}/"
+    "https://www.ikea.com/lt/ru/p/-%{sku}/"
   ].freeze
 
   SEARCH_URLS = [
-    "https://www.ikea.lt/ru/search/?q=%{sku}",
-    "https://www.ikea.lv/ru/search/?q=%{sku}",
-    "https://www.ikea.pl/pl/search/?q=%{sku}",
-    "https://www.ikea.com/us/en/search/?q=%{sku}"
+    "https://www.ikea.com/lt/ru/search/?q=%{sku}"
   ].freeze
 
   USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
-  attr_reader :product, :images_limit
+  attr_reader :product, :images_limit, :force
 
-  def initialize(product:, images_limit: nil)
+  def initialize(product:, images_limit: nil, force: false)
     @product = product
     @images_limit = images_limit&.to_i
+    @force = force
   end
 
   def call
-    remote_image_urls = parse_remote_images(product.images)
-    existing_local_paths = parse_local_images(product.local_images)
+    # 1. Если не force, проверяем текущее состояние
+    unless force
+      remote_image_urls = parse_remote_images(product.images)
+      existing_local_paths = parse_local_images(product.local_images)
 
-    # 1. Сверяем количество картинок
-    if remote_image_urls.any? && remote_image_urls.size == existing_local_paths.size
-      all_valid = existing_local_paths.all? do |path|
-        full_path = full_public_path(path)
-        File.exist?(full_path) && image_readable?(full_path)
-      end
-      
-      if all_valid
-        Rails.logger.info("IkeaLvImageRecoveryService: SKU #{product.sku} already has all images (#{existing_local_paths.size}). Skipping.")
-        return { changed: false, local_images_count: existing_local_paths.size }
+      if remote_image_urls.any? && remote_image_urls.size == existing_local_paths.size
+        all_valid = existing_local_paths.all? do |path|
+          full_path = full_public_path(path)
+          File.exist?(full_path) && image_readable?(full_path)
+        end
+        
+        if all_valid
+          Rails.logger.info("IkeaLvImageRecoveryService: SKU #{product.sku} already has all images (#{existing_local_paths.size}). Skipping.")
+          return { changed: false, local_images_count: existing_local_paths.size }
+        end
       end
     end
 
     # 2. Очищаем перед началом
     clear_local_images!
 
-    # 3. Пробуем использовать product.images
-    if remote_image_urls.any?
-      Rails.logger.info("IkeaLvImageRecoveryService: Found #{remote_image_urls.size} images in product.images for SKU #{product.sku}. Checking availability...")
-      
-      downloaded_paths = download_available_images(remote_image_urls)
-      
-      if downloaded_paths.any?
-        return save_and_result(downloaded_paths, "existing_product_images")
-      end
-      
-      Rails.logger.warn("IkeaLvImageRecoveryService: All #{remote_image_urls.size} images from product.images failed for SKU #{product.sku}. Falling back to site search.")
-    end
-
-    # 4. Если images пустые, пробуем URL из базы
-    product_url = product.url
-    if product_url.present?
-      Rails.logger.info("IkeaLvImageRecoveryService: Trying product.url from DB for SKU #{product.sku}: #{product_url}")
-      remote_image_urls = fetch_images_from_url(product_url)
+    # 3. Если force: true, мы ВСЕГДА пытаемся найти URL товара и распарсить его заново, 
+    # так как ссылки в product.images могут быть устаревшими или неправильными (как в случае с SKU 10549230)
+    target_url = find_product_url_by_sku(product.sku)
+    target_url ||= product.url # Fallback на URL из базы, если шаблоны не сработали
+    
+    if target_url.present?
+      Rails.logger.info("IkeaLvImageRecoveryService: Found source URL for SKU #{product.sku}: #{target_url}. Parsing images...")
+      remote_image_urls = fetch_images_from_url(target_url)
       
       if remote_image_urls.any?
         downloaded_paths = download_available_images(remote_image_urls)
-        return save_and_result(downloaded_paths, product_url) if downloaded_paths.any?
+        
+        if downloaded_paths.any?
+          return save_and_result(downloaded_paths, target_url, remote_urls: remote_image_urls)
+        end
       end
     end
 
-    # 5. Ищем через шаблоны и поиск
-    target_url = find_product_url_by_sku(product.sku)
-    return { changed: false, local_images_count: 0, product_url: nil } if target_url.blank?
-
-    remote_image_urls = fetch_images_from_url(target_url)
-    downloaded_paths = download_available_images(remote_image_urls)
-
-    if downloaded_paths.any?
-      save_and_result(downloaded_paths, target_url)
-    else
-      { changed: false, local_images_count: 0, product_url: target_url }
+    # 4. Резервный вариант: если не удалось найти URL или распарсить его, 
+    # пробуем использовать то, что уже было в product.images (если не в режиме force)
+    unless force
+      remote_image_urls = parse_remote_images(product.images)
+      if remote_image_urls.any?
+        Rails.logger.info("IkeaLvImageRecoveryService: Falling back to product.images for SKU #{product.sku}")
+        downloaded_paths = download_available_images(remote_image_urls)
+        return save_and_result(downloaded_paths, "existing_product_images") if downloaded_paths.any?
+      end
     end
+
+    # 5. Если совсем ничего не помогло
+    { changed: false, local_images_count: 0, product_url: target_url }
   end
 
   private
@@ -108,7 +99,9 @@ class IkeaLvImageRecoveryService
       full_path = full_public_path(path)
       FileUtils.rm_f(full_path) if File.exist?(full_path)
     end
-    product.update_columns(local_images: [].to_json, images_total: 0)
+    ActiveRecord::Base.connection_pool.with_connection do
+      product.update_columns(local_images: [].to_json, images_total: 0)
+    end
   end
 
   def parse_remote_images(raw)
@@ -146,14 +139,21 @@ class IkeaLvImageRecoveryService
     end
   end
 
-  def save_and_result(downloaded, product_url)
+  def save_and_result(downloaded, product_url, remote_urls: nil)
     final_paths = downloaded.uniq
     
-    product.update_columns(
+    update_data = {
       local_images: final_paths.to_json,
       images_total: final_paths.size,
       updated_at: Time.current
-    )
+    }
+    
+    # Если мы нашли новые удаленные ссылки, обновляем и их тоже
+    update_data[:images] = remote_urls.to_json if remote_urls.present?
+
+    ActiveRecord::Base.connection_pool.with_connection do
+      product.update_columns(update_data)
+    end
 
     {
       changed: true,
@@ -215,20 +215,31 @@ class IkeaLvImageRecoveryService
       rescue JSON::ParserError; end
     end
 
-    # 2. Пытаемся достать из hydration props
+    # 2. Пытаемся достать из hydration props (Блок "Все медиафайлы")
     product_pip = doc.css('.js-product-pip, [data-hydration-props]').first
     if product_pip
       begin
         props_text = product_pip['data-hydration-props'] || product_pip.text
         if props_text.present?
           props = JSON.parse(props_text)
-          media = props.dig('gallery', 'media') || props.dig('gallery', 'items') || 
-                  props.dig('galleryData', 'media') || props.dig('galleryData', 'items')
+          
+          # Ищем именно в media или gallery, что обычно соответствует блоку "Все медиафайлы"
+          media = props.dig('gallery', 'media') || 
+                  props.dig('gallery', 'items') || 
+                  props.dig('galleryData', 'media') || 
+                  props.dig('galleryData', 'items') ||
+                  props.dig('mediaSection', 'images') ||
+                  props.dig('productMedia', 'images')
           
           if media.is_a?(Array)
             media.each do |m|
-              url = m.dig('content', 'url') || m['url']
-              next if m['type'] && m['type'] != 'image'
+              # В блоке медиафайлов обычно объекты с url
+              url = m.dig('content', 'url') || m['url'] || m['contentUrl']
+              
+              # Проверяем, что это именно картинка, а не видео
+              type = m['type'] || m['mediaType']
+              next if type && !['image', 'photo'].include?(type.to_s.downcase)
+              
               urls << url if url && ikea_image_url?(url)
             end
           end
@@ -236,9 +247,9 @@ class IkeaLvImageRecoveryService
       rescue JSON::ParserError; end
     end
 
-    # 3. Резервный поиск
+    # 3. Если из props ничего не нашли, пробуем селекторы, специфичные для галереи
     if urls.empty?
-      doc.css('.pipf-theatre__animation-group img, .pip-product-gallery img').each do |img|
+      doc.css('.pip-product-gallery img, .pipf-product-gallery img, .pip-media-grid img').each do |img|
         src = img['src'] || img['data-src'] || img['data-src-full']
         urls << src if src && ikea_image_url?(src)
       end

@@ -262,16 +262,24 @@ class Product < ApplicationRecord
       when Array
         included_products
       when String
-        included_products.split(/[\n,\r;]+/)
+        if included_products.strip.start_with?('[')
+          begin
+            JSON.parse(included_products)
+          rescue JSON::ParserError
+            included_products.split(/[\n,\r;]+/)
+          end
+        else
+          included_products.split(/[\n,\r;]+/)
+        end
       else
         Array(included_products)
       end
         .flatten
         .filter_map do |item|
           if item.is_a?(Hash)
-            item["sku"] || item[:sku]
+            item["sku"] || item[:sku] || item["item_no"] || item[:item_no]
           else
-            item.to_s.strip.presence
+            item.to_s.gsub(/[\[\]\"]/, '').strip.presence
           end
         end
         .uniq

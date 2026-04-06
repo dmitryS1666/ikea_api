@@ -1,5 +1,5 @@
 class ParserTask < ApplicationRecord
-  TASK_TYPES = %w[recover_broken_product_images categories products bestsellers popular_categories category_images product_images extended_attributes currency_rates category_filters extended_attrs_import fix_missing_images fix_translations extended_attributes_by_skus recover_missing_images translate_all_products translate_category_filters recover_missing_weights].freeze
+  TASK_TYPES = %w[recover_broken_product_images update_all_product_images categories products bestsellers popular_categories category_images product_images extended_attributes currency_rates category_filters extended_attrs_import fix_missing_images fix_translations extended_attributes_by_skus recover_missing_images translate_all_products translate_category_filters recover_missing_weights].freeze
   STATUSES = %w[pending running completed failed].freeze
 
   validates :task_type, presence: true, inclusion: { in: TASK_TYPES }
@@ -25,13 +25,14 @@ class ParserTask < ApplicationRecord
   end
 
   def mark_as_completed!(stats = {})
+    self.reload
     update!(
       status: 'completed',
       completed_at: Time.current,
-      processed: stats[:processed] || 0,
-      created: stats[:created] || 0,
-      updated: stats[:updated] || 0,
-      error_count: stats[:errors] || 0
+      processed: stats[:processed] || self.processed || 0,
+      created: stats[:created] || self.created || 0,
+      updated: stats[:updated] || self.updated || 0,
+      error_count: stats[:errors] || self.error_count || 0
     )
   end
 
@@ -44,19 +45,23 @@ class ParserTask < ApplicationRecord
   end
 
   def increment_processed!
-    increment!(:processed)
+    self.class.update_counters(id, processed: 1)
+    self.processed = (self.processed || 0) + 1
   end
 
   def increment_created!
-    increment!(:created)
+    self.class.update_counters(id, created: 1)
+    self.created = (self.created || 0) + 1
   end
 
   def increment_updated!
-    increment!(:updated)
+    self.class.update_counters(id, updated: 1)
+    self.updated = (self.updated || 0) + 1
   end
 
   def increment_errors!
-    increment!(:error_count)
+    self.class.update_counters(id, error_count: 1)
+    self.error_count = (self.error_count || 0) + 1
   end
 
   def reset_task!

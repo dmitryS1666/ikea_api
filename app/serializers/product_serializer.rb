@@ -436,6 +436,8 @@ class ProductSerializer
   end
 
   attribute :included_products do |product|
-    Array(product.included_products).filter_map { |sku| sku.to_s.strip.presence }.uniq
+    Array(product.included_products).filter_map do |item|
+      item.to_s.gsub(/[\[\]\"]/, '').strip.presence
+    end.uniq
   end
 end
