@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_06_074251) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_07_080600) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -417,6 +417,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_06_074251) do
     t.jsonb "address_json", default: {}
     t.string "track_number"
     t.jsonb "tracking_info"
+    t.datetime "payment_expires_at"
+    t.string "payment_url"
     t.index ["crm_external_id"], name: "index_orders_on_crm_external_id"
     t.index ["promo_code_id"], name: "index_orders_on_promo_code_id"
     t.index ["status"], name: "index_orders_on_status"
@@ -599,6 +601,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_06_074251) do
     t.string "cached_slug"
     t.text "small_desc_name"
     t.text "included_products"
+    t.string "variant_type"
+    t.text "variants_payload"
     t.index ["cached_slug"], name: "index_products_on_cached_slug"
     t.index ["category_id"], name: "index_products_on_category_id"
     t.index ["is_bestseller"], name: "index_products_on_is_bestseller"

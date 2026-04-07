@@ -10,14 +10,19 @@ require "fileutils"
 require "tempfile"
 
 class IkeaLvImageRecoveryService
-  # Список доменов и шаблонов URL для поиска продукта
-  PRODUCT_URL_TEMPLATES = [
-    "https://www.ikea.com/lt/ru/p/-%{sku}/"
-  ].freeze
-
-  SEARCH_URLS = [
-    "https://www.ikea.com/lt/ru/search/?q=%{sku}"
-  ].freeze
+    # Список доменов и шаблонов URL для поиска продукта (в порядке приоритета)
+    PRODUCT_URL_TEMPLATES = [
+      "https://www.ikea.com/lt/ru/p/-%{sku}/",
+      "https://www.ikea.com/pl/pl/p/-%{sku}/",
+      "https://www.ikea.com/us/en/p/-%{sku}/",
+      "https://www.ikea.com/lv/ru/p/-%{sku}/"
+    ].freeze
+  
+    SEARCH_URLS = [
+      "https://www.ikea.com/lt/ru/search/?q=%{sku}",
+      "https://www.ikea.pl/pl/search/?q=%{sku}",
+      "https://www.ikea.com/us/en/search/?q=%{sku}"
+    ].freeze
 
   USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 

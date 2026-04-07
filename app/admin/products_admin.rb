@@ -601,7 +601,7 @@ Trestle.resource(:products, model: Product) do
       :delivery_type, :delivery_name, :delivery_cost, :delivery_reason,
       :short_description, :short_description_ru, :materials, :materials_ru,
       :care_instructions, :care_instructions_ru,
-      :included_products,
+      :included_products, :variant_type,
       category_ids: [],
       seo_meta_attributes: [:id, :title, :description, :keywords, :robots, :seo_text, :_destroy]
     )

@@ -67,7 +67,7 @@ Trestle.resource :parser_control, model: ParserControl do
           payload = {}
           
       # Обработка дополнительных данных (SKUs и т.д.)
-      if task_type == "extended_attributes_by_skus" || task_type == "recover_broken_product_images" || task_type == "update_all_product_images"
+      if task_type == "extended_attributes_by_skus" || task_type == "recover_broken_product_images" || task_type == "update_all_product_images" || task_type == "update_product_variants"
         payload[:skus] = extra_data
         payload[:sku_file_path] = sku_file_path if sku_file_path.present?
       end
@@ -95,10 +95,10 @@ Trestle.resource :parser_control, model: ParserControl do
           )
           
           # Передаем task_id в job и сохраняем job_id
-          job = if %w[extended_attrs_import extended_attributes_by_skus fix_translations fix_missing_images translate_all_products update_all_product_images].include?(task_type)
+          job = if %w[extended_attrs_import extended_attributes_by_skus fix_translations fix_missing_images translate_all_products update_all_product_images update_product_variants].include?(task_type)
                   # Для полного обновления картинок передаем cleanup: true по умолчанию
                   cleanup = params[:cleanup] == '1' || params[:cleanup].nil?
-                  job_class.perform_later(task_id: task.id, reset: reset, cleanup: cleanup, threads: threads)
+                  job_class.perform_later(task_id: task.id, reset: reset, cleanup: cleanup, threads: threads, sku: payload[:skus])
                 else
                   job_class.perform_later(limit: limit, task_id: task.id)
                 end
@@ -352,6 +352,8 @@ Trestle.resource :parser_control, model: ParserControl do
         RecoverBrokenProductImagesJob
       when 'update_all_product_images'
         UpdateAllProductImagesJob
+      when 'update_product_variants'
+        UpdateProductVariantsJob
       when 'recover_missing_weights'
         RecoverMissingWeightsJob
       end
@@ -375,6 +377,7 @@ Trestle.resource :parser_control, model: ParserControl do
         'recover_missing_images' => 'Поиск и восполнение ссылок на картинки',
         'recover_broken_product_images' => 'Восстановление битых картинок из лога или по списку SKU',
         'update_all_product_images' => 'Полное обновление всех картинок (WebP + Resumable)',
+        'update_product_variants' => 'Актуализация вариантов (цвета/размеры)',
         'recover_missing_weights' => 'Восполнение недостающего веса (2 потока + прокси)'
       }[type] || type
     end

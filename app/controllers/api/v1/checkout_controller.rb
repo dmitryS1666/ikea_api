@@ -9,7 +9,8 @@ module Api
         if result[:success]
           render json: { 
             message: 'Заказ успешно оформлен', 
-            order_id: result[:order].id 
+            order_id: result[:order].id,
+            order: OrderSerializer.new(result[:order]).serializable_hash[:data][:attributes]
           }, status: :created
         else
           render json: result.except(:success), status: :unprocessable_entity

@@ -1,9 +1,10 @@
 FactoryBot.define do
   factory :user do
-    username { "MyString" }
-    email { "MyString" }
-    password_digest { "MyString" }
-    role { "MyString" }
-    is_active { false }
+    sequence(:username) { |n| "user#{n}" }
+    sequence(:email) { |n| "user#{n}@example.com" }
+    password { "password" }
+    phone { "37529#{rand(1000000..9999999)}" }
+    role { "user" }
+    is_active { true }
   end
 end

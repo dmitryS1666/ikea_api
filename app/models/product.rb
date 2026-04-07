@@ -163,15 +163,26 @@ class Product < ApplicationRecord
       sku: sku,
       name_ru: name_ru,
       small_desc_name: small_desc_name,
-      slug: slug,
       price: price&.to_s,
-      quantity: quantity,
+      quantity: quantity || 999,
       images: images
     }
   end
 
   def normalized_variants_for_api
-    type = variant_group_type
+    # Сначала пробуем использовать сохраненный тип из БД
+    type = variant_type.presence || variant_group_type
+    
+    # Если мы сохранили данные в variants_payload (в IkeaLvProductVariantsService), 
+    # мы можем использовать их напрямую, если variant_group_type не сработал
+    if type.present? && Product.column_names.include?("variants_payload") && variants_payload.present?
+      begin
+        payload = JSON.parse(variants_payload)
+        return payload.deep_symbolize_keys if payload["type"] == type
+      rescue JSON::ParserError
+      end
+    end
+
     return nil if type.blank?
 
     products = variant_products.to_a

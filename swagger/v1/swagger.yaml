@@ -1133,6 +1133,8 @@ paths:
                     type: string
                   order_id:
                     type: integer
+                  order:
+                    $ref: '#/components/schemas/Order'
         '401':
           description: Необходима авторизация
         '422':
@@ -2913,6 +2915,18 @@ components:
             created_at:
               type: string
               format: date-time
+            payment_expires_at:
+              type: string
+              format: date-time
+              nullable: true
+              description: "Время истечения ссылки на оплату"
+            payment_url:
+              type: string
+              nullable: true
+              description: "Ссылка на оплату"
+            payment_expired:
+              type: boolean
+              description: "Флаг, истекло ли время оплаты"
             address:
               type: object
             tracking_info:
@@ -3097,6 +3111,18 @@ components:
             created_at:
               type: string
               format: date-time
+            payment_expires_at:
+              type: string
+              format: date-time
+              nullable: true
+              description: "Время истечения ссылки на оплату"
+            payment_url:
+              type: string
+              nullable: true
+              description: "Ссылка на оплату"
+            payment_expired:
+              type: boolean
+              description: "Флаг, истекло ли время оплаты"
             address:
               type: object
             tracking_info:

@@ -42,6 +42,7 @@
                     ['Импорт атрибутов из файла (JSON)', 'extended_attrs_import'],
                     ['Загрузка атрибутов по списку SKU', 'extended_attributes_by_skus'],
                     ['Восполнение ссылок на картинки', 'recover_missing_images'],
+                    ['Актуализация вариантов (цвета/размеры)', 'update_product_variants'],
                     ['Полное обновление всех картинок (WebP)', 'update_all_product_images'],
                     ['Восполнение недостающего веса', 'recover_missing_weights'],
                     ['Восстановление битых картинок (по логу/SKU)', 'recover_broken_product_images']
@@ -129,6 +130,8 @@
                         'fix_translations' => 'Исправление битых переводов',
                         'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
                         'recover_missing_images' => 'Восполнение ссылок на картинки',
+                        'update_product_variants' => 'Актуализация вариантов',
+                        'update_product_variants' => 'Актуализация вариантов',
                         'update_all_product_images' => 'Обновление всех картинок (WebP)',
                         'recover_missing_weights' => 'Восполнение недостающего веса',
                         'recover_broken_product_images' => 'Восстановление битых картинок'
@@ -502,7 +505,7 @@
       extraDataField.classList.add('d-none');
       extraFileField.classList.add('d-none');
 
-      if (task === 'extended_attributes_by_skus' || task === 'recover_broken_product_images') {
+      if (task === 'extended_attributes_by_skus' || task === 'recover_broken_product_images' || task === 'update_product_variants') {
         extraDataField.classList.remove('d-none');
       } else if (task === 'extended_attrs_import') {
         extraFileField.classList.remove('d-none');
