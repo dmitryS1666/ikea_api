@@ -174,11 +174,48 @@ class Product < ApplicationRecord
     type = variant_type.presence || variant_group_type
     
     # Если мы сохранили данные в variants_payload (в IkeaLvProductVariantsService), 
-    # мы можем использовать их напрямую, если variant_group_type не сработал
-    if type.present? && Product.column_names.include?("variants_payload") && variants_payload.present?
+    # мы можем использовать их напрямую
+    if Product.column_names.include?("variants_payload") && variants_payload.present?
       begin
         payload = JSON.parse(variants_payload)
-        return payload.deep_symbolize_keys if payload["type"] == type
+        
+        # Обработка как массива (новая структура) или объекта (старая)
+        data_to_process = payload.is_a?(Array) ? payload : [payload]
+        
+        # Определяем валюту на основе URL (Литва - EUR, Польша - PLN)
+        # Если URL пустой или не содержит /lt/ или /pl/, по умолчанию считаем PLN
+        currency = url.to_s.include?("/lt/") ? 'EUR' : 'PLN'
+        
+        # Получаем курсы валют
+        pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 0
+        eur_rate = ExchangeRate.fetch_or_create('EUR')&.rate_per_unit || 0
+        buffer = PriceCalculationService.exchange_rate_buffer
+        
+        processed_payload = data_to_process.map do |variant_group|
+          group = variant_group.deep_symbolize_keys
+          group[:data].each do |variant|
+            item = variant[:item]
+            original_price = item[:price].to_f
+            
+            if original_price > 0
+              price_byn = if currency == 'EUR'
+                            # Если цена в EUR (Литва), сначала переводим в PLN для калькулятора
+                            # (так как PriceCalculationService.product_price_byn ожидает PLN)
+                            price_pln = (original_price * eur_rate / pln_rate) rescue 0
+                            PriceCalculationService.product_price_byn(price_pln, pln_rate: pln_rate, buffer: buffer)
+                          else
+                            # Если цена в PLN (Польша)
+                            PriceCalculationService.product_price_byn(original_price, pln_rate: pln_rate, buffer: buffer)
+                          end
+              item[:price_byn] = ActionController::Base.helpers.number_with_delimiter(price_byn, delimiter: ' ')
+            else
+              item[:price_byn] = "0"
+            end
+          end
+          group
+        end
+
+        return payload.is_a?(Array) ? processed_payload : processed_payload.first
       rescue JSON::ParserError
       end
     end

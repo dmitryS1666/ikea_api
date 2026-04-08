@@ -42,20 +42,18 @@ class IkeaLvProductVariantsService
     variants_data = extract_variants(doc)
 
     if variants_data.present?
-      all_variant_skus = variants_data[:data].map { |d| d.dig(:item, :sku) }.compact.uniq
+      # Собираем все уникальные SKU из всех типов вариантов
+      all_variant_skus = variants_data.flat_map { |v| v[:data].map { |d| d.dig(:item, :sku) } }.compact.uniq
       
-      # Сохраняем расширенную структуру в payload, если нужно, 
-      # но основное - это список SKU в variants и тип в variant_type (если такое поле есть)
-      # В данном случае, мы обновим поле variants списком SKU.
-      
+      # Сохраняем расширенную структуру в payload
       update_data = { variants: all_variant_skus.to_json, updated_at: Time.current }
       
-      # Если в модели есть поле variant_type, обновим и его
+      # Тип теперь может быть комбинированным, если их несколько
       if Product.column_names.include?("variant_type")
-        update_data[:variant_type] = variants_data[:type]
+        update_data[:variant_type] = variants_data.map { |v| v[:type] }.join(",")
       end
 
-      # Если в модели есть поле variants_payload, сохраним туда полную структуру
+      # Сохраняем массив вариантов
       if Product.column_names.include?("variants_payload")
         update_data[:variants_payload] = variants_data.to_json
       end
@@ -66,9 +64,9 @@ class IkeaLvProductVariantsService
         # Также обновляем все продукты-варианты
         Product.where(sku: all_variant_skus).where.not(id: product.id).update_all(update_data)
         
-        { changed: true, type: variants_data[:type], count: all_variant_skus.size, data: variants_data }
+        { changed: true, types: variants_data.map { |v| v[:type] }, count: all_variant_skus.size, data: variants_data }
       else
-        { changed: false, type: variants_data[:type], count: all_variant_skus.size, data: variants_data }
+        { changed: false, types: variants_data.map { |v| v[:type] }, count: all_variant_skus.size, data: variants_data }
       end
     else
       { changed: false, count: 0 }
@@ -78,15 +76,17 @@ class IkeaLvProductVariantsService
   private
 
   def extract_variants(doc)
+    all_variants = []
+
     # 1. Проверяем цвета
     color_variants = extract_color_variants(doc)
-    return { type: "color", data: color_variants } if color_variants.any?
+    all_variants << { type: "color", data: color_variants } if color_variants.any?
 
     # 2. Проверяем размеры
     size_variants = extract_size_variants(doc)
-    return { type: "size", data: size_variants } if size_variants.any?
+    all_variants << { type: "size", data: size_variants } if size_variants.any?
 
-    nil
+    all_variants.presence
   end
 
   def extract_color_variants(doc)
