@@ -32,6 +32,15 @@ class Product < ApplicationRecord
   scope :recommended, -> { where(is_recommended: true) }
   scope :with_category, -> { where.not(category_id: nil) }
 
+  # Товары в категории по ikea_id: основная category_id и/или связь category_products
+  scope :in_category_ikea_id, lambda { |ikea_id|
+    ikea_id = ikea_id.to_s.strip
+    next all if ikea_id.blank?
+
+    linked_ids = CategoryProduct.where(category_id: ikea_id).select(:product_id)
+    where(category_id: ikea_id).or(where(id: linked_ids))
+  }
+
   # Локальные пути ещё указывают на jpg/jpeg/png (до конвертации в .webp в хранилище)
   scope :with_raster_local_images, lambda {
     where.not(local_images: [nil, "", "[]"])

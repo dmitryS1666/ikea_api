@@ -6,7 +6,7 @@ class UpdateAllProductImagesJob < ApplicationJob
   BATCH_SIZE = 100
   THREADS_COUNT = 2
 
-  def perform(task_id: nil, limit: nil, force: true, images_limit: nil, reset: false, cleanup: true, sku: nil, threads: 2, image_contains: nil)
+  def perform(task_id: nil, limit: nil, force: true, images_limit: nil, reset: false, cleanup: true, sku: nil, threads: 2, image_contains: nil, category_ikea_id: nil)
     task = task_id ? ParserTask.find(task_id) : create_parser_task("update_all_product_images", limit: limit)
     payload_h = task.payload.is_a?(Hash) ? task.payload.stringify_keys : {}
 
@@ -26,6 +26,9 @@ class UpdateAllProductImagesJob < ApplicationJob
 
     image_contains ||= payload_h["image_contains"]
     image_contains = image_contains.to_s.strip.presence if image_contains.present?
+
+    category_ikea_id ||= payload_h["category_ikea_id"]
+    category_ikea_id = category_ikea_id.to_s.strip.presence if category_ikea_id.present?
 
     if images_limit.blank?
       il = payload_h["images_limit"]
@@ -55,7 +58,7 @@ class UpdateAllProductImagesJob < ApplicationJob
 
     log_file = Rails.root.join("log", "update_all_product_images_#{task.id}.log")
     logger = Logger.new(log_file)
-    logger.info "Starting UpdateAllProductImagesJob (task_id: #{task.id}, skus: #{target_skus.join(',')}, image_contains: #{image_contains.inspect}, images_limit: #{images_limit.inspect}, threads: #{threads_count}, last_id: #{last_id}, limit: #{limit}, force: #{force}, cleanup: #{cleanup}, raster_local_only: #{target_skus.empty?})"
+    logger.info "Starting UpdateAllProductImagesJob (task_id: #{task.id}, skus: #{target_skus.join(',')}, category_ikea_id: #{category_ikea_id.inspect}, image_contains: #{image_contains.inspect}, images_limit: #{images_limit.inspect}, threads: #{threads_count}, last_id: #{last_id}, limit: #{limit}, force: #{force}, cleanup: #{cleanup}, raster_local_only: #{target_skus.empty?})"
 
     started_at = Time.current
     task.mark_as_running!
@@ -74,6 +77,7 @@ class UpdateAllProductImagesJob < ApplicationJob
         query = query.limit(limit) if limit.present?
       end
 
+      query = query.merge(Product.in_category_ikea_id(category_ikea_id)) if category_ikea_id.present?
       query = query.merge(Product.with_image_json_containing(image_contains)) if image_contains.present?
 
       total_to_process_count = query.count
@@ -82,6 +86,7 @@ class UpdateAllProductImagesJob < ApplicationJob
 
       if target_skus.empty? && last_id.present? && total_to_process_count.zero?
         still_scope = Product.with_raster_local_images
+        still_scope = still_scope.merge(Product.in_category_ikea_id(category_ikea_id)) if category_ikea_id.present?
         still_scope = still_scope.merge(Product.with_image_json_containing(image_contains)) if image_contains.present?
         if still_scope.where("products.id <= ?", last_id).exists?
           logger.warn "UpdateAllProductImagesJob: остались товары с jpg/jpeg/png в local_images при id <= last_id (#{last_id}); " \

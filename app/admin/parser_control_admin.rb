@@ -99,6 +99,8 @@ Trestle.resource :parser_control, model: ParserControl do
             payload[:image_contains] = ic if ic.present?
             il = params[:images_limit].presence&.to_i
             payload[:images_limit] = il if il.present? && il.positive?
+            cat_id = params[:category_ikea_id].to_s.strip.presence
+            payload[:category_ikea_id] = cat_id if cat_id.present?
           end
 
           # Обработка файла для импорта
@@ -137,6 +139,7 @@ Trestle.resource :parser_control, model: ParserControl do
                   if task_type == "update_all_product_images"
                     job_args[:image_contains] = payload[:image_contains]
                     job_args[:images_limit] = payload[:images_limit]
+                    job_args[:category_ikea_id] = payload[:category_ikea_id]
                   end
                   job_class.perform_later(**job_args)
                 else
