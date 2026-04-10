@@ -221,6 +221,10 @@ class ProductSerializer
     description_items = normalize_description_items(
       detailed_info["Описание"] || detailed_info["Полное описание"]
     )
+    if description_items.empty?
+      gi = detailed_info["Полезная информация"].to_s.strip.presence
+      description_items = normalize_description_items(gi) if gi.present?
+    end
 
     {
       "short_description" => short_description,
