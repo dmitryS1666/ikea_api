@@ -41,6 +41,19 @@ class Product < ApplicationRecord
       )
   }
 
+  # Фрагмент для поиска товаров по сохранённым путям или URL в JSON (без учёта регистра)
+  scope :with_image_json_containing, lambda { |fragment|
+    fragment = fragment.to_s.strip
+    next all if fragment.blank?
+
+    escaped = ActiveRecord::Base.sanitize_sql_like(fragment)
+    where(
+      "products.local_images ILIKE ? OR products.images ILIKE ?",
+      "%#{escaped}%",
+      "%#{escaped}%"
+    )
+  }
+
   scope :by_rating, -> { order(rating_weighted: :desc, rating_count: :desc, id: :asc) }
   scope :cheapest_first,  -> { order(Arel.sql('products.price ASC NULLS LAST, products.id ASC')) }
   scope :expensive_first, -> { order(Arel.sql('products.price DESC NULLS LAST, products.id DESC')) }

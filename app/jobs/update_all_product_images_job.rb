@@ -6,21 +6,34 @@ class UpdateAllProductImagesJob < ApplicationJob
   BATCH_SIZE = 100
   THREADS_COUNT = 2
 
-  def perform(task_id: nil, limit: nil, force: true, images_limit: nil, reset: false, cleanup: true, sku: nil, threads: 2)
+  def perform(task_id: nil, limit: nil, force: true, images_limit: nil, reset: false, cleanup: true, sku: nil, threads: 2, image_contains: nil)
     task = task_id ? ParserTask.find(task_id) : create_parser_task("update_all_product_images", limit: limit)
-    
+    payload_h = task.payload.is_a?(Hash) ? task.payload.stringify_keys : {}
+
     # Сброс прогресса, если заказано
     if reset
       task.update_payload!("last_id" => nil)
       task.update!(processed: 0, updated: 0, error_count: 0)
+      payload_h = task.reload.payload.is_a?(Hash) ? task.payload.stringify_keys : {}
     end
 
     # Резюмирование
-    last_id = task.payload.is_a?(Hash) ? task.payload["last_id"] : nil
-    
+    last_id = payload_h["last_id"]
+
     # Извлекаем SKU из аргументов или из payload задачи
-    skus_from_payload = task.payload.is_a?(Hash) ? task.payload["skus"] : nil
+    skus_from_payload = payload_h["skus"]
     sku ||= skus_from_payload if skus_from_payload.present?
+
+    image_contains ||= payload_h["image_contains"]
+    image_contains = image_contains.to_s.strip.presence if image_contains.present?
+
+    if images_limit.blank?
+      il = payload_h["images_limit"]
+      images_limit = il.present? && il.to_i.positive? ? il.to_i : nil
+    else
+      images_limit = images_limit.to_i
+      images_limit = nil unless images_limit.positive?
+    end
     
     # Если передано несколько SKU через строку/массив, обрабатываем их все
     target_skus = []
@@ -33,25 +46,16 @@ class UpdateAllProductImagesJob < ApplicationJob
     threads_count = [threads.to_i, 1].max
     threads_count = [threads_count, 10].min # Ограничение сверху
 
-    total_to_process_count =
-      if target_skus.any?
-        target_skus.size
-      elsif limit.present?
-        limit
-      else
-        Product.with_raster_local_images.count
-      end
-
     stats = {
       processed: task.processed || 0,
       updated: task.updated || 0,
       errors: task.error_count || 0,
-      total_to_process: total_to_process_count
+      total_to_process: 0
     }
 
     log_file = Rails.root.join("log", "update_all_product_images_#{task.id}.log")
     logger = Logger.new(log_file)
-    logger.info "Starting UpdateAllProductImagesJob (task_id: #{task.id}, skus: #{target_skus.join(',')}, threads: #{threads_count}, last_id: #{last_id}, limit: #{limit}, force: #{force}, cleanup: #{cleanup}, raster_local_only: #{target_skus.empty?})"
+    logger.info "Starting UpdateAllProductImagesJob (task_id: #{task.id}, skus: #{target_skus.join(',')}, image_contains: #{image_contains.inspect}, images_limit: #{images_limit.inspect}, threads: #{threads_count}, last_id: #{last_id}, limit: #{limit}, force: #{force}, cleanup: #{cleanup}, raster_local_only: #{target_skus.empty?})"
 
     started_at = Time.current
     task.mark_as_running!
@@ -70,13 +74,19 @@ class UpdateAllProductImagesJob < ApplicationJob
         query = query.limit(limit) if limit.present?
       end
 
-      remaining = query.count
-      logger.info "Products remaining to process: #{remaining}"
+      query = query.merge(Product.with_image_json_containing(image_contains)) if image_contains.present?
 
-      if target_skus.empty? && last_id.present? && remaining.zero? &&
-         Product.with_raster_local_images.where("products.id <= ?", last_id).exists?
-        logger.warn "UpdateAllProductImagesJob: остались товары с jpg/jpeg/png в local_images при id <= last_id (#{last_id}); " \
-                    "для прохода по ним включите «Сбросить прогресс» в задаче."
+      total_to_process_count = query.count
+      stats[:total_to_process] = total_to_process_count
+      logger.info "Products remaining to process: #{total_to_process_count}"
+
+      if target_skus.empty? && last_id.present? && total_to_process_count.zero?
+        still_scope = Product.with_raster_local_images
+        still_scope = still_scope.merge(Product.with_image_json_containing(image_contains)) if image_contains.present?
+        if still_scope.where("products.id <= ?", last_id).exists?
+          logger.warn "UpdateAllProductImagesJob: остались товары с jpg/jpeg/png в local_images при id <= last_id (#{last_id}); " \
+                      "для прохода по ним включите «Сбросить прогресс» в задаче."
+        end
       end
 
       query.find_in_batches(batch_size: BATCH_SIZE) do |batch|

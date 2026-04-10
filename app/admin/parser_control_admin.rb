@@ -94,6 +94,13 @@ Trestle.resource :parser_control, model: ParserControl do
             payload[:sku_file_path] = sku_file_path if sku_file_path.present?
           end
 
+          if task_type == "update_all_product_images"
+            ic = params[:image_contains].to_s.strip.presence
+            payload[:image_contains] = ic if ic.present?
+            il = params[:images_limit].presence&.to_i
+            payload[:images_limit] = il if il.present? && il.positive?
+          end
+
           # Обработка файла для импорта
           if task_type == 'extended_attrs_import' && extra_file.present?
             import_path = prepare_import_file(extra_file)
@@ -126,7 +133,12 @@ Trestle.resource :parser_control, model: ParserControl do
                 elsif %w[extended_attrs_import extended_attributes_by_skus fix_translations fix_missing_images translate_all_products update_all_product_images update_product_variants].include?(task_type)
                   # Для полного обновления картинок передаем cleanup: true по умолчанию
                   cleanup = params[:cleanup] == '1' || params[:cleanup].nil?
-                  job_class.perform_later(task_id: task.id, reset: reset, cleanup: cleanup, threads: threads, sku: payload[:skus])
+                  job_args = { task_id: task.id, reset: reset, cleanup: cleanup, threads: threads, sku: payload[:skus] }
+                  if task_type == "update_all_product_images"
+                    job_args[:image_contains] = payload[:image_contains]
+                    job_args[:images_limit] = payload[:images_limit]
+                  end
+                  job_class.perform_later(**job_args)
                 else
                   job_class.perform_later(limit: limit, task_id: task.id)
                 end
