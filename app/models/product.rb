@@ -50,6 +50,19 @@ class Product < ApplicationRecord
       )
   }
 
+  # Для джобы WebP по категории: растр в local_images ИЛИ есть remote images, но локально пусто / не webp / битый формат в JSON
+  scope :needing_product_image_job_processing, lambda {
+    needs_remote_sync = where.not(images: [nil, "", "[]"]).where(
+      <<~SQL.squish
+        (local_images IS NULL OR TRIM(local_images) = '' OR TRIM(local_images) = '[]')
+        OR local_images ILIKE '%.jpg%' OR local_images ILIKE '%.jpeg%' OR local_images ILIKE '%.png%'
+        OR (TRIM(COALESCE(local_images, '')) NOT IN ('', '[]') AND local_images NOT ILIKE '%.webp%')
+      SQL
+    )
+
+    with_raster_local_images.or(needs_remote_sync)
+  }
+
   # Фрагмент для поиска товаров по сохранённым путям или URL в JSON (без учёта регистра)
   scope :with_image_json_containing, lambda { |fragment|
     fragment = fragment.to_s.strip

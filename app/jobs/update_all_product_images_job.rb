@@ -58,26 +58,31 @@ class UpdateAllProductImagesJob < ApplicationJob
 
     log_file = Rails.root.join("log", "update_all_product_images_#{task.id}.log")
     logger = Logger.new(log_file)
-    logger.info "Starting UpdateAllProductImagesJob (task_id: #{task.id}, skus: #{target_skus.join(',')}, category_ikea_id: #{category_ikea_id.inspect}, image_contains: #{image_contains.inspect}, images_limit: #{images_limit.inspect}, threads: #{threads_count}, last_id: #{last_id}, limit: #{limit}, force: #{force}, cleanup: #{cleanup}, raster_local_only: #{target_skus.empty?})"
+    logger.info "Starting UpdateAllProductImagesJob (task_id: #{task.id}, skus: #{target_skus.join(',')}, category_ikea_id: #{category_ikea_id.inspect}, image_contains: #{image_contains.inspect}, images_limit: #{images_limit.inspect}, threads: #{threads_count}, last_id: #{last_id}, limit: #{limit}, force: #{force}, cleanup: #{cleanup}, category_scope_full: #{target_skus.empty? && category_ikea_id.present?})"
 
     started_at = Time.current
     task.mark_as_running!
 
     begin
       # Собираем ID товаров для обработки.
-      # Массовый режим (без списка SKU): только товары, у которых в local_images ещё jpg/jpeg/png —
-      # уже сконвертированные в .webp в БД не трогаем.
+      # Без SKU: глобально — только jpg/jpeg/png в local_images (уже .webp в БД не трогаем).
+      # С указанной категорией — ещё и товары с URL в images без нормальных локальных webp (дозагрузка + конвертация).
       query = Product.order(:id)
 
       if target_skus.any?
         query = query.where(sku: target_skus)
+        query = query.merge(Product.in_category_ikea_id(category_ikea_id)) if category_ikea_id.present?
+      elsif category_ikea_id.present?
+        query = query.merge(Product.in_category_ikea_id(category_ikea_id))
+        query = query.merge(Product.needing_product_image_job_processing)
+        query = query.where("products.id > ?", last_id) if last_id.present?
+        query = query.limit(limit) if limit.present?
       else
         query = query.merge(Product.with_raster_local_images)
         query = query.where("products.id > ?", last_id) if last_id.present?
         query = query.limit(limit) if limit.present?
       end
 
-      query = query.merge(Product.in_category_ikea_id(category_ikea_id)) if category_ikea_id.present?
       query = query.merge(Product.with_image_json_containing(image_contains)) if image_contains.present?
 
       total_to_process_count = query.count
@@ -85,11 +90,15 @@ class UpdateAllProductImagesJob < ApplicationJob
       logger.info "Products remaining to process: #{total_to_process_count}"
 
       if target_skus.empty? && last_id.present? && total_to_process_count.zero?
-        still_scope = Product.with_raster_local_images
-        still_scope = still_scope.merge(Product.in_category_ikea_id(category_ikea_id)) if category_ikea_id.present?
+        still_scope =
+          if category_ikea_id.present?
+            Product.in_category_ikea_id(category_ikea_id).merge(Product.needing_product_image_job_processing)
+          else
+            Product.with_raster_local_images
+          end
         still_scope = still_scope.merge(Product.with_image_json_containing(image_contains)) if image_contains.present?
         if still_scope.where("products.id <= ?", last_id).exists?
-          logger.warn "UpdateAllProductImagesJob: остались товары с jpg/jpeg/png в local_images при id <= last_id (#{last_id}); " \
+          logger.warn "UpdateAllProductImagesJob: остались товары для обработки при id <= last_id (#{last_id}); " \
                       "для прохода по ним включите «Сбросить прогресс» в задаче."
         end
       end

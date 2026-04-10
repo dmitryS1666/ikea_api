@@ -28,13 +28,16 @@ class IkeaLvImageRecoveryService
 
   attr_reader :product, :images_limit, :force
 
-  def initialize(product:, images_limit: nil, force: false)
+  def initialize(product:, images_limit: nil, force: false, debug: nil)
     @product = product
     @images_limit = images_limit&.to_i
     @force = force
+    @debug = debug.nil? ? ENV["IKEA_LV_IMAGE_DEBUG"].present? : debug
   end
 
   def call
+    dbg "=== start sku=#{product.sku} force=#{force} images_limit=#{images_limit.inspect}"
+
     # 1. Если не force, проверяем текущее состояние
     unless force
       remote_image_urls = parse_remote_images(product.images)
@@ -47,6 +50,7 @@ class IkeaLvImageRecoveryService
         end
         
         if all_valid
+          dbg "skip: все локальные файлы на месте (#{existing_local_paths.size})"
           Rails.logger.info("IkeaLvImageRecoveryService: SKU #{product.sku} already has all images (#{existing_local_paths.size}). Skipping.")
           return { changed: false, local_images_count: existing_local_paths.size }
         end
@@ -55,47 +59,70 @@ class IkeaLvImageRecoveryService
 
     # 2. Очищаем перед началом
     clear_local_images!
+    dbg "cleared local_images / removed old files"
 
     # 3. Если force: true, мы ВСЕГДА пытаемся найти URL товара и распарсить его заново, 
     # так как ссылки в product.images могут быть устаревшими или неправильными (как в случае с SKU 10549230)
     target_url = find_product_url_by_sku(product.sku)
     target_url ||= product.url # Fallback на URL из базы, если шаблоны не сработали
+    dbg "target_url=#{target_url.inspect} product.url=#{product.url.inspect}"
     
     if target_url.present?
       Rails.logger.info("IkeaLvImageRecoveryService: Found source URL for SKU #{product.sku}: #{target_url}. Parsing images...")
       remote_image_urls = fetch_images_from_url(target_url)
+      dbg "parsed remote_image_urls count=#{remote_image_urls.size} sample=#{remote_image_urls.first.inspect}"
       
       if remote_image_urls.any?
         downloaded_paths = download_available_images(remote_image_urls)
+        dbg "downloaded_paths count=#{downloaded_paths.compact.size} #{downloaded_paths.compact.first(3).inspect}"
         
         if downloaded_paths.any?
           return save_and_result(downloaded_paths, target_url, remote_urls: remote_image_urls)
         end
+      else
+        dbg "нет URL картинок после разбора HTML страницы товара"
       end
+    else
+      dbg "не удалось определить URL страницы товара"
     end
 
-    # 4. Резервный вариант: если не удалось найти URL или распарсить его, 
-    # пробуем использовать то, что уже было в product.images (если не в режиме force)
-    unless force
-      remote_image_urls = parse_remote_images(product.images)
-      if remote_image_urls.any?
-        Rails.logger.info("IkeaLvImageRecoveryService: Falling back to product.images for SKU #{product.sku}")
-        downloaded_paths = download_available_images(remote_image_urls)
-        return save_and_result(downloaded_paths, "existing_product_images") if downloaded_paths.any?
-      end
+    # 4. Если со страницы не удалось скачать: пробуем URL из product.images (в т.ч. при force — иначе дозагрузка по БД невозможна)
+    remote_image_urls = parse_remote_images(product.images)
+    if remote_image_urls.any?
+      dbg "fallback product.images count=#{remote_image_urls.size}"
+      Rails.logger.info("IkeaLvImageRecoveryService: Falling back to product.images for SKU #{product.sku}")
+      downloaded_paths = download_available_images(remote_image_urls)
+      return save_and_result(downloaded_paths, "existing_product_images") if downloaded_paths.any?
     end
 
     # 5. Если совсем ничего не помогло
+    dbg "FAIL: ничего не скачано (проверьте прокси, HTML и селекторы)"
     { changed: false, local_images_count: 0, product_url: target_url }
   end
 
   private
 
+  def debug_mode?
+    @debug
+  end
+
+  def dbg(msg)
+    return unless debug_mode?
+
+    Rails.logger.info("IkeaLvImageRecoveryService[debug] #{msg}")
+  end
+
   def fetch_images_from_url(url)
     html = http_get(url)
-    return [] if html.blank?
+    if html.blank?
+      dbg "http_get пустой ответ url=#{url}"
+      return []
+    end
 
-    extract_product_image_urls(html)
+    dbg "http_get ok bytes=#{html.bytesize} url=#{url}"
+    urls = extract_product_image_urls(html)
+    dbg "extract_product_image_urls => #{urls.size} шт."
+    urls
   end
 
   def clear_local_images!

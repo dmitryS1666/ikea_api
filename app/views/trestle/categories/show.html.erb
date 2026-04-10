@@ -208,12 +208,12 @@
     </div>
   </div>
 
-  <% if @category.products.any? %>
+  <% if @paginated_category_products.total_count.positive? %>
     <div class="row mt-4">
       <div class="col-12">
         <div class="card">
           <div class="card-header">
-            <h5>Продукты в категории (<%= @category.products.count %>)</h5>
+            <h5>Продукты в категории (<%= @paginated_category_products.total_count %>)</h5>
           </div>
           <div class="card-body">
             <table class="table table-sm">
@@ -231,7 +231,7 @@
                 </tr>
               </thead>
               <tbody>
-                <% @category.products.limit(20).each do |product| %>
+                <% @paginated_category_products.each do |product| %>
                   <tr>
                     <td>
                       <%= link_to product.sku, ProductsAdmin.instance_path(product), data: { turbo: false } %>
@@ -255,8 +255,10 @@
                 <% end %>
               </tbody>
             </table>
-            <% if @category.products.count > 20 %>
-              <p class="text-muted small">Показано 20 из <%= @category.products.count %> продуктов</p>
+            <% if @paginated_category_products.total_pages > 1 %>
+              <div class="d-flex justify-content-center mt-3">
+                <%= paginate @paginated_category_products, param_name: :products_page %>
+              </div>
             <% end %>
           </div>
         </div>
