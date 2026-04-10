@@ -29,5 +29,27 @@ RSpec.describe PlDetailsFetcher do
       expect(result[:dimensions]).to include('75')
       expect(result[:dimensions]).to include('74')
     end
+
+    it 'splits pipcom price module h1 into name and small_desc_name (overrides JSON-LD title)' do
+      html = <<~HTML
+        <!DOCTYPE html>
+        <html><head>
+        <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"HUMLESJÖN HUMLESJÖN - светло-зеленый 26x13x7 см","mpn":"30600958"}</script>
+        </head><body>
+        <h1 class="pipcom-text pipcom-typography-heading-s">
+          <span class="pipcom-price-module__name-decorator notranslate">HUMLESJÖN HUMLESJÖN</span>
+          <span class="pipcom-text pipcom-typography-label-l pipcom-price-module__description">
+            <span>светло-зеленый, <a href="#" aria-label="26x13x7 см. Показать размеры">26x13x7 см</a></span>
+          </span>
+        </h1>
+        </body></html>
+      HTML
+
+      result = described_class.parse_html(html, 'https://www.ikea.com/lt/ru/p/sample/', use_headless: false)
+
+      expect(result[:name]).to eq('HUMLESJÖN HUMLESJÖN')
+      expect(result[:small_desc_name]).to eq('светло-зеленый, 26x13x7 см')
+      expect(result[:sku]).to eq('30600958')
+    end
   end
 end

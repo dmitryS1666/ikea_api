@@ -83,9 +83,10 @@ class PlDetailsFetcher
     
     full_url = url || 'https://www.ikea.com/pl/pl/'
     doc = Nokogiri::HTML(html)
-    
+
     result = {}
-    
+    pipcom_heading = extract_pipcom_product_heading_parts(doc)
+
     # JSON-LD Product schema
     product_schema = extract_json_ld(doc)
     if product_schema
@@ -108,7 +109,12 @@ class PlDetailsFetcher
         end
       end
     end
-    
+
+    # PIPCOM: в h1 имя и подзаголовок разведены по span; JSON-LD часто даёт склеенную строку.
+    if pipcom_heading[:name].present?
+      result[:name] = pipcom_heading[:name]
+    end
+
     # Collection
     collection = doc.css('.pip-header-section__title--big').text.strip
     result[:collection] = collection if collection.present?
@@ -185,7 +191,7 @@ class PlDetailsFetcher
     result[:variants] = sv if sv.any?
     vpt = infer_variant_picker_types_from_doc(doc)
     result[:variant_picker_types] = vpt if vpt.present?
-    sdn = extract_small_desc_name(product_data, doc)
+    sdn = pipcom_heading[:small_desc_name].presence || extract_small_desc_name(product_data, doc)
     result[:small_desc_name] = sdn if sdn.present?
     
     # Images - строго из области галереи товара (pipf-product-gallery-modal),
@@ -1097,8 +1103,26 @@ class PlDetailsFetcher
     variants.uniq { |v| v["sku"] }
   end
 
+  # Сегменты заголовка в блоке цены PIPCOM (LT/PL и др.): имя без варианта/размеров и строка «цвет, размер».
+  def extract_pipcom_product_heading_parts(doc)
+    return { name: nil, small_desc_name: nil } unless doc
+
+    name_el = doc.at_css(".pipcom-price-module__name-decorator")
+    main_name = normalize_pipcom_heading_text(name_el&.text)
+
+    desc_el = doc.at_css(".pipcom-price-module__description")
+    small_desc = normalize_pipcom_heading_text(desc_el&.text)
+
+    { name: main_name, small_desc_name: small_desc }
+  end
+
+  def normalize_pipcom_heading_text(text)
+    s = text.to_s.gsub(/\s+/, " ").strip
+    s.presence
+  end
+
   def extract_small_desc_name(product_data, doc)
-    from_html = doc.at_css(".pipcom-price-module__description")&.text.to_s.strip
+    from_html = normalize_pipcom_heading_text(doc.at_css(".pipcom-price-module__description")&.text)
     return from_html if from_html.present?
 
     from_data =
