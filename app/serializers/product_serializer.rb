@@ -273,15 +273,32 @@ class ProductSerializer
     }
   end
 
+  MEASUREMENT_KEYS = %w[length width height weight diameter].freeze
+
+  def self.packaging_missing_physical_measurements?(packaging)
+    return true unless packaging.is_a?(Hash)
+
+    details = packaging["details"]
+    return true unless details.is_a?(Array)
+    return true if details.empty?
+
+    details.none? do |row|
+      row.is_a?(Hash) && MEASUREMENT_KEYS.any? { |k| row[k].present? }
+    end
+  end
+
   def self.enrich_size_block_from_measurements_modal!(size_block, measurements_modal, product)
     packaging = size_block["packaging"]
-    if packaging.is_a?(Hash) && packaging["details"].is_a?(Array) && packaging["details"].empty?
-      merged = build_packaging_from_measurements_modal(measurements_modal)
-      if merged["details"].any? || merged["desc"].present?
-        size_block["packaging"] = merged
-      elsif product.package_dimensions.present? && product.weight.present?
-        size_block["packaging"] = build_packaging_from_product_columns(product)
-      end
+    prev_desc = packaging.is_a?(Hash) ? packaging["desc"] : nil
+    return size_block unless packaging_missing_physical_measurements?(packaging)
+
+    merged = build_packaging_from_measurements_modal(measurements_modal)
+    if merged["details"].any? || merged["desc"].present?
+      merged = merged.merge("desc" => prev_desc.presence || merged["desc"])
+      size_block["packaging"] = merged
+    elsif product.package_dimensions.present? && product.weight.present?
+      fallback = build_packaging_from_product_columns(product)
+      size_block["packaging"] = fallback.merge("desc" => prev_desc.presence || fallback["desc"])
     end
     size_block
   end
@@ -477,13 +494,15 @@ class ProductSerializer
       "height" => packaging_info["Высота"],
       "weight" => packaging_info["Вес"]
     }
-  
+
     desc_parts = [
       packaging_info["Название"],
       packaging_info["Артикульный номер"]
     ].compact
-  
-    details = details_item.values.compact.any? ? [details_item] : []
+
+    # Только count из detailed_info без габаритов давал непустой details и блокировал merge из measurements_modal.
+    physical = MEASUREMENT_KEYS.any? { |k| details_item[k].present? }
+    details = physical ? [details_item] : []
   
     {
       "desc" => desc_parts.join(", ").presence,
