@@ -178,7 +178,8 @@ class ProductSerializer
   end
 
   # Карточка для витрины: собирается из jsonb full_attributes (модалки PIPF, detailed_info из JSONL) и колонок товара.
-  attribute :full_attributes do |product|
+  # Временно ключ в API — full_attributes_ru (ожидание фронта); источник данных тот же — product.full_attributes.
+  attribute :full_attributes_ru do |product|
     ProductSerializer.customer_full_attributes_payload(product)
   end
 
