@@ -78,6 +78,16 @@ Trestle.resource :parser_control, model: ParserControl do
             payload[:detach_orphans] = rc[:detach_orphans] unless rc[:detach_orphans].nil?
           end
 
+          if task_type == "category_filters_one"
+            rc = parse_category_filters_one_extra(extra_data)
+            if rc[:ikea_id].blank?
+              flash[:error] = "Укажите ikea_id категории для переиндексации фильтров (номер или JSON: {\"ikea_id\":\"20515\"})"
+              redirect_to admin.instance_path(ParserControl.new(id: 'show'))
+              return
+            end
+            payload[:ikea_id] = rc[:ikea_id]
+          end
+
           # Обработка дополнительных данных (SKUs и т.д.)
           if task_type == "extended_attributes_by_skus" || task_type == "recover_broken_product_images" || task_type == "update_all_product_images" || task_type == "update_product_variants"
             payload[:skus] = extra_data
@@ -109,6 +119,8 @@ Trestle.resource :parser_control, model: ParserControl do
           # Передаем task_id в job и сохраняем job_id
           job = if task_type == 'refresh_category_lt'
                   job_class.perform_later(task_id: task.id, ikea_id: payload[:ikea_id].to_s)
+                elsif task_type == 'category_filters_one'
+                  job_class.perform_later(payload[:ikea_id].to_s, task_id: task.id)
                 elsif task_type == 'pl_prices_stock'
                   job_class.perform_later(task_id: task.id, threads: threads)
                 elsif %w[extended_attrs_import extended_attributes_by_skus fix_translations fix_missing_images translate_all_products update_all_product_images update_product_variants].include?(task_type)
@@ -336,6 +348,24 @@ Trestle.resource :parser_control, model: ParserControl do
       0
     end
 
+    def parse_category_filters_one_extra(raw)
+      s = raw.to_s.strip
+      return { ikea_id: nil } if s.blank?
+
+      if s.start_with?("{")
+        begin
+          h = JSON.parse(s)
+          return { ikea_id: nil } unless h.is_a?(Hash)
+
+          { ikea_id: (h["ikea_id"] || h[:ikea_id]).to_s.strip.presence }
+        rescue JSON::ParserError
+          { ikea_id: s.presence }
+        end
+      else
+        { ikea_id: s.presence }
+      end
+    end
+
     def parse_refresh_category_lt_extra(raw)
       s = raw.to_s.strip
       return { ikea_id: nil, lt_jsonl_path: nil, detach_orphans: nil } if s.blank?
@@ -397,6 +427,8 @@ Trestle.resource :parser_control, model: ParserControl do
         RecoverMissingWeightsJob
       when 'refresh_category_lt'
         RefreshCategoryFromLtJob
+      when 'category_filters_one'
+        ReindexCategoryFiltersJob
       when 'pl_prices_stock'
         RefreshPlPricesAndStockJob
       end
@@ -413,6 +445,7 @@ Trestle.resource :parser_control, model: ParserControl do
         'extended_attributes' => 'Расширенные атрибуты продуктов',
         'currency_rates' => 'Курсы валют',
         'category_filters' => 'Переиндексация фильтров категорий',
+        'category_filters_one' => 'Переиндексация фильтров одной категории',
         'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)',
         'fix_missing_images' => 'Проверка и докачка отсутствующих картинок',
         'fix_translations' => 'Исправление битых переводов',

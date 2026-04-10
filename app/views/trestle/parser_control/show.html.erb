@@ -47,6 +47,7 @@
                     ['Восполнение недостающего веса', 'recover_missing_weights'],
                     ['Восстановление битых картинок (по логу/SKU)', 'recover_broken_product_images'],
                     ['Актуализация категории (список с LT)', 'refresh_category_lt'],
+                    ['Переиндексация фильтров (одна категория)', 'category_filters_one'],
                     ['Цены и остатки PL (все SKU в БД)', 'pl_prices_stock']
                   ]),
                   { prompt: 'Выберите тип задачи', class: "form-control", required: true, id: "task_type_select" } %>
@@ -137,6 +138,7 @@
                         'recover_missing_weights' => 'Восполнение недостающего веса',
                         'recover_broken_product_images' => 'Восстановление битых картинок',
                         'refresh_category_lt' => 'Актуализация категории (LT)',
+                        'category_filters_one' => 'Фильтры категории (одна)',
                         'pl_prices_stock' => 'Цены и остатки (PL)'
                       }[task.task_type] || task.task_type %>
                       <% if task.status == 'pending' %>
@@ -207,6 +209,7 @@
                       'update_all_product_images' => 'Обновление всех картинок (WebP)',
                       'recover_broken_product_images' => 'Восстановление битых картинок',
                       'refresh_category_lt' => 'Актуализация категории (LT)',
+                      'category_filters_one' => 'Фильтры категории (одна)',
                       'pl_prices_stock' => 'Цены и остатки (PL)'
                     }[task.task_type] || task.task_type %>
                   </td>
@@ -367,6 +370,7 @@
             'update_all_product_images': 'Обновление всех картинок (WebP)',
             'recover_broken_product_images': 'Восстановление битых картинок',
             'refresh_category_lt': 'Актуализация категории (LT)',
+            'category_filters_one': 'Фильтры категории (одна)',
             'pl_prices_stock': 'Цены и остатки (PL)'
           }[task.task_type] || task.task_type;
           
@@ -512,7 +516,7 @@
       extraDataField.classList.add('d-none');
       extraFileField.classList.add('d-none');
 
-      if (task === 'extended_attributes_by_skus' || task === 'recover_broken_product_images' || task === 'update_product_variants' || task === 'refresh_category_lt') {
+      if (task === 'extended_attributes_by_skus' || task === 'recover_broken_product_images' || task === 'update_product_variants' || task === 'refresh_category_lt' || task === 'category_filters_one') {
         extraDataField.classList.remove('d-none');
       } else if (task === 'extended_attrs_import') {
         extraFileField.classList.remove('d-none');
@@ -527,6 +531,10 @@
         extraDataField.classList.remove('d-none');
       } else if (task === 'pl_prices_stock') {
         threadsField.classList.remove('d-none');
+      }
+
+      if (task === 'category_filters_one') {
+        limitField.classList.add('d-none');
       }
     }
 

@@ -32,6 +32,15 @@ class Product < ApplicationRecord
   scope :recommended, -> { where(is_recommended: true) }
   scope :with_category, -> { where.not(category_id: nil) }
 
+  # Локальные пути ещё указывают на jpg/jpeg/png (до конвертации в .webp в хранилище)
+  scope :with_raster_local_images, lambda {
+    where.not(local_images: [nil, "", "[]"])
+      .where(
+        "local_images ILIKE ? OR local_images ILIKE ? OR local_images ILIKE ?",
+        "%.jpg%", "%.jpeg%", "%.png%"
+      )
+  }
+
   scope :by_rating, -> { order(rating_weighted: :desc, rating_count: :desc, id: :asc) }
   scope :cheapest_first,  -> { order(Arel.sql('products.price ASC NULLS LAST, products.id ASC')) }
   scope :expensive_first, -> { order(Arel.sql('products.price DESC NULLS LAST, products.id DESC')) }
