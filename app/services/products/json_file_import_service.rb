@@ -139,7 +139,6 @@ module Products
 
       full_attrs = build_full_attributes(item, details, dimensions_hash, technical_hash)
       assign_if_supported(product, :full_attributes, full_attrs)
-      assign_if_supported(product, :full_attributes_ru, full_attrs)
     end
 
     def sync_categories(product, item)

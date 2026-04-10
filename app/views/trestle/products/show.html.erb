@@ -3,6 +3,11 @@
 <% end %>
 
 <div class="product-show">
+  <div class="mb-3">
+    <%= link_to edit_products_admin_path(@product), class: "btn btn-primary", data: { turbo: false } do %>
+      <i class="fa fa-pencil"></i> Редактировать
+    <% end %>
+  </div>
   <div class="row">
     <div class="col-md-6">
       <div class="card">
@@ -116,9 +121,7 @@
             <% if @product.dimensions.present? %>
               <tr>
                 <th>Размеры:</th>
-                  <% full = @product.full_attributes_ru || {} %>
-                  <% ordered = full["size"] %>
-                <td><%= ordered %></td>
+                <td><%= @product.dimensions %></td>
               </tr>
             <% end %>
             <% if @product.materials_ru.present? %>

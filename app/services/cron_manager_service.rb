@@ -82,6 +82,8 @@ class CronManagerService
         FetchProductExtendedAttributesJob
       when 'currency_rates'
         FetchCurrencyRatesJob
+      when 'pl_prices_stock'
+        RefreshPlPricesAndStockJob
       else
         raise ArgumentError, "Unknown task type: #{task_type}"
       end

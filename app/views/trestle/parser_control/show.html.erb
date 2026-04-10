@@ -45,7 +45,9 @@
                     ['Актуализация вариантов (цвета/размеры)', 'update_product_variants'],
                     ['Полное обновление всех картинок (WebP)', 'update_all_product_images'],
                     ['Восполнение недостающего веса', 'recover_missing_weights'],
-                    ['Восстановление битых картинок (по логу/SKU)', 'recover_broken_product_images']
+                    ['Восстановление битых картинок (по логу/SKU)', 'recover_broken_product_images'],
+                    ['Актуализация категории (список с LT)', 'refresh_category_lt'],
+                    ['Цены и остатки PL (все SKU в БД)', 'pl_prices_stock']
                   ]),
                   { prompt: 'Выберите тип задачи', class: "form-control", required: true, id: "task_type_select" } %>
             </div>
@@ -131,10 +133,11 @@
                         'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
                         'recover_missing_images' => 'Восполнение ссылок на картинки',
                         'update_product_variants' => 'Актуализация вариантов',
-                        'update_product_variants' => 'Актуализация вариантов',
                         'update_all_product_images' => 'Обновление всех картинок (WebP)',
                         'recover_missing_weights' => 'Восполнение недостающего веса',
-                        'recover_broken_product_images' => 'Восстановление битых картинок'
+                        'recover_broken_product_images' => 'Восстановление битых картинок',
+                        'refresh_category_lt' => 'Актуализация категории (LT)',
+                        'pl_prices_stock' => 'Цены и остатки (PL)'
                       }[task.task_type] || task.task_type %>
                       <% if task.status == 'pending' %>
                         <span class="badge badge-secondary ml-2">Ожидание</span>
@@ -202,7 +205,9 @@
                       'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
                       'recover_missing_weights' => 'Восполнение недостающего веса',
                       'update_all_product_images' => 'Обновление всех картинок (WebP)',
-                      'recover_broken_product_images' => 'Восстановление битых картинок'
+                      'recover_broken_product_images' => 'Восстановление битых картинок',
+                      'refresh_category_lt' => 'Актуализация категории (LT)',
+                      'pl_prices_stock' => 'Цены и остатки (PL)'
                     }[task.task_type] || task.task_type %>
                   </td>
                   <td>
@@ -360,7 +365,9 @@
             'extended_attributes_by_skus': 'Загрузка атрибутов по списку SKU',
             'recover_missing_weights': 'Восполнение недостающего веса',
             'update_all_product_images': 'Обновление всех картинок (WebP)',
-            'recover_broken_product_images': 'Восстановление битых картинок'
+            'recover_broken_product_images': 'Восстановление битых картинок',
+            'refresh_category_lt': 'Актуализация категории (LT)',
+            'pl_prices_stock': 'Цены и остатки (PL)'
           }[task.task_type] || task.task_type;
           
           const limitText = task.limit ? task.limit : '∞';
@@ -505,7 +512,7 @@
       extraDataField.classList.add('d-none');
       extraFileField.classList.add('d-none');
 
-      if (task === 'extended_attributes_by_skus' || task === 'recover_broken_product_images' || task === 'update_product_variants') {
+      if (task === 'extended_attributes_by_skus' || task === 'recover_broken_product_images' || task === 'update_product_variants' || task === 'refresh_category_lt') {
         extraDataField.classList.remove('d-none');
       } else if (task === 'extended_attrs_import') {
         extraFileField.classList.remove('d-none');
@@ -518,6 +525,8 @@
         cleanupContainer.classList.remove('d-none');
         cleanupHelp.classList.remove('d-none');
         extraDataField.classList.remove('d-none');
+      } else if (task === 'pl_prices_stock') {
+        threadsField.classList.remove('d-none');
       }
     }
 

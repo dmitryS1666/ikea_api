@@ -14,7 +14,7 @@ class ImageDownloader
   class << self
     # Главная точка входа для джобы
     def sync_product_images(product, limit: nil)
-      image_urls = normalize_string_array(product.images).uniq
+      image_urls = normalize_remote_urls(normalize_string_array(product.images))
       image_urls = image_urls.first(limit) if limit.present?
 
       current_local_images = normalize_string_array(product.local_images)
@@ -73,7 +73,7 @@ class ImageDownloader
 
     # Низкоуровневая загрузка недостающих картинок
     def download_product_images(product, image_urls, limit: nil, existing_paths: nil)
-      urls = normalize_string_array(image_urls).uniq
+      urls = normalize_remote_urls(normalize_string_array(image_urls))
       current_paths = existing_paths ? normalize_string_array(existing_paths) : unique_healthy_paths(normalize_string_array(product.local_images))
 
       result = {
@@ -95,17 +95,19 @@ class ImageDownloader
       urls.each do |url|
         break if final_paths.size >= target_count
         next if url.blank?
-        next if seen_urls.include?(url)
+        normalized_url = normalize_remote_image_url(url)
+        next if normalized_url.blank?
+        next if seen_urls.include?(normalized_url)
 
-        seen_urls << url
+        seen_urls << normalized_url
 
-        if already_downloaded_for_url?(product, url, final_paths)
+        if already_downloaded_for_url?(product, normalized_url, final_paths)
           result[:skipped] << { url: url, reason: "already_downloaded" }
           next
         end
 
         begin
-          downloaded_path = download_single_image(product, url)
+          downloaded_path = download_single_image(product, normalized_url)
 
           unless downloaded_path.present?
             result[:failed] << { url: url, reason: "empty_path" }
@@ -204,6 +206,25 @@ class ImageDownloader
       else
         []
       end
+    end
+
+    def normalize_remote_urls(urls)
+      urls.filter_map { |url| normalize_remote_image_url(url) }.uniq
+    end
+
+    def normalize_remote_image_url(url)
+      raw = url.to_s.strip
+      return nil if raw.blank?
+      return nil if raw.match?(/pvid/i)
+
+      uri = URI.parse(raw)
+      return nil unless uri.is_a?(URI::HTTP) || uri.is_a?(URI::HTTPS)
+
+      uri.fragment = nil
+      uri.query = nil
+      uri.to_s
+    rescue URI::InvalidURIError
+      nil
     end
 
     def unique_healthy_paths(paths)

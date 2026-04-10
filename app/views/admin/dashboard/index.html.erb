@@ -206,13 +206,13 @@
             <section class="mb-4">
               <h5><i class="fa fa-calculator text-primary"></i> Ценообразование и Финансы</h5>
               <div class="formula-block mb-3">
-                <code>Коэффициент K = (87 / цена_PLN) - 0.187</code>
+                <code>K = max(0.10, target_profit_pln / цена_PLN − markup_subtrahend)</code>, по умолчанию <code>87 / цена − 0.187</code>
               </div>
               <ul class="guide-list">
-                <li><strong>Валютный буфер:</strong> Ко всем курсам НБРБ автоматически добавляется <strong>5%</strong> (параметр <code>exchange_rate_buffer = 1.05</code>). Это защищает от резких скачков курса между закупкой и доставкой.</li>
-                <li><strong>Минимальная маржа:</strong> Наценка не может опуститься ниже <strong>10%</strong> (<code>min_markup = 0.10</code>), даже если формула выдает меньше.</li>
-                <li><strong>Логистика по Польше:</strong> Ступенчатые тарифы IKEA (79zl, 119zl и т.д.) хранятся в <code>poland_delivery_rates</code> в формате JSON.</li>
-                <li><strong>Логистика в РБ:</strong> Стоимость за кг уменьшается при росте веса (от 16.85 PLN до 8.58 PLN за кг). Редактируется в <code>belarus_delivery_rates</code>.</li>
+                <li><strong>Сумма в PLN:</strong> <code>цена_PLN × (1 + K) + доставка_PL + весовая_логистика_РБ</code>; затем <code>× курс_PLN_BYN × exchange_rate_buffer</code> (5% к курсу, <code>1.05</code>) и округление до 2 знаков.</li>
+                <li><strong>Минимальная маржа:</strong> K не ниже <strong>10%</strong> (<code>min_markup = 0.10</code>).</li>
+                <li><strong>Логистика по Польше:</strong> Ступенчатые тарифы в <code>poland_delivery_rates</code> (JSON).</li>
+                <li><strong>Весовая логистика РБ:</strong> PLN за кг по весу (по умолчанию до 20 кг — 16.85; далее 12.81 / 10.69 / 8.58). Настройка <code>belarus_delivery_rates</code>.</li>
                 <li><strong>Таможня:</strong> Лимиты 200€ и 31кг. Пошлина 15% или 2€/кг + сбор 10 BYN. Все расчеты автоматизированы.</li>
               </ul>
             </section>

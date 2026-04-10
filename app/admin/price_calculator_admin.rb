@@ -17,10 +17,9 @@ Trestle.resource(:price_calculator, model: PriceCalculator) do
       # Получаем актуальные курсы валют на текущий день
       today = Date.today
       
-      # Новые параметры наценки
       @params_info = {
-        target_profit: CalculatorSetting.get('target_profit_pln') || 87.0,
-        markup_offset: CalculatorSetting.get('markup_offset') || -0.187,
+        target_profit: CalculatorSetting.get('target_profit_pln') || PriceCalculationService::TARGET_PROFIT_PLN_DEFAULT,
+        markup_subtrahend: PriceCalculationService.markup_formula_subtrahend,
         min_markup: CalculatorSetting.get('min_markup') || 0.10,
         buffer: CalculatorSetting.get('exchange_rate_buffer') || 1.05
       }

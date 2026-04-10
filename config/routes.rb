@@ -1,7 +1,24 @@
 Rails.application.routes.draw do
   # Trestle Admin Panel автоматически монтируется на /admin
   # (см. config/initializers/trestle.rb, config.automount = true)
-  
+
+  # Sidekiq UI: локально без пароля; на проде — Basic Auth (SIDEKIQ_WEB_USER / SIDEKIQ_WEB_PASSWORD)
+  unless Rails.env.test?
+    require "sidekiq/web"
+
+    if Rails.env.development?
+      mount Sidekiq::Web => "/sidekiq"
+    elsif ENV["SIDEKIQ_WEB_USER"].present? && ENV["SIDEKIQ_WEB_PASSWORD"].present?
+      mount Rack::Builder.new {
+        use Rack::Auth::Basic, "Sidekiq" do |username, password|
+          ActiveSupport::SecurityUtils.secure_compare(username.to_s, ENV.fetch("SIDEKIQ_WEB_USER")) &&
+            ActiveSupport::SecurityUtils.secure_compare(password.to_s, ENV.fetch("SIDEKIQ_WEB_PASSWORD"))
+        end
+        run Sidekiq::Web
+      } => "/sidekiq"
+    end
+  end
+
   # Swagger авторизация
   get '/api-docs/login', to: 'swagger#login'
   post '/api-docs/login', to: 'swagger#login'

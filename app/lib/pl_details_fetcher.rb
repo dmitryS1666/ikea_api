@@ -39,7 +39,45 @@ class PlDetailsFetcher
 
     parsed
   end
-  
+
+  # Минимальный разбор страницы товара PL: цена в PLN (злотые), наличие, canonical URL.
+  # Без модалок, headless, изображений и прочего — для фоновых задач «только полка».
+  def self.shelf_snapshot(url)
+    new.shelf_snapshot(url)
+  end
+
+  def shelf_snapshot(url)
+    full_url = url.to_s.start_with?("http") ? url : "https://www.ikea.com#{url}"
+    html = fetch_with_proxy(full_url)
+    return {} unless html.present?
+
+    doc = Nokogiri::HTML(html)
+    href = doc.at_css('link[rel="canonical"]')&.[]("href")
+    canonical_url =
+      if href.present?
+        href.start_with?("http") ? href : URI.join("https://www.ikea.com", href).to_s
+      else
+        full_url
+      end
+
+    product_data = parse_hydration_product_data(doc)
+
+    schema = extract_json_ld(doc)
+    price = shelf_snapshot_pln_price_from_json_ld(schema)
+    if price.blank? && product_data.is_a?(Hash)
+      price = shelf_snapshot_pln_price_from_hydration(product_data)
+    end
+
+    availability = extract_availability(doc, product_data)
+
+    {
+      price: price,
+      price_currency: "PLN",
+      availability: availability,
+      canonical_url: canonical_url
+    }
+  end
+
   def parse_html(html, url = nil, use_headless: true)
     return {} unless html.present?
     
@@ -134,9 +172,26 @@ class PlDetailsFetcher
     result.merge!(description_data)
     Rails.logger.info "PlDetailsFetcher: Description data extracted - description: #{description_data[:description].present?}, materials: #{description_data[:materials].present?}"
     
-    # Images - извлекаем все изображения со страницы продукта
+    # Наборы, бандлы и сопутствующие товары (методы уже были в классе — подключаем к результату parse_html)
+    si = extract_set_items(product_data, doc)
+    result[:set_items] = si if si.any?
+    bi = extract_bundle_items(product_data, doc)
+    result[:bundle_items] = bi if bi.any?
+    rp = extract_related_products(product_data, doc)
+    result[:related_products] = rp if rp.any?
+    ip = extract_included_products(product_data, doc)
+    result[:included_products] = ip if ip.any?
+    sv = extract_variants(product_data, doc)
+    result[:variants] = sv if sv.any?
+    vpt = infer_variant_picker_types_from_doc(doc)
+    result[:variant_picker_types] = vpt if vpt.present?
+    sdn = extract_small_desc_name(product_data, doc)
+    result[:small_desc_name] = sdn if sdn.present?
+    
+    # Images - строго из области галереи товара (pipf-product-gallery-modal),
+    # с мягким fallback на контейнеры pipf-product-gallery.
     all_images = extract_images(doc, product_data, result[:images] || [])
-    result[:images] = all_images if all_images.any?
+    result[:images] = all_images
     
     # Videos
     result[:videos] = extract_videos(doc, product_data)
@@ -148,7 +203,7 @@ class PlDetailsFetcher
     result[:availability] = extract_availability(doc, product_data)
     
     # Извлекаем данные из модального окна с описанием продукта
-    modal_data = extract_modal_details(doc)
+    modal_data = extract_modal_details(doc, product_data)
     
     # Если модальное окно не найдено или данные неполные, используем headless браузер
     if use_headless && (modal_data[:materials].blank? || modal_data[:care_instructions].blank? || modal_data[:safety_info].blank?)
@@ -158,11 +213,96 @@ class PlDetailsFetcher
     end
     
     result.merge!(modal_data)
-    
+
+    meas = extract_pipf_measurements_modal_combined(doc, product_data)
+    meas[:fields].each do |k, v|
+      next if v.blank?
+
+      result[k] = v
+    end
+    result[:measurements_modal] = meas[:snapshot] if meas[:snapshot].present?
+
     result
   end
   
   private
+
+  # Только JSON из hydration (как начало parse_html), без побочных полей.
+  def parse_hydration_product_data(doc)
+    product_data_attr = doc.css(".js-product-pip, [data-hydration-props]").first&.attribute("data-hydration-props")&.value
+
+    if product_data_attr.blank?
+      doc.css('script[type="text/hydration"], script[type="text/hydrate"]').each do |script|
+        script_text = script.text
+        if script_text.include?("packaging") && script_text.include?("product")
+          product_data_attr = script_text
+          break
+        end
+      end
+    end
+
+    if product_data_attr.blank?
+      doc.css("script").each do |script|
+        if script.text.include?("__FIKA_HYDRATION_DATA__")
+          match = script.text.match(/window\.__FIKA_HYDRATION_DATA__\s*=\s*(\{.*?\});/m)
+          product_data_attr = match[1] if match
+          break
+        end
+      end
+    end
+
+    return nil if product_data_attr.blank?
+
+    JSON.parse(product_data_attr.strip)
+  rescue JSON::ParserError => e
+    Rails.logger.debug "PlDetailsFetcher.parse_hydration_product_data: #{e.message}"
+    nil
+  end
+
+  # Цена из JSON-LD только в PLN (на pl/pl витрине — злотые).
+  def shelf_snapshot_pln_price_from_json_ld(schema)
+    return nil unless schema.is_a?(Hash)
+
+    offers = schema["offers"]
+    return nil if offers.blank?
+
+    flat =
+      if offers.is_a?(Array)
+        offers
+      elsif offers.is_a?(Hash) && offers["@type"].to_s.include?("AggregateOffer")
+        Array(offers["offers"])
+      else
+        [offers]
+      end
+
+    flat.each do |o|
+      next unless o.is_a?(Hash)
+
+      curr = (o["priceCurrency"] || o["pricecurrency"]).to_s.upcase
+      next if curr.present? && curr != "PLN"
+
+      p = o["price"]
+      return p if p.present?
+    end
+
+    nil
+  end
+
+  # Цена из hydration (salesPrice / price) только при PLN или без указания валюты.
+  def shelf_snapshot_pln_price_from_hydration(product_data)
+    %w[salesPrice price].each do |key|
+      block = product_data[key] || product_data[key.to_sym]
+      next unless block.is_a?(Hash)
+
+      curr = (block["currencyCode"] || block["currency"] || block[:currencyCode]).to_s.upcase
+      next if curr.present? && curr != "PLN"
+
+      num = block["numeral"] || block["value"] || block[:numeral]
+      return num if num.present?
+    end
+
+    nil
+  end
 
   # Decide when it makes sense to re-fetch the product page with remote
   # JavaScript rendering (scrape.do). This keeps the default path cheap/fast
@@ -652,7 +792,8 @@ class PlDetailsFetcher
       Rails.logger.debug "PlDetailsFetcher.fetch_modal_with_headless_browser: Modal found in HTML: #{modal_found}"
       
       # Извлекаем данные из модального окна
-      result = extract_modal_details(modal_doc)
+      pd_headless = parse_hydration_product_data(modal_doc)
+      result = extract_modal_details(modal_doc, pd_headless)
       
       Rails.logger.info "PlDetailsFetcher.fetch_modal_with_headless_browser: Extracted - materials: #{result[:materials].present?}, care: #{result[:care_instructions].present?}, safety: #{result[:safety_info].present?}, good_to_know: #{result[:good_to_know].present?}"
       
@@ -859,16 +1000,122 @@ class PlDetailsFetcher
           item_no = match[1] if match
         end
         
-        if item_no.present? && item_no.match?(/^[0-9a-zA-Z]+$/)
+        if item_no.present?
           related << item_no
           Rails.logger.debug "PlDetailsFetcher.extract_related_products: Added from HTML: #{item_no}"
         end
       end
     end
     
-    result = related.compact.uniq
+    result = related.filter_map { |x| normalize_product_token(x) }.uniq
     Rails.logger.info "PlDetailsFetcher.extract_related_products: Extracted #{result.length} related products"
     result
+  end
+
+  def extract_included_products(product_data, doc)
+    items = []
+
+    possible_paths = [
+      product_data&.dig("includedProducts"),
+      product_data&.dig("included_products"),
+      product_data&.dig("productInformationSection", "includedProducts"),
+      product_data&.dig("productDetails", "includedProducts"),
+      product_data&.dig("pageProps", "productInformationSectionProps", "includedProductsProps", "includedProductCardsProps"),
+      product_data&.dig("pageProps", "product", "subProducts")
+    ]
+
+    possible_paths.each do |path|
+      next unless path.present?
+      Array(path).each do |entry|
+        token =
+          if entry.is_a?(Hash)
+            entry["itemNo"] || entry["itemNoGlobal"] || entry["visibleItemNo"] || entry["articleNumber"] || entry["sku"] || entry["id"]
+          else
+            entry
+          end
+        if token.blank? && entry.is_a?(Hash) && entry["url"].present?
+          m = entry["url"].to_s.match(/-([a-z0-9]{8,9})\/?$/i)
+          token = m[1] if m
+        end
+        norm = normalize_product_token(token)
+        items << norm if norm.present?
+      end
+    end
+
+    modal = doc.at_css(".pipf-included-products-modal__list")
+    if modal
+      modal.css("[data-item-no], [data-product-id], [data-sku], a[href*='/p/']").each do |el|
+        token = el["data-item-no"] || el["data-product-id"] || el["data-sku"]
+        if token.blank? && el["href"].present?
+          m = el["href"].match(/-([a-z0-9]{8,9})\/?$/i)
+          token = m[1] if m
+        end
+        norm = normalize_product_token(token)
+        items << norm if norm.present?
+      end
+    end
+
+    items.uniq
+  end
+
+  def extract_variants(product_data, doc)
+    variants = []
+
+    raw_candidates = [
+      product_data&.dig("gprDescription", "variants"),
+      product_data&.dig("variants"),
+      product_data&.dig("variantSection", "items"),
+      product_data&.dig("productDetails", "variants"),
+      product_data&.dig("pageProps", "product", "subProducts")
+    ].compact
+
+    raw_candidates.each do |candidate|
+      Array(candidate).each do |entry|
+        token =
+          if entry.is_a?(Hash)
+            entry["itemNo"] || entry["itemNoGlobal"] || entry["visibleItemNo"] || entry["articleNumber"] || entry["sku"] || entry["id"] || entry["value"]
+          else
+            entry
+          end
+        if token.blank? && entry.is_a?(Hash) && entry["pipUrl"].present?
+          m = entry["pipUrl"].to_s.match(/-([a-z0-9]{8,9})\/?$/i)
+          token = m[1] if m
+        end
+        norm = normalize_product_token(token)
+        next if norm.blank?
+        variants << { "sku" => norm }
+      end
+    end
+
+    doc.css(".pipf-variant-picker a[href*='/p/'], [data-testid*='variant'] a[href*='/p/']").each do |a|
+      m = a["href"].to_s.match(/-([a-z0-9]{8,9})\/?$/i)
+      next unless m
+      norm = normalize_product_token(m[1])
+      variants << { "sku" => norm } if norm.present?
+    end
+
+    variants.uniq { |v| v["sku"] }
+  end
+
+  def extract_small_desc_name(product_data, doc)
+    from_html = doc.at_css(".pipcom-price-module__description")&.text.to_s.strip
+    return from_html if from_html.present?
+
+    from_data =
+      product_data&.dig("itemMeasureReferenceText") ||
+      product_data&.dig("product", "itemMeasureReferenceText") ||
+      product_data&.dig("gprDescription", "itemMeasureReferenceText")
+    from_data.to_s.strip.presence
+  end
+
+  def normalize_product_token(value)
+    token = value.to_s.strip
+    return nil if token.blank?
+    compact = token.gsub(/[^0-9a-z]/i, "").downcase
+    return nil if compact.blank?
+    return compact if compact.match?(/\A\d{8}\z/)
+    return compact if compact.match?(/\As\d{8}\z/)
+    nil
   end
   
   # Вспомогательный метод для извлечения item_no из объекта
@@ -1437,10 +1684,808 @@ class PlDetailsFetcher
     
     manuals.uniq.compact
   end
-  
+
+  # Типы вариантов по видимым на странице пикерам (см. IkeaLvProductVariantsService).
+  def infer_variant_picker_types_from_doc(doc)
+    types = []
+    types << "color" if doc.at_css(".pipf-product-style-picker__picker")
+    if doc.at_css(".pipf-product-variation-section a[href*='/p/']")
+      types << "size"
+    end
+    types.uniq.join(",")
+  end
+
+  # Полный снимок модалки «Подробная информация о товаре» (.pipf-product-details-modal):
+  # плоские поля для merge + JSON в product.full_attributes[:product_details_modal].
+  def extract_pipf_product_details_modal_complete(pip_modal)
+    snapshot = {
+      "title" => normalize_text(pip_modal.at_css(".pipf-product-details-modal__title, h2#pip-modal-header")&.text),
+      "intro_paragraphs" => [],
+      "identifiers" => [],
+      "accordion_sections" => []
+    }
+    fields = {}
+
+    pip_modal.children.each do |node|
+      next unless node.element?
+
+      cls = node["class"].to_s
+      break if node.name == "ul" && cls.include?("pipf-accordion")
+
+      next unless cls.include?("pipf-product-details-modal__container")
+
+      node.css("p.pipf-product-details-modal__paragraph").each do |p|
+        t = normalize_text(p.text)
+        snapshot["intro_paragraphs"] << t if t.present?
+      end
+    end
+
+    if snapshot["intro_paragraphs"].any?
+      fields[:short_description] = snapshot["intro_paragraphs"].first
+      fields[:description] = snapshot["intro_paragraphs"].join("\n\n")
+    end
+
+    pip_modal.css(".pipf-product-identifier").each do |ident|
+      label = normalize_text(ident.at_css(".pipf-product-identifier__label")&.text)
+      value = normalize_text(ident.at_css(".pipf-product-identifier__value")&.text)
+      row = { "label" => label, "value" => value }.compact
+      snapshot["identifiers"] << row if row.any?
+    end
+
+    accordion = pip_modal.at_css("ul.pipf-accordion")
+    if accordion
+      accordion.children.each do |item|
+        next unless item.element? && item.name == "li"
+
+        section_snap = snapshot_pipf_accordion_section(item)
+        snapshot["accordion_sections"] << section_snap if section_snap.present?
+
+        id = item["id"].to_s
+        if id.include?("good-to-know")
+          txt = pipf_accordion_section_plain_text(item)
+          fields[:good_to_know] = txt if txt.present?
+          env_lines = txt.to_s.split("\n\n").select do |ln|
+            ln.match?(/переработ|recycl|эколог|отходов|IKEA of Sweden/i)
+          end
+          fields[:environmental_info] = env_lines.join("\n\n") if env_lines.any?
+        elsif id.include?("material-and-care")
+          fields[:materials] = extract_materials_text_from_pipf_modal_li(item)
+          fields[:care_instructions] = extract_care_text_from_pipf_modal_li(item)
+        elsif id.include?("safety")
+          fields[:safety_info] = pipf_accordion_section_plain_text(item)
+        elsif id.include?("assembly") || id.include?("documents")
+          docs = extract_pipf_modal_document_links(item)
+          fields[:assembly_documents] = docs if docs.any?
+        end
+      end
+    end
+
+    { fields: fields, snapshot: snapshot }
+  end
+
+  def snapshot_pipf_accordion_section(li)
+    title = normalize_text(li.at_css(".pipf-accordion-item-header__title, span[id$='_title']")&.text)
+    content = li.at_css(".pipf-accordion__content") || li
+    sec = {
+      "id" => li["id"].presence,
+      "title" => title.presence,
+      "paragraphs" => [],
+      "material_blocks" => [],
+      "care_blocks" => [],
+      "document_groups" => []
+    }
+
+    content.css(".pipf-product-details-modal__paragraph, span.pipf-product-details-modal__paragraph").each do |n|
+      t = normalize_text(n.text)
+      sec["paragraphs"] << t if t.present?
+    end
+    sec["paragraphs"].uniq!
+
+    content.css(".pipf-product-details-modal__container").each do |cont|
+      sub = normalize_text(cont.at_css(".pipf-product-details-modal__material-sub-header")&.text)
+      pairs = []
+      cont.css("dl.pipf-product-details-modal__section dt").each do |dt|
+        dd = find_next_dd(dt)
+        next unless dd
+
+        pairs << {
+          "term" => normalize_text(dt.text),
+          "definition" => normalize_text(dd.text)
+        }
+      end
+      next if sub.blank? && pairs.empty?
+
+      sec["material_blocks"] << { "subheader" => sub.presence, "pairs" => pairs }
+    end
+
+    care_h = content.at_css("h4.pipf-product-details-modal__care-header")
+    if care_h
+      lines = pipf_collect_care_lines_after_header(li, care_h)
+      sec["care_blocks"] << { "lines" => lines } if lines.any?
+    end
+
+    content.css(".pipf-product-details-modal__container").each do |cont|
+      hdr = cont.at_css("h4.pipf-product-details-modal__document-header")
+      next unless hdr
+
+      header_txt = normalize_text(hdr.text)
+      links = cont.css("a.pipf-product-details-modal__document-link, a[href*='/pdoc/']").filter_map do |a|
+        href = a["href"].to_s.strip
+        next if href.blank?
+
+        title = normalize_text(a.css("span").map(&:text).join(" ").strip)
+        if title.blank?
+          title = normalize_text(a.text).gsub(/\d{3}\.\d{3}\.\d{2}/, "").strip
+        end
+        { "title" => title.presence || "Document", "url" => href }
+      end.uniq { |x| x["url"] }
+
+      sec["document_groups"] << { "header" => header_txt, "links" => links } if links.any?
+    end
+
+    sec.compact.reject { |_, v| v.blank? || (v.is_a?(Array) && v.empty?) }
+  end
+
+  def pipf_accordion_section_plain_text(li)
+    li.css(".pipf-accordion__content .pipf-product-details-modal__paragraph, .pipf-accordion__content p, .pipf-accordion__content span.pipf-product-details-modal__paragraph")
+      .map { |n| normalize_text(n.text) }.compact.reject(&:blank?).uniq.join("\n\n").presence
+  end
+
+  def extract_materials_text_from_pipf_modal_li(li)
+    lines = []
+    li.css("dl.pipf-product-details-modal__section dt").each do |dt|
+      dd = find_next_dd(dt)
+      next unless dd
+
+      lines << "#{normalize_text(dt.text)}: #{normalize_text(dd.text)}"
+    end
+    lines.uniq.join("\n").presence
+  end
+
+  def pipf_collect_care_lines_after_header(li, care_h)
+    parts = []
+    after = false
+    li.traverse do |node|
+      next unless node.element?
+
+      if node == care_h
+        after = true
+        next
+      end
+      next unless after
+
+      c = node["class"].to_s
+      if c.include?("pipf-product-details-modal__label")
+        parts << normalize_text(node.text)
+      elsif c.include?("pipf-product-details-modal__header") &&
+            !c.include?("material-header") &&
+            !c.include?("document-header")
+        t = normalize_text(node.text)
+        parts << t if t.length > 2
+      end
+    end
+    parts.uniq
+  end
+
+  def extract_care_text_from_pipf_modal_li(li)
+    care_h = li.at_css("h4.pipf-product-details-modal__care-header")
+    return nil unless care_h
+
+    pipf_collect_care_lines_after_header(li, care_h).join("\n").presence
+  end
+
+  def extract_pipf_modal_document_links(li)
+    li.css("a.pipf-product-details-modal__document-link, a[href*='/pdoc/']").filter_map do |a|
+      href = a["href"].to_s.strip
+      next if href.blank?
+
+      title = normalize_text(a.css("span").map(&:text).join(" ").strip)
+      if title.blank?
+        title = normalize_text(a.text).gsub(/\d{3}\.\d{3}\.\d{2}/, "").strip
+      end
+      { url: href, title: title.presence || "Document" }
+    end.uniq { |x| x[:url] }
+  end
+
+  def pipf_product_details_props(product_data)
+    return nil unless product_data.is_a?(Hash)
+
+    product_data.dig("pageProps", "productInformationSectionProps", "productDetailsProps")
+  end
+
+  def pipf_measurements_props(product_data)
+    return nil unless product_data.is_a?(Hash)
+
+    product_data.dig("pageProps", "productInformationSectionProps", "measurementsProps")
+  end
+
+  def extract_pipf_measurements_modal_combined(doc, product_data)
+    hyd = extract_measurements_modal_from_hydration_measurements_props(pipf_measurements_props(product_data))
+    dom = extract_measurements_modal_from_dom(doc)
+    merge_measurements_modal_dom_and_hydration(dom, hyd)
+  end
+
+  def merge_measurements_modal_dom_and_hydration(dom, hyd)
+    d_snap = dom[:snapshot].is_a?(Hash) ? dom[:snapshot] : {}
+    h_snap = hyd[:snapshot].is_a?(Hash) ? hyd[:snapshot] : {}
+    merged_snap = h_snap.stringify_keys.merge(d_snap.stringify_keys)
+    merged_snap["product_measurements"] =
+      if d_snap["product_measurements"].is_a?(Array) && d_snap["product_measurements"].any?
+        d_snap["product_measurements"]
+      else
+        h_snap["product_measurements"] || []
+      end
+    merged_snap["packages"] =
+      if d_snap["packages"].is_a?(Array) && d_snap["packages"].any?
+        d_snap["packages"]
+      elsif h_snap["packages"].is_a?(Array) && h_snap["packages"].any?
+        h_snap["packages"]
+      end
+    merged_snap["number_of_packages"] ||= d_snap["number_of_packages"] || h_snap["number_of_packages"]
+    merged_snap["packaging_title"] ||= d_snap["packaging_title"] || h_snap["packaging_title"]
+    merged_snap["diagram_image"] =
+      d_snap["diagram_image"].presence ||
+      h_snap["diagram_image"].presence ||
+      measurement_diagram_image_from_props_images(h_snap["images"])
+    merged_snap["images"] ||= h_snap["images"] if h_snap["images"].present?
+    merged_snap["fallback_image"] ||= h_snap["fallback_image"] if h_snap["fallback_image"].present?
+    merged_snap["title"] = d_snap["title"].presence || h_snap["title"].presence || merged_snap["title"]
+    sources = [h_snap["source"], d_snap["source"]].compact.reject(&:blank?).uniq
+    merged_snap["source"] = sources.join("+") if sources.any?
+
+    d_fields = dom[:fields].is_a?(Hash) ? dom[:fields] : {}
+    h_fields = hyd[:fields].is_a?(Hash) ? hyd[:fields] : {}
+    merged_fields = h_fields.merge(d_fields) { |_k, h, d| d.present? ? d : h }
+
+    { fields: merged_fields, snapshot: merged_snap.compact }
+  end
+
+  def extract_measurements_modal_from_hydration_measurements_props(props)
+    return { fields: {}, snapshot: {} } if props.blank?
+
+    fields = measurement_fields_from_measurements_props(props)
+    snapshot = measurements_modal_snapshot_from_hydration_props(props)
+    { fields: fields, snapshot: snapshot }
+  end
+
+  def measurements_modal_snapshot_from_hydration_props(props)
+    pk = props.dig("packaging", "contentProps", "packages")
+    diagram = measurement_diagram_image_from_props_images(props["images"])
+    {
+      "title" => normalize_text(props["title"]).presence,
+      "choose_different_size_link_text" => props["chooseDifferentSizeLinkText"],
+      "event_label" => props["eventLabel"],
+      "fallback_image" => props["fallbackImage"],
+      "images" => props["images"],
+      "diagram_image" => diagram,
+      "product_measurements" => props["measurements"],
+      "number_of_packages" => props.dig("packaging", "contentProps", "numberOfPackages"),
+      "packaging_title" => props.dig("packaging", "title"),
+      "packages" => pk,
+      "source" => "hydration_measurementsProps"
+    }.compact
+  end
+
+  def measurement_diagram_image_from_props_images(images)
+    arr = Array(images)
+    img = arr.find { |im| im.is_a?(Hash) && im["type"].to_s == "MEASUREMENT_ILLUSTRATION" } || arr.first
+    return nil unless img.is_a?(Hash) && img["url"].present?
+
+    { "url" => img["url"].to_s.split("?").first, "alt" => img["alt"].to_s.strip.presence, "type" => img["type"] }.compact
+  end
+
+  def measurement_fields_from_measurements_props(props)
+    fields = {}
+    dims = product_dimensions_wdh_from_measurement_rows(Array(props["measurements"]))
+    fields[:dimensions] = dims if dims.present?
+
+    pk = props.dig("packaging", "contentProps", "packages")
+    wsum = total_weight_kg_from_measurement_packages(pk)
+    fields[:weight] = wsum if wsum.present? && wsum.positive?
+
+    pdim, vol = primary_package_dimensions_and_volume_sum(pk)
+    fields[:package_dimensions] = pdim if pdim.present?
+    fields[:package_volume] = vol if vol.present? && vol.positive?
+
+    fields
+  end
+
+  def product_dimensions_wdh_from_measurement_rows(rows)
+    map = { width: nil, depth: nil, height: nil }
+    rows.each do |row|
+      next unless row.is_a?(Hash)
+
+      role = measurement_axis_role_from_label(row["name"])
+      next unless role
+
+      num = parse_measurement_cm_scalar(row["measure"] || row["text"])
+      next unless num
+
+      map[role] ||= num
+    end
+    return nil unless map[:width] && map[:depth] && map[:height]
+
+    "#{map[:width]} × #{map[:depth]} × #{map[:height]} cm"
+  end
+
+  # Только базовые три габарита товара (первая строка «Ширина» / «Глубина» / «Высота» в модалке),
+  # без «ширина кровати», «глубина сиденья» и т.п.
+  def measurement_axis_role_from_label(label)
+    s = label.to_s.strip.downcase.gsub(/\u00a0/, " ")
+    return :width if s.match?(/\Aширина\z|szerokość\z|szerokosc\z|breite\z|\Awidth\z/i)
+    return :depth if s.match?(/\Aглубина\z|głębokość\z|glebokosc\z|głęb\z|tiefe\z|\Adepth\z/i)
+    return :height if s.match?(/\Aвысота\z|wysokość\z|wysokosc\z|höhe\z|\Aheight\z/i)
+
+    nil
+  end
+
+  def parse_measurement_cm_scalar(text)
+    return nil if text.blank?
+
+    m = text.to_s.match(/([\d]+[.,]?\d*)\s*(?:cm|см)?/i)
+    return nil unless m
+
+    m[1].tr(",", ".").to_f
+  end
+
+  def total_weight_kg_from_measurement_packages(packages)
+    total = 0.0
+    Array(packages).each do |pkg|
+      next unless pkg.is_a?(Hash)
+
+      w = nil
+      Array(pkg["measurements"]).each do |grp|
+        Array(grp).each do |item|
+          next unless item.is_a?(Hash)
+
+          next unless item["type"].to_s == "weight" && item["value"].present?
+
+          w = item["value"].to_f
+        end
+      end
+      next unless w
+
+      qty = pkg.dig("quantity", "value")
+      q = qty.present? ? qty.to_i : 1
+      q = 1 if q < 1
+      total += w * q
+    end
+    total.round(2) if total.positive?
+  end
+
+  def primary_package_dimensions_and_volume_sum(packages)
+    primary_lwh = nil
+    vol_sum = 0.0
+
+    Array(packages).each do |pkg|
+      next unless pkg.is_a?(Hash)
+
+      lwh = { w: nil, h: nil, l: nil }
+      Array(pkg["measurements"]).each do |grp|
+        Array(grp).each do |item|
+          next unless item.is_a?(Hash)
+
+          case item["type"].to_s
+          when "width"
+            lwh[:w] = item["value"].presence&.to_f || parse_measurement_cm_scalar(item["text"])
+          when "height"
+            lwh[:h] = item["value"].presence&.to_f || parse_measurement_cm_scalar(item["text"])
+          when "length", "depth"
+            lwh[:l] = item["value"].presence&.to_f || parse_measurement_cm_scalar(item["text"])
+          end
+        end
+      end
+      if lwh[:w] && lwh[:h] && lwh[:l]
+        vol_sum += (lwh[:w] * lwh[:h] * lwh[:l]) / 1000.0
+        primary_lwh ||= "#{lwh[:w]} × #{lwh[:h]} × #{lwh[:l]} cm"
+      end
+    end
+
+    vol_round = vol_sum.round(3)
+    vol_final = vol_round.positive? ? vol_round : nil
+    [primary_lwh, vol_final]
+  end
+
+  def extract_measurements_modal_from_dom(doc)
+    modal = doc.at_css(".pipf-measurements-modal")
+    return { fields: {}, snapshot: {} } unless modal
+
+    snapshot = {
+      "title" => normalize_text(modal.at_css(".pipf-measurements-modal__title, h2#pip-modal-header")&.text).presence,
+      "product_measurements" => [],
+      "packages" => [],
+      "source" => "dom_pipf_measurements_modal"
+    }
+
+    modal.css(".pipf-measurements-modal__product-measurement-wrapper").each do |li|
+      name_el = li.at_css(".pipf-measurements-modal__product-measurement-name")
+      name = normalize_text(name_el&.text).gsub(":", "").strip
+      rest = li.xpath("./text()").map(&:text).join
+      value = normalize_text(rest)
+      snapshot["product_measurements"] << { "name" => name, "measure" => value } if name.present? || value.present?
+    end
+
+    img = modal.at_css(".pipf-measurements-modal__image-container img")
+    if img && (img["src"].present? || img["data-src"].present?)
+      snapshot["diagram_image"] = {
+        "url" => (img["src"].presence || img["data-src"]).to_s.split("?").first,
+        "alt" => img["alt"].to_s.strip.presence
+      }.compact
+    end
+
+    pkg_note = modal.at_css(".pipf-measurements-modal__package-count")
+    snapshot["package_count_note"] = normalize_text(pkg_note.text) if pkg_note
+
+    modal.css(".pipf-measurements-modal__package-container").each do |pc|
+      pkg = extract_dom_measurement_package_block(pc)
+      snapshot["packages"] << pkg if pkg.present?
+    end
+
+    snapshot["number_of_packages"] = snapshot["packages"].size if snapshot["packages"].any?
+
+    packaging_li = modal.at_css("li#measurements-packaging, li[id*='measurements-packaging']")
+    if packaging_li
+      t = packaging_li.at_css(".pipf-accordion-item-header__title, span[id$='_title']")&.text
+      snapshot["packaging_title"] = normalize_text(t) if t.present?
+    end
+
+    fields = measurement_fields_from_dom_snapshot(snapshot)
+    { fields: fields, snapshot: snapshot.compact }
+  end
+
+  def extract_dom_measurement_package_block(pc)
+    name = normalize_text(pc.at_css("h4.pipf-measurements-modal__package-header")&.text)
+    type_name = normalize_text(pc.at_css('span[aria-hidden="true"]')&.text)
+    ident = pc.at_css(".pipf-product-identifier")
+    label = normalize_text(ident.at_css(".pipf-product-identifier__label")&.text)
+    value = normalize_text(ident.at_css(".pipf-product-identifier__value")&.text)
+
+    measurements = []
+    pc.css(".pipf-measurements-modal__package-measurement-wrapper").each do |li|
+      n = normalize_text(li.at_css(".pipf-measurements-modal__package-measurement-name")&.text).gsub(":", "").strip
+      rest = li.xpath("./text()").map(&:text).join
+      v = normalize_text(rest)
+      val_span = li.at_css(".pipf-measurements-modal__package-measurement-value")
+      v = normalize_text(val_span.text) if v.blank? && val_span
+      measurements << { "name" => n, "measure" => v } if n.present? || v.present?
+    end
+
+    return nil if name.blank? && type_name.blank? && measurements.empty?
+
+    {
+      "name" => name.presence,
+      "type_name" => type_name.presence,
+      "article_number" => ({ "label" => label, "value" => value }.compact.presence),
+      "measurements" => measurements
+    }.compact
+  end
+
+  def measurement_fields_from_dom_snapshot(snapshot)
+    fields = {}
+    rows = Array(snapshot["product_measurements"])
+    dims = product_dimensions_wdh_from_dom_measurement_rows(rows)
+    fields[:dimensions] = dims if dims.present?
+
+    pk = Array(snapshot["packages"])
+    wsum = total_weight_kg_from_dom_packages(pk)
+    fields[:weight] = wsum if wsum.present? && wsum.positive?
+
+    pdim, vol = primary_package_dimensions_and_volume_from_dom(pk)
+    fields[:package_dimensions] = pdim if pdim.present?
+    fields[:package_volume] = vol if vol.present? && vol.positive?
+
+    fields
+  end
+
+  def product_dimensions_wdh_from_dom_measurement_rows(rows)
+    map = { width: nil, depth: nil, height: nil }
+    rows.each do |row|
+      next unless row.is_a?(Hash)
+
+      role = measurement_axis_role_from_label(row["name"])
+      next unless role
+
+      num = parse_measurement_cm_scalar(row["measure"])
+      next unless num
+
+      map[role] ||= num
+    end
+    return nil unless map[:width] && map[:depth] && map[:height]
+
+    "#{map[:width]} × #{map[:depth]} × #{map[:height]} cm"
+  end
+
+  def total_weight_kg_from_dom_packages(packages)
+    total = 0.0
+    packages.each do |pkg|
+      next unless pkg.is_a?(Hash)
+
+      Array(pkg["measurements"]).each do |m|
+        next unless m.is_a?(Hash)
+
+        name = m["name"].to_s.downcase
+        next unless name.match?(/вес|weight|waga/)
+
+        str = m["measure"].to_s
+        mm = str.match(/([\d]+[.,]?\d*)\s*(kg|кг)/i)
+        next unless mm
+
+        total += mm[1].tr(",", ".").to_f
+      end
+    end
+    total.round(2) if total.positive?
+  end
+
+  def primary_package_dimensions_and_volume_from_dom(packages)
+    primary_lwh = nil
+    vol_sum = 0.0
+
+    packages.each do |pkg|
+      next unless pkg.is_a?(Hash)
+
+      w = h = l = nil
+      Array(pkg["measurements"]).each do |m|
+        next unless m.is_a?(Hash)
+
+        name = m["name"].to_s.downcase
+        val = parse_measurement_cm_scalar(m["measure"])
+        next unless val
+
+        if name.match?(/ширина|szerokość|szerokosc|width/)
+          w = val
+        elsif name.match?(/высота|wysokość|wysokosc|height/)
+          h = val
+        elsif name.match?(/длина|długość|dlugosc|length/)
+          l = val
+        end
+      end
+      next unless w && h && l
+
+      vol_sum += (w * h * l) / 1000.0
+      primary_lwh ||= "#{w} × #{h} × #{l} cm"
+    end
+
+    vol_round = vol_sum.round(3)
+    [primary_lwh, vol_round.positive? ? vol_round : nil]
+  end
+
+  # Данные модалки «Подробная информация» часто только в hydration (accordionObject), без ul.pipf-accordion в HTML.
+  def extract_pipf_modal_from_hydration_product_details_props(props)
+    return { fields: {}, snapshot: {} } if props.blank?
+
+    fields = {}
+    snapshot = {
+      "title" => props["title"],
+      "intro_paragraphs" => [],
+      "identifiers" => [],
+      "accordion_sections" => [],
+      "source" => "hydration_productDetailsProps"
+    }
+
+    pd = props["productDescriptionProps"]
+    if pd.is_a?(Hash)
+      paras = Array(pd["paragraphs"]).map { |t| normalize_text(t) }.reject(&:blank?)
+      snapshot["intro_paragraphs"] = paras
+      if paras.any?
+        fields[:short_description] = paras.first
+        fields[:description] = paras.join("\n\n")
+      end
+      dname = normalize_text(pd["designerName"])
+      fields[:designer] = dname if dname.present?
+    end
+
+    label = props["articleNumberLabel"].to_s.strip
+    pid = props["productId"].to_s.gsub(/\D/, "")
+    if pid.match?(/\A\d{8}\z/)
+      formatted = "#{pid[0, 3]}.#{pid[3, 3]}.#{pid[6, 2]}"
+      row = { "label" => label.presence, "value" => formatted }.compact
+      snapshot["identifiers"] << row if row.any?
+    end
+
+    acc = props["accordionObject"]
+    if acc.is_a?(Hash)
+      acc.each_value do |section|
+        next unless section.is_a?(Hash)
+
+        sec_snap = snapshot_accordion_section_from_hydration(section)
+        snapshot["accordion_sections"] << sec_snap if sec_snap.present?
+
+        sid = section["id"].to_s
+        cp = section["contentProps"]
+        next unless cp.is_a?(Hash)
+
+        if sid.include?("good-to-know")
+          txt = hydration_good_to_know_plain_text(cp)
+          fields[:good_to_know] = txt if txt.present?
+          env_lines = txt.to_s.split("\n\n").select do |ln|
+            ln.match?(/переработ|recycl|эколог|отходов|IKEA of Sweden/i)
+          end
+          fields[:environmental_info] = env_lines.join("\n\n") if env_lines.any?
+        elsif sid.include?("material-and-care")
+          fields[:materials] = materials_from_hydration_materials_and_care(cp)
+          fields[:care_instructions] = care_from_hydration_materials_and_care(cp)
+        elsif sid.include?("safety")
+          fields[:safety_info] = safety_from_hydration_safety_block(cp)
+        elsif sid.include?("assembly") || sid.include?("documents")
+          docs = assembly_documents_from_hydration_attachments(cp)
+          fields[:assembly_documents] = docs if docs.any?
+        end
+      end
+    end
+
+    { fields: fields, snapshot: snapshot }
+  end
+
+  def hydration_good_to_know_plain_text(cp)
+    Array(cp["goodToKnow"]).filter_map do |x|
+      next unless x.is_a?(Hash)
+
+      normalize_text(x["text"])
+    end.reject(&:blank?).join("\n\n").presence
+  end
+
+  def materials_from_hydration_materials_and_care(cp)
+    lines = []
+    Array(cp["materials"]).each do |block|
+      next unless block.is_a?(Hash)
+
+      pt = normalize_text(block["productType"])
+      lines << pt if pt.present?
+      Array(block["materials"]).each do |m|
+        next unless m.is_a?(Hash)
+
+        part = normalize_text(m["part"])
+        mat = normalize_text(m["material"])
+        lines << "#{part} #{mat}".strip if part.present? && mat.present?
+      end
+    end
+    lines.uniq.join("\n").presence
+  end
+
+  def care_from_hydration_materials_and_care(cp)
+    parts = []
+    Array(cp["careInstructions"]).each do |ci|
+      next unless ci.is_a?(Hash)
+
+      h = normalize_text(ci["header"])
+      pt = normalize_text(ci["productType"])
+      parts << h if h.present?
+      parts << pt if pt.present? && pt != h
+      Array(ci["texts"]).each { |t| parts << normalize_text(t) }
+    end
+    parts.reject(&:blank?).uniq.join("\n").presence
+  end
+
+  def safety_from_hydration_safety_block(cp)
+    Array(cp["safetyAndCompliance"]).filter_map do |x|
+      next unless x.is_a?(Hash)
+
+      normalize_text(x["text"])
+    end.reject(&:blank?).uniq.join("\n\n").presence
+  end
+
+  def assembly_documents_from_hydration_attachments(cp)
+    att = cp["attachments"]
+    return [] unless att.is_a?(Hash)
+
+    out = []
+    att.each_value do |grp|
+      next unless grp.is_a?(Hash)
+
+      Array(grp["attachments"]).each do |a|
+        next unless a.is_a?(Hash)
+
+        url = a["url"].to_s.strip
+        next if url.blank?
+
+        title = normalize_text(a["label"])
+        out << { url: url, title: title.presence || "Document" }
+      end
+    end
+    out.uniq { |x| x[:url] }
+  end
+
+  def snapshot_accordion_section_from_hydration(section)
+    id = section["id"].to_s
+    title = normalize_text(section["title"])
+    cp = section["contentProps"]
+    return nil if cp.blank?
+
+    out = {
+      "id" => id.presence,
+      "title" => title.presence,
+      "paragraphs" => [],
+      "material_blocks" => [],
+      "care_blocks" => [],
+      "document_groups" => []
+    }
+
+    if id.include?("good-to-know")
+      Array(cp["goodToKnow"]).each do |x|
+        next unless x.is_a?(Hash)
+
+        t = normalize_text(x["text"])
+        out["paragraphs"] << t if t.present?
+      end
+    elsif id.include?("material-and-care")
+      Array(cp["materials"]).each do |block|
+        next unless block.is_a?(Hash)
+
+        sub = normalize_text(block["productType"])
+        pairs = Array(block["materials"]).filter_map do |m|
+          next unless m.is_a?(Hash)
+
+          part = normalize_text(m["part"])
+          mat = normalize_text(m["material"])
+          next if part.blank? && mat.blank?
+
+          { "term" => part, "definition" => mat }
+        end
+        out["material_blocks"] << { "subheader" => sub.presence, "pairs" => pairs } if sub.present? || pairs.any?
+      end
+      Array(cp["careInstructions"]).each do |ci|
+        next unless ci.is_a?(Hash)
+
+        lines = Array(ci["texts"]).map { |t| normalize_text(t) }.reject(&:blank?)
+        out["care_blocks"] << {
+          "header" => normalize_text(ci["header"]),
+          "product_type" => normalize_text(ci["productType"]),
+          "lines" => lines
+        }.compact if lines.any? || ci["header"].present?
+      end
+    elsif id.include?("safety")
+      Array(cp["safetyAndCompliance"]).each do |x|
+        next unless x.is_a?(Hash)
+
+        t = normalize_text(x["text"])
+        out["paragraphs"] << t if t.present?
+      end
+    elsif id.include?("assembly") || id.include?("documents")
+      att = cp["attachments"]
+      if att.is_a?(Hash)
+        att.each_value do |grp|
+          next unless grp.is_a?(Hash)
+
+          hdr = normalize_text(grp["header"])
+          links = Array(grp["attachments"]).filter_map do |a|
+            next unless a.is_a?(Hash)
+
+            url = a["url"].to_s.strip
+            next if url.blank?
+
+            { "title" => normalize_text(a["label"]).presence || "Document", "url" => url }
+          end.uniq { |z| z["url"] }
+          out["document_groups"] << { "header" => hdr, "links" => links } if links.any?
+        end
+      end
+    end
+
+    out["paragraphs"].uniq!
+    out.compact.reject { |_, v| v.blank? || (v.is_a?(Array) && v.empty?) }
+  end
+
+  def merge_pipf_modal_dom_and_hydration(dom, hyd)
+    d_snap = dom[:snapshot].is_a?(Hash) ? dom[:snapshot] : {}
+    h_snap = hyd[:snapshot].is_a?(Hash) ? hyd[:snapshot] : {}
+    merged_snap = h_snap.stringify_keys.merge(d_snap.stringify_keys)
+    merged_snap["intro_paragraphs"] = d_snap["intro_paragraphs"].presence || h_snap["intro_paragraphs"] || []
+    merged_snap["identifiers"] = d_snap["identifiers"].presence || h_snap["identifiers"] || []
+    merged_snap["accordion_sections"] = d_snap["accordion_sections"].presence || h_snap["accordion_sections"] || []
+    merged_snap["title"] = d_snap["title"].presence || h_snap["title"]
+
+    sources = [h_snap["source"], d_snap["source"]].compact.reject(&:blank?).uniq
+    merged_snap["source"] = sources.join("+") if sources.any?
+
+    d_fields = dom[:fields].is_a?(Hash) ? dom[:fields] : {}
+    h_fields = hyd[:fields].is_a?(Hash) ? hyd[:fields] : {}
+    merged_fields = h_fields.merge(d_fields) { |_k, h, d| d.present? ? d : h }
+
+    { fields: merged_fields, snapshot: merged_snap }
+  end
+
   # Извлечение данных из модального окна с описанием продукта
   # Гибкий метод, который работает даже если модальное окно загружается через JS
-  def extract_modal_details(doc)
+  def extract_modal_details(doc, product_data = nil)
     result = {}
     
     Rails.logger.debug "PlDetailsFetcher.extract_modal_details: Starting extraction"
@@ -1477,24 +2522,33 @@ class PlDetailsFetcher
     else
       Rails.logger.debug "PlDetailsFetcher.extract_modal_details: Found product details modal"
     end
-    
-    # Извлекаем описание продукта (все параграфы из модального окна)
-    extract_description_from_modal(modal, result)
-    
-    # Извлекаем дизайнера
-    extract_designer_from_modal(modal, doc, result)
-    
-    # Извлекаем материалы и инструкции по уходу из секции "Материалы и уход"
-    extract_materials_and_care_from_modal(modal, doc, result)
-    
-    # Извлекаем информацию о безопасности
-    extract_safety_info_from_modal(modal, result)
-    
-    # Извлекаем информацию "Полезно знать"
-    extract_good_to_know_from_modal(modal, result)
-    
-    # Извлекаем ссылки на документы (инструкции по сборке и уходу)
-    extract_documents_from_modal(modal, doc, result)
+
+    pip_modal = doc.at_css(".pipf-product-details-modal")
+    dom_complete = pip_modal ? extract_pipf_product_details_modal_complete(pip_modal) : { fields: {}, snapshot: {} }
+    props = pipf_product_details_props(product_data)
+    hyd_complete = extract_pipf_modal_from_hydration_product_details_props(props)
+    complete = merge_pipf_modal_dom_and_hydration(dom_complete, hyd_complete)
+    complete[:fields].each do |key, val|
+      next if val.blank?
+
+      result[key] = val
+    end
+    if complete[:snapshot].present?
+      result[:product_details_modal] = complete[:snapshot]
+      intro_n = complete[:snapshot]["intro_paragraphs"]&.size
+      sec_n = complete[:snapshot]["accordion_sections"]&.size
+      Rails.logger.info "PlDetailsFetcher.extract_modal_details: pipf modal merged intro=#{intro_n} accordion_sections=#{sec_n}"
+    end
+
+    # Дозаполняем поля, если полный разбор модалки не сработал или дал пробелы
+    extract_description_from_modal(modal, result) if result[:description].blank?
+    extract_designer_from_modal(modal, doc, result) if result[:designer].blank?
+    if result[:materials].blank? || result[:care_instructions].blank?
+      extract_materials_and_care_from_modal(modal, doc, result)
+    end
+    extract_safety_info_from_modal(modal, result) if result[:safety_info].blank?
+    extract_good_to_know_from_modal(modal, result) if result[:good_to_know].blank?
+    extract_documents_from_modal(modal, doc, result) if result[:assembly_documents].blank?
     
     Rails.logger.info "PlDetailsFetcher.extract_modal_details: Extracted - description: #{result[:description].present?}, materials: #{result[:materials].present?}, designer: #{result[:designer].present?}, documents: #{result[:assembly_documents]&.length || 0}"
     result
@@ -2212,6 +3266,18 @@ class PlDetailsFetcher
           availability[:status] = stock_info['status'] || stock_info['availabilityStatus']
         end
       end
+
+      # Вложенные статусы (часто HIGH_IN_STOCK / IN_STOCK)
+      if availability[:status].blank?
+        nested = product_data.dig('stockcheckSection', 'availability') ||
+                 product_data.dig('stock', 'availability') ||
+                 product_data.dig('availability', 'availability')
+        if nested.is_a?(Hash)
+          availability[:status] ||= nested['status'] || nested['type'] || nested['availabilityStatus']
+          qn = nested['quantity'] || nested['availableQuantity']
+          availability[:quantity] ||= qn.to_i if qn.present?
+        end
+      end
     end
     
     # Из HTML - ищем текст о наличии
@@ -2532,123 +3598,64 @@ class PlDetailsFetcher
     result.compact
   end
   
-  def extract_images(doc, product_data, existing_images = [])
-    images = existing_images.dup || []
-    initial_count = images.length
-    
-    Rails.logger.debug "PlDetailsFetcher.extract_images: Starting with #{initial_count} existing images"
-    
-    # Из productData (data-hydration-props)
-    if product_data
-      Rails.logger.debug "PlDetailsFetcher.extract_images: product_data present, searching for images..."
-      
-      # Ищем изображения в различных секциях productData
-      image_paths = [
-        product_data.dig('mediaSection', 'images'),
-        product_data.dig('productMedia', 'images'),
-        product_data.dig('gallery', 'images'),
-        product_data.dig('productImages'),
-        product_data.dig('images'),
-        product_data.dig('product', 'images'),
-        product_data.dig('productData', 'images'),
-        product_data.dig('productMediaSection', 'images'),
-        product_data.dig('media', 'images')
-      ]
-      
-      image_paths.each_with_index do |img_data, idx|
-        next unless img_data
-        
-        Rails.logger.debug "PlDetailsFetcher.extract_images: Found image data at path #{idx}: #{img_data.class}"
-        
-        if img_data.is_a?(Array)
-          img_data.each do |img|
-            url = img.is_a?(Hash) ? (img['url'] || img['src'] || img['imageUrl'] || img['href'] || img['image']) : img
-            if url.present? && url.is_a?(String)
-              images << url
-              Rails.logger.debug "PlDetailsFetcher.extract_images: Added image from array: #{url[0..100]}"
-            end
-          end
-        elsif img_data.is_a?(Hash)
-          url = img_data['url'] || img_data['src'] || img_data['imageUrl'] || img_data['href'] || img_data['image']
-          if url.present?
-            images << url
-            Rails.logger.debug "PlDetailsFetcher.extract_images: Added image from hash: #{url[0..100]}"
-          end
+  def extract_images(doc, _product_data, _existing_images = [])
+    # В images сохраняем только реальные фото из модального окна галереи товара (PIPF),
+    # чтобы не попадали служебные/иконки/шумы из остальной страницы.
+    modal = doc.at_css("[class*='pipf-product-gallery-modal']")
+    modal ||= doc.at_css(".pipf-product-gallery")
+    modal ||= doc.at_css(".pipf-product-gallery__media")
+    unless modal
+      Rails.logger.info "PlDetailsFetcher.extract_images: gallery modal not found (.pipf-product-gallery-modal)"
+      return []
+    end
+
+    urls = []
+
+    modal.css("img").each do |img|
+      candidates = [
+        img["src"],
+        img["data-src"],
+        img["data-lazy-src"],
+        img["data-original"],
+        img["data-image"]
+      ].compact
+
+      srcset = img["srcset"].to_s
+      if srcset.present?
+        srcset.split(",").each do |part|
+          candidate = part.to_s.strip.split(/\s+/).first
+          candidates << candidate if candidate.present?
         end
       end
-      
-      # Ищем в variants
-      variants = product_data.dig('gprDescription', 'variants') || product_data.dig('variants')
-      if variants.is_a?(Array)
-        Rails.logger.debug "PlDetailsFetcher.extract_images: Found #{variants.length} variants"
-        variants.each do |variant|
-          if variant.is_a?(Hash)
-            img_url = variant['imageUrl'] || variant['image'] || variant['url'] || variant['src']
-            if img_url.present?
-              images << img_url
-              Rails.logger.debug "PlDetailsFetcher.extract_images: Added image from variant: #{img_url[0..100]}"
-            end
-          end
-        end
-      end
-    else
-      Rails.logger.debug "PlDetailsFetcher.extract_images: product_data is nil"
+
+      candidates.each { |u| urls << u }
     end
-    
-    # Из HTML - все изображения продукта (расширенный поиск)
-    html_selectors = [
-      '.pip-media img',
-      '.pip-product-image img',
-      '.product-image img',
-      '[data-product-image] img',
-      '.pip-gallery img',
-      '.pip-product-compact__image',
-      '.pip-product-compact img',
-      '.pip-image img',
-      'img[src*="ikea"]',
-      '.product-gallery img',
-      '.pipf-product-gallery img',
-      '.pipf-product-gallery__media img',
-      '.pipf-product-gallery__thumbnail img'
-    ]
-    
-    html_images_found = 0
-    html_selectors.each do |selector|
-      doc.css(selector).each do |img|
-        src = img['src'] || img['data-src'] || img['data-lazy-src'] || img['data-original'] || img['data-image']
-        if src.present?
-          # Преобразуем относительные URL в абсолютные
-          src = "https://www.ikea.com#{src}" if src.start_with?('/')
-          images << src
-          html_images_found += 1
-        end
-      end
+
+    modal.css("a[href]").each { |a| urls << a["href"] }
+    modal.css("[data-image-url], [data-image-src], [data-product-image]").each do |el|
+      urls << el["data-image-url"] if el["data-image-url"].present?
+      urls << el["data-image-src"] if el["data-image-src"].present?
+      urls << el["data-product-image"] if el["data-product-image"].present?
     end
-    Rails.logger.debug "PlDetailsFetcher.extract_images: Found #{html_images_found} images from HTML"
-    
-    # Также ищем в data-атрибутах
-    doc.css('[data-image-url], [data-image-src], [data-product-image], [data-src]').each do |el|
-      img_url = el['data-image-url'] || el['data-image-src'] || el['data-product-image'] || el['data-src']
-      if img_url.present?
-        img_url = "https://www.ikea.com#{img_url}" if img_url.start_with?('/')
-        images << img_url
-      end
-    end
-    
-    # Убираем дубликаты и пустые значения, нормализуем URL
-    images = images.compact.uniq.map do |url|
-      next unless url.present? && url.is_a?(String)
-      
-      # Убираем параметры размера из URL IKEA (например, ?f=s, ?f=xl)
-      normalized = url.split('?').first
-      
-      # Пропускаем маленькие иконки и placeholder изображения
-      next if normalized.include?('placeholder') || normalized.include?('icon') || normalized.include?('logo')
-      
-      normalized
-    end.compact.uniq
-    
-    Rails.logger.info "PlDetailsFetcher.extract_images: Extracted #{images.length} total images (#{initial_count} existing + #{images.length - initial_count} new)"
+
+    images =
+      urls.filter_map do |raw|
+        next if raw.blank?
+        url = raw.to_s.strip
+        next if url.blank?
+        url = "https://www.ikea.com#{url}" if url.start_with?("/")
+        next unless url.start_with?("http://", "https://")
+        next if url.match?(/pvid/i)
+
+        normalized = url.split("?").first
+        next unless normalized.match?(/\.(jpg|jpeg|png|webp)\z/i)
+        next if normalized.match?(/placeholder|icon|logo|sprite/i)
+        next unless normalized.include?("ikea.com")
+
+        normalized
+      end.uniq
+
+    Rails.logger.info "PlDetailsFetcher.extract_images: Extracted #{images.length} gallery images from modal"
     images
   end
 

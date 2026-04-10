@@ -29,7 +29,6 @@ class RepairProductTranslationsJob < ApplicationJob
       
       # Ищем продукты, где хотя бы в одном из полей есть "translatedText"
       query_parts = fields_to_fix.map { |f| "#{f} LIKE '%translatedText%'" }
-      query_parts << "full_attributes_ru::text LIKE '%translatedText%'"
 
       products = Product.where(query_parts.join(" OR "))
       products = products.where("id > ?", last_id) if last_id

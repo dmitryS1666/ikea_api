@@ -79,7 +79,9 @@ class TelegramService
         'fix_translations' => 'Исправление битых переводов',
         'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
         'recover_missing_images' => 'Восполнение ссылок на картинки',
-        'recover_broken_product_images' => 'Восстановление битых картинок'
+        'recover_broken_product_images' => 'Восстановление битых картинок',
+        'refresh_category_lt' => 'Актуализация категории (список SKU с LT)',
+        'pl_prices_stock' => 'Цены и остатки (PL, все SKU)'
       }[task_type.to_s] || task_type.to_s
     end
 

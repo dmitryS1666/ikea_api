@@ -139,35 +139,53 @@ class CategoryProductsFetcher
   
   private
   
+  MAX_HTTP_REDIRECTS = 5
+
   def fetch_with_proxy(url)
     ProxyRotator.with_proxy_retry do |proxy_options|
-      uri = URI.parse(url)
-      
+      http_get_follow_redirects(url, proxy_options, MAX_HTTP_REDIRECTS)
+    end
+  end
+
+  # Net::HTTP не ходит за 301/302 сам — IKEA часто отдаёт редирект (канонический URL, http→https).
+  def http_get_follow_redirects(url, proxy_options, redirects_left)
+    raise StandardError, "Too many HTTP redirects (from #{url})" if redirects_left <= 0
+
+    uri = URI.parse(url)
+
+    http =
       if proxy_options && proxy_options[:http_proxyaddr]
-        http = Net::HTTP.new(uri.host, uri.port,
-                             proxy_options[:http_proxyaddr],
-                             proxy_options[:http_proxyport],
-                             proxy_options[:http_proxyuser],
-                             proxy_options[:http_proxypass])
+        Net::HTTP.new(uri.host, uri.port,
+                      proxy_options[:http_proxyaddr],
+                      proxy_options[:http_proxyport],
+                      proxy_options[:http_proxyuser],
+                      proxy_options[:http_proxypass])
       else
-        http = Net::HTTP.new(uri.host, uri.port)
+        Net::HTTP.new(uri.host, uri.port)
       end
-      
-      http.use_ssl = uri.scheme == 'https'
-      http.read_timeout = 30
-      
-      request = Net::HTTP::Get.new(uri.path + (uri.query ? "?#{uri.query}" : ''))
-      request['User-Agent'] = ENV.fetch('USER_AGENT', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
-      request['Accept'] = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-      request['Accept-Language'] = 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7'
-      
-      response = http.request(request)
-      
-      if response.is_a?(Net::HTTPSuccess)
-        response.body
-      else
-        raise StandardError, "HTTP error: #{response.code} #{response.message}"
-      end
+
+    http.use_ssl = uri.scheme == 'https'
+    http.read_timeout = 30
+    http.open_timeout = 15
+
+    request = Net::HTTP::Get.new(uri.request_uri)
+    request['User-Agent'] = ENV.fetch('USER_AGENT', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+    request['Accept'] = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    request['Accept-Language'] = 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7,lt;q=0.6,ru;q=0.5'
+
+    response = http.request(request)
+
+    case response
+    when Net::HTTPSuccess
+      response.body
+    when Net::HTTPRedirection
+      location = response['location'].to_s.strip
+      raise StandardError, "HTTP #{response.code} redirect without Location" if location.empty?
+
+      next_url = URI.join(url, location).to_s
+      http_get_follow_redirects(next_url, proxy_options, redirects_left - 1)
+    else
+      raise StandardError, "HTTP error: #{response.code} #{response.message}"
     end
   end
   

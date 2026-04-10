@@ -498,7 +498,7 @@ Trestle.resource(:products, model: Product) do
                 content_tag(:h2, class: "accordion-header", id: header_id) do
                   content_tag(
                     :button,
-                    "RU",
+                    "Карточка API (full_attributes)",
                     class: "accordion-button collapsed",
                     type: "button",
                     data: { "bs-toggle": "collapse", "bs-target": "##{ru_collapse_id}" },
@@ -515,17 +515,8 @@ Trestle.resource(:products, model: Product) do
                   data: { "bs-parent": "##{accordion_id}" }
                 ) do
                   content_tag(:div, class: "accordion-body") do
-                    if product.full_attributes_ru.present?
-                      ordered = {
-                        "description" => product.full_attributes_ru["description"],
-                        "size" => product.full_attributes_ru["size"],
-                        "materials" => product.full_attributes_ru["materials"],
-                        "instructions" => product.full_attributes_ru["instructions"]
-                      }.compact
-                      content_tag(:pre, JSON.pretty_generate(ordered))
-                    else
-                      "Нет данных"
-                    end
+                    payload = ProductSerializer.customer_full_attributes_payload(product)
+                    content_tag(:pre, JSON.pretty_generate(payload))
                   end
                 end
               )

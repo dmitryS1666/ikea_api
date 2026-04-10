@@ -14,8 +14,8 @@ module Products
       Rails.logger.info "[WeightRecovery] Starting for SKU: #{@product.sku}, URL: #{@product.url}"
       return { status: :error, message: "Product URL is missing" } if @product.url.blank?
 
-      # Используем PlDetailsFetcher для получения данных с сайта IKEA PL
-      # Он уже умеет работать через прокси, если PROXY_LIST в ENV задан
+      # PlDetailsFetcher по URL товара (часто PL). Для категорий с LT приоритет веса/габаритов —
+      # см. Products::ExtendedAttributesFetchService (LT PIP / JSONL, затем добор с PL).
       begin
         Rails.logger.info "[WeightRecovery] [#{ @product.sku }] Fetching simple HTML..."
         pl_details = PlDetailsFetcher.fetch(@product.url, use_headless: false) || {}
@@ -30,7 +30,7 @@ module Products
           weight = pl_details[:weight].to_f
           Rails.logger.info "[WeightRecovery] [#{ @product.sku }] Success! Weight found: #{weight}"
           
-          # Сохраняем вес и обновляем full_attributes_ru если нужно
+          # Сохраняем вес (габариты при необходимости — отдельным update ниже)
           @product.update!(weight: weight)
           
           # Если в деталях есть еще полезная инфа, которую мы вытащили - тоже обновим

@@ -20,12 +20,14 @@ class BelarusDeliveryService
     [parts[0], parts[1] || Float::INFINITY]
   end
   
-  # Расчет стоимости доставки по Беларуси в PLN
+  # Расчет весовой логистики РБ (WC_BY) в PLN: вес × ставка за кг по диапазону
+  # Границы из JSON: (0;20], (20;30], (30;40], (40; …] — соответствует «до 20 / 21–30 / …»
   # @param weight_kg [Float] Вес в килограммах
-  # @return [Float] Стоимость доставки в PLN
+  # @return [Float] Сумма в PLN
   def self.calculate(weight_kg)
     weight = weight_kg.to_f
-    
+    return 0.0 if weight <= 0
+
     # Получаем тарифы из настроек
     rates = delivery_rates
     

@@ -8,7 +8,6 @@ class ProductTranslationRepairService
   def self.run(limit: nil)
     # Ищем продукты, где хотя бы в одном из полей есть "translatedText"
     query_parts = FIELDS_TO_FIX.map { |f| "#{f} LIKE '%translatedText%'" }
-    query_parts << "full_attributes_ru::text LIKE '%translatedText%'"
     
     products = Product.where(query_parts.join(" OR "))
     products = products.limit(limit) if limit
@@ -53,47 +52,11 @@ class ProductTranslationRepairService
         end
       end
     end
-    
-    # Обработка full_attributes_ru (JSONB)
-    if product.full_attributes_ru.present?
-      json_str = product.full_attributes_ru.to_json
-      if json_str.include?('translatedText')
-        new_full_attrs = repair_json_attributes(product.full_attributes, product.full_attributes_ru)
-        if new_full_attrs != product.full_attributes_ru
-          updates[:full_attributes_ru] = new_full_attrs
-          was_fixed = true
-        end
-      end
-    end
-    
+
     if updates.any?
       product.update_columns(updates)
     end
     
     { fixed: was_fixed, updates: updates }
-  end
-  
-  private
-  
-  def self.repair_json_attributes(original_hash, translated_hash)
-    return translated_hash unless translated_hash.is_a?(Hash) && original_hash.is_a?(Hash)
-    
-    new_hash = translated_hash.dup
-    
-    translated_hash.each do |key, value|
-      if value.is_a?(String) && value.include?('translatedText')
-        original_val = original_hash[key]
-        if original_val.present?
-          new_translation = TranslationService.translate(original_val, force: true, context: "JSON key: #{key}")
-          if new_translation.present? && !TranslationService.invalid_translation?(new_translation, original_val)
-            new_hash[key] = new_translation
-          end
-        end
-      elsif value.is_a?(Hash) && original_hash[key].is_a?(Hash)
-        new_hash[key] = repair_json_attributes(original_hash[key], value)
-      end
-    end
-    
-    new_hash
   end
 end

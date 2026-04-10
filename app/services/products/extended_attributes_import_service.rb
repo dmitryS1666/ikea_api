@@ -198,7 +198,6 @@ module Products
       }
 
       product.full_attributes = full_attrs
-      product.full_attributes_ru = full_attrs
 
       if attributes_data['materials'].is_a?(Hash)
         product.materials = attributes_data['materials'].map { |k, v| "#{k}: #{v}" }.join("\n")

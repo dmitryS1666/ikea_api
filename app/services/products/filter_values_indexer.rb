@@ -291,7 +291,6 @@ module Products
     
       raw_attributes =
         safe_hash(product.full_attributes)
-          .merge(safe_hash(product.full_attributes_ru))
           .merge(safe_hash(product.dimensions))
           .merge(safe_hash(product.dimensions_ru))
     
@@ -374,7 +373,7 @@ module Products
     def attribute_values_for_keys(product, keys)
       return [] if keys.blank?
 
-      attributes = (product.full_attributes || {}).merge(product.full_attributes_ru || {})
+      attributes = product.full_attributes || {}
       values = []
 
       keys.each do |key|
@@ -406,12 +405,7 @@ module Products
         pool << k.to_s
         Array(v).each { |vv| pool << vv.to_s }
       end
-    
-      (product.full_attributes_ru || {}).each do |k, v|
-        pool << k.to_s
-        Array(v).each { |vv| pool << vv.to_s }
-      end
-    
+
       Array(product.materials).each { |v| pool << v.to_s }
       Array(product.features).each { |v| pool << v.to_s }
     

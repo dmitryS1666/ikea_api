@@ -177,30 +177,283 @@ class ProductSerializer
     ContentArticleTeaserSerializer.new(articles).serializable_hash[:data].map { |a| a[:attributes] }
   end
 
-  attribute :full_attributes_ru do |product|
-    full = product.full_attributes.is_a?(Hash) ? product.full_attributes : {}
-    detailed_info = full["detailed_info"].is_a?(Hash) ? full["detailed_info"] : {}
-    dimensions_map = full["dimensions_map"].is_a?(Hash) ? full["dimensions_map"] : {}
-  
+  # Карточка для витрины: собирается из jsonb full_attributes (модалки PIPF, detailed_info из JSONL) и колонок товара.
+  attribute :full_attributes do |product|
+    ProductSerializer.customer_full_attributes_payload(product)
+  end
+
+  def self.customer_full_attributes_payload(product)
+    full = product.full_attributes.is_a?(Hash) ? product.full_attributes.deep_stringify_keys : {}
+    detailed_info = full["detailed_info"].is_a?(Hash) ? full["detailed_info"].deep_stringify_keys : {}
+    dimensions_map = full["dimensions_map"].is_a?(Hash) ? full["dimensions_map"].deep_stringify_keys : {}
+    measurements_modal = full["measurements_modal"]
+    product_details_modal = full["product_details_modal"]
+
+    dimensions_map = dimensions_map.merge(dimensions_map_from_measurements_modal(measurements_modal))
+    if dimensions_map.except("packaging").blank?
+      dimensions_map = dimensions_map.merge(dimensions_map_from_product_column(product.dimensions))
+    end
+
+    description = ProductSerializer.build_description_block(full, detailed_info)
+    enrich_description_block_from_product!(description, product, product_details_modal)
+
+    size = ProductSerializer.build_size_block(dimensions_map, detailed_info["Информация об упаковке"])
+    enrich_size_block_from_measurements_modal!(size, measurements_modal, product)
+
+    materials = ProductSerializer.build_materials_block(detailed_info["Материал и уход"])
+    enrich_materials_block_from_product!(materials, product, product_details_modal)
+
+    instructions = ProductSerializer.build_instructions_block(detailed_info["Сборка и документы"])
+    enrich_instructions_block_from_product!(instructions, product, product_details_modal)
+
     {
-      "description" => ProductSerializer.build_description_block(full, detailed_info),
-      "size" => ProductSerializer.build_size_block(dimensions_map, detailed_info["Информация об упаковке"]),
-      "materials" => ProductSerializer.build_materials_block(detailed_info["Материал и уход"]),
-      "instructions" => ProductSerializer.build_instructions_block(detailed_info["Сборка и документы"])
+      "description" => description,
+      "size" => size,
+      "materials" => materials,
+      "instructions" => instructions
     }
   end
 
   def self.build_description_block(full, detailed_info)
     short_description = full["short_description"].presence
-  
+
     description_items = normalize_description_items(
       detailed_info["Описание"] || detailed_info["Полное описание"]
     )
-  
+
     {
       "short_description" => short_description,
       "description" => description_items
     }
+  end
+
+  def self.enrich_description_block_from_product!(block, product, product_details_modal)
+    block["short_description"] ||= product.short_description.presence
+    return block if block["description"].present?
+
+    paras = Array(product_details_modal&.dig("intro_paragraphs")).map(&:to_s).map(&:strip).reject(&:blank?)
+    if paras.any?
+      block["description"] = paras
+    elsif product.content.present?
+      block["description"] = normalize_description_items(product.content)
+    end
+    block
+  end
+
+  def self.dimensions_map_from_measurements_modal(measurements_modal)
+    return {} unless measurements_modal.is_a?(Hash)
+
+    out = {}
+    Array(measurements_modal["product_measurements"]).each do |row|
+      next unless row.is_a?(Hash)
+
+      name = row["name"].to_s.gsub(":", "").strip
+      measure = row["measure"].to_s.strip
+      next if name.blank? || measure.blank?
+
+      out[name] = measure
+    end
+    out
+  end
+
+  # "142 × 100 × 87 cm" → три базовых ключа для блока размеров
+  def self.dimensions_map_from_product_column(dimensions_str)
+    s = dimensions_str.to_s.strip
+    return {} if s.blank?
+
+    parts = s.split(/\s*[×x]\s*/i).map(&:strip)
+    return {} if parts.size < 3
+
+    w, d, h = parts[0], parts[1], parts[2]
+    {
+      "Ширина" => w,
+      "Глубина" => d,
+      "Высота" => h
+    }
+  end
+
+  def self.enrich_size_block_from_measurements_modal!(size_block, measurements_modal, product)
+    packaging = size_block["packaging"]
+    if packaging.is_a?(Hash) && packaging["details"].is_a?(Array) && packaging["details"].empty?
+      merged = build_packaging_from_measurements_modal(measurements_modal)
+      if merged["details"].any? || merged["desc"].present?
+        size_block["packaging"] = merged
+      elsif product.package_dimensions.present? && product.weight.present?
+        size_block["packaging"] = build_packaging_from_product_columns(product)
+      end
+    end
+    size_block
+  end
+
+  def self.build_packaging_from_product_columns(product)
+    pd = product.package_dimensions.to_s
+    parts = pd.split(/\s*[×x]\s*/i).map(&:strip)
+    detail = {}
+    detail["width"] = parts[0] if parts[0].present?
+    detail["height"] = parts[1] if parts[1].present?
+    detail["length"] = parts[2] if parts[2].present?
+    detail["weight"] = "#{product.weight} кг" if product.weight.present?
+    details = detail.values.any? ? [detail.compact] : []
+    { "desc" => nil, "details" => details }
+  end
+
+  def self.build_packaging_from_measurements_modal(measurements_modal)
+    return { "desc" => nil, "details" => [] } unless measurements_modal.is_a?(Hash)
+
+    note = measurements_modal["package_count_note"].presence
+    if note.blank? && measurements_modal["number_of_packages"].present?
+      note = "Упаковок: #{measurements_modal["number_of_packages"]}"
+    end
+
+    details = Array(measurements_modal["packages"]).filter_map { |pkg| package_row_to_api_detail(pkg) }
+    { "desc" => note, "details" => details }
+  end
+
+  def self.package_row_to_api_detail(pkg)
+    return nil unless pkg.is_a?(Hash)
+
+    if pkg["measurements"].is_a?(Array) && pkg["measurements"].first.is_a?(Array)
+      w = h = l = wt = diam = nil
+      Array(pkg["measurements"]).each do |grp|
+        Array(grp).each do |it|
+          next unless it.is_a?(Hash)
+
+          case it["type"].to_s
+          when "width"
+            w = it["text"].presence
+            w ||= "#{it['value']} см" if it["value"].present?
+          when "height"
+            h = it["text"].presence
+            h ||= "#{it['value']} см" if it["value"].present?
+          when "length", "depth"
+            l = it["text"].presence
+            l ||= "#{it['value']} см" if it["value"].present?
+          when "diameter"
+            diam = it["text"].presence
+            diam ||= "#{it['value']} см" if it["value"].present?
+          when "weight"
+            wt = it["text"].presence
+            wt ||= "#{it['value']} кг" if it["value"].present?
+          end
+        end
+      end
+      ct = pkg.dig("quantity", "value")
+      label = [pkg["name"], pkg["typeName"], pkg.dig("articleNumber", "value")].compact.join(" · ").presence
+      d = {
+        "count" => integer_or_original(ct),
+        "length" => l,
+        "width" => w,
+        "height" => h,
+        "weight" => wt,
+        "diameter" => diam
+      }.compact
+      d["label"] = label if label.present?
+      return nil if d.except("label").empty?
+
+      d
+    end
+
+    hmap = {}
+    Array(pkg["measurements"]).each do |m|
+      next unless m.is_a?(Hash)
+
+      n = m["name"].to_s.downcase
+      v = m["measure"].to_s.strip
+      next if v.blank?
+
+      if n.match?(/ширина|szerokość|szerokosc|width/)
+        hmap["width"] = v
+      elsif n.match?(/высота|wysokość|wysokosc|height/)
+        hmap["height"] = v
+      elsif n.match?(/длина|długość|dlugosc|length/)
+        hmap["length"] = v
+      elsif n.match?(/диаметр|diameter/)
+        hmap["diameter"] = v
+      elsif n.match?(/вес|weight|waga/)
+        hmap["weight"] = v
+      elsif n.match?(/упаковка/)
+        hmap["count"] = integer_or_original(v)
+      end
+    end
+    label = [pkg["name"], pkg["type_name"], pkg.dig("article_number", "value")].compact.join(" · ").presence
+    d = hmap.compact
+    d["label"] = label if label.present?
+    return nil if d.except("label").empty?
+
+    d
+  end
+
+  def self.enrich_materials_block_from_product!(block, product, product_details_modal)
+    mats = block["materials"]
+    empty = mats.blank? || (mats.is_a?(Hash) && mats.empty?)
+    return block unless empty
+
+    if product.materials.present?
+      block["materials"] = { "Материалы и уход" => product.materials }
+      return block
+    end
+
+    text = materials_text_from_product_details_modal(product_details_modal)
+    block["materials"] = { "Материалы и уход" => text } if text.present?
+    block
+  end
+
+  def self.materials_text_from_product_details_modal(pdm)
+    return nil unless pdm.is_a?(Hash)
+
+    sec = Array(pdm["accordion_sections"]).find { |s| s.is_a?(Hash) && s["id"].to_s.include?("material-and-care") }
+    return nil unless sec
+
+    lines = []
+    Array(sec["material_blocks"]).each do |blk|
+      next unless blk.is_a?(Hash)
+
+      lines << blk["subheader"] if blk["subheader"].present?
+      Array(blk["pairs"]).each do |pair|
+        next unless pair.is_a?(Hash)
+
+        t = pair["term"].to_s.strip
+        d = pair["definition"].to_s.strip
+        lines << "#{t} #{d}".strip if t.present? || d.present?
+      end
+    end
+    lines.reject(&:blank?).join("\n").presence
+  end
+
+  def self.enrich_instructions_block_from_product!(block, product, product_details_modal)
+    return block if block["files"].present?
+
+    files = extract_instruction_files(product.assembly_documents)
+    if files.blank?
+      raw = instruction_files_from_product_details_modal(product_details_modal)
+      files = raw.filter_map { |item| normalize_instruction_item(item) }
+    end
+    block["files"] = files if files.present?
+    block
+  end
+
+  def self.instruction_files_from_product_details_modal(pdm)
+    return [] unless pdm.is_a?(Hash)
+
+    out = []
+    Array(pdm["accordion_sections"]).each do |sec|
+      next unless sec.is_a?(Hash)
+
+      Array(sec["document_groups"]).each do |grp|
+        next unless grp.is_a?(Hash)
+
+        Array(grp["links"]).each do |ln|
+          next unless ln.is_a?(Hash)
+
+          url = ln["url"].to_s.strip
+          next if url.blank?
+
+          title = ln["title"].to_s.strip.presence || File.basename(url)
+          out << { "url" => url, "title" => title }
+        end
+      end
+    end
+    out.uniq { |x| x["url"] }
   end
   
   def self.build_size_block(dimensions_map, packaging_info)
@@ -301,14 +554,7 @@ class ProductSerializer
   
   def self.integer_or_original(value)
     return nil if value.blank?
-  
-    Integer(value)
-  rescue ArgumentError, TypeError
-    value
-  end
 
-  def self.integer_or_original(value)
-    return nil if value.blank?
     Integer(value)
   rescue ArgumentError, TypeError
     value

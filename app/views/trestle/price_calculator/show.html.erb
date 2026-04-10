@@ -69,7 +69,7 @@
       <div class="card">
         <div class="card-header">
           <h3>Калькулятор стоимости товара (Новый)</h3>
-          <p class="text-muted mb-0">Расчет по схеме: Динамическая наценка + Весовая логистика</p>
+          <p class="text-muted mb-0">K + доставка PL + весовая логистика РБ → сумма PLN → BYN (курс × <%= @params_info[:buffer] %>)</p>
         </div>
         <div class="card-body">
           <%= form_tag admin.instance_path(PriceCalculator.new(id: 'show')), method: :get, data: { turbo: false } do %>
@@ -112,36 +112,43 @@
       <!-- Описание расчета -->
       <div class="card mt-4">
         <div class="card-header">
-          <h5>📋 Описание новой логики (Март 2026)</h5>
+          <h5>📋 Формула цены</h5>
         </div>
         <div class="card-body">
-          <ol class="mb-0">
+          <ol class="mb-3">
             <li class="mb-2">
-              <strong>Динамическая наценка (K):</strong><br>
+              <strong>Наценка K</strong> (чем дешевле товар, тем выше K, минимум <%= (@params_info[:min_markup] * 100).round %>%):<br>
               <small class="text-muted">
-                Зависит от цены товара. Чем дешевле, тем выше %. 
-                Формула: <code>max(10%, <%= @params_info[:target_profit] %> / Цена + <%= @params_info[:markup_offset] %>)</code>
+                <code>K = max(<%= @params_info[:min_markup] %>, <%= @params_info[:target_profit] %> / Цена_PLN − <%= @params_info[:markup_subtrahend] %>)</code>
               </small>
             </li>
             <li class="mb-2">
-              <strong>Доставка по Польше (PLN):</strong><br>
+              <strong>Весовая логистика РБ (WC_BY)</strong>, PLN за кг × вес:<br>
               <small class="text-muted">
-                Ступенчатый тариф IKEA (0-79-119... PLN).
+                до 20 кг — 16.85; 21–30 кг — 12.81; 31–40 кг — 10.69; свыше 40 кг — 8.58<br>
+                (границы и ставки задаются в <code>belarus_delivery_rates</code>)
               </small>
             </li>
             <li class="mb-2">
-              <strong>Весовая логистика РБ (PLN):</strong><br>
+              <strong>Сумма в PLN:</strong><br>
               <small class="text-muted">
-                Оплата за кг в PLN: < 20кг: 16.85; 20-30кг: 12.81; 30-40кг: 10.69; > 40кг: 8.58
+                <code>Цена_PLN × (1 + K) + Доставка_PLN + WC_BY</code><br>
+                Доставка по Польше — ступенчатый тариф из <code>poland_delivery_rates</code> (и опция GLS).
               </small>
             </li>
             <li class="mb-2">
-              <strong>Итого в BYN:</strong><br>
+              <strong>BYN:</strong><br>
               <small class="text-muted">
-                <code>(Цена × (1+K) + Доставка_PL + Вес_Логистика_PL) × Курс_PLN × <%= @params_info[:buffer] %></code>
+                <code>round(Сумма_PLN × Курс_PLN_BYN × <%= @params_info[:buffer] %>, 2)</code>
+                — множитель <code>exchange_rate_buffer</code> (по умолчанию 1.05).
               </small>
             </li>
           </ol>
+          <p class="mb-0 small text-muted">
+            <strong>Пример:</strong> 500 PLN, доставка 50 PLN, 15 кг → K = max(10%, 87/500−0.187) = 10%;
+            WC_BY = 15×16.85 = 252.75; итого PLN = 500×1.10 + 50 + 252.75 = 852.75.
+            В калькуляторе доставка PL берётся по вашим тарифам (для 15 кг это обычно не 50 PLN).
+          </p>
         </div>
       </div>
     </div>
@@ -229,11 +236,12 @@
 
             <div class="card border-primary mb-4">
               <div class="card-body bg-light">
-                <h5 class="card-title">Итоговая формула:</h5>
-                <p class="card-text">
-                  <code><%= number_with_precision(@calculation[:total_pln], precision: 2) %> (PLN) × <%= number_with_precision(@calculation[:pln_rate_with_buffer], precision: 4) %> (Курс) = 
+                <h5 class="card-title">Итоговая формула (BYN):</h5>
+                <p class="card-text mb-0">
+                  <code><%= number_with_precision(@calculation[:total_pln], precision: 2) %> PLN × <%= number_with_precision(@calculation[:pln_rate], precision: 4) %> (курс НБ) × <%= number_with_precision(@calculation[:exchange_rate_buffer], precision: 4) %> (буфер) = 
                   <%= number_to_currency(@calculation[:total_price_byn], unit: 'BYN', format: '%n %u', precision: 2) %></code>
                 </p>
+                <small class="text-muted">Эквивалентно: сумма_PLN × <%= number_with_precision(@calculation[:pln_rate_with_buffer], precision: 4) %> (курс с буфером).</small>
               </div>
             </div>
 

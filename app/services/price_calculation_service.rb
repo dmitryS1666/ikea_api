@@ -1,14 +1,27 @@
-# Сервис для расчета итоговой цены товара по новой логике (Март 2026)
+# Сервис для расчета итоговой цены товара (PLN → BYN с наценкой K и логистикой)
 class PriceCalculationService
-  # Расчет наценки K
-  # K = max(min_markup, target_profit / P_pl + markup_offset)
+  TARGET_PROFIT_PLN_DEFAULT = 87.0
+  MARKUP_SUBTRAHEND_DEFAULT = 0.187
+
+  # Вычитаемое в формуле K = target_profit / P_pl − subtrahend (публично для админки / калькулятора)
+  def self.markup_formula_subtrahend
+    s = CalculatorSetting.get('markup_subtrahend')
+    return s if s
+
+    # legacy: в БД могло быть markup_offset = −0.187
+    off = CalculatorSetting.get('markup_offset')
+    return -off.to_f if off
+
+    MARKUP_SUBTRAHEND_DEFAULT
+  end
+
+  # K = max(min_markup, target_profit / P_pl − subtrahend), минимум 10%
   def self.compute_k(price_zl)
     return min_markup if price_zl.to_f <= 0
-    
-    target_profit = CalculatorSetting.get('target_profit_pln') || 87.0
-    markup_offset = CalculatorSetting.get('markup_offset') || -0.187
-    
-    k = (target_profit / price_zl.to_f) + markup_offset
+
+    target_profit = CalculatorSetting.get('target_profit_pln') || TARGET_PROFIT_PLN_DEFAULT
+    subtrahend = markup_formula_subtrahend
+    k = (target_profit / price_zl.to_f) - subtrahend
     [k, min_markup].max
   end
 
@@ -64,8 +77,7 @@ class PriceCalculationService
     product_with_markup_zl = product_price_zl * (1 + markup_k)
     total_pln = product_with_markup_zl + poland_delivery_zl + belarus_delivery_zl
     
-    # 5. Перевод в BYN
-    # priceRb = round(total_pln * ratePLNtoBYN * 1.05, 2)
+    # 5. Перевод в BYN: round(total_pln × курс_PLN_BYN × exchange_rate_buffer, 2), buffer по умолчанию 1.05
     buffer = exchange_rate_buffer
     pln_rate_with_buffer = pln_rate * buffer
     total_price_byn = (total_pln * pln_rate_with_buffer).round(2)

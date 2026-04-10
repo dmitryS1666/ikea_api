@@ -258,6 +258,8 @@ class ParseProductsJob < ApplicationJob
     # name может быть в разных полях
     name = product_data['typeName'] || product_data[:typeName] || 
            product_data['name'] || product_data[:name]
+    small_desc_name = product_data['itemMeasureReferenceText'] || product_data[:itemMeasureReferenceText] ||
+                      product_data['small_desc_name'] || product_data[:small_desc_name]
     
     Rails.logger.info "ParseProductsJob: Processing product SKU=#{sku}, item_no=#{item_no}, name=#{name}, url=#{url}"
     
@@ -332,7 +334,8 @@ class ParseProductsJob < ApplicationJob
       variants: product_data.dig('gprDescription', 'variants') || product_data[:variants] || product_data['variants'] || [],
       # Флаги популярности и хитов продаж из API
       is_bestseller: is_bestseller,
-      is_popular: is_popular
+      is_popular: is_popular,
+      small_desc_name: small_desc_name
     }
     
     Rails.logger.debug "ParseProductsJob: Base attributes for #{sku}: price=#{price}, images_count=#{images.length}"
