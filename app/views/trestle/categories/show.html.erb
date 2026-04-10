@@ -168,7 +168,7 @@
                 <div class="mb-3">
                   <h6>Локальная картинка</h6>
                   <%= link_to full_path, target: '_blank', title: @category.local_image_path do %>
-                    <%= image_tag(full_path, class: 'img-fluid', style: 'max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px; padding: 5px;', onerror: "this.style.display='none'; this.parentElement.innerHTML='<em class=\\'text-muted\\'>Ошибка загрузки</em>';") %>
+                    <%= image_tag(full_path, class: 'category-local-image-preview', style: 'max-width: 200px; max-height: 200px; width: auto; height: auto; object-fit: contain; border: 1px solid #ddd; border-radius: 4px; padding: 5px;', onerror: "this.style.display='none'; this.parentElement.innerHTML='<em class=\\'text-muted\\'>Ошибка загрузки</em>';") %>
                   <% end %>
                   <p class="text-muted small mt-2"><%= @category.local_image_path %></p>
                 </div>
