@@ -324,10 +324,11 @@ Trestle.resource(:categories, model: Category) do
     def show
       @category = admin.find_instance(params)
       @paginated_category_products =
-        @category.products
-                  .order(:id)
-                  .page(params[:products_page])
-                  .per(20)
+        Product
+          .in_category_ikea_id(@category.ikea_id)
+          .order(:id)
+          .page(params[:products_page])
+          .per(20)
       render "trestle/categories/show"
     end
 

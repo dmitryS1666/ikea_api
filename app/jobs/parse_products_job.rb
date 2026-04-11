@@ -418,7 +418,7 @@ class ParseProductsJob < ApplicationJob
     # Это гарантирует, что продукт связан с категорией в процессе сбора данных
     category_product = CategoryProduct.find_or_create_by(
       product: product,
-      category_id: category.ikea_id
+      category_id: category.ikea_id.to_s
     )
     
     if category_product.persisted? && category_product.previously_new_record?

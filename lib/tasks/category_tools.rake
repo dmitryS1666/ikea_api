@@ -36,6 +36,36 @@ namespace :category do
     puts "Битый sku (массив в строке): #{bad_sku}"
   end
 
+  desc "Убрать все товары из категории: category_products + сброс products.category_id (rake category:clear_products[700631] или IKEA_CATEGORY_ID=700631)"
+  task :clear_products, [:ikea_id] => :environment do |_t, args|
+    ikea_id = (args[:ikea_id] || ENV["IKEA_CATEGORY_ID"]).to_s.strip
+    if ikea_id.blank?
+      puts "Укажите ikea_id: rake category:clear_products[700631] или IKEA_CATEGORY_ID=700631"
+      exit 1
+    end
+
+    cat = Category.find_by(ikea_id: ikea_id)
+    unless cat
+      puts "Категория ikea_id=#{ikea_id.inspect} не найдена"
+      exit 1
+    end
+
+    cid = cat.ikea_id.to_s
+    cp_deleted = CategoryProduct.where(category_id: cid).delete_all
+    product_ids = Product.where(category_id: cid).pluck(:id)
+    Product.where(id: product_ids).find_each(batch_size: 200) do |product|
+      fallback =
+        CategoryProduct
+          .where(product_id: product.id)
+          .where.not(category_id: cid)
+          .order(:category_id)
+          .pick(:category_id)
+      product.update_columns(category_id: fallback)
+    end
+
+    puts "Категория #{cid} (#{cat.name}): удалено связей category_products=#{cp_deleted}, сброшен/заменён category_id у товаров: #{product_ids.size}"
+  end
+
   desc "Синхронно выполнить RefreshCategoryFromLtJob (IKEA_CATEGORY_ID=700631 rake category:refresh_lt)"
   task refresh_lt: :environment do
     ikea_id = ENV.fetch("IKEA_CATEGORY_ID") { abort("Задайте IKEA_CATEGORY_ID=700631") }

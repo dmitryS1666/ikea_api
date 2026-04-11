@@ -305,22 +305,37 @@ class RefreshCategoryFromLtJob < ApplicationJob
   end
 
   def detach_category_products_not_in_listing(category, canonical_skus)
+    cid = category.ikea_id.to_s
     skus = canonical_skus.map(&:to_s).uniq
     return 0 if skus.empty?
 
-    rel = CategoryProduct.joins(:product).where(category_id: category.ikea_id).where.not(products: { sku: skus })
+    rel = CategoryProduct.joins(:product).where(category_id: cid).where.not(products: { sku: skus })
     n = rel.count
     rel.delete_all
+
+    # Старые товары оставались в выборке @category.products (foreign_key category_id), хотя связь
+    # category_products уже снята — из-за этого список «разрастался» при каждом прогоне.
+    Product.where(category_id: cid).where.not(sku: skus).find_each(batch_size: 200) do |product|
+      fallback =
+        CategoryProduct
+          .where(product_id: product.id)
+          .where.not(category_id: cid)
+          .order(:category_id)
+          .pick(:category_id)
+      product.update_columns(category_id: fallback)
+    end
+
     n
   end
 
   def ensure_category_links_for_listing!(category, canonical_skus)
+    cid = category.ikea_id.to_s
     skus = canonical_skus.map(&:to_s).uniq
     return 0 if skus.empty?
 
     created_links = 0
     Product.where(sku: skus).find_each(batch_size: 500) do |product|
-      cp = CategoryProduct.find_or_create_by!(product: product, category_id: category.ikea_id)
+      cp = CategoryProduct.find_or_create_by!(product: product, category_id: cid)
       created_links += 1 if cp.previously_new_record?
     end
     created_links

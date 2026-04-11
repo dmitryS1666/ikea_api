@@ -70,7 +70,7 @@
             </tr>
             <tr>
               <th>Количество продуктов:</th>
-              <td><%= @category.products.count %></td>
+              <td><%= Product.in_category_ikea_id(@category.ikea_id).count %></td>
             </tr>
             <% if @category.current_parent_ikea_id.present? %>
               <tr>
