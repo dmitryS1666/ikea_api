@@ -4,6 +4,7 @@
 # В production Active Job задаёт префикс очереди (config.active_job.queue_name_prefix),
 # поэтому реальные имена — ikea_api_production_parser и ikea_api_production_default.
 # Unit systemd должен запускать Sidekiq с этим файлом (-C), иначе задачи зависают в Redis.
+# В .env или Environment= для unit задайте DB_POOL >= :concurrency + несколько (например 15 при concurrency 5), если RAILS_MAX_THREADS маленький.
 
 :queues:
   - ikea_api_production_parser

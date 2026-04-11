@@ -15,7 +15,8 @@
 default: &default
   adapter: postgresql
   encoding: unicode
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 100 } %>
+  # DB_POOL — задать для Sidekiq отдельно (например 15), если RAILS_MAX_THREADS маленький под Puma: пул должен быть >= Sidekiq :concurrency + запас.
+  pool: <%= ENV.fetch("DB_POOL") { ENV.fetch("RAILS_MAX_THREADS", 100) }.to_i %>
   timeout: 10000
 
 development:
