@@ -1,16 +1,31 @@
 class Product < ApplicationRecord
-  # Колонка убрана из БД, но старые воркеры/кэш схемы или partial SELECT могли оставить обращения через read_attribute.
+  # Колонка убрана из БД. AR 7+ часто читает поля через _read_attribute (fetch_value), минуя read_attribute —
+  # сгенерированные геттеры и часть внутренностей так доходят до MissingAttributeError при partial SELECT / старой схеме.
   self.ignored_columns += ["full_attributes_ru"]
 
   prepend(Module.new do
     def full_attributes_ru
-      ProductSerializer.customer_full_attributes_payload(self)
+      compute_virtual_full_attributes_ru
     end
 
-    def read_attribute(attr_name)
-      return ProductSerializer.customer_full_attributes_payload(self) if attr_name.to_s == "full_attributes_ru"
+    def read_attribute(attr_name, &block)
+      return compute_virtual_full_attributes_ru if attr_name.to_s == "full_attributes_ru"
 
-      super
+      super(attr_name, &block)
+    end
+
+    def _read_attribute(attr_name, &block)
+      return compute_virtual_full_attributes_ru if attr_name.to_s == "full_attributes_ru"
+
+      super(attr_name, &block)
+    end
+
+    private
+
+    def compute_virtual_full_attributes_ru
+      ProductSerializer.customer_full_attributes_payload(self)
+    rescue ActiveModel::MissingAttributeError
+      {}
     end
   end)
 
