@@ -1,5 +1,39 @@
-require 'rails_helper'
+# frozen_string_literal: true
+
+require "rails_helper"
 
 RSpec.describe Product, type: :model do
-  pending "add some examples to (or delete) #{__FILE__}"
+  describe "#normalized_variants_for_api" do
+    let(:product) do
+      build(
+        :product,
+        sku: "s29545213",
+        url: "https://www.ikea.com/pl/pl/p/vimle-s29545213/",
+        variants_payload: [
+          {
+            "type" => "color",
+            "data" => [
+              { "color" => "Other", "item" => { "sku" => "s11111111", "price" => nil } },
+              { "color" => "Self", "item" => { "sku" => "s29545213", "price" => "100.0" } }
+            ]
+          }
+        ].to_json
+      )
+    end
+
+    before do
+      allow(ExchangeRate).to receive(:fetch_or_create).and_return(instance_double(ExchangeRate, rate_per_unit: 3.5))
+      allow(PriceCalculationService).to receive(:exchange_rate_buffer).and_return(0)
+      allow(PriceCalculationService).to receive(:product_price_byn).and_return(350.0)
+    end
+
+    it "puts current SKU first and uses nil price_byn when price is missing" do
+      out = product.normalized_variants_for_api
+      expect(out).to be_a(Array)
+      data = out.first[:data]
+      expect(data.first.dig(:item, :sku)).to eq("s29545213")
+      expect(data.last.dig(:item, :price_byn)).to be_nil
+      expect(data.first.dig(:item, :price_byn)).to be_present
+    end
+  end
 end

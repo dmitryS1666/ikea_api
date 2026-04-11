@@ -119,9 +119,10 @@ class IkeaLvProductVariantsService
       next if sku.blank?
 
       variant_product = find_variant_product_by_sku(sku)
+      display_color = color_display_label(variant_product, label.presence || sku)
       variants << {
-        color: label.presence || sku,
-        item: variant_payload(variant_product, sku, preview_image: preview_src)
+        color: display_color,
+        item: variant_payload(variant_product, sku, preview_image: preview_src, cover_label: display_color)
       }
     end
 
@@ -157,7 +158,7 @@ class IkeaLvProductVariantsService
       variant_product = find_variant_product_by_sku(sku)
       variants << {
         size: label,
-        item: variant_payload(variant_product, sku)
+        item: variant_payload(variant_product, sku, cover_label: label)
       }
     end
 
@@ -168,7 +169,7 @@ class IkeaLvProductVariantsService
       if current_size_label
         variants << {
           size: current_size_label,
-          item: variant_payload(product, product.sku)
+          item: variant_payload(product, product.sku, cover_label: current_size_label)
         }
       end
     end
@@ -176,16 +177,29 @@ class IkeaLvProductVariantsService
     variants
   end
 
-  def variant_payload(variant_product, sku, preview_image: nil)
+  def color_display_label(variant_product, aria_label)
+    variant_product&.small_desc_name.to_s.strip.presence ||
+      aria_label.to_s.strip.presence ||
+      variant_product&.sku.to_s
+  end
+
+  def variant_payload(variant_product, sku, preview_image: nil, cover_label: nil)
+    label = cover_label.to_s.strip
     base =
       if variant_product
-        variant_product.variant_item_payload
+        h = variant_product.variant_item_payload
+        h[:small_desc_name] = h[:small_desc_name].presence || label.presence || h[:small_desc_name]
+        h
       else
+        slug =
+          SlugifyService.call("#{label} #{sku}").presence ||
+            "variant-#{sku.to_s.downcase.gsub(/[^a-z0-9]+/i, '-').gsub(/^-|-$/, '')}"
+
         {
           sku: sku,
           name_ru: product.name_ru,
-          small_desc_name: "Product #{sku}",
-          slug: sku,
+          small_desc_name: label.presence || sku.to_s,
+          slug: slug,
           price: nil,
           quantity: 0,
           images: []

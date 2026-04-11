@@ -240,7 +240,7 @@ class Product < ApplicationRecord
           group[:data].each do |variant|
             item = variant[:item]
             original_price = item[:price].to_f
-            
+
             if original_price > 0
               price_byn = if currency == 'EUR'
                             # Если цена в EUR (Литва), сначала переводим в PLN для калькулятора
@@ -253,9 +253,16 @@ class Product < ApplicationRecord
                           end
               item[:price_byn] = ActionController::Base.helpers.number_with_delimiter(price_byn, delimiter: ' ')
             else
-              item[:price_byn] = "0"
+              item[:price_byn] = nil
             end
           end
+          # Текущий артикул первым в группе (остальной порядок как в HTML)
+          group[:data] =
+            Array(group[:data]).sort_by.with_index do |variant, idx|
+              sku_v = variant.dig(:item, :sku).to_s.downcase
+              mine = sku_v == sku.to_s.downcase ? 0 : 1
+              [mine, idx]
+            end
           group
         end
 
