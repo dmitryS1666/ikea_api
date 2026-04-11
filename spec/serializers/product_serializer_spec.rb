@@ -59,5 +59,33 @@ RSpec.describe ProductSerializer do
         "Мешок" => "100% полиэстер"
       )
     end
+
+    it "uses Состав when term is empty and merges care_blocks" do
+      pdm = {
+        "accordion_sections" => [
+          {
+            "id" => "product-details-material-and-care",
+            "material_blocks" => [
+              {
+                "pairs" => [
+                  { "term" => "", "definition" => "100% полиэстер (мин. 90 % переработанного материала)" }
+                ]
+              }
+            ],
+            "care_blocks" => [
+              {
+                "header" => "",
+                "lines" => ["Машинная стирка, 30°С.", "Не отбеливать."]
+              }
+            ]
+          }
+        ]
+      }
+
+      expect(described_class.materials_hash_from_product_details_modal(pdm)).to eq(
+        "Состав" => "100% полиэстер (мин. 90 % переработанного материала)",
+        "Уход" => "Машинная стирка, 30°С.\nНе отбеливать."
+      )
+    end
   end
 end

@@ -427,7 +427,10 @@ class ProductSerializer
     block
   end
 
-  # Пары term/definition из секции material-and-care (как detailed_info с витрины LT).
+  MODAL_MATERIAL_DEFAULT_KEY = "Состав"
+  MODAL_CARE_DEFAULT_KEY = "Уход"
+
+  # Пары term/definition + care_blocks из секции material-and-care (как на витрине LT).
   def self.materials_hash_from_product_details_modal(pdm)
     return {} unless pdm.is_a?(Hash)
 
@@ -445,10 +448,27 @@ class ProductSerializer
         d = pair["definition"].to_s.strip
         next if t.blank? && d.blank?
 
-        key = t.presence || "—"
-        out[key] = d
+        if t.present?
+          out[t] = d
+        elsif d.present?
+          k = MODAL_MATERIAL_DEFAULT_KEY
+          out[k] = out[k].present? ? "#{out[k]}; #{d}" : d
+        end
       end
     end
+
+    Array(sec["care_blocks"]).each do |blk|
+      next unless blk.is_a?(Hash)
+
+      care_lines = Array(blk["lines"]).map(&:to_s).map(&:strip).reject(&:blank?)
+      next if care_lines.blank?
+
+      header = blk["header"].to_s.strip.presence
+      care_key = header.presence || MODAL_CARE_DEFAULT_KEY
+      chunk = care_lines.join("\n")
+      out[care_key] = out[care_key].present? ? "#{out[care_key]}\n#{chunk}" : chunk
+    end
+
     out
   end
 
@@ -468,9 +488,21 @@ class ProductSerializer
 
         t = pair["term"].to_s.strip
         d = pair["definition"].to_s.strip
-        lines << "#{t} #{d}".strip if t.present? || d.present?
+        next if t.blank? && d.blank?
+
+        lines << (t.present? ? "#{t} #{d}".strip : d)
       end
     end
+
+    Array(sec["care_blocks"]).each do |blk|
+      next unless blk.is_a?(Hash)
+
+      Array(blk["lines"]).each do |ln|
+        s = ln.to_s.strip
+        lines << s if s.present?
+      end
+    end
+
     lines.reject(&:blank?).join("\n").presence
   end
 
