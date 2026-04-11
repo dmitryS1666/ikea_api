@@ -64,6 +64,12 @@ class UpdateProductVariantsJob < ApplicationJob
                   force: force
                 ).call
 
+                product.reload
+                cat = product.category || product.categories.first
+                if cat.present? && product.variants_payload.present?
+                  Products::VariantProductsEnsureService.ensure!(product, category: cat)
+                end
+
                 ActiveRecord::Base.connection_pool.with_connection do
                   thread_task = ParserTask.find(t_id)
                   thread_task.increment_updated! if result[:changed]

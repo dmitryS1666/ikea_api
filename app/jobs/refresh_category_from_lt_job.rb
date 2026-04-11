@@ -192,6 +192,11 @@ class RefreshCategoryFromLtJob < ApplicationJob
         vres = IkeaLvProductVariantsService.new(product: product, force: true).call
         stats_mutex.synchronize { stats[:updated] += 1 if vres[:changed] }
 
+        product.reload
+        if product.variants_payload.present?
+          Products::VariantProductsEnsureService.ensure!(product, category: category)
+        end
+
         sync_local_images!(product, stats, stats_mutex)
 
         if include_referenced

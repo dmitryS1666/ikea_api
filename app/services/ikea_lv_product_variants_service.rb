@@ -62,10 +62,7 @@ class IkeaLvProductVariantsService
 
       if all_variant_skus.sort != product.normalized_variant_skus.sort || force
         product.update_columns(update_data)
-        
-        # Также обновляем все продукты-варианты
-        Product.where(sku: all_variant_skus).where.not(id: product.id).update_all(update_data)
-        
+
         { changed: true, types: variants_data.map { |v| v[:type] }, count: all_variant_skus.size, data: variants_data }
       else
         { changed: false, types: variants_data.map { |v| v[:type] }, count: all_variant_skus.size, data: variants_data }
