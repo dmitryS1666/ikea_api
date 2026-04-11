@@ -206,6 +206,7 @@ class ProductSerializer
 
     instructions = ProductSerializer.build_instructions_block(detailed_info["Сборка и документы"])
     enrich_instructions_block_from_product!(instructions, product, product_details_modal)
+    instructions["files"] = dedupe_instruction_files(instructions["files"])
 
     {
       "description" => description,
@@ -507,14 +508,18 @@ class ProductSerializer
   end
 
   def self.enrich_instructions_block_from_product!(block, product, product_details_modal)
-    return block if block["files"].present?
-
-    files = extract_instruction_files(product.assembly_documents)
-    if files.blank?
-      raw = instruction_files_from_product_details_modal(product_details_modal)
-      files = raw.filter_map { |item| normalize_instruction_item(item) }
-    end
-    block["files"] = files if files.present?
+    files =
+      if block["files"].present?
+        Array(block["files"])
+      else
+        f = extract_instruction_files(product.assembly_documents)
+        if f.blank?
+          raw = instruction_files_from_product_details_modal(product_details_modal)
+          f = raw.filter_map { |item| normalize_instruction_item(item) }
+        end
+        f
+      end
+    block["files"] = dedupe_instruction_files(files) if files.present?
     block
   end
 
@@ -539,7 +544,7 @@ class ProductSerializer
         end
       end
     end
-    out.uniq { |x| x["url"] }
+    out.uniq { |x| instruction_link_dedupe_key(x["url"]) }
   end
   
   def self.build_size_block(dimensions_map, packaging_info)
@@ -587,10 +592,32 @@ class ProductSerializer
   
   def self.build_instructions_block(raw_instructions)
     {
-      "files" => extract_instruction_files(raw_instructions)
+      "files" => dedupe_instruction_files(extract_instruction_files(raw_instructions))
     }
   end
-  
+
+  # Один PDF часто дублируется (разные записи в JSONL/модалке, http/https, слэш в конце).
+  def self.instruction_link_dedupe_key(link)
+    s = link.to_s.strip.downcase
+    s = s.sub(/\Ahttp:\/\//, "https://")
+    s.sub(/\/+\z/, "")
+  end
+
+  def self.dedupe_instruction_files(files)
+    seen = {}
+    Array(files).each_with_object([]) do |item, acc|
+      next unless item.is_a?(Hash)
+
+      raw = item["link"] || item[:link]
+      key = instruction_link_dedupe_key(raw)
+      next if key.blank?
+      next if seen[key]
+
+      seen[key] = true
+      acc << item
+    end
+  end
+
   def self.extract_instruction_files(raw_instructions)
     case raw_instructions
     when Array

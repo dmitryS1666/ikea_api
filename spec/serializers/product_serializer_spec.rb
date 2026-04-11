@@ -88,4 +88,21 @@ RSpec.describe ProductSerializer do
       )
     end
   end
+
+  describe ".dedupe_instruction_files / customer_full_attributes_payload instructions" do
+    it "removes duplicate document links (same URL, http vs https, trailing slash)" do
+      raw = [
+        { "url" => "http://example.com/a.pdf", "title" => "A" },
+        { "url" => "https://example.com/a.pdf", "title" => "A dup" },
+        { "url" => "https://example.com/a.pdf/", "title" => "A dup2" },
+        { "url" => "https://example.com/b.pdf", "title" => "B" }
+      ]
+      block = described_class.build_instructions_block(raw)
+      expect(block["files"].size).to eq(2)
+      expect(block["files"].map { |f| f["link"] }).to contain_exactly(
+        "http://example.com/a.pdf",
+        "https://example.com/b.pdf"
+      )
+    end
+  end
 end

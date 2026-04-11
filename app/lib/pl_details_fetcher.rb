@@ -10,6 +10,13 @@ require 'tmpdir'
 require 'strscan'
 
 class PlDetailsFetcher
+  # Схлопываем дубли одного и того же документа (http/https, слэш в конце, регистр).
+  def self.canonical_document_url_for_dedupe(url)
+    s = url.to_s.strip.downcase
+    s = s.sub(/\Ahttp:\/\//, "https://")
+    s.sub(/\/+\z/, "")
+  end
+
   def self.fetch(url, use_headless: true)
     new.fetch(url, use_headless: use_headless)
   end
@@ -1705,8 +1712,8 @@ class PlDetailsFetcher
       href = link['href']
       manuals << href if href.present?
     end
-    
-    manuals.uniq.compact
+
+    manuals.compact.uniq { |m| self.class.canonical_document_url_for_dedupe(m.to_s) }
   end
 
   # Типы вариантов по видимым на странице пикерам (см. IkeaLvProductVariantsService).
@@ -1842,7 +1849,7 @@ class PlDetailsFetcher
           title = normalize_text(a.text).gsub(/\d{3}\.\d{3}\.\d{2}/, "").strip
         end
         { "title" => title.presence || "Document", "url" => href }
-      end.uniq { |x| x["url"] }
+      end.uniq { |x| canonical_document_url_for_dedupe(x["url"]) }
 
       sec["document_groups"] << { "header" => header_txt, "links" => links } if links.any?
     end
@@ -1908,7 +1915,7 @@ class PlDetailsFetcher
         title = normalize_text(a.text).gsub(/\d{3}\.\d{3}\.\d{2}/, "").strip
       end
       { url: href, title: title.presence || "Document" }
-    end.uniq { |x| x[:url] }
+    end.uniq { |x| self.class.canonical_document_url_for_dedupe(x[:url]) }
   end
 
   def pipf_product_details_props(product_data)
@@ -2406,7 +2413,7 @@ class PlDetailsFetcher
         out << { url: url, title: title.presence || "Document" }
       end
     end
-    out.uniq { |x| x[:url] }
+    out.uniq { |x| self.class.canonical_document_url_for_dedupe(x[:url]) }
   end
 
   def snapshot_accordion_section_from_hydration(section)
@@ -2665,7 +2672,7 @@ class PlDetailsFetcher
 
       if links.any?
         # Keep the same structure as extract_documents_from_modal: Array of {title, url}
-        result[:assembly_documents] ||= links.uniq { |x| x[:url] }
+        result[:assembly_documents] ||= links.uniq { |x| self.class.canonical_document_url_for_dedupe(x[:url]) }
       end
     end
   rescue => e
@@ -3008,7 +3015,7 @@ class PlDetailsFetcher
     end
     
     if document_links.any?
-      result[:assembly_documents] = document_links.uniq { |d| d[:url] }
+      result[:assembly_documents] = document_links.uniq { |d| self.class.canonical_document_url_for_dedupe(d[:url]) }
       Rails.logger.debug "PlDetailsFetcher.extract_documents_from_modal: Extracted #{result[:assembly_documents].length} document links"
     end
   end

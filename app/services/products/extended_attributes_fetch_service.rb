@@ -524,12 +524,27 @@ class Products::ExtendedAttributesFetchService
   end
 
   def download_documents(documents, sku)
-    Array(documents).filter_map do |doc|
+    dedupe_document_rows(documents).filter_map do |doc|
       url = doc.is_a?(Hash) ? (doc[:url] || doc["url"] || doc["Link"] || doc["href"]) : doc.to_s
       title = doc.is_a?(Hash) ? (doc[:title] || doc["title"] || doc["Tytuł"] || doc["Tytul"] || doc[:name] || doc["name"]) : nil
       next if url.blank?
       local_url = DocumentDownloader.download(url, product_sku: sku)
       { "title" => title, "url" => url, "local_url" => local_url }.compact
+    end
+  end
+
+  def dedupe_document_rows(documents)
+    seen = {}
+    Array(documents).each_with_object([]) do |doc, acc|
+      url = doc.is_a?(Hash) ? (doc[:url] || doc["url"] || doc["Link"] || doc["href"]) : doc.to_s
+      url = url.to_s.strip
+      next if url.blank?
+
+      key = PlDetailsFetcher.canonical_document_url_for_dedupe(url)
+      next if seen[key]
+
+      seen[key] = true
+      acc << doc
     end
   end
 
