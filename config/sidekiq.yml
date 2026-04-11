@@ -1,8 +1,13 @@
 # Конфигурация Sidekiq для обработки очередей
 # Использование: bundle exec sidekiq -C config/sidekiq.yml
+#
+# В production Active Job задаёт префикс очереди (config.active_job.queue_name_prefix),
+# поэтому реальные имена — ikea_api_production_parser и ikea_api_production_default.
+# Unit systemd должен запускать Sidekiq с этим файлом (-C), иначе задачи зависают в Redis.
 
 :queues:
   - ikea_api_production_parser
+  - ikea_api_production_default
   - parser
   - default
 

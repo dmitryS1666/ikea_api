@@ -329,8 +329,14 @@ Trestle.resource :parser_control, model: ParserControl do
         false
       end
       
-      # Ищем jobs в очередях
-      queues = [Sidekiq::Queue.new('parser'), Sidekiq::Queue.new('default')]
+      # Имена очередей с префиксом production (см. config.active_job.queue_name_prefix) и запасные без префикса.
+      queue_names = [
+        RefreshCategoryFromLtJob.queue_name,
+        FetchCurrencyRatesJob.queue_name,
+        "parser",
+        "default"
+      ].compact.uniq
+      queues = queue_names.map { |name| Sidekiq::Queue.new(name) }
       
       queues.each do |queue|
         queue.each do |job|

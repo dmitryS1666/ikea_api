@@ -100,6 +100,12 @@ class Product < ApplicationRecord
     cached_slug || generate_slug
   end
 
+  # Колонка full_attributes_ru удалена из БД; витрина собирается из jsonb full_attributes.
+  # Явный метод снимает ActiveModel::MissingAttributeError, если код всё ещё обращается к full_attributes_ru как к атрибуту AR.
+  def full_attributes_ru
+    ProductSerializer.customer_full_attributes_payload(self)
+  end
+
   # Callbacks
   before_save :calculate_delivery, if: :weight_changed?
   after_commit :enqueue_filters_reindex, on: [:create, :update]
