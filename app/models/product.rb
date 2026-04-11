@@ -1,9 +1,16 @@
 class Product < ApplicationRecord
-  # prepend: сгенерированный AR-ридер для колонки full_attributes_ru (если она ещё в БД/кэше схемы)
-  # перекрывает обычный def; иначе возможен ActiveModel::MissingAttributeError при частичном SELECT.
+  # Колонка убрана из БД, но старые воркеры/кэш схемы или partial SELECT могли оставить обращения через read_attribute.
+  self.ignored_columns += ["full_attributes_ru"]
+
   prepend(Module.new do
     def full_attributes_ru
       ProductSerializer.customer_full_attributes_payload(self)
+    end
+
+    def read_attribute(attr_name)
+      return ProductSerializer.customer_full_attributes_payload(self) if attr_name.to_s == "full_attributes_ru"
+
+      super
     end
   end)
 
