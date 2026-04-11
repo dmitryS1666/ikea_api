@@ -37,4 +37,27 @@ RSpec.describe ProductSerializer do
       expect(serialized[:data][:attributes]).not_to have_key(:breadcrumbs)
     end
   end
+
+  describe ".materials_hash_from_product_details_modal" do
+    it "extracts term/definition pairs from material-and-care section" do
+      pdm = {
+        "accordion_sections" => [
+          {
+            "id" => "product-details-material-and-care",
+            "material_blocks" => [
+              {
+                "pairs" => [
+                  { "term" => "Мешок:", "definition" => "100% полиэстер" }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      expect(described_class.materials_hash_from_product_details_modal(pdm)).to eq(
+        "Мешок" => "100% полиэстер"
+      )
+    end
+  end
 end

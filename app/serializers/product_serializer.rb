@@ -410,6 +410,13 @@ class ProductSerializer
     empty = mats.blank? || (mats.is_a?(Hash) && mats.empty?)
     return block unless empty
 
+    # LT modal в full_attributes (русские пары); колонка materials часто остаётся от PL.
+    modal_hash = materials_hash_from_product_details_modal(product_details_modal)
+    if modal_hash.present?
+      block["materials"] = modal_hash.stringify_keys
+      return block
+    end
+
     if product.materials.present?
       block["materials"] = { "Материалы и уход" => product.materials }
       return block
@@ -418,6 +425,31 @@ class ProductSerializer
     text = materials_text_from_product_details_modal(product_details_modal)
     block["materials"] = { "Материалы и уход" => text } if text.present?
     block
+  end
+
+  # Пары term/definition из секции material-and-care (как detailed_info с витрины LT).
+  def self.materials_hash_from_product_details_modal(pdm)
+    return {} unless pdm.is_a?(Hash)
+
+    sec = Array(pdm["accordion_sections"]).find { |s| s.is_a?(Hash) && s["id"].to_s.include?("material-and-care") }
+    return {} unless sec
+
+    out = {}
+    Array(sec["material_blocks"]).each do |blk|
+      next unless blk.is_a?(Hash)
+
+      Array(blk["pairs"]).each do |pair|
+        next unless pair.is_a?(Hash)
+
+        t = pair["term"].to_s.strip.delete_suffix(":").strip
+        d = pair["definition"].to_s.strip
+        next if t.blank? && d.blank?
+
+        key = t.presence || "—"
+        out[key] = d
+      end
+    end
+    out
   end
 
   def self.materials_text_from_product_details_modal(pdm)

@@ -58,6 +58,8 @@ class Products::ExtendedAttributesFetchService
       merge_pl_structural_and_commerce(product, pl_details, attributes)
     end
 
+    supplement_materials_from_lt_modal!(lt_details, attributes) if use_lt_descriptive && lt_details.present?
+
     supplement_from_ikea_lt_legacy(product, attributes) if use_lt_descriptive && !jsonl_applied
 
     assign_product_details_modal_to_full_attributes!(product, pl_details, lt_details, use_lt_descriptive, attributes)
@@ -82,6 +84,18 @@ class Products::ExtendedAttributesFetchService
       next if attributes[key].blank?
       attributes[key] = download_documents(attributes[key], product.sku)
     end
+  end
+
+  # LT: в product_details_modal — русские пары; колонка materials часто остаётся с PL.
+  # Если в модалке есть пары, перезаписываем materials (и после jsonl — обычно то же по смыслу).
+  def supplement_materials_from_lt_modal!(lt_details, attributes)
+    modal = lt_details[:product_details_modal]
+    return if modal.blank?
+
+    h = ProductSerializer.materials_hash_from_product_details_modal(modal)
+    return if h.blank?
+
+    attributes[:materials] = h.map { |k, v| "#{k}: #{v}".strip }.reject(&:blank?).join("\n")
   end
 
   def supplement_lt_descriptive_gaps(lt_details, attributes)
