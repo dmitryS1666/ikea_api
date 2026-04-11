@@ -240,11 +240,15 @@ class ParseProductsJob < ApplicationJob
       product_data = normalized
     end
     
-    # Поддержка разных форматов данных (API и CategoryProductsFetcher)
-    listing_sku = product_data['id'] || product_data[:id] || product_data['sku'] || product_data[:sku]
+    # Поддержка разных форматов данных (API и CategoryProductsFetcher).
+    # id может быть массивом — без coerce в sku попадёт строка вида '["s1","s2"]'.
+    listing_sku = nil
+    %w[id sku].each do |key|
+      listing_sku = Products::ListingSkuResolver.coerce_listing_identifier(product_data[key])
+      break if listing_sku.present?
+    end
     return { created: false, updated: false, sku: nil } unless listing_sku.present?
 
-    listing_sku = listing_sku.to_s
     product = Products::ListingSkuResolver.find_product(listing_sku)
 
     # URL может быть в разных полях

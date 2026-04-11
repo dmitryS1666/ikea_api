@@ -3,6 +3,26 @@
 require "rails_helper"
 
 RSpec.describe Products::ListingSkuResolver do
+  describe ".coerce_listing_identifier" do
+    it "returns first sku from array id" do
+      expect(described_class.coerce_listing_identifier(%w[s11111111 s22222222])).to eq("s11111111")
+    end
+
+    it "parses stringified JSON array" do
+      raw = %w[s11111111 s22222222].to_s
+      expect(described_class.coerce_listing_identifier(raw)).to eq("s11111111")
+    end
+
+    it "extracts id from hash" do
+      expect(described_class.coerce_listing_identifier("sku" => "s33333333")).to eq("s33333333")
+    end
+
+    it "returns nil for blank" do
+      expect(described_class.coerce_listing_identifier(nil)).to be_nil
+      expect(described_class.coerce_listing_identifier([])).to be_nil
+    end
+  end
+
   describe ".aliases" do
     it "returns s-prefixed, bare, and s+core variants" do
       expect(described_class.aliases("s29545213")).to contain_exactly("s29545213", "29545213")

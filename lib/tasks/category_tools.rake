@@ -36,6 +36,42 @@ namespace :category do
     puts "Битый sku (массив в строке): #{bad_sku}"
   end
 
+  desc "Удалить из категории записи Product с битым sku (JSON-массив в строке). Пример: rake category:purge_corrupted_skus[700631]"
+  task :purge_corrupted_skus, [:ikea_id] => :environment do |_t, args|
+    ikea_id = (args[:ikea_id] || ENV["IKEA_CATEGORY_ID"]).to_s.strip
+    if ikea_id.blank?
+      puts "Укажите ikea_id: rake category:purge_corrupted_skus[700631] или IKEA_CATEGORY_ID=700631"
+      exit 1
+    end
+
+    cat = Category.find_by(ikea_id: ikea_id)
+    unless cat
+      puts "Категория ikea_id=#{ikea_id.inspect} не найдена"
+      exit 1
+    end
+
+    cid = cat.ikea_id.to_s
+    scope = Product.where("sku LIKE '[%'").merge(Product.in_category_ikea_id(cid))
+    total = scope.count
+    if total.zero?
+      puts "Битых sku в категории #{cid} не найдено."
+      exit 0
+    end
+
+    destroyed = 0
+    errors = 0
+    scope.find_each(batch_size: 50) do |product|
+      product.category_products.where(category_id: cid).delete_all
+      product.destroy!
+      destroyed += 1
+    rescue StandardError => e
+      errors += 1
+      warn "sku=#{product.sku.inspect}: #{e.class} #{e.message}"
+    end
+
+    puts "Категория #{cid}: найдено битых записей=#{total}, удалено товаров=#{destroyed}, ошибок=#{errors}"
+  end
+
   desc "Убрать все товары из категории: category_products + сброс products.category_id (rake category:clear_products[700631] или IKEA_CATEGORY_ID=700631)"
   task :clear_products, [:ikea_id] => :environment do |_t, args|
     ikea_id = (args[:ikea_id] || ENV["IKEA_CATEGORY_ID"]).to_s.strip
