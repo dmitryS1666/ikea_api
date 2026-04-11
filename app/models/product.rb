@@ -1,33 +1,6 @@
 class Product < ApplicationRecord
-  # Колонка убрана из БД. AR 7+ часто читает поля через _read_attribute (fetch_value), минуя read_attribute —
-  # сгенерированные геттеры и часть внутренностей так доходят до MissingAttributeError при partial SELECT / старой схеме.
+  # Колонка убрана из БД; виртуальное чтение — ProductFullAttributesRuCompat (prepend в initializer to_prepare).
   self.ignored_columns += ["full_attributes_ru"]
-
-  prepend(Module.new do
-    def full_attributes_ru
-      compute_virtual_full_attributes_ru
-    end
-
-    def read_attribute(attr_name, &block)
-      return compute_virtual_full_attributes_ru if attr_name.to_s == "full_attributes_ru"
-
-      super(attr_name, &block)
-    end
-
-    def _read_attribute(attr_name, &block)
-      return compute_virtual_full_attributes_ru if attr_name.to_s == "full_attributes_ru"
-
-      super(attr_name, &block)
-    end
-
-    private
-
-    def compute_virtual_full_attributes_ru
-      ProductSerializer.customer_full_attributes_payload(self)
-    rescue ActiveModel::MissingAttributeError
-      {}
-    end
-  end)
 
   COLOR_PARAM = "f-colors".freeze
   SIZE_PARAMS = %w[
@@ -424,4 +397,9 @@ class Product < ApplicationRecord
         end
         .uniq
   end
+end
+
+# После полного определения класса: prepend перекрывает сгенерированный AR-геттер / _read_attribute.
+unless Product.ancestors.include?(ProductFullAttributesRuCompat)
+  Product.prepend(ProductFullAttributesRuCompat)
 end
