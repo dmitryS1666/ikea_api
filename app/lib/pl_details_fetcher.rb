@@ -10,6 +10,29 @@ require 'tmpdir'
 require 'strscan'
 
 class PlDetailsFetcher
+  # Пути по умолчанию (Linux/macOS); на проде без браузера Ferrum падает с BinaryNotFoundError.
+  BROWSER_PATH_CANDIDATES = %w[
+    /usr/bin/google-chrome-stable
+    /usr/bin/google-chrome
+    /usr/bin/chromium
+    /usr/bin/chromium-browser
+    /snap/bin/chromium
+    /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+  ].freeze
+
+  def self.resolved_chromium_path_for_headless
+    %w[CHROME_PATH BROWSER_PATH].each do |key|
+      p = ENV[key].to_s.strip
+      return p if p.present? && File.executable?(p)
+    end
+
+    BROWSER_PATH_CANDIDATES.find { |path| File.executable?(path) }
+  end
+
+  def self.headless_browser_executable_available?
+    resolved_chromium_path_for_headless.present?
+  end
+
   # Схлопываем дубли одного и того же документа (http/https, слэш в конце, регистр).
   def self.canonical_document_url_for_dedupe(url)
     s = url.to_s.strip.downcase
@@ -219,10 +242,16 @@ class PlDetailsFetcher
     modal_data = extract_modal_details(doc, product_data)
     
     # Если модальное окно не найдено или данные неполные, используем headless браузер
-    if use_headless && (modal_data[:materials].blank? || modal_data[:care_instructions].blank? || modal_data[:safety_info].blank?)
-      Rails.logger.info "PlDetailsFetcher: Modal data incomplete, trying headless browser"
-      headless_modal_data = fetch_modal_with_headless_browser(full_url)
-      modal_data.merge!(headless_modal_data) if headless_modal_data.present?
+    modal_incomplete =
+      modal_data[:materials].blank? || modal_data[:care_instructions].blank? || modal_data[:safety_info].blank?
+    if use_headless && modal_incomplete
+      if self.class.headless_browser_executable_available?
+        Rails.logger.info "PlDetailsFetcher: Modal data incomplete, trying headless browser"
+        headless_modal_data = fetch_modal_with_headless_browser(full_url)
+        modal_data.merge!(headless_modal_data) if headless_modal_data.present?
+      else
+        Rails.logger.warn "PlDetailsFetcher: модалка неполная, headless пропущен — нет Chrome/Chromium (задайте CHROME_PATH или BROWSER_PATH)"
+      end
     end
     
     result.merge!(modal_data)
@@ -478,6 +507,12 @@ class PlDetailsFetcher
       return {}
     end
 
+    browser_executable = self.class.resolved_chromium_path_for_headless
+    unless browser_executable
+      Rails.logger.warn "PlDetailsFetcher.fetch_modal_with_headless_browser: нет исполняемого Chrome/Chromium — задайте CHROME_PATH или BROWSER_PATH (например /usr/bin/google-chrome-stable)"
+      return {}
+    end
+
     begin
       Rails.logger.info "PlDetailsFetcher.fetch_modal_with_headless_browser: Starting headless browser for #{url}"
       proxy_host = nil
@@ -647,12 +682,11 @@ class PlDetailsFetcher
         browser_options["headless"] = "new"
       end
 
-      opts = { 
+      opts = {
         headless: false, # Отключаем стандартный флаг --headless, используем --headless=new через browser_options
-        timeout: 60 
+        timeout: 60,
+        browser_path: browser_executable
       }
-      path = ENV["CHROME_PATH"] || ENV["BROWSER_PATH"]
-      opts[:browser_path] = path if path && path != ""
 
       browser = Ferrum::Browser.new(browser_options: browser_options, **opts)
       
@@ -812,6 +846,9 @@ class PlDetailsFetcher
       
       result
       
+    rescue Ferrum::BinaryNotFoundError => e
+      Rails.logger.warn "PlDetailsFetcher.fetch_modal_with_headless_browser: #{e.class} — #{e.message.strip} (CHROME_PATH / BROWSER_PATH)"
+      {}
     rescue Ferrum::StatusError => e
       Rails.logger.error "PlDetailsFetcher.fetch_modal_with_headless_browser: Error: #{e.class} - #{e.message}\n#{e.backtrace.first(5).join("\n")}"
       {}
