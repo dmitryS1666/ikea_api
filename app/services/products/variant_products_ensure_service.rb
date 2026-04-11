@@ -36,17 +36,17 @@ module Products
     def process_variant_sku(listing_sku)
       existing = ListingSkuResolver.find_product(listing_sku)
       if existing
-        CategoryProduct.find_or_create_by!(product: existing, category_id: category.ikea_id)
+        CategoryProduct.find_or_create_by!(product: existing, category_id: category.ikea_id.to_s)
         if incomplete_product?(existing)
           EnrichVariantProductJob.perform_later(sku: existing.sku, category_ikea_id: category.ikea_id)
         end
         return
       end
 
-      stub = create_stub_product(listing_sku)
+      stub = create_variant_product_after_pl_fetch(listing_sku)
       return if stub.blank?
 
-      CategoryProduct.find_or_create_by!(product: stub, category_id: category.ikea_id)
+      CategoryProduct.find_or_create_by!(product: stub, category_id: category.ikea_id.to_s)
       EnrichVariantProductJob.perform_later(sku: stub.sku, category_ikea_id: category.ikea_id)
     rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid => e
       Rails.logger.warn "VariantProductsEnsureService sku=#{listing_sku}: #{e.class} #{e.message}"
@@ -77,24 +77,55 @@ module Products
       p.name.to_s.match?(/\AIKEA\s+(s?)\d{8}\z/i)
     end
 
-    def create_stub_product(listing_sku)
+    def stub_still_empty_after_fetch?(p)
+      placeholder_name?(p) || p.name.to_s.strip.blank?
+    end
+
+    def discard_variant_stub!(product, cid)
+      return unless product&.persisted?
+
+      product.category_products.where(category_id: cid).delete_all
+      product.update_columns(category_id: nil) if product.category_id.to_s == cid.to_s
+      product.destroy!
+    end
+
+    # Минимальная строка + сразу PL/LT fetch; если карточка не подтянулась — удаляем, без мусора в списках.
+    def create_variant_product_after_pl_fetch(listing_sku)
       sku = listing_sku.to_s.strip
       article = sku.match(/(\d{8})/)&.captures&.first
       if article.blank?
-        Rails.logger.warn "VariantProductsEnsureService: skip stub, no 8-digit article in #{sku.inspect}"
+        Rails.logger.warn "VariantProductsEnsureService: skip variant, no 8-digit article in #{sku.inspect}"
         return nil
       end
 
+      cid = category.ikea_id.to_s
       url = format(PL_STUB_URL, sku: sku.delete("."))
-      Product.create!(
-        sku: sku,
-        item_no: article,
-        name: "IKEA #{sku}",
-        price: 0,
-        quantity: 0,
-        url: url,
-        category_id: category.ikea_id
-      )
+      product = nil
+      product =
+        Product.create!(
+          sku: sku,
+          item_no: article,
+          name: "IKEA #{sku}",
+          price: 0,
+          quantity: 0,
+          url: url,
+          category_id: cid
+        )
+
+      Products::ExtendedAttributesFetchService.fetch_for_product(product)
+      product.reload
+
+      if stub_still_empty_after_fetch?(product)
+        discard_variant_stub!(product, cid)
+        Rails.logger.info "VariantProductsEnsureService: отброшен пустой вариант sku=#{sku} (нет данных с PL/LT)"
+        return nil
+      end
+
+      product
+    rescue StandardError => e
+      discard_variant_stub!(product, cid) if product&.persisted?
+      Rails.logger.warn "VariantProductsEnsureService: variant sku=#{listing_sku} #{e.class}: #{e.message}"
+      nil
     end
 
     class << self

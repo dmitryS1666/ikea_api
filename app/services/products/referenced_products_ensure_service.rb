@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-# Создаёт в БД недостающие записи Product для артикулов из related/set/bundle/included/variants
-# и связывает их с категорией (как в ParseProductsJob через CategoryProduct).
+# Связывает с категорией уже существующие Product по артикулам из related/set/bundle/included/variants.
+# Новые строки в БД не создаём — иначе сыплются пустые «IKEA 12345678» без карточки.
 class Products::ReferencedProductsEnsureService
   ARTICLE_PATTERN = /\A\d{8}\z/.freeze
 
@@ -53,22 +53,14 @@ class Products::ReferencedProductsEnsureService
   def ensure_one!(article)
     existing = find_existing(article)
     if existing
-      CategoryProduct.find_or_create_by!(product: existing, category_id: category.ikea_id)
+      CategoryProduct.find_or_create_by!(product: existing, category_id: category.ikea_id.to_s)
       return
     end
 
-    pl_url = "https://www.ikea.com/pl/pl/p/-#{article}/"
-    p =
-      Product.create!(
-        sku: article,
-        item_no: article,
-        name: "IKEA #{article}",
-        price: 0,
-        url: pl_url,
-        category_id: category.ikea_id
-      )
-    CategoryProduct.find_or_create_by!(product: p, category_id: category.ikea_id)
+    Rails.logger.debug do
+      "ReferencedProductsEnsureService: нет товара в БД для артикула #{article}, пропуск (не создаём заглушку)"
+    end
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
-    # гонка или дубликат SKU — игнорируем
+    # гонка при find_or_create — игнорируем
   end
 end

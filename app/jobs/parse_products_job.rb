@@ -414,6 +414,11 @@ class ParseProductsJob < ApplicationJob
       product.update!(attributes)
       result = { created: false, updated: true, sku: product.sku }
     else
+      if name.blank?
+        Rails.logger.warn "ParseProductsJob: пропуск создания товара без названия listing_sku=#{listing_sku}"
+        return { created: false, updated: false, sku: nil }
+      end
+
       product = Product.create!(attributes)
       result = { created: true, updated: false, sku: product.sku }
     end
