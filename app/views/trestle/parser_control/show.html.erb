@@ -182,6 +182,47 @@
       </div>
     </div>
   </div>
+
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card border-warning">
+        <div class="card-header bg-light">
+          <h3 class="mb-0">Sidekiq — очистка и перезапуск</h3>
+        </div>
+        <div class="card-body">
+          <p class="text-muted">
+            Удаляются джобы из очередей из <code>config/sidekiq.yml</code>, а также наборы <strong>Retry</strong>, <strong>Scheduled</strong> и <strong>Dead</strong>.
+            Перезапуск выполняется командой <code>sudo -n systemctl restart …</code> (нужен NOPASSWD для пользователя Puma, обычно <code>deploy</code>).
+            Переменная <code>SIDEKIQ_SYSTEMD_UNIT</code> (по умолчанию <code>ikea_back_sidekiq.service</code>).
+          </p>
+          <div class="row">
+            <div class="col-md-6">
+              <h5>Только очистить Redis (очереди + retry + scheduled + dead)</h5>
+              <%= form_tag sidekiq_purge_queues_parser_control_admin_index_path, method: :post, data: { turbo: false } do %>
+                <div class="custom-control custom-checkbox mb-2">
+                  <%= check_box_tag :confirm_purge, "1", false, class: "custom-control-input", id: "confirm_purge_cb", required: true %>
+                  <%= label_tag :confirm_purge_cb, "Подтверждаю очистку очередей", class: "custom-control-label" %>
+                </div>
+                <%= submit_tag "Очистить очереди Sidekiq", class: "btn btn-warning",
+                    data: { confirm: "Удалить все джобы из перечисленных очередей и retry/scheduled/dead?", disable_with: "Очистка…" } %>
+              <% end %>
+            </div>
+            <div class="col-md-6">
+              <h5>Очистить и перезапустить воркер (systemd)</h5>
+              <%= form_tag sidekiq_purge_and_restart_parser_control_admin_index_path, method: :post, data: { turbo: false } do %>
+                <div class="custom-control custom-checkbox mb-2">
+                  <%= check_box_tag :confirm_restart, "1", false, class: "custom-control-input", id: "confirm_restart_cb", required: true %>
+                  <%= label_tag :confirm_restart_cb, "Подтверждаю очистку и перезапуск Sidekiq", class: "custom-control-label" %>
+                </div>
+                <%= submit_tag "Очистить и перезапустить Sidekiq", class: "btn btn-danger",
+                    data: { confirm: "Очистить все очереди Sidekiq и выполнить systemctl restart? Текущие джобы воркера будут прерваны.", disable_with: "Выполняется…" } %>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
   
   <div class="row mt-4">
     <div class="col-12">

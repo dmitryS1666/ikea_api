@@ -191,6 +191,51 @@ Trestle.resource :parser_control, model: ParserControl do
       redirect_to admin.instance_path(ParserControl.new(id: 'show'))
     end
 
+    def sidekiq_purge_queues
+      unless params[:confirm_purge] == "1"
+        flash[:error] = "Отметьте «Подтверждаю очистку очередей»"
+        redirect_to admin.instance_path(ParserControl.new(id: "show"))
+        return
+      end
+
+      report = Admin::SidekiqAdminReset.purge_queues_and_sets!
+      flash[:message] = sidekiq_purge_flash_message(report)
+      Rails.logger.info "ParserControlAdmin#sidekiq_purge_queues: #{report.inspect}"
+    rescue StandardError => e
+      Rails.logger.error "sidekiq_purge_queues: #{e.class} #{e.message}\n#{e.backtrace.first(8).join("\n")}"
+      flash[:error] = "Очистка Sidekiq: #{e.message}"
+    ensure
+      redirect_to admin.instance_path(ParserControl.new(id: "show"))
+    end
+
+    def sidekiq_purge_and_restart
+      unless params[:confirm_restart] == "1"
+        flash[:error] = "Отметьте «Подтверждаю очистку и перезапуск»"
+        redirect_to admin.instance_path(ParserControl.new(id: "show"))
+        return
+      end
+
+      report = Admin::SidekiqAdminReset.purge_queues_and_sets!
+      msg = sidekiq_purge_flash_message(report)
+      restart = Admin::SidekiqAdminReset.restart_systemd!
+      Rails.logger.info "ParserControlAdmin#sidekiq_purge_and_restart purge=#{report.inspect} restart=#{restart.inspect}"
+
+      if restart[:success]
+        flash[:message] = "#{msg} Сервис #{restart[:unit]} перезапущен (systemd)."
+      else
+        err = restart[:stderr].presence || restart[:stdout].presence || "код выхода не 0"
+        flash[:error] =
+          "#{msg} Перезапуск не выполнен: #{err}. " \
+          "Добавьте в sudoers для пользователя веб-приложения: deploy ALL=(ALL) NOPASSWD: /bin/systemctl restart #{restart[:unit]} " \
+          "или выполните вручную: sudo systemctl restart #{restart[:unit]}"
+      end
+    rescue StandardError => e
+      Rails.logger.error "sidekiq_purge_and_restart: #{e.class} #{e.message}\n#{e.backtrace.first(8).join("\n")}"
+      flash[:error] = "Sidekiq: #{e.message}"
+    ensure
+      redirect_to admin.instance_path(ParserControl.new(id: "show"))
+    end
+
     def resume_task
       task_id = params[:task_id]
       if task_id.blank?
@@ -455,6 +500,17 @@ Trestle.resource :parser_control, model: ParserControl do
       end
     end
 
+    def sidekiq_purge_flash_message(report)
+      parts = []
+      report[:queues].each do |name, n|
+        parts << "#{name}: было #{n}"
+      end
+      parts << "retry: #{report[:retry]}" if report[:retry].positive?
+      parts << "scheduled: #{report[:scheduled]}" if report[:scheduled].positive?
+      parts << "dead: #{report[:dead]}" if report[:dead].positive?
+      "Очереди Sidekiq очищены (#{parts.join('; ')})."
+    end
+
     def task_type_label(type)
       {
         'categories' => 'Категории',
@@ -487,5 +543,7 @@ Trestle.resource :parser_control, model: ParserControl do
     post :stop_task, on: :collection
     post :resume_task, on: :collection
     get :active_tasks, on: :collection
+    post :sidekiq_purge_queues, on: :collection
+    post :sidekiq_purge_and_restart, on: :collection
   end
 end
