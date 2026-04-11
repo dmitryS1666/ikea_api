@@ -93,47 +93,47 @@ class IkeaLvProductVariantsService
 
   def extract_color_variants(doc)
     variants = []
-    # Ищем блок цветов по селектору из ТЗ
-    picker = doc.css('.pipf-product-style-picker__picker').first
+    # Блок «Wybierz pokrycie» / обивка: .pipf-product-style-picker (PL PIP)
+    picker = doc.at_css(".pipf-product-style-picker .pipf-product-style-picker__picker") ||
+             doc.css(".pipf-product-style-picker__picker").first
     return [] unless picker
 
-    # Ищем все элементы списка вариантов
-    # В ТЗ указано, что выбранный элемент имеет класс pipf-product-style-picker__item--selected
-    # А ссылки на другие варианты находятся в <a>
-    
-    items = picker.css('.pipf-product-style-picker__box')
+    items = picker.css(".pipf-product-style-picker__box")
     items.each do |item_node|
-      link = item_node.at_css('a.pipf-product-style-picker__link')
-      selected_div = item_node.at_css('.pipf-product-style-picker__item--selected')
-      
+      link = item_node.at_css("a.pipf-product-style-picker__link")
+      selected_div = item_node.at_css(".pipf-product-style-picker__item--selected")
+
       label = ""
       sku = ""
-      
+      preview_src = style_picker_preview_src(item_node)
+
       if link
-        # Не выбранный вариант
-        label = link['aria-label'] || ""
-        href = link['href']
+        label = link["aria-label"].to_s.strip
+        href = link["href"]
         sku = extract_sku_from_url(href)
       elsif selected_div
-        # Выбранный вариант
-        label = selected_div['aria-label'] || ""
-        # SKU текущего продукта
-        sku = product.sku
+        label = selected_div["aria-label"].to_s.strip
+        sku = product.sku.to_s
       end
 
       next if sku.blank?
 
-      variant_product = Product.find_by(sku: sku)
-      # Если продукта нет в базе, мы не можем его добавить в variants (так как API требует данные продукта)
-      # Но мы можем попробовать вернуть хотя бы то что есть
-      
+      variant_product = find_variant_product_by_sku(sku)
       variants << {
-        color: label,
-        item: variant_payload(variant_product, sku)
+        color: label.presence || sku,
+        item: variant_payload(variant_product, sku, preview_image: preview_src)
       }
     end
 
-    variants
+    variants.uniq { |v| v.dig(:item, :sku).to_s.downcase }
+  end
+
+  def style_picker_preview_src(item_node)
+    img = item_node.at_css("img.pipf-image") || item_node.at_css("img")
+    src = img&.[]("src").to_s.strip
+    return if src.blank?
+
+    src.start_with?("http") ? src : absolute_url(src)
   end
 
   def extract_size_variants(doc)
@@ -154,7 +154,7 @@ class IkeaLvProductVariantsService
       
       next if sku.blank?
       
-      variant_product = Product.find_by(sku: sku)
+      variant_product = find_variant_product_by_sku(sku)
       variants << {
         size: label,
         item: variant_payload(variant_product, sku)
@@ -176,29 +176,59 @@ class IkeaLvProductVariantsService
     variants
   end
 
-  def variant_payload(variant_product, sku)
-    if variant_product
-      variant_product.variant_item_payload
-    else
-      # Fallback если продукта нет в базе
-      {
-        sku: sku,
-        name_ru: product.name_ru,
-        small_desc_name: "Product #{sku}",
-        slug: sku,
-        price: nil,
-        quantity: 0,
-        images: []
-      }
-    end
+  def variant_payload(variant_product, sku, preview_image: nil)
+    base =
+      if variant_product
+        variant_product.variant_item_payload
+      else
+        {
+          sku: sku,
+          name_ru: product.name_ru,
+          small_desc_name: "Product #{sku}",
+          slug: sku,
+          price: nil,
+          quantity: 0,
+          images: []
+        }
+      end
+    base[:sku] = sku.to_s
+    enrich_item_images!(base, preview_image)
+    base
   end
 
+  def enrich_item_images!(base, preview_image)
+    return if preview_image.blank?
+
+    imgs = Array(base[:images]).compact
+    base[:images] = imgs.empty? ? [preview_image] : ([preview_image] + imgs).uniq
+  end
+
+  def find_variant_product_by_sku(sku)
+    s = sku.to_s.strip
+    return if s.blank?
+
+    Product.find_by(sku: s) ||
+      Product.find_by(sku: s.sub(/\As/i, "")) ||
+      Product.find_by(sku: "s#{s.delete_prefix('s').delete_prefix('S')}")
+  end
+
+  # PL PIP: ...-s29545213/ или ...-80541594/ (опционально #content)
   def extract_sku_from_url(url)
     return nil if url.blank?
-    # SKU обычно это последние 8 цифр в URL перед / или в конце
-    # Например: https://www.ikea.com/lt/ru/p/barsloev-borslyov-3-mestnyy-divan-krovat-s-kozetkoy-tibbleby-bezhevyy-seryy-80541594/
-    match = url.match(/-(\d{8})\/?(\#.*)?$/)
-    match ? match[1] : nil
+
+    path =
+      begin
+        URI.parse(url.to_s.split("#").first.to_s.split("?").first).path
+      rescue URI::InvalidURIError
+        url.to_s.split(/[#?]/, 2).first.to_s
+      end
+    return nil if path.blank?
+
+    m = path.match(/-([sS]?\d{8})\/?\z/)
+    return m[1].downcase if m
+
+    m2 = path.match(/-(\d{8})\/?\z/)
+    m2 ? m2[1] : nil
   end
 
   def find_product_url_by_sku(sku)
