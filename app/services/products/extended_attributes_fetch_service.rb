@@ -5,7 +5,8 @@
 # Приоритет для товаров LT (ikea.com/lt/ru или строка results_jsonl с витрины LT):
 #   — описания, материалы, характеристики, ВГХ (вес, габариты, объём), картинки — с LT;
 #   — опционально строка JSONL (ключ "Подробная информация о товаре") — полный снимок с LT-парсера;
-#   — цена и остаток — с PL (zł / API) и API наличия.
+#   — цена и остаток — с PL (zł / API) и API наличия;
+#   — варианты: списки SKU с LT и с PL объединяются (PL PIP часто даёт itemNo / полную матрицу).
 #
 # Связи наборов / сопутствующие SKU и документы без LT — дополняются с PL, если пусто.
 class Products::ExtendedAttributesFetchService
@@ -149,7 +150,7 @@ class Products::ExtendedAttributesFetchService
       attributes[:included_products] = (existing + Array(lt_details[:included_products]).map(&:to_s)).compact.uniq
     end
 
-    if lt_details[:variants].present?
+    if lt_details[:variants].present? && attributes[:variants].blank?
       attributes[:variants] = normalize_variants_payload(lt_details[:variants])
     end
   end
@@ -171,9 +172,7 @@ class Products::ExtendedAttributesFetchService
     attributes[:set_items] = pl_details[:set_items] if pl_details[:set_items].present? && attributes[:set_items].blank?
     attributes[:bundle_items] = pl_details[:bundle_items] if pl_details[:bundle_items].present? && attributes[:bundle_items].blank?
     attributes[:related_products] = pl_details[:related_products] if pl_details[:related_products].present? && attributes[:related_products].blank?
-    if pl_details[:variants].present? && Array(attributes[:variants]).blank?
-      attributes[:variants] = normalize_variants_payload(pl_details[:variants])
-    end
+    merge_pl_variants_union!(pl_details, attributes)
 
     combined_included = Array(pl_details[:set_items]).map(&:to_s) + Array(pl_details[:bundle_items]).map(&:to_s)
     if combined_included.any?
@@ -404,13 +403,35 @@ class Products::ExtendedAttributesFetchService
     []
   end
 
+  # PL PIP часто даёт полную матрицу вариантов; LT/HTML — неполную. Объединяем SKU без дублей.
+  def merge_pl_variants_union!(pl_details, attributes)
+    return unless pl_details[:variants].present?
+
+    pl_v = normalize_variants_payload(pl_details[:variants])
+    return if pl_v.empty?
+
+    cur_v = normalize_variants_payload(attributes[:variants])
+    attributes[:variants] = (cur_v + pl_v).uniq { |x| x["sku"] }
+  end
+
   def normalize_variants_payload(raw)
     Array(raw).filter_map do |entry|
       case entry
       when Hash
-        sku = entry["sku"] || entry[:sku] || entry["id"] || entry[:id] || entry["value"] || entry[:value]
-        sku_s = sku.to_s.strip
+        sku = entry["sku"] || entry[:sku] ||
+              entry["itemNo"] || entry[:itemNo] ||
+              entry["itemNoGlobal"] || entry[:itemNoGlobal] ||
+              entry["visibleItemNo"] || entry[:visibleItemNo] ||
+              entry["articleNumber"] || entry[:articleNumber] ||
+              entry["id"] || entry[:id] || entry["value"] || entry[:value]
+        if sku.blank? && (entry["pipUrl"].present? || entry[:pipUrl].present?)
+          url = (entry["pipUrl"] || entry[:pipUrl]).to_s
+          m = url.match(/-([a-z0-9]{8,9})\/?$/i)
+          sku = m[1] if m
+        end
+        sku_s = sku.to_s.gsub(/[^0-9a-z]/i, "").downcase
         next if sku_s.blank?
+        next unless sku_s.match?(/\A\d{8}\z/) || sku_s.match?(/\As\d{8}\z/)
         { "sku" => sku_s }
       else
         sku_s = entry.to_s.strip

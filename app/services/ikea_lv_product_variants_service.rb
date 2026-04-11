@@ -6,7 +6,9 @@ require "uri"
 require "nokogiri"
 
 class IkeaLvProductVariantsService
+  # Сначала PL (полный PIP / варианты с польской витрины), затем LT.
   PRODUCT_URL_TEMPLATES = [
+    "https://www.ikea.com/pl/pl/p/-%{sku}/",
     "https://www.ikea.com/lt/ru/p/-%{sku}/"
   ].freeze
 
