@@ -115,6 +115,7 @@ class CheckoutService
     end
 
     if order&.persisted?
+      WebpayPaymentLinkService.issue_link!(order)
       OrderNotificationService.call(order)
       CrmIntegrationService.sync_order(order)
       { success: true, order: order }

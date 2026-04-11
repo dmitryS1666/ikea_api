@@ -172,6 +172,27 @@ rails server
 
 Конфигурация базы данных находится в `config/database.yml`.
 
+### Webpay sandbox (тестовая оплата)
+
+Бизнес-логика создаёт ссылку на `GET /api/v1/payment_links/:id?token=…`, которая действует 30 минут и автоматически отправляет пользователя на [https://securesandbox.webpay.by](https://securesandbox.webpay.by) с содержимым формы из спецификации Webpay. Ответ чек-аут-эндпоинта включает поле `payment_url`, которое содержит эту ссылку; подробности подсказывает официальная документация по тестовой среде Webpay: https://docs.webpay.by/generalInfo/devEnvironment/.
+
+Для корректной подписи заказа используются поля `wsb_seed`, `wsb_storeid`, `wsb_order_num`, `wsb_test`, `wsb_currency_id`, `wsb_total` и `wsb_signature`, как описано в https://docs.webpay.by/en/paymentIntegration/cardIntegration/paymentFormFields/ и https://docs.webpay.by/en/paymentIntegration/cardIntegration/orderSignature/.
+
+Набор переменных окружения:
+
+- `WEBPAY_STORE_ID` — идентификатор магазина в Webpay (по умолчанию `11111111`).
+- `WEBPAY_SECRET_KEY` — ваш секретный ключ (в тестовой среде можно использовать `xxxaL8v9AjMPTB7w4bmXDaEcbjMCNqyw`, как предоставлено выше).
+- `WEBPAY_STORE_NAME` — название магазина, показывается на форме (`IKEA by Shop`).
+- `WEBPAY_RETURN_URL`, `WEBPAY_CANCEL_URL`, `WEBPAY_NOTIFY_URL` — внешние адреса, на которые Webpay вернёт покупателя или отправит уведомление.
+- `WEBPAY_CURRENCY_ID` — валюта (`BYN` по умолчанию).
+- `WEBPAY_LANGUAGE_ID` — локаль формы (`russian`).
+- `WEBPAY_VERSION` — версия протокола (`2`).
+- `WEBPAY_TEST_FLAG` — `1` для тестовой среды, `0` для продакшна.
+- `WEBPAY_PAYMENT_PAGE_URL` — куда отправляются POST-запросы (`https://securesandbox.webpay.by/` для теста).
+- `WEBPAY_LINK_BASE_URL` — базовый URL API, используемый в поле `payment_url` (по умолчанию берётся из `API_BASE_URL` или `http://localhost:3000`).
+
+При переходе в продакшен достаточно поменять `WEBPAY_TEST_FLAG`, `WEBPAY_PAYMENT_PAGE_URL`, `WEBPAY_STORE_ID` и `WEBPAY_SECRET_KEY`.
+
 ## 📚 API Документация
 
 ### Swagger UI

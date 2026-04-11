@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Open Webpay</title>
+  </head>
+  <body>
+    <p>Перенаправляем на безопасную страницу оплаты WEBPAY...</p>
+    <form id="webpay-form" action="<%= form.action %>" method="post">
+      <% form.fields.each do |name, value| %>
+        <input type="hidden" name="<%= name %>" value="<%= value %>" />
+      <% end %>
+      <noscript>
+        <button type="submit">Перейти к оплате</button>
+      </noscript>
+    </form>
+    <script>
+      document.getElementById('webpay-form')?.submit();
+    </script>
+  </body>
+</html>

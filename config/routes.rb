@@ -158,6 +158,8 @@ Rails.application.routes.draw do
       # Checkout
       post 'checkout', to: 'checkout#create'
 
+      resources :payment_links, only: [:show]
+
       # Debug & Integration (AmoCRM)
       namespace :debug do
         namespace :amo_crm do
