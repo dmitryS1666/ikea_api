@@ -1,20 +1,22 @@
 # frozen_string_literal: true
 
-# Актуализация одной категории: список SKU с витрины PL (CategoryLtListingService + CategoryProductsFetcher),
-# синхронизация с БД через ParseProductsJob#process_product, затем расширенные поля и варианты, дозагрузка связанных SKU.
+# Актуализация одной категории по ikea_id (витрина PL → БД).
 #
-# Сверка с витриной:
-#   — каждый SKU из списка сайта проходит process_product + ExtendedAttributesFetchService (актуализация полей);
-#   — опционально JSONL со строками формата results (ключ "Подробная информация о товаре") в payload.lt_jsonl_path —
-#     тогда расширенные атрибуты и ВГХ берутся из этой строки (приоритет LT), цена/остаток — с PL;
-#   — detach_orphans (по умолчанию true): убрать из категории связи CategoryProduct для SKU, которых нет в текущем списке витрины PL;
-#     при false — оставить старые связи (отладка). Пустой listing_skus после обхода — отцепление не выполняется.
+# Пайплайн:
+#   1) Найти Category по ikea_id, проверить URL витрины PL.
+#   2) Постранично забрать SKU с листинга; для каждой строки ParseProductsJob#process_product
+#      (сопоставление с БД через Products::ListingSkuResolver — s12345678 vs 12345678).
+#   3) Отцепить от категории товары, которых нет в актуальном списке (CategoryProduct), без удаления Product.
+#   4) Для каждого затронутого SKU: PL+LT — ExtendedAttributesFetchService (цена, qty, картинки URL,
+#      related_products, included_products, вес/размеры/описание/материалы/документы с LT и PL).
+#      Затем IkeaLvProductVariantsService (force: true) — варианты с PIP PL.
+#      Затем ImageDownloader.sync_product_images — локальные WebP при наличии remote images.
+#   5) Опционально: lt_jsonl_path в payload — строки JSONL по SKU (и алиасам) для приоритета LT;
+#      include_referenced — дозагрузка связанных SKU в категорию.
 #
-# Атрибуты (см. Products::ExtendedAttributesFetchService):
-#   LT / JSONL: имя, подзаголовок, описания, характеристики, ВГХ, изображения, документы (по данным строки/PIP LT);
-#   PL: цена, quantity (API / HTML PL), наборы/связи, документы при отсутствии на LT.
+# Контракт API с фронтом не меняется: те же поля ProductSerializer, типы и структура variants.
 #
-# Параллельность: 2 потока (Mutex + connection_pool.with_connection на поток).
+# Параллельность: 2 потока (Mutex + connection_pool.with_connection).
 class RefreshCategoryFromLtJob < ApplicationJob
   queue_as :parser
 
@@ -72,16 +74,25 @@ class RefreshCategoryFromLtJob < ApplicationJob
       Rails.logger.warn "RefreshCategoryFromLtJob: lt_jsonl_path=#{lt_jsonl_path} — файл не прочитан или пуст, продолжаем без JSONL"
     end
 
-    stats = { processed: 0, created: 0, updated: 0, errors: 0, detached: 0, linked: 0, created_skus: [] }
+    stats = {
+      processed: 0,
+      created: 0,
+      updated: 0,
+      errors: 0,
+      detached: 0,
+      linked: 0,
+      images_synced: 0,
+      created_skus: []
+    }
     stats_mutex = Mutex.new
     parser = ParseProductsJob.new
-    listing_skus = []
+    canonical_listing_skus = []
     stop_listing = false
 
     begin
       offset = 0
       page_size = 50
-      touched_skus = []
+      touched_canonical_skus = []
 
       loop do
         check_task_not_stopped!(task)
@@ -89,11 +100,6 @@ class RefreshCategoryFromLtJob < ApplicationJob
 
         products_data = CategoryLtListingService.fetch_page(category, offset: offset, limit: page_size)
         break if products_data.empty?
-
-        page_ids = products_data.filter_map do |pd|
-          (pd["id"] || pd[:id] || pd["sku"] || pd[:sku]).to_s.presence
-        end.uniq
-        listing_skus.concat(page_ids)
 
         item_nos =
           products_data.map do |pd|
@@ -115,7 +121,7 @@ class RefreshCategoryFromLtJob < ApplicationJob
             {}
           end
 
-        page_skus =
+        page_canonical =
           if max_created.present?
             process_listing_sequential(
               products_data, parser, category, availability_data, task, stats, max_created
@@ -125,7 +131,7 @@ class RefreshCategoryFromLtJob < ApplicationJob
               process_one_listing_item(product_data, parser, category, availability_data, task, stats, stats_mutex)
             end
           end
-        touched_skus.concat(page_skus)
+        touched_canonical_skus.concat(page_canonical)
 
         stop_listing = true if max_created.present? && stats[:created] >= max_created
 
@@ -133,41 +139,24 @@ class RefreshCategoryFromLtJob < ApplicationJob
         break if products_data.length < page_size
       end
 
-      touched_skus.uniq!
-      listing_skus.uniq!
-      stats[:linked] = ensure_category_links_for_listing!(category, listing_skus)
+      touched_canonical_skus.compact!
+      touched_canonical_skus.uniq!
+      canonical_listing_skus.replace(touched_canonical_skus)
 
-      parallel_each(touched_skus, threads: THREADS) do |sku|
-        check_task_not_stopped!(task)
+      stats[:linked] = ensure_category_links_for_listing!(category, canonical_listing_skus)
 
-        product = Product.find_by(sku: sku)
-        next unless product
+      enrich_products!(
+        canonical_listing_skus,
+        category,
+        rows_by_sku,
+        include_referenced,
+        task,
+        stats,
+        stats_mutex
+      )
 
-        begin
-          row = rows_by_sku[sku.to_s]
-          ext = Products::ExtendedAttributesFetchService.fetch_for_product(product, results_jsonl_row: row)
-          stats_mutex.synchronize { stats[:updated] += 1 if ext[:updated] }
-
-          vres = IkeaLvProductVariantsService.new(product: product, force: false).call
-          stats_mutex.synchronize { stats[:updated] += 1 if vres[:changed] }
-
-          # По умолчанию не расширяем категорию связанными SKU, чтобы не тянуть "мусор".
-          # Включается только явно через payload.include_referenced = true.
-          if include_referenced
-            Products::ReferencedProductsEnsureService.ensure_for!(product, category: category)
-          end
-        rescue StandardError => e
-          Rails.logger.error "RefreshCategoryFromLtJob: enrich #{sku}: #{e.message}"
-          stats_mutex.synchronize do
-            stats[:errors] += 1
-            task.increment_errors!
-          end
-        end
-        nil
-      end
-
-      if detach_orphans && listing_skus.any?
-        stats[:detached] = detach_category_products_not_in_listing(category, listing_skus)
+      if detach_orphans && canonical_listing_skus.any?
+        stats[:detached] = detach_category_products_not_in_listing(category, canonical_listing_skus)
       end
 
       stats[:duration] = Time.current - started
@@ -188,11 +177,61 @@ class RefreshCategoryFromLtJob < ApplicationJob
 
   private
 
+  def enrich_products!(canonical_skus, category, rows_by_sku, include_referenced, task, stats, stats_mutex)
+    parallel_each(canonical_skus, threads: THREADS) do |sku|
+      check_task_not_stopped!(task)
+
+      product = Product.find_by(sku: sku)
+      next unless product
+
+      begin
+        row = jsonl_row_for_product(rows_by_sku, product.sku)
+        ext = Products::ExtendedAttributesFetchService.fetch_for_product(product, results_jsonl_row: row)
+        stats_mutex.synchronize { stats[:updated] += 1 if ext[:updated] }
+
+        vres = IkeaLvProductVariantsService.new(product: product, force: true).call
+        stats_mutex.synchronize { stats[:updated] += 1 if vres[:changed] }
+
+        sync_local_images!(product, stats, stats_mutex)
+
+        if include_referenced
+          Products::ReferencedProductsEnsureService.ensure_for!(product, category: category)
+        end
+      rescue StandardError => e
+        Rails.logger.error "RefreshCategoryFromLtJob: enrich #{sku}: #{e.message}"
+        stats_mutex.synchronize do
+          stats[:errors] += 1
+          task.increment_errors!
+        end
+      end
+      nil
+    end
+  end
+
+  def jsonl_row_for_product(rows_by_sku, sku)
+    Products::ListingSkuResolver.aliases(sku).each do |key|
+      row = rows_by_sku[key.to_s]
+      return row if row.present?
+    end
+    nil
+  end
+
+  def sync_local_images!(product, stats, stats_mutex)
+    return if Array(product.images).compact.reject(&:blank?).empty?
+
+    result = ImageDownloader.sync_product_images(product)
+    return unless result[:changed]
+
+    stats_mutex.synchronize { stats[:images_synced] += 1 }
+  rescue StandardError => e
+    Rails.logger.warn "RefreshCategoryFromLtJob: images sku=#{product.sku}: #{e.message}"
+  end
+
   def process_listing_sequential(products_data, parser, category, availability_data, task, stats, max_created)
     page_skus = []
     products_data.each do |product_data|
-      sku = process_one_listing_item(product_data, parser, category, availability_data, task, stats, nil)
-      page_skus << sku if sku.present?
+      canon = process_one_listing_item(product_data, parser, category, availability_data, task, stats, nil)
+      page_skus << canon if canon.present?
       break if stats[:created] >= max_created
     end
     page_skus
@@ -201,13 +240,12 @@ class RefreshCategoryFromLtJob < ApplicationJob
   def process_one_listing_item(product_data, parser, category, availability_data, task, stats, mutex)
     check_task_not_stopped!(task)
 
-    sku = product_data["id"] || product_data[:id] || product_data["sku"] || product_data[:sku]
-    sku = sku.to_s
-
     begin
       res = parser.send(:process_product, product_data, category, availability_data)
-      apply_listing_stats(res, sku, task, stats, mutex)
-      sku.presence
+      if res[:created] || res[:updated]
+        apply_listing_stats(res, task, stats, mutex)
+      end
+      res[:sku].presence
     rescue StandardError => e
       Rails.logger.error "RefreshCategoryFromLtJob: product error #{e.message}"
       if mutex
@@ -223,10 +261,10 @@ class RefreshCategoryFromLtJob < ApplicationJob
     end
   end
 
-  def apply_listing_stats(res, sku, task, stats, mutex)
+  def apply_listing_stats(res, task, stats, mutex)
     block = lambda do
       stats[:created] += 1 if res[:created]
-      stats[:created_skus] << sku if res[:created] && sku.present?
+      stats[:created_skus] << res[:sku] if res[:created] && res[:sku].present?
       stats[:updated] += 1 if res[:updated]
       stats[:processed] += 1
       task.increment_processed!
@@ -250,15 +288,19 @@ class RefreshCategoryFromLtJob < ApplicationJob
       next if line.blank?
       row = JSON.parse(line)
       sku = row["sku"] || row[:sku]
-      idx[sku.to_s] = row if sku.present?
+      next if sku.blank?
+
+      Products::ListingSkuResolver.aliases(sku.to_s).each do |key|
+        idx[key.to_s] = row
+      end
     rescue JSON::ParserError => e
       Rails.logger.warn "RefreshCategoryFromLtJob: пропуск строки JSONL: #{e.message}"
     end
     idx
   end
 
-  def detach_category_products_not_in_listing(category, listing_skus)
-    skus = listing_skus.map(&:to_s).uniq
+  def detach_category_products_not_in_listing(category, canonical_skus)
+    skus = canonical_skus.map(&:to_s).uniq
     return 0 if skus.empty?
 
     rel = CategoryProduct.joins(:product).where(category_id: category.ikea_id).where.not(products: { sku: skus })
@@ -267,10 +309,8 @@ class RefreshCategoryFromLtJob < ApplicationJob
     n
   end
 
-  # Гарантирует связь Product <-> Category для всех SKU, полученных из листинга категории.
-  # Это нужно даже когда продукт уже был в БД до запуска джобы.
-  def ensure_category_links_for_listing!(category, listing_skus)
-    skus = listing_skus.map(&:to_s).uniq
+  def ensure_category_links_for_listing!(category, canonical_skus)
+    skus = canonical_skus.map(&:to_s).uniq
     return 0 if skus.empty?
 
     created_links = 0

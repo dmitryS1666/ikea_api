@@ -241,11 +241,12 @@ class ParseProductsJob < ApplicationJob
     end
     
     # Поддержка разных форматов данных (API и CategoryProductsFetcher)
-    sku = product_data['id'] || product_data[:id] || product_data['sku'] || product_data[:sku]
-    return { created: false, updated: false } unless sku.present?
-    
-    product = Product.find_by(sku: sku)
-    
+    listing_sku = product_data['id'] || product_data[:id] || product_data['sku'] || product_data[:sku]
+    return { created: false, updated: false, sku: nil } unless listing_sku.present?
+
+    listing_sku = listing_sku.to_s
+    product = Products::ListingSkuResolver.find_product(listing_sku)
+
     # URL может быть в разных полях
     pip_url = product_data['pipUrl'] || product_data[:pipUrl] || product_data['url'] || product_data[:url] || ''
     url = pip_url.start_with?('http') ? pip_url : "https://www.ikea.com#{pip_url}"
@@ -261,7 +262,7 @@ class ParseProductsJob < ApplicationJob
     small_desc_name = product_data['itemMeasureReferenceText'] || product_data[:itemMeasureReferenceText] ||
                       product_data['small_desc_name'] || product_data[:small_desc_name]
     
-    Rails.logger.info "ParseProductsJob: Processing product SKU=#{sku}, item_no=#{item_no}, name=#{name}, url=#{url}"
+    Rails.logger.info "ParseProductsJob: Processing product listing_sku=#{listing_sku} db_sku=#{product&.sku || 'new'}, item_no=#{item_no}, name=#{name}, url=#{url}"
     
     # Базовые атрибуты из API поиска или CategoryProductsFetcher
     # Поддержка разных форматов данных
@@ -295,7 +296,7 @@ class ParseProductsJob < ApplicationJob
     
     # Если цена не найдена, логируем предупреждение
     if price.blank? || price.to_f == 0
-      Rails.logger.warn "ParseProductsJob: Product #{sku} has no price or price is 0"
+      Rails.logger.warn "ParseProductsJob: Product #{listing_sku} has no price or price is 0"
     end
     
     # Извлекаем флаги isBestseller и isPopular из API ответа
@@ -317,11 +318,11 @@ class ParseProductsJob < ApplicationJob
     
     # Логируем найденные флаги для отладки
     if is_bestseller || is_popular
-      Rails.logger.debug "ParseProductsJob: Product #{sku} - is_bestseller: #{is_bestseller}, is_popular: #{is_popular}"
+      Rails.logger.debug "ParseProductsJob: Product #{listing_sku} - is_bestseller: #{is_bestseller}, is_popular: #{is_popular}"
     end
     
     attributes = {
-      sku: sku,
+      sku: product&.sku || listing_sku,
       name: name,
       item_no: item_no,
       url: url,
@@ -338,7 +339,7 @@ class ParseProductsJob < ApplicationJob
       small_desc_name: small_desc_name
     }
     
-    Rails.logger.debug "ParseProductsJob: Base attributes for #{sku}: price=#{price}, images_count=#{images.length}"
+    Rails.logger.debug "ParseProductsJob: Base attributes for #{listing_sku}: price=#{price}, images_count=#{images.length}"
     
     # Примечание: Расширенные атрибуты и загрузка картинок вынесены в отдельные задачи:
     # - FetchProductExtendedAttributesJob - для расширенных атрибутов
@@ -368,10 +369,10 @@ class ParseProductsJob < ApplicationJob
     
     # Логируем предупреждение, если количество не найдено
     if attributes[:quantity] == 0
-      Rails.logger.warn "ParseProductsJob: Product #{sku} (item_no: #{item_no}) has no quantity data from any source"
+      Rails.logger.warn "ParseProductsJob: Product #{listing_sku} (item_no: #{item_no}) has no quantity data from any source"
     else
       source = quantity_from_data ? 'HTML' : (quantity_from_api ? 'API' : 'availability')
-      Rails.logger.debug "ParseProductsJob: Product #{sku} quantity: #{attributes[:quantity]} (source: #{source})"
+      Rails.logger.debug "ParseProductsJob: Product #{listing_sku} quantity: #{attributes[:quantity]} (source: #{source})"
     end
     
     # Обновляем is_parcel из данных наличия, если доступно
@@ -391,9 +392,9 @@ class ParseProductsJob < ApplicationJob
           target_lang: 'ru',
           source_lang: 'pl'
         )
-        Rails.logger.debug "ParseProductsJob: Translated name for #{sku}: #{name} → #{attributes[:name_ru]}"
+        Rails.logger.debug "ParseProductsJob: Translated name for #{listing_sku}: #{name} → #{attributes[:name_ru]}"
       rescue => e
-        Rails.logger.warn "ParseProductsJob: Translation failed for product #{sku}: #{e.message}"
+        Rails.logger.warn "ParseProductsJob: Translation failed for product #{listing_sku}: #{e.message}"
         # Продолжаем без перевода, не блокируем парсинг
       end
     elsif product && product.name_ru.present? && product.name_ru != product.name
@@ -401,13 +402,14 @@ class ParseProductsJob < ApplicationJob
       attributes[:name_ru] = product.name_ru
     end
     
-    # ВАЖНО: Создаем или обновляем продукт
+    # ВАЖНО: Создаем или обновляем продукт (не меняем sku у существующей строки — избегаем дублей s*/без s)
     if product
+      attributes.delete(:sku)
       product.update!(attributes)
-      result = { created: false, updated: true }
+      result = { created: false, updated: true, sku: product.sku }
     else
       product = Product.create!(attributes)
-      result = { created: true, updated: false }
+      result = { created: true, updated: false, sku: product.sku }
     end
     
     # ВАЖНО: Создаем связь через CategoryProduct СРАЗУ после сохранения продукта
