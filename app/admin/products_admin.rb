@@ -23,7 +23,7 @@ Trestle.resource(:products, model: Product) do
   end
 
   collection do |params|
-    products = Product.includes(:category).all
+    products = Product.includes(:category, :categories).all
     
     # Стандартный поиск Trestle (параметр q)
     if params[:q].present?
@@ -51,7 +51,9 @@ Trestle.resource(:products, model: Product) do
     column :name_ru
     column :small_desc_name
     column :category do |product|
-      product.category&.name || 'Без категории'
+      # Только category_id (belongs_to) — устарело: товары часто привязаны через category_products.
+      cat = product.primary_category
+      cat&.translated_name.presence || cat&.name || 'Без категории'
     end
     column :price do |product|
       number_to_currency(product.price, unit: 'EUR', format: '%n %u')
