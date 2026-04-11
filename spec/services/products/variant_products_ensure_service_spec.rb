@@ -21,5 +21,18 @@ RSpec.describe Products::VariantProductsEnsureService do
     it "returns empty on invalid json" do
       expect(described_class.variant_skus_from_variants_payload("{")).to eq([])
     end
+
+    it "expands item.sku when API returns an array of listing skus" do
+      payload = [
+        {
+          "type" => "color",
+          "data" => [
+            { "item" => { "sku" => %w[s11111111 s22222222] } }
+          ]
+        }
+      ].to_json
+
+      expect(described_class.variant_skus_from_variants_payload(payload)).to contain_exactly("s11111111", "s22222222")
+    end
   end
 end

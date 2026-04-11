@@ -104,15 +104,26 @@ class Product < ApplicationRecord
   before_save :calculate_delivery, if: :weight_changed?
   after_commit :enqueue_filters_reindex, on: [:create, :update]
 
+  # Сырой sku в JSON иногда приходит массивом; у Array#to_s получается строка вида "["s1", "s2"]" — это мусор для БД.
+  def self.expand_listing_skus_from_raw(raw)
+    return [] if raw.blank? || raw.is_a?(Hash)
+
+    Array(raw).filter_map { |s| s.to_s.strip.presence }
+  end
+
   def normalized_variant_skus
-    Array(variants).filter_map do |variant|
-      case variant
-      when Hash
-        variant["sku"] || variant[:sku] || variant["value"] || variant[:value] || variant["id"] || variant[:id]
-      when String, Integer
-        variant.to_s
-      end.to_s.presence
-    end.uniq
+    skus = []
+    Array(variants).each do |variant|
+      raw =
+        case variant
+        when Hash
+          variant["sku"] || variant[:sku] || variant["value"] || variant[:value] || variant["id"] || variant[:id]
+        when String, Integer
+          variant
+        end
+      skus.concat(self.class.expand_listing_skus_from_raw(raw))
+    end
+    skus.uniq
   end
 
   def variant_products

@@ -36,4 +36,11 @@ RSpec.describe Product, type: :model do
       expect(data.first.dig(:item, :price_byn)).to be_present
     end
   end
+
+  describe "#normalized_variant_skus" do
+    it "flattens sku when a variant hash stores multiple skus in an array" do
+      p = build(:product, variants: [{ "sku" => %w[s11111111 s22222222] }])
+      expect(p.normalized_variant_skus).to contain_exactly("s11111111", "s22222222")
+    end
+  end
 end

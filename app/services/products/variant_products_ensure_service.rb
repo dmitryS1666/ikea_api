@@ -117,8 +117,7 @@ module Products
             next unless item.is_a?(Hash)
 
             item = item.deep_stringify_keys
-            s = item["sku"].to_s.strip
-            skus << s if s.present?
+            Product.expand_listing_skus_from_raw(item["sku"]).each { |s| skus << s }
           end
         end
         skus.uniq
