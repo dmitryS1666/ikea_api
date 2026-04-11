@@ -252,10 +252,11 @@ class ParseProductsJob < ApplicationJob
     url = pip_url.start_with?('http') ? pip_url : "https://www.ikea.com#{pip_url}"
     
     # item_no может быть в разных полях
-    item_no = product_data['itemNoGlobal'] || product_data[:itemNoGlobal] || 
-              product_data['itemNo'] || product_data[:itemNo] || 
+    item_no = product_data['itemNoGlobal'] || product_data[:itemNoGlobal] ||
+              product_data['itemNo'] || product_data[:itemNo] ||
               product_data['item_no'] || product_data[:item_no]
-    
+    item_no ||= listing_sku.to_s.match(/(\d{8})/)&.captures&.first
+
     # name может быть в разных полях
     name = product_data['typeName'] || product_data[:typeName] || 
            product_data['name'] || product_data[:name]
@@ -405,6 +406,7 @@ class ParseProductsJob < ApplicationJob
     # ВАЖНО: Создаем или обновляем продукт (не меняем sku у существующей строки — избегаем дублей s*/без s)
     if product
       attributes.delete(:sku)
+      preserve_existing_product_from_listing!(product, attributes)
       product.update!(attributes)
       result = { created: false, updated: true, sku: product.sku }
     else
@@ -430,7 +432,29 @@ class ParseProductsJob < ApplicationJob
     
     result
   end
-  
+
+  # Не затираем уже богатые данные в БД пустыми/урезанными полями с витрины (s* vs без s — одна строка).
+  def preserve_existing_product_from_listing!(product, attributes)
+    attributes.delete(:name_ru) if product.name_ru.present?
+
+    if attributes[:small_desc_name].blank? && product.small_desc_name.present?
+      attributes.delete(:small_desc_name)
+    end
+
+    if attributes[:name].blank? && product.name.present?
+      attributes.delete(:name)
+    end
+
+    incoming = attributes[:variants]
+    if incoming.blank? || (incoming.is_a?(Array) && incoming.empty?)
+      attributes.delete(:variants)
+    end
+
+    inn = Array(attributes[:images]).compact.reject(&:blank?)
+    old = Array(product.images).compact.reject(&:blank?)
+    attributes.delete(:images) if old.size > inn.size && old.size.positive?
+  end
+
   # Извлечение количества из API ответа (поле availability)
   def extract_quantity_from_api_response(product_data)
     return nil unless product_data.is_a?(Hash)

@@ -31,10 +31,11 @@ class Products::ExtendedAttributesFetchService
     Rails.logger.info "ExtendedAttributesFetchService: sku=#{product.sku} pl=#{pl_url} lt=#{use_lt_descriptive ? lt_url : '—'} jsonl=#{jsonl_applied}"
 
     attributes = {}
+    seed_merge_state_from_product!(product, attributes)
 
     if jsonl_applied
       row_attrs = Products::LtResultsJsonlAttributes.to_product_attributes(product, results_jsonl_row)
-      attributes.merge!(row_attrs)
+      merge_jsonl_row_preserving_nonblank!(attributes, row_attrs)
       download_row_documents!(product, attributes)
       attributes[:translated] = true
       if use_lt_descriptive && lt_details.present?
@@ -70,6 +71,8 @@ class Products::ExtendedAttributesFetchService
     mirror_ru_for_lt_text!(attributes)
     translate_remaining_fields(product, attributes)
 
+    strip_nil_overwrites_from_product!(product, attributes)
+
     if attributes.any?
       product.update!(attributes)
       { updated: true }
@@ -79,6 +82,65 @@ class Products::ExtendedAttributesFetchService
   end
 
   private
+
+  MERGE_SEED_FIELDS = %i[
+    name_ru name short_desc_name short_description content materials features
+    care_instructions environmental_info designer safety_info good_to_know
+    dimensions dimensions_ru weight net_weight package_volume package_dimensions collection
+    short_description_ru content_ru materials_ru features_ru care_instructions_ru
+    environmental_info_ru designer_ru safety_info_ru good_to_know_ru
+    related_products included_products videos manuals assembly_documents
+  ].freeze
+
+  def seed_merge_state_from_product!(product, attributes)
+    MERGE_SEED_FIELDS.each do |key|
+      next unless Product.column_names.include?(key.to_s)
+
+      val = product.read_attribute(key)
+      next if val.blank?
+
+      attributes[key] = val
+    end
+
+    fa = product.full_attributes
+    return unless fa.is_a?(Hash) && fa.present?
+
+    attributes[:full_attributes] = fa.deep_dup
+  end
+
+  def merge_jsonl_row_preserving_nonblank!(attributes, row_attrs)
+    row_attrs.each do |k, v|
+      key = k.is_a?(Symbol) ? k : k.to_sym
+      next if v.nil?
+
+      if v.respond_to?(:empty?) && v.empty? && attributes[key].present?
+        next
+      end
+
+      attributes[key] = v
+    end
+  end
+
+  # Не затираем вес/описания и т.д. значением nil из парсера, если в БД уже было значение.
+  # Не даём nil из парсера затереть уже сохранённые богатые поля.
+  STRIP_NIL_FOR = %i[
+    weight net_weight dimensions dimensions_ru package_dimensions package_volume collection
+    full_attributes name_ru name short_desc_name content materials features
+    care_instructions environmental_info designer safety_info good_to_know
+    short_description related_products included_products manuals assembly_documents
+  ].freeze
+
+  def strip_nil_overwrites_from_product!(product, attributes)
+    STRIP_NIL_FOR.each do |k|
+      next unless attributes.key?(k)
+      next unless attributes[k].nil?
+
+      old = product.read_attribute(k)
+      next if old.nil?
+
+      attributes.delete(k)
+    end
+  end
 
   def download_row_documents!(product, attributes)
     %i[manuals assembly_documents].each do |key|
@@ -166,13 +228,17 @@ class Products::ExtendedAttributesFetchService
     if pl_details[:images].present? && pl_details[:images].is_a?(Array)
       pl_images = pl_details[:images].map(&:to_s).map(&:strip).reject(&:blank?).uniq
       base = parse_json_array(product.images)
-      attributes[:images] = pl_images if pl_images != base
+      merged_imgs = (base + pl_images).uniq
+      attributes[:images] = merged_imgs if merged_imgs != base
     end
 
     attributes[:set_items] = pl_details[:set_items] if pl_details[:set_items].present? && attributes[:set_items].blank?
     attributes[:bundle_items] = pl_details[:bundle_items] if pl_details[:bundle_items].present? && attributes[:bundle_items].blank?
-    attributes[:related_products] = pl_details[:related_products] if pl_details[:related_products].present? && attributes[:related_products].blank?
-    merge_pl_variants_union!(pl_details, attributes)
+    if pl_details[:related_products].present?
+      merged_rp = (parse_json_array(attributes[:related_products]) + Array(pl_details[:related_products]).map(&:to_s)).compact.uniq
+      attributes[:related_products] = merged_rp if merged_rp.any?
+    end
+    merge_pl_variants_union!(pl_details, attributes) if pl_details[:variants].present?
 
     combined_included = Array(pl_details[:set_items]).map(&:to_s) + Array(pl_details[:bundle_items]).map(&:to_s)
     if combined_included.any?
@@ -223,62 +289,78 @@ class Products::ExtendedAttributesFetchService
   end
 
   def apply_lt_descriptive(lt_details, attributes)
-    attributes[:name_ru] = lt_details[:name] if lt_details[:name].present?
-    attributes[:content] = lt_details[:description] if lt_details[:description].present?
-    attributes[:short_description] = lt_details[:short_description] if lt_details[:short_description].present?
+    if lt_details[:name].present? && attributes[:name_ru].blank?
+      attributes[:name_ru] = lt_details[:name]
+    end
+    if lt_details[:description].present? && attributes[:content].blank?
+      attributes[:content] = lt_details[:description]
+    end
+    if lt_details[:short_description].present? && attributes[:short_description].blank?
+      attributes[:short_description] = lt_details[:short_description]
+    end
 
-    if lt_details[:materials].present?
+    if lt_details[:materials].present? && attributes[:materials].blank?
       attributes[:materials] =
         lt_details[:materials].is_a?(Array) ? lt_details[:materials].join("\n") : lt_details[:materials]
     end
 
-    attributes[:features] = lt_details[:features] if lt_details[:features].present?
-    attributes[:care_instructions] = lt_details[:care_instructions] if lt_details[:care_instructions].present?
-    attributes[:environmental_info] = lt_details[:environmental_info] if lt_details[:environmental_info].present?
-    attributes[:designer] = lt_details[:designer] if lt_details[:designer]
-    attributes[:safety_info] = lt_details[:safety_info] if lt_details[:safety_info]
-    attributes[:good_to_know] = lt_details[:good_to_know] if lt_details[:good_to_know]
-    if lt_details[:environmental_info].present?
+    attributes[:features] = lt_details[:features] if lt_details[:features].present? && attributes[:features].blank?
+    if lt_details[:care_instructions].present? && attributes[:care_instructions].blank?
+      attributes[:care_instructions] = lt_details[:care_instructions]
+    end
+    if lt_details[:environmental_info].present? && attributes[:environmental_info].blank?
       attributes[:environmental_info] = lt_details[:environmental_info]
     end
+    attributes[:designer] = lt_details[:designer] if lt_details[:designer].present? && attributes[:designer].blank?
+    attributes[:safety_info] = lt_details[:safety_info] if lt_details[:safety_info].present? && attributes[:safety_info].blank?
+    attributes[:good_to_know] = lt_details[:good_to_know] if lt_details[:good_to_know].present? && attributes[:good_to_know].blank?
     attributes[:translated] = true
   end
 
   def apply_pl_descriptive(pl_details, attributes)
-    attributes[:content] = pl_details[:description] if pl_details[:description].present?
-    attributes[:short_description] = pl_details[:short_description] if pl_details[:short_description].present?
+    if pl_details[:description].present? && attributes[:content].blank?
+      attributes[:content] = pl_details[:description]
+    end
+    if pl_details[:short_description].present? && attributes[:short_description].blank?
+      attributes[:short_description] = pl_details[:short_description]
+    end
 
-    if pl_details[:materials].present?
+    if pl_details[:materials].present? && attributes[:materials].blank?
       attributes[:materials] =
         pl_details[:materials].is_a?(Array) ? Array(pl_details[:materials]).join("\n") : pl_details[:materials]
     end
 
-    attributes[:features] = pl_details[:features] if pl_details[:features].present?
-    attributes[:care_instructions] = pl_details[:care_instructions] if pl_details[:care_instructions].present?
-    attributes[:environmental_info] = pl_details[:environmental_info] if pl_details[:environmental_info].present?
-    attributes[:designer] = pl_details[:designer] if pl_details[:designer]
-    attributes[:safety_info] = pl_details[:safety_info] if pl_details[:safety_info]
-    attributes[:good_to_know] = pl_details[:good_to_know] if pl_details[:good_to_know]
-    if pl_details[:environmental_info].present?
+    attributes[:features] = pl_details[:features] if pl_details[:features].present? && attributes[:features].blank?
+    if pl_details[:care_instructions].present? && attributes[:care_instructions].blank?
+      attributes[:care_instructions] = pl_details[:care_instructions]
+    end
+    if pl_details[:environmental_info].present? && attributes[:environmental_info].blank?
       attributes[:environmental_info] = pl_details[:environmental_info]
     end
+    attributes[:designer] = pl_details[:designer] if pl_details[:designer].present? && attributes[:designer].blank?
+    attributes[:safety_info] = pl_details[:safety_info] if pl_details[:safety_info].present? && attributes[:safety_info].blank?
+    attributes[:good_to_know] = pl_details[:good_to_know] if pl_details[:good_to_know].present? && attributes[:good_to_know].blank?
   end
 
   def merge_pl_structural_and_commerce(product, pl_details, attributes)
     if pl_details[:images].present? && pl_details[:images].is_a?(Array) && pl_details[:images].any?
       all_images = pl_details[:images].map(&:to_s).map(&:strip).reject(&:blank?).uniq
       existing_images = parse_json_array(product.images)
-      attributes[:images] = all_images if all_images != existing_images
+      merged = (existing_images + all_images).uniq
+      attributes[:images] = merged if merged != existing_images
     end
 
     %i[weight net_weight package_volume package_dimensions dimensions collection].each do |key|
-      attributes[key] = pl_details[key] if pl_details[key]
+      attributes[key] = pl_details[key] if pl_details[key].present?
     end
 
     attributes[:set_items] = pl_details[:set_items] if pl_details[:set_items]
     attributes[:bundle_items] = pl_details[:bundle_items] if pl_details[:bundle_items]
-    attributes[:related_products] = pl_details[:related_products] if pl_details[:related_products].present?
-    attributes[:variants] = normalize_variants_payload(pl_details[:variants]) if pl_details[:variants].present?
+    if pl_details[:related_products].present?
+      merged_rp = (parse_json_array(attributes[:related_products]) + Array(pl_details[:related_products]).map(&:to_s)).compact.uniq
+      attributes[:related_products] = merged_rp if merged_rp.any?
+    end
+    merge_pl_variants_union!(pl_details, attributes) if pl_details[:variants].present?
 
     combined_included = Array(pl_details[:set_items]).map(&:to_s) + Array(pl_details[:bundle_items]).map(&:to_s)
     if combined_included.any?
