@@ -25,6 +25,12 @@ class Products::ExtendedAttributesFetchService
     use_lt_descriptive = lt_url.present? && lt_url != pl_url
     lt_details = use_lt_descriptive ? fetch_details_with_optional_headless(lt_url) : {}
 
+    if use_lt_descriptive && lt_details.blank?
+      Rails.logger.warn "ExtendedAttributesFetchService: LT data missing for #{product.sku}, skipping product until translation fallback ready"
+      # TODO: добавить нейронку для перевода, чтобы можно было дополнять такие товары без страницы LT
+      return { updated: false, skipped_missing_lt: true }
+    end
+
     jsonl_applied =
       results_jsonl_row.present? && Products::LtResultsJsonlAttributes.results_jsonl_row?(results_jsonl_row)
 

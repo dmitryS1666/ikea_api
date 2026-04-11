@@ -184,25 +184,26 @@ class RefreshCategoryFromLtJob < ApplicationJob
       product = Product.find_by(sku: sku)
       next unless product
 
-      begin
-        row = jsonl_row_for_product(rows_by_sku, product.sku)
-        ext = Products::ExtendedAttributesFetchService.fetch_for_product(product, results_jsonl_row: row)
-        stats_mutex.synchronize { stats[:updated] += 1 if ext[:updated] }
+        begin
+          row = jsonl_row_for_product(rows_by_sku, product.sku)
+          ext = Products::ExtendedAttributesFetchService.fetch_for_product(product, results_jsonl_row: row)
+          stats_mutex.synchronize { stats[:updated] += 1 if ext[:updated] }
 
-        vres = IkeaLvProductVariantsService.new(product: product, force: true).call
-        stats_mutex.synchronize { stats[:updated] += 1 if vres[:changed] }
+          sync_local_images!(product, stats, stats_mutex)
+          product.reload
 
-        product.reload
-        if product.variants_payload.present?
-          Products::VariantProductsEnsureService.ensure!(product, category: category)
-        end
+          vres = IkeaLvProductVariantsService.new(product: product, force: true).call
+          stats_mutex.synchronize { stats[:updated] += 1 if vres[:changed] }
 
-        sync_local_images!(product, stats, stats_mutex)
+          product.reload
+          if product.variants_payload.present?
+            Products::VariantProductsEnsureService.ensure!(product, category: category)
+          end
 
-        if include_referenced
-          Products::ReferencedProductsEnsureService.ensure_for!(product, category: category)
-        end
-      rescue StandardError => e
+          if include_referenced
+            Products::ReferencedProductsEnsureService.ensure_for!(product, category: category)
+          end
+        rescue StandardError => e
         Rails.logger.error "RefreshCategoryFromLtJob: enrich #{sku}: #{e.message}"
         stats_mutex.synchronize do
           stats[:errors] += 1

@@ -388,24 +388,7 @@ class ParseProductsJob < ApplicationJob
       end
     end
     
-    # ВАЖНО: Переводим название продукта сразу в базовом парсере
-    # Переводим только если name_ru еще не установлен или совпадает с оригиналом
-    if name.present? && (product.nil? || product.name_ru.blank? || product.name_ru == product.name)
-      begin
-        attributes[:name_ru] = TranslationService.translate(
-          name,
-          target_lang: 'ru',
-          source_lang: 'pl'
-        )
-        Rails.logger.debug "ParseProductsJob: Translated name for #{listing_sku}: #{name} → #{attributes[:name_ru]}"
-      rescue => e
-        Rails.logger.warn "ParseProductsJob: Translation failed for product #{listing_sku}: #{e.message}"
-        # Продолжаем без перевода, не блокируем парсинг
-      end
-    elsif product && product.name_ru.present? && product.name_ru != product.name
-      # Используем существующий перевод, если он есть
-      attributes[:name_ru] = product.name_ru
-    end
+    # ВАЖНО: Сейчас не переводим поле name/name_ru (оставляем данные как есть)
     
     # ВАЖНО: Создаем или обновляем продукт (не меняем sku у существующей строки — избегаем дублей s*/без s)
     if product
