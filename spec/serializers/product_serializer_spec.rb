@@ -89,6 +89,51 @@ RSpec.describe ProductSerializer do
     end
   end
 
+  describe ".build_packages_for_customer_payload" do
+    it "builds packages from packaging.details when measurements_modal has no packages" do
+      size = {
+        "packaging" => {
+          "desc" => "BÅRSLÖV БОРСЛЁВ, 805.415.94",
+          "details" => [
+            {
+              "width" => "83 см",
+              "height" => "48 см",
+              "length" => "158 см",
+              "weight" => "44.40 кг",
+              "count" => 1,
+              "label" => "BÅRSLÖV БОРСЛЁВ · 3-местный диван-кровать с козеткой · 805.415.94"
+            }
+          ]
+        }
+      }
+      packages = described_class.build_packages_for_customer_payload(size, nil)
+      expect(packages.size).to eq(1)
+      expect(packages[0]["name"]).to include("BÅRSLÖV")
+      expect(packages[0]["type_name"]).to include("3-местный")
+      expect(packages[0]["article_number"]["value"]).to eq("805.415.94")
+      by_name = packages[0]["measurements"].index_by { |m| m["name"] }
+      expect(by_name["Ширина"]["measure"]).to eq("83 см")
+      expect(by_name["Упаковка(-и)"]["measure"]).to eq("1")
+    end
+
+    it "prefers measurements_modal.packages when present" do
+      mm = {
+        "packages" => [
+          {
+            "name" => "P Name",
+            "type_name" => "P Type",
+            "measurements" => [{ "name" => "Ширина", "measure" => "10 см" }],
+            "article_number" => { "label" => "Номер товара", "value" => "111.222.33" }
+          }
+        ]
+      }
+      size = { "packaging" => { "desc" => nil, "details" => [{ "width" => "99 см" }] } }
+      packages = described_class.build_packages_for_customer_payload(size, mm)
+      expect(packages[0]["name"]).to eq("P Name")
+      expect(packages[0]["measurements"].first["measure"]).to eq("10 см")
+    end
+  end
+
   describe ".dedupe_instruction_files / customer_full_attributes_payload instructions" do
     it "removes duplicate document links (same URL, http vs https, trailing slash)" do
       raw = [

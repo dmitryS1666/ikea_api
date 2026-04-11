@@ -200,6 +200,7 @@ class ProductSerializer
 
     size = ProductSerializer.build_size_block(dimensions_map, detailed_info["Информация об упаковке"])
     enrich_size_block_from_measurements_modal!(size, measurements_modal, product)
+    size["packages"] = ProductSerializer.build_packages_for_customer_payload(size, measurements_modal)
 
     materials = ProductSerializer.build_materials_block(detailed_info["Материал и уход"])
     enrich_materials_block_from_product!(materials, product, product_details_modal)
@@ -279,6 +280,134 @@ class ProductSerializer
   end
 
   MEASUREMENT_KEYS = %w[length width height weight diameter].freeze
+
+  PACKAGE_MEASUREMENT_LABELS_RU = {
+    "width" => "Ширина",
+    "height" => "Высота",
+    "length" => "Длина",
+    "depth" => "Глубина",
+    "weight" => "Вес",
+    "diameter" => "Диаметр"
+  }.freeze
+
+  ARTICLE_IN_LABEL_RE = /\b(\d{3}\.\d{3}\.\d{2})\b|\b(\d{8})\b/.freeze
+
+  # Для фронта: «как в LT» (packages с measurements[]) + совместимость с упрощённым packaging.details.
+  def self.build_packages_for_customer_payload(size_block, measurements_modal)
+    from_modal = extract_packages_from_measurements_modal(measurements_modal)
+    return from_modal if from_modal.any?
+
+    packaging = size_block["packaging"]
+    packages_from_packaging_block(packaging)
+  end
+
+  def self.extract_packages_from_measurements_modal(mm)
+    return [] unless mm.is_a?(Hash)
+
+    raw = mm["packages"] || mm[:packages]
+    Array(raw).filter_map { |pkg| normalize_package_entry_from_modal(pkg) }
+  end
+
+  def self.normalize_package_entry_from_modal(pkg)
+    return nil unless pkg.is_a?(Hash)
+
+    pkg = pkg.stringify_keys
+    measurements = normalize_package_measurements_rows(pkg["measurements"])
+    return nil if measurements.empty? && pkg["name"].blank?
+
+    out = {}
+    out["name"] = pkg["name"].presence
+    out["type_name"] = (pkg["type_name"] || pkg["typeName"]).presence
+    art = pkg["article_number"] || pkg["articleNumber"]
+    if art.is_a?(Hash)
+      h = art.stringify_keys
+      lab = h["label"].presence || "Номер товара"
+      val = h["value"].presence
+      out["article_number"] = { "label" => lab, "value" => val } if val.present?
+    elsif art.present?
+      out["article_number"] = { "label" => "Номер товара", "value" => art.to_s.strip }
+    end
+    out["measurements"] = measurements if measurements.any?
+    out.compact.presence
+  end
+
+  def self.normalize_package_measurements_rows(raw)
+    Array(raw).filter_map do |m|
+      case m
+      when Hash
+        m = m.stringify_keys
+        n = m["name"].to_s.strip
+        v = (m["measure"] || m["value"]).to_s.strip
+        next if n.blank? || v.blank?
+
+        { "name" => n, "measure" => v }
+      end
+    end
+  end
+
+  def self.packages_from_packaging_block(packaging)
+    return [] unless packaging.is_a?(Hash)
+
+    Array(packaging["details"]).filter_map do |row|
+      next unless row.is_a?(Hash)
+
+      row = row.stringify_keys
+      name, type_name, article_raw = parse_packaging_three_part_label(row["label"])
+      name ||= packaging["desc"].presence
+
+      measurements = []
+      PACKAGE_MEASUREMENT_LABELS_RU.each do |en, ru|
+        v = row[en]
+        measurements << { "name" => ru, "measure" => v.to_s.strip } if v.present?
+      end
+      if row["count"].present?
+        measurements << { "name" => "Упаковка(-и)", "measure" => row["count"].to_s.strip }
+      end
+
+      article_display = article_raw.presence || format_article_dots(extract_article_from_desc(packaging["desc"]))
+      article_number =
+        if article_display.present?
+          { "label" => "Номер товара", "value" => article_display }
+        end
+
+      {
+        "name" => name,
+        "type_name" => type_name,
+        "measurements" => measurements,
+        "article_number" => article_number
+      }.compact
+    end
+  end
+
+  def self.parse_packaging_three_part_label(label)
+    return [nil, nil, nil] if label.to_s.blank?
+
+    parts = label.to_s.split(/\s*·\s*/).map(&:strip).reject(&:blank?)
+    article = parts.find { |p| p.match?(ARTICLE_IN_LABEL_RE) }
+    rest = parts.reject { |p| p == article }
+    name = rest[0].presence
+    type_name = rest[1].presence if rest.size > 1
+    raw_art = article&.match(ARTICLE_IN_LABEL_RE)&.captures&.compact&.first
+    [name, type_name, raw_art]
+  end
+
+  def self.extract_article_from_desc(desc)
+    return nil if desc.to_s.blank?
+
+    desc.to_s.match(ARTICLE_IN_LABEL_RE)&.captures&.compact&.first
+  end
+
+  def self.format_article_dots(raw)
+    return nil if raw.blank?
+
+    s = raw.to_s.strip
+    return s if s.include?(".")
+
+    d = s.gsub(/\D/, "")
+    return s if d.length != 8
+
+    "#{d[0, 3]}.#{d[3, 3]}.#{d[6, 2]}"
+  end
 
   def self.packaging_missing_physical_measurements?(packaging)
     return true unless packaging.is_a?(Hash)
