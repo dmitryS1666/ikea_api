@@ -1,7 +1,7 @@
 class ApplicationController < ActionController::API
   include ActionController::HttpAuthentication::Token::ControllerMethods
   
-  before_action :authenticate_user
+  before_action :authenticate_user, unless: :api_request?
   before_action :set_noindex_header
 
   def authenticate_user
@@ -59,6 +59,10 @@ class ApplicationController < ActionController::API
   end
 
   private
+
+  def api_request?
+    request.path.start_with?('/api/v1/')
+  end
 
   def set_noindex_header
     response.headers['X-Robots-Tag'] = 'noindex, nofollow'

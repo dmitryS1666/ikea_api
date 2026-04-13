@@ -40,7 +40,6 @@ class RefreshCategoryFromLtJob < ApplicationJob
       else
         true
       end
-    include_referenced = ActiveModel::Type::Boolean.new.cast(payload["include_referenced"])
     max_created =
       if max_created.present?
         max_created.to_i
@@ -84,59 +83,46 @@ class RefreshCategoryFromLtJob < ApplicationJob
       images_synced: 0,
       created_skus: []
     }
-    stats_mutex = Mutex.new
     parser = ParseProductsJob.new
     canonical_listing_skus = []
-    stop_listing = false
 
     begin
       offset = 0
       page_size = 50
       touched_canonical_skus = []
 
+      # 1. Собираем все SKU основной категории с PL
+      all_pl_products = []
       loop do
         check_task_not_stopped!(task)
-        break if stop_listing
-
         products_data = CategoryLtListingService.fetch_page(category, offset: offset, limit: page_size)
         break if products_data.empty?
-
-        item_nos =
-          products_data.map do |pd|
-            pd["itemNoGlobal"] || pd[:itemNoGlobal] ||
-              pd["itemNo"] || pd[:itemNo] ||
-              pd["item_no"] || pd[:item_no] ||
-              pd.dig("gprDescription", "itemNo")
-          end.compact.uniq
-
-        availability_data =
-          if item_nos.any?
-            begin
-              IkeaApiService.check_availability(item_nos)
-            rescue StandardError => e
-              Rails.logger.error "RefreshCategoryFromLtJob: availability batch failed: #{e.message}"
-              {}
-            end
-          else
-            {}
-          end
-
-        page_canonical =
-          if max_created.present?
-            process_listing_sequential(
-              products_data, parser, category, availability_data, task, stats, max_created
-            )
-          else
-            parallel_each(products_data, threads: THREADS) do |product_data|
-              process_one_listing_item(product_data, parser, category, availability_data, task, stats, stats_mutex)
-            end
-          end
-        touched_canonical_skus.concat(page_canonical)
-
-        stop_listing = true if max_created.present? && stats[:created] >= max_created
-
+        
+        all_pl_products.concat(products_data)
         offset += page_size
         break if products_data.length < page_size
+      end
+
+      # 2. Обрабатываем каждый продукт
+      all_pl_products.each do |product_data|
+        check_task_not_stopped!(task)
+        
+        # Создаем/обновляем базовый продукт (цена и остатки с PL)
+        canon = process_one_listing_item(product_data, parser, category, {}, task, stats, nil)
+        next if canon.blank?
+        
+        touched_canonical_skus << canon
+        product = Product.find_by(sku: canon)
+        next unless product
+
+        # 3. Обогащаем данными (LT -> PL + AI)
+        # Внутри enrich_product! происходит:
+        # - Проверка LT, если нет - AI перевод
+        # - Variants (IkeaLvProductVariantsService)
+        # - Related/Included (ReferencedProductsEnsureService)
+        enrich_product!(product, category, rows_by_sku, task, stats, nil)
+        
+        break if max_created.present? && stats[:created] >= max_created
       end
 
       touched_canonical_skus.compact!
@@ -144,16 +130,6 @@ class RefreshCategoryFromLtJob < ApplicationJob
       canonical_listing_skus.replace(touched_canonical_skus)
 
       stats[:linked] = ensure_category_links_for_listing!(category, canonical_listing_skus)
-
-      enrich_products!(
-        canonical_listing_skus,
-        category,
-        rows_by_sku,
-        include_referenced,
-        task,
-        stats,
-        stats_mutex
-      )
 
       if detach_orphans && canonical_listing_skus.any?
         stats[:detached] = detach_category_products_not_in_listing(category, canonical_listing_skus)
@@ -177,39 +153,62 @@ class RefreshCategoryFromLtJob < ApplicationJob
 
   private
 
-  def enrich_products!(canonical_skus, category, rows_by_sku, include_referenced, task, stats, stats_mutex)
-    parallel_each(canonical_skus, threads: THREADS) do |sku|
-      check_task_not_stopped!(task)
+  def enrich_product!(product, category, rows_by_sku, task, stats, mutex)
+    check_task_not_stopped!(task)
 
-      product = Product.find_by(sku: sku)
-      next unless product
+    begin
+      row = jsonl_row_for_product(rows_by_sku, product.sku)
+      # Принудительно используем ИИ-перевод, если нет на LT
+      ext = Products::ExtendedAttributesFetchService.fetch_for_product(
+        product, 
+        results_jsonl_row: row,
+        force_ai_translation: true
+      )
+      
+      if mutex
+        mutex.synchronize { stats[:updated] += 1 if ext[:updated] }
+      else
+        stats[:updated] += 1 if ext[:updated]
+      end
 
-        begin
-          row = jsonl_row_for_product(rows_by_sku, product.sku)
-          ext = Products::ExtendedAttributesFetchService.fetch_for_product(product, results_jsonl_row: row)
-          stats_mutex.synchronize { stats[:updated] += 1 if ext[:updated] }
+      sync_local_images!(product, stats, mutex)
+      product.reload
 
-          sync_local_images!(product, stats, stats_mutex)
-          product.reload
+      # Варианты (PIP PL -> LT)
+      vres = IkeaLvProductVariantsService.new(product: product, force: true).call
+      if mutex
+        mutex.synchronize { stats[:updated] += 1 if vres[:changed] }
+      else
+        stats[:updated] += 1 if vres[:changed]
+      end
 
-          vres = IkeaLvProductVariantsService.new(product: product, force: true).call
-          stats_mutex.synchronize { stats[:updated] += 1 if vres[:changed] }
+      product.reload
+      if product.variants_payload.present?
+        # Это создаст новые Product для вариантов и вызовет ExtendedAttributesFetchService для них
+        Products::VariantProductsEnsureService.ensure!(product, category: category)
+      end
 
-          product.reload
-          if product.variants_payload.present?
-            Products::VariantProductsEnsureService.ensure!(product, category: category)
-          end
-
-          if include_referenced
-            Products::ReferencedProductsEnsureService.ensure_for!(product, category: category)
-          end
-        rescue StandardError => e
-        Rails.logger.error "RefreshCategoryFromLtJob: enrich #{sku}: #{e.message}"
-        stats_mutex.synchronize do
+      # Сопутствующие товары (related, included, etc)
+      Products::ReferencedProductsEnsureService.ensure_for!(product, category: category)
+    rescue StandardError => e
+      Rails.logger.error "RefreshCategoryFromLtJob: enrich #{product.sku}: #{e.message}"
+      if mutex
+        mutex.synchronize do
           stats[:errors] += 1
           task.increment_errors!
         end
+      else
+        stats[:errors] += 1
+        task.increment_errors!
       end
+    end
+  end
+
+  def enrich_products!(canonical_skus, category, rows_by_sku, _include_referenced, task, stats, stats_mutex)
+    parallel_each(canonical_skus, threads: THREADS) do |sku|
+      product = Product.find_by(sku: sku)
+      next unless product
+      enrich_product!(product, category, rows_by_sku, task, stats, stats_mutex)
       nil
     end
   end
@@ -222,13 +221,17 @@ class RefreshCategoryFromLtJob < ApplicationJob
     nil
   end
 
-  def sync_local_images!(product, stats, stats_mutex)
+  def sync_local_images!(product, stats, mutex)
     return if Array(product.images).compact.reject(&:blank?).empty?
 
     result = ImageDownloader.sync_product_images(product)
     return unless result[:changed]
 
-    stats_mutex.synchronize { stats[:images_synced] += 1 }
+    if mutex
+      mutex.synchronize { stats[:images_synced] += 1 }
+    else
+      stats[:images_synced] += 1
+    end
   rescue StandardError => e
     Rails.logger.warn "RefreshCategoryFromLtJob: images sku=#{product.sku}: #{e.message}"
   end

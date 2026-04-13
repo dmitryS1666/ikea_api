@@ -9,7 +9,8 @@ class CategoryLtListingService
     def pl_listing_url(category)
       raw = category.url.to_s.strip
       if raw.blank?
-        if category.respond_to?(:numeric_id?) && category.numeric_id?
+        # Если ikea_id числовой, строим URL по шаблону
+        if category.ikea_id.to_s.match?(/\A\d+\z/)
           return "https://www.ikea.com/pl/pl/cat/#{category.ikea_id}/"
         end
 

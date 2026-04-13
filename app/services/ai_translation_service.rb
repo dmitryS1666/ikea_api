@@ -20,8 +20,7 @@ class AiTranslationService
   def translate(text, target_lang: 'ru', source_lang: 'pl')
     return '' if text.blank?
 
-    response = self.class.post(
-      @api_url,
+    options = {
       headers: {
         'Authorization' => "Bearer #{@api_key}",
         'Content-Type' => 'application/json'
@@ -35,12 +34,33 @@ class AiTranslationService
         temperature: 0.3
       }.to_json,
       timeout: 30
-    )
+    }
 
-    if response.success?
+    # Используем прокси для OpenAI, если они настроены
+    if @provider == :openai && defined?(ProxyRotator)
+      begin
+        response = ProxyRotator.with_proxy_retry do |proxy_options|
+          # Передаем параметры по отдельности, чтобы избежать вложенности
+          HTTParty.post(@api_url, {
+            headers: options[:headers],
+            body: options[:body],
+            timeout: options[:timeout]
+          }.merge(proxy_options || {}))
+        end
+      rescue => e
+        Rails.logger.error("AI Translation Proxy Error (#{@provider}): #{e.message}")
+        nil
+      end
+    else
+      response = self.class.post(@api_url, options)
+    end
+
+    if response&.success?
       response.dig('choices', 0, 'message', 'content')&.strip
     else
-      Rails.logger.error("AI Translation Error (#{@provider}): #{response.code} - #{response.body}")
+      code = response&.code || 'No Response'
+      body = response&.body || 'Empty Body'
+      Rails.logger.error("AI Translation Error (#{@provider}): #{code} - #{body}")
       nil
     end
   rescue => e

@@ -112,7 +112,8 @@ module Products
           category_id: cid
         )
 
-      Products::ExtendedAttributesFetchService.fetch_for_product(product)
+      # При создании варианта также разрешаем ИИ-перевод, если нет на LT
+      Products::ExtendedAttributesFetchService.fetch_for_product(product, force_ai_translation: true)
       product.reload
 
       if stub_still_empty_after_fetch?(product)

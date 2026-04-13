@@ -10,11 +10,11 @@
 #
 # Связи наборов / сопутствующие SKU и документы без LT — дополняются с PL, если пусто.
 class Products::ExtendedAttributesFetchService
-  def self.fetch_for_product(product, results_jsonl_row: nil)
-    new.fetch(product, results_jsonl_row: results_jsonl_row)
+  def self.fetch_for_product(product, results_jsonl_row: nil, force_ai_translation: false)
+    new.fetch(product, results_jsonl_row: results_jsonl_row, force_ai_translation: force_ai_translation)
   end
 
-  def fetch(product, results_jsonl_row: nil)
+  def fetch(product, results_jsonl_row: nil, force_ai_translation: false)
     pl_url = pl_product_url(product)
     return { updated: false } if pl_url.blank?
 
@@ -26,9 +26,13 @@ class Products::ExtendedAttributesFetchService
     lt_details = use_lt_descriptive ? fetch_details_with_optional_headless(lt_url) : {}
 
     if use_lt_descriptive && lt_details.blank?
-      Rails.logger.warn "ExtendedAttributesFetchService: LT data missing for #{product.sku}, skipping product until translation fallback ready"
-      # TODO: добавить нейронку для перевода, чтобы можно было дополнять такие товары без страницы LT
-      return { updated: false, skipped_missing_lt: true }
+      if force_ai_translation
+        Rails.logger.info "ExtendedAttributesFetchService: LT data missing for #{product.sku}, falling back to AI translation of PL data"
+        use_lt_descriptive = false
+      else
+        Rails.logger.warn "ExtendedAttributesFetchService: LT data missing for #{product.sku}, skipping product until translation fallback ready"
+        return { updated: false, skipped_missing_lt: true }
+      end
     end
 
     jsonl_applied =
@@ -64,6 +68,9 @@ class Products::ExtendedAttributesFetchService
       merge_pl_with_lt_priority(product, pl_details, attributes)
     else
       merge_pl_structural_and_commerce(product, pl_details, attributes)
+      if force_ai_translation
+        translate_all_fields_via_ai!(product, attributes)
+      end
     end
 
     supplement_materials_from_lt_modal!(lt_details, attributes) if use_lt_descriptive && lt_details.present?
@@ -571,6 +578,31 @@ class Products::ExtendedAttributesFetchService
 
     if pl_details.dig(:availability, :quantity).present?
       attributes[:quantity] = pl_details[:availability][:quantity]
+    end
+  end
+
+  def translate_all_fields_via_ai!(product, attributes)
+    fields = %i[short_description content materials features care_instructions environmental_info designer safety_info good_to_know]
+    
+    fields.each do |field|
+      field_ru = "#{field}_ru".to_sym
+      source_text = attributes[field] || product.read_attribute(field)
+      next if source_text.blank?
+      
+      # Если текст уже на русском (содержит кириллицу), не переводим его через AI
+      if source_text.match?(/[а-яА-Я]/)
+        attributes[field_ru] = source_text
+        attributes[:translated] = true
+        next
+      end
+      
+      # Принудительный перевод через AI (OpenAI/DeepSeek)
+      Rails.logger.info("ExtendedAttributesFetchService: translating #{field} via AI: #{source_text.to_s.truncate(50)}")
+      translated = AiTranslationService.translate(source_text.is_a?(Array) ? source_text.join("\n") : source_text)
+      if translated.present?
+        attributes[field_ru] = translated
+        attributes[:translated] = true
+      end
     end
   end
 
