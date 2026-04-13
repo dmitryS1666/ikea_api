@@ -18,7 +18,8 @@ module Products
 
     def ensure!
       return unless @category
-      return if @product.variants_payload.blank?
+      # Убираем жесткую привязку только к variants_payload, так как варианты могут быть и в обычном поле variants
+      return if @product.variants_payload.blank? && @product.normalized_variant_skus.blank?
 
       collect_skus.each { |sku| process_variant_sku(sku) }
     end

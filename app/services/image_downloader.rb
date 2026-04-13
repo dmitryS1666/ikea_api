@@ -164,11 +164,29 @@ class ImageDownloader
     end
 
     def download_single_image(product, url)
-      io = URI.open(
-        url,
-        open_timeout: DEFAULT_OPEN_TIMEOUT,
-        read_timeout: DEFAULT_READ_TIMEOUT
-      )
+      io =
+        if defined?(ProxyRotator)
+          ProxyRotator.with_proxy_retry do |proxy_options|
+            URI.open(
+              url,
+              open_timeout: DEFAULT_OPEN_TIMEOUT,
+              read_timeout: DEFAULT_READ_TIMEOUT,
+              proxy_http_basic_authentication: proxy_options ? [
+                "http://#{proxy_options[:http_proxyaddr]}:#{proxy_options[:http_proxyport]}",
+                proxy_options[:http_proxyuser],
+                proxy_options[:http_proxypass]
+              ] : nil,
+              "User-Agent" => ENV.fetch('USER_AGENT', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+            )
+          end
+        else
+          URI.open(
+            url,
+            open_timeout: DEFAULT_OPEN_TIMEOUT,
+            read_timeout: DEFAULT_READ_TIMEOUT,
+            "User-Agent" => ENV.fetch('USER_AGENT', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+          )
+        end
 
       content_type =
         if io.respond_to?(:content_type)

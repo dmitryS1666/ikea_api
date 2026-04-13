@@ -26,12 +26,25 @@ class Products::ExtendedAttributesFetchService
     lt_details = use_lt_descriptive ? fetch_details_with_optional_headless(lt_url) : {}
 
     if use_lt_descriptive && lt_details.blank?
-      if force_ai_translation
-        Rails.logger.info "ExtendedAttributesFetchService: LT data missing for #{product.sku}, falling back to AI translation of PL data"
-        use_lt_descriptive = false
-      else
-        Rails.logger.warn "ExtendedAttributesFetchService: LT data missing for #{product.sku}, skipping product until translation fallback ready"
-        return { updated: false, skipped_missing_lt: true }
+      # ПОДСТРАХОВКА: Если по первому артикулу (из SKU) LT не ответил, пробуем второй (из item_no)
+      db_article = product.item_no.to_s.gsub(/[^0-9a-z]/i, "").presence
+      match = product.sku.to_s.match(/(\d{8})/)
+      sku_article = match ? match[1] : nil
+      
+      if db_article.present? && db_article != sku_article
+        alt_lt_url = "https://www.ikea.com/lt/ru/p/-#{db_article}/"
+        Rails.logger.info "ExtendedAttributesFetchService: LT primary URL failed for #{product.sku}, trying alternative: #{alt_lt_url}"
+        lt_details = fetch_details_with_optional_headless(alt_lt_url)
+      end
+
+      if lt_details.blank?
+        if force_ai_translation
+          Rails.logger.info "ExtendedAttributesFetchService: LT data missing for #{product.sku} after all attempts, falling back to AI translation of PL data"
+          use_lt_descriptive = false
+        else
+          Rails.logger.warn "ExtendedAttributesFetchService: LT data missing for #{product.sku}, skipping product until translation fallback ready"
+          return { updated: false, skipped_missing_lt: true }
+        end
       end
     end
 
@@ -283,9 +296,25 @@ class Products::ExtendedAttributesFetchService
   end
 
   def lt_product_url(product)
-    article = product.item_no.to_s.gsub(/[^0-9a-z]/i, "").presence
-    return "https://www.ikea.com/lt/ru/p/-#{article}/" if article.present?
+    # 1. Пробуем артикул из SKU (самый надежный способ для LT)
+    match = product.sku.to_s.match(/(\d{8})/)
+    sku_article = match ? match[1] : nil
+    
+    # 2. Пробуем item_no из БД
+    db_article = product.item_no.to_s.gsub(/[^0-9a-z]/i, "").presence
+    
+    # Собираем список кандидатов для проверки
+    articles = [sku_article, db_article].compact.uniq
+    
+    articles.each do |article|
+      url = "https://www.ikea.com/lt/ru/p/-#{article}/"
+      # Проверяем доступность страницы через быстрый HEAD запрос или простой GET
+      # Но так как мы в сервисе, который будет вызван позже, мы просто возвращаем первый валидный паттерн
+      # Улучшение: если мы здесь, значит мы хотим LT URL.
+      return url
+    end
 
+    # 3. Fallback на URL из базы, если он литовский
     u = product.url.to_s
     return u if u.include?("/lt/ru/")
     nil
@@ -331,6 +360,9 @@ class Products::ExtendedAttributesFetchService
   end
 
   def apply_pl_descriptive(pl_details, attributes)
+    if pl_details[:name].present?
+      attributes[:name] = pl_details[:name]
+    end
     if pl_details[:description].present? && attributes[:content].blank?
       attributes[:content] = pl_details[:description]
     end
@@ -602,6 +634,9 @@ class Products::ExtendedAttributesFetchService
       if translated.present?
         attributes[field_ru] = translated
         attributes[:translated] = true
+        attributes[:ai_translated] = true
+        # Обновляем продукт, если мы работаем с существующим объектом
+        product.update_columns(field_ru => translated, translated: true, ai_translated: true) if product.persisted?
       end
     end
   end
