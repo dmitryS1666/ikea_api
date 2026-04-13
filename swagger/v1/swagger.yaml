@@ -1152,6 +1152,60 @@ paths:
                     type: object
                   a1_verification_id:
                     type: string
+  /api/v1/payment_links/{id}:
+    get:
+      summary: Перенаправить на Webpay
+      description: |
+        Валидирует `token` и `payment_expires_at`, затем возвращает HTML-форму, которая сразу POST-ится на `wsb_payment_page`.
+        Ссылка действительна 30 минут после создания, далее возвращает `410`.
+      tags:
+        - Checkout
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: HTML-форма Webpay, транслирующая пользователя на платёжную страницу
+          content:
+            text/html:
+              schema:
+                type: string
+                format: html
+        '403':
+          description: Токен не совпадает
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        '404':
+          description: Заказ не найден
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        '410':
+          description: Ссылка устарела
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
   /api/v1/delivery/types:
     get:
       summary: Получить доступные типы доставки и провайдеров
