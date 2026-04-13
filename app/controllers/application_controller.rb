@@ -1,6 +1,7 @@
 class ApplicationController < ActionController::API
   include ActionController::HttpAuthentication::Token::ControllerMethods
   
+  before_action :authenticate_user
   before_action :set_noindex_header
 
   def authenticate_user

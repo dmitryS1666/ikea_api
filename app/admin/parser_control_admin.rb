@@ -132,7 +132,7 @@ Trestle.resource :parser_control, model: ParserControl do
                   job_class.perform_later(payload[:ikea_id].to_s, task_id: task.id)
                 elsif task_type == 'pl_prices_stock'
                   job_class.perform_later(task_id: task.id, threads: threads)
-                elsif %w[extended_attrs_import extended_attributes_by_skus fix_translations fix_missing_images translate_all_products update_all_product_images update_product_variants].include?(task_type)
+                elsif %w[extended_attrs_import extended_attributes_by_skus fix_missing_images update_all_product_images update_product_variants].include?(task_type)
                   # Для полного обновления картинок передаем cleanup: true по умолчанию
                   cleanup = params[:cleanup] == '1' || params[:cleanup].nil?
                   job_args = { task_id: task.id, reset: reset, cleanup: cleanup, threads: threads, sku: payload[:skus] }
@@ -249,7 +249,7 @@ Trestle.resource :parser_control, model: ParserControl do
         return redirect_to admin.instance_path(ParserControl.new(id: 'show'))
       end
 
-      unless %w[extended_attrs_import fix_translations update_all_product_images].include?(task.task_type)
+      unless %w[extended_attrs_import update_all_product_images].include?(task.task_type)
         flash[:error] = "Эта задача не поддерживает продолжение"
         return redirect_to admin.instance_path(ParserControl.new(id: 'show'))
       end
@@ -475,8 +475,6 @@ Trestle.resource :parser_control, model: ParserControl do
         FetchCurrencyRatesJob
       when 'fix_missing_images'
         FixMissingImagesJob
-      when 'fix_translations'
-        RepairProductTranslationsJob
       when 'extended_attrs_import'
         ImportExtendedAttributesFromFileJob
       when 'extended_attributes_by_skus'
@@ -525,7 +523,6 @@ Trestle.resource :parser_control, model: ParserControl do
         'category_filters_one' => 'Переиндексация фильтров одной категории',
         'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)',
         'fix_missing_images' => 'Проверка и докачка отсутствующих картинок',
-        'fix_translations' => 'Исправление битых переводов',
         'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
         'recover_missing_images' => 'Поиск и восполнение ссылок на картинки',
         'recover_broken_product_images' => 'Восстановление битых картинок из лога или по списку SKU',

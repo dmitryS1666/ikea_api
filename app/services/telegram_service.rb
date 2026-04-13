@@ -76,7 +76,6 @@ class TelegramService
         'extended_attributes' => 'Расширенные атрибуты продуктов',
         'currency_rates' => 'Курсы валют',
         'fix_missing_images' => 'Докачка отсутствующих картинок',
-        'fix_translations' => 'Исправление битых переводов',
         'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
         'recover_missing_images' => 'Восполнение ссылок на картинки',
         'recover_broken_product_images' => 'Восстановление битых картинок',

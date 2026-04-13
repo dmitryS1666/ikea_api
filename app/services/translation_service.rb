@@ -28,6 +28,18 @@ class TranslationService
     translated = nil
     provider = nil
     
+    # 0. AI Translation (OpenAI / DeepSeek)
+    if translated.blank? || invalid_translation?(translated, text)
+      begin
+        Rails.logger.info("TranslationService: #{context_info}translating via AI: #{text.to_s.truncate(50)}")
+        # По умолчанию используем OpenAI, так как ключ был передан
+        translated = AiTranslationService.translate(text, target_lang: target_lang, source_lang: source_lang)
+        provider = 'ai' if translated.present? && !invalid_translation?(translated, text)
+      rescue => e_ai
+        Rails.logger.warn("AI Translation failed: #{e_ai.message}")
+      end
+    end
+
     # 1. Google Translate (теперь первый приоритет)
     unless skip_google || ENV['GCLOUD_PROJECT'].blank? || ENV['GOOGLE_APPLICATION_CREDENTIALS'].blank?
       begin
