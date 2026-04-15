@@ -117,7 +117,6 @@ class CheckoutService
     if order&.persisted?
       WebpayPaymentLinkService.issue_link!(order)
       OrderNotificationService.call(order)
-      CrmSyncJob.perform_later('Order', order.id)
       { success: true, order: order }
     else
       { error: order&.errors&.full_messages&.join(', ') || 'Ошибка создания заказа' }

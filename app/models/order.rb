@@ -35,6 +35,7 @@ class Order < ApplicationRecord
 
   after_update :notify_status_change, if: :saved_change_to_status?
   after_save :enqueue_tracking_update, if: :saved_change_to_track_number?
+  after_create_commit :sync_with_crm
 
   def purchased?
     status.in?(PURCHASED_STATUSES)
@@ -71,5 +72,9 @@ class Order < ApplicationRecord
 
   def transitioning_to_purchased?
     will_save_change_to_status? && status.in?(PURCHASED_STATUSES)
+  end
+
+  def sync_with_crm
+    CrmSyncJob.perform_later('Order', id)
   end
 end

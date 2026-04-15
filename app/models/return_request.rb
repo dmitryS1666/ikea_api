@@ -10,4 +10,12 @@ class ReturnRequest < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
 
   scope :ordered, -> { order(created_at: :desc) }
+
+  after_create_commit :sync_with_crm
+
+  private
+
+  def sync_with_crm
+    CrmSyncJob.perform_later('ReturnRequest', id)
+  end
 end

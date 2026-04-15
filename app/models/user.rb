@@ -53,4 +53,22 @@ class User < ApplicationRecord
   def passport_verified?
     passport_verified_at.present?
   end
+
+  after_commit :sync_with_crm, on: [:create, :update], if: :should_sync_crm?
+
+  private
+
+  def should_sync_crm?
+    # Синхронизируем только при создании или изменении важных полей
+    # Исключаем технические поля типа remember_token или last_login
+    saved_change_to_username? || saved_change_to_email? || saved_change_to_phone? || 
+    saved_change_to_first_name? || saved_change_to_last_name? || saved_change_to_middle_name? ||
+    saved_change_to_encrypted_passport_json? || saved_change_to_gdpr_consent? || 
+    saved_change_to_newsletter_consent? || saved_change_to_telegram_marketing? ||
+    saved_change_to_email_marketing?
+  end
+
+  def sync_with_crm
+    CrmSyncJob.perform_later('User', id)
+  end
 end
