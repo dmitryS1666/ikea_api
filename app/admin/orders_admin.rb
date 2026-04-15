@@ -6,7 +6,7 @@ Trestle.resource(:orders) do
   table do
     column :id
     column :customer_name
-    column :status do |order|
+    column :status, align: :center do |order|
       if order.status
         status_text = I18n.t("activerecord.attributes.order.statuses.#{order.status}")
         case order.status.to_sym
@@ -14,13 +14,17 @@ Trestle.resource(:orders) do
           status_tag(status_text, :success)
         when :cancelled
           status_tag(status_text, :danger)
-        when :created, :confirmed, :paid
+        when :created
+          status_tag(status_text, :info)
+        when :processing, :confirmed, :paid, :purchased
+          status_tag(status_text, :primary)
+        when :shipped, :arrived_pvz, :handed_to_courier
           status_tag(status_text, :info)
         else
-          status_tag(status_text, :primary)
+          status_tag(status_text, :warning)
         end
       else
-        status_tag("Неизвестно (#{order.attributes['status']})", :secondary)
+        status_tag("Неизвестно", :secondary)
       end
     end
     column :total_amount
@@ -31,8 +35,25 @@ Trestle.resource(:orders) do
   form do |order|
     tab :basic, label: "Основное" do
       row do
-        col(sm: 6) { static_field :id, label: "ID заказа" }
-        col(sm: 6) { static_field :created_at, label: "Дата создания" }
+        col(sm: 4) { static_field :id, label: "ID заказа" }
+        col(sm: 4) do
+          static_field :status, label: "Текущий статус" do
+            if order.status
+              status_text = I18n.t("activerecord.attributes.order.statuses.#{order.status}")
+              case order.status.to_sym
+              when :completed then status_tag(status_text, :success)
+              when :cancelled then status_tag(status_text, :danger)
+              when :created then status_tag(status_text, :info)
+              when :processing, :confirmed, :paid, :purchased then status_tag(status_text, :primary)
+              when :shipped, :arrived_pvz, :handed_to_courier then status_tag(status_text, :info)
+              else status_tag(status_text, :warning)
+              end
+            else
+              status_tag("Неизвестно", :secondary)
+            end
+          end
+        end
+        col(sm: 4) { static_field :created_at, label: "Дата создания" }
       end
       
       divider

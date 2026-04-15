@@ -2,12 +2,16 @@ require 'rails_helper'
 
 RSpec.describe CrmIntegrationService do
   let(:user) { create(:user, username: 'Test User', email: 'test@example.com', phone: '+375291234567', role: 'user') }
-  let(:base_url) { "https://testsub.amocrm.ru" }
+  let(:base_url) { "https://shopbyshop.amocrm.ru" }
 
   before do
     allow(ENV).to receive(:[]).and_call_original
-    allow(ENV).to receive(:[]).with('AMO_CRM_SUBDOMAIN').and_return('testsub')
+    allow(ENV).to receive(:[]).with('AMO_CRM_SUBDOMAIN').and_return('shopbyshop')
     allow(ENV).to receive(:[]).with('AMO_CRM_ACCESS_TOKEN').and_return('testtoken')
+    
+    # Disable CRM sync callbacks during tests to avoid unexpected requests
+    allow_any_instance_of(User).to receive(:sync_with_crm).and_return(true)
+    allow_any_instance_of(Order).to receive(:sync_with_crm).and_return(true)
     
     WebMock.reset!
   end
@@ -18,9 +22,11 @@ RSpec.describe CrmIntegrationService do
         .to_return(status: 204, body: '')
       
       stub_request(:post, %r{#{base_url}/api/v4/contacts})
-        .to_return(status: 200, body: [{ id: 123 }].to_json, headers: { 'Content-Type' => 'application/json' })
+        .to_return(status: 200, body: { _embedded: { contacts: [{ id: 123 }] } }.to_json, headers: { 'Content-Type' => 'application/json' })
 
-      expect(described_class.sync_user(user)).to be_truthy
+      result = described_class.sync_user(user)
+      expect(result[:success]).to be_truthy
+      expect(user.reload.crm_contact_id).to eq('123')
       expect(WebMock).to have_requested(:post, "#{base_url}/api/v4/contacts")
     end
 
@@ -36,21 +42,26 @@ RSpec.describe CrmIntegrationService do
       stub_request(:patch, %r{#{base_url}/api/v4/contacts/456})
         .to_return(status: 200, body: { id: 456 }.to_json, headers: { 'Content-Type' => 'application/json' })
 
-      expect(described_class.sync_user(user)).to be_truthy
+      result = described_class.sync_user(user)
+      expect(result[:success]).to be_truthy
+      expect(user.reload.crm_contact_id).to eq('456')
       expect(WebMock).to have_requested(:patch, "#{base_url}/api/v4/contacts/456")
     end
 
-    it 'returns false on API error during find' do
+    it 'returns error status on API error during find' do
       stub_request(:get, %r{#{base_url}/api/v4/contacts}).to_return(status: 500)
       
-      expect(described_class.sync_user(user)).to be_falsey
+      result = described_class.sync_user(user)
+      expect(result[:success]).to be_falsey
+      expect(result[:error]).to eq("API Error during contact search")
     end
 
-    it 'returns false on API error during create' do
+    it 'returns error status on API error during create' do
       stub_request(:get, %r{#{base_url}/api/v4/contacts}).to_return(status: 204, body: '')
       stub_request(:post, %r{#{base_url}/api/v4/contacts}).to_return(status: 500)
       
-      expect(described_class.sync_user(user)).to be_falsey
+      result = described_class.sync_user(user)
+      expect(result[:success]).to be_falsey
     end
   end
 
@@ -71,16 +82,32 @@ RSpec.describe CrmIntegrationService do
       stub_request(:post, %r{#{base_url}/api/v4/leads/789/notes})
         .to_return(status: 200, body: {}.to_json)
 
-      expect(described_class.sync_order(order)).to be_truthy
+      result = described_class.sync_order(order)
+      expect(result[:success]).to be_truthy
       expect(order.reload.crm_external_id).to eq('789')
       expect(WebMock).to have_requested(:post, "#{base_url}/api/v4/leads")
       expect(WebMock).to have_requested(:post, "#{base_url}/api/v4/leads/789/notes")
     end
 
-    it 'returns false if lead creation fails' do
+    it 'updates existing lead in AmoCRM' do
+      order.update_columns(crm_external_id: '789')
+      
+      stub_request(:patch, %r{#{base_url}/api/v4/leads/789})
+        .to_return(status: 200, body: { id: 789 }.to_json, headers: { 'Content-Type' => 'application/json' })
+      
+      stub_request(:post, %r{#{base_url}/api/v4/leads/789/notes})
+        .to_return(status: 200, body: {}.to_json)
+
+      result = described_class.sync_order(order)
+      expect(result[:success]).to be_truthy
+      expect(WebMock).to have_requested(:patch, "#{base_url}/api/v4/leads/789")
+    end
+
+    it 'returns error status if lead creation fails' do
       stub_request(:post, %r{#{base_url}/api/v4/leads}).to_return(status: 500)
 
-      expect(described_class.sync_order(order)).to be_falsey
+      result = described_class.sync_order(order)
+      expect(result[:success]).to be_falsey
     end
   end
 end
