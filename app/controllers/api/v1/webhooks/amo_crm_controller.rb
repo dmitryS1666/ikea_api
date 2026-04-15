@@ -55,13 +55,31 @@ module Api
               # Map AmoCRM status_id to internal order status
               new_status = Order.statuses.key(status_id)
               
-              if new_status
-                if order.status != new_status
-                  order.update(status: new_status)
-                  Rails.logger.info "[AmoCRM Webhook] Order #{order.id} status updated to #{new_status} (Amo ID: #{status_id})"
+              update_params = {}
+              update_params[:status] = new_status if new_status && order.status != new_status
+
+              # Reverse sync custom fields
+              if lead_data[:custom_fields_values]
+                lead_data[:custom_fields_values].each do |cf|
+                  field_id = cf[:field_id].to_i
+                  value = cf[:values]&.first&.[](:value)
+                  next if value.blank?
+
+                  case field_id
+                  when 363323 # WEIGHT
+                    new_val = value.to_f
+                    update_params[:weight] = new_val if order.weight != new_val
+                  when 377661 # TRACK_NUMBER
+                    update_params[:track_number] = value if order.track_number != value
+                  when 578819 # CANCELLATION_REASON
+                    update_params[:cancellation_reason] = value if order.cancellation_reason != value
+                  end
                 end
-              else
-                Rails.logger.warn "[AmoCRM Webhook] Unknown status_id #{status_id} for Lead #{crm_id}"
+              end
+
+              if update_params.any?
+                order.update(update_params)
+                Rails.logger.info "[AmoCRM Webhook] Order #{order.id} updated: #{update_params.keys.join(', ')}"
               end
             end
           end

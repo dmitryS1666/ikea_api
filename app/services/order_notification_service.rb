@@ -13,10 +13,10 @@ class OrderNotificationService
 
   def self.handle_status_change(order)
     # Согласно таблице БП:
-    # Email notify: Новый, Подтвержден, Оплачен, Выкуплен, Получен на склад, Экспорт из ЕС, Передано в доставку, Прибыло в отделение, Выдано курьеру, Доставлено
+    # Email notify: Новый, Подтвержден, Оплачен, Выкуплен, Получен на склад, Подготовка к отправке, Экспорт из ЕС, Передано в доставку, Прибыло в отделение, Выдано курьеру, Доставлено
     # TG/Viber: Подтвержден, Оплачен, Выкуплен, Получен на склад, Экспорт из ЕС, Прибыло в отделение, Выдано курьеру
 
-    email_statuses = %w[created confirmed paid purchased received_poland export_eu shipped arrived_pvz handed_to_courier completed]
+    email_statuses = %w[created confirmed paid purchased received_poland preparing_for_shipment export_eu shipped arrived_pvz handed_to_courier completed]
     tg_statuses = %w[confirmed paid purchased received_poland export_eu arrived_pvz handed_to_courier]
 
     if email_statuses.include?(order.status)

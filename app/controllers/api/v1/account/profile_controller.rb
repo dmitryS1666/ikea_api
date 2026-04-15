@@ -33,8 +33,8 @@ module Api
           end
 
           if current_user.update(profile_params)
-            # Передача данных в CRM (заглушка)
-            CrmIntegrationService.sync_user(current_user)
+            # Передача данных в CRM
+            CrmSyncJob.perform_later('User', current_user.id)
             render json: user_payload(current_user)
           else
             render json: { errors: current_user.errors.full_messages }, status: :unprocessable_entity

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_13_110936) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_15_035757) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -421,6 +421,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_13_110936) do
     t.string "payment_url"
     t.string "payment_link_token"
     t.string "payment_order_number"
+    t.decimal "weight"
+    t.text "cancellation_reason"
     t.index ["crm_external_id"], name: "index_orders_on_crm_external_id"
     t.index ["payment_link_token"], name: "index_orders_on_payment_link_token", unique: true
     t.index ["promo_code_id"], name: "index_orders_on_promo_code_id"
@@ -784,6 +786,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_13_110936) do
     t.string "building"
     t.string "apartment"
     t.string "a1_verification_id"
+    t.string "crm_contact_id"
+    t.string "telegram_chat_id"
+    t.index ["crm_contact_id"], name: "index_users_on_crm_contact_id"
     t.index ["email"], name: "index_users_on_email", unique: true, where: "(email IS NOT NULL)"
     t.index ["phone"], name: "index_users_on_phone", unique: true
     t.index ["username"], name: "index_users_on_username"

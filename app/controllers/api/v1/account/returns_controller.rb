@@ -29,7 +29,7 @@ module Api
           end
 
           render json: { return_request: payload_for(req) }, status: :created
-          CrmIntegrationService.notify_return(req)
+          CrmSyncJob.perform_later('ReturnRequest', req.id)
         end
 
         private
