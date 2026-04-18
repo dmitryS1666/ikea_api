@@ -3,7 +3,7 @@
 module Products
   # SKU из variants_payload (цвет/размер) — отдельные Product в БД с полной карточкой.
   # Нет строки → создаём заглушку, линкуем в категорию, ставим EnrichVariantProductJob.
-  # Есть → при неполной карточке снова ставим джобу догрузки.
+  # Есть → при неполной карточке ставим не более одной джобы догрузки на SKU/категорию.
   class VariantProductsEnsureService
     PL_STUB_URL = "https://www.ikea.com/pl/pl/p/-%{sku}/"
 
@@ -39,7 +39,7 @@ module Products
       if existing
         CategoryProduct.find_or_create_by!(product: existing, category_id: category.ikea_id.to_s)
         if incomplete_product?(existing)
-          EnrichVariantProductJob.perform_later(sku: existing.sku, category_ikea_id: category.ikea_id)
+          EnrichVariantProductJob.enqueue_once(sku: existing.sku, category_ikea_id: category.ikea_id)
         end
         return
       end
@@ -48,7 +48,7 @@ module Products
       return if stub.blank?
 
       CategoryProduct.find_or_create_by!(product: stub, category_id: category.ikea_id.to_s)
-      EnrichVariantProductJob.perform_later(sku: stub.sku, category_ikea_id: category.ikea_id)
+      EnrichVariantProductJob.enqueue_once(sku: stub.sku, category_ikea_id: category.ikea_id)
     rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid => e
       Rails.logger.warn "VariantProductsEnsureService sku=#{listing_sku}: #{e.class} #{e.message}"
     end
