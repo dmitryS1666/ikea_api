@@ -6,7 +6,7 @@ module Admin
     EXPORT_DIR = Rails.root.join("tmp", "trestle_exports", "products_admin").freeze
     EXPORT_FILENAME = "products_by_category.xlsx".freeze
 
-    COL_LAST = "F" # 6 колонок: A–F
+    COL_LAST = "H" # A–H: SKU, название, размеры, вес, PLN, BYN, таможня, ссылка
 
     class << self
       def export_path
@@ -73,6 +73,8 @@ module Admin
             category_label: category_label,
             sku: product.sku,
             display_name: display_name_for(product),
+            dimensions_text: dimensions_display_for(product),
+            weight_kg: product.weight.present? ? product.weight.to_f : nil,
             price_pln: price_zl,
             price_byn: price_byn,
             customs_byn: customs_total,
@@ -120,12 +122,12 @@ module Admin
           excel_row = 1
 
           title_text = "Каталог товаров по категориям (последняя связь category_products)"
-          sheet.add_row([title_text] + [nil] * 5, style: title_style)
+          sheet.add_row([title_text] + [nil] * 7, style: title_style)
           sheet.merge_cells("A#{excel_row}:#{COL_LAST}#{excel_row}")
           excel_row += 1
 
           meta = "Сформировано: #{Time.zone.now.strftime('%d.%m.%Y %H:%M')} (#{Time.zone.name}) · товаров: #{item_rows.size}"
-          sheet.add_row([meta] + [nil] * 5, style: meta_style)
+          sheet.add_row([meta] + [nil] * 7, style: meta_style)
           sheet.merge_cells("A#{excel_row}:#{COL_LAST}#{excel_row}")
           excel_row += 1
 
@@ -135,7 +137,7 @@ module Admin
           groups.each_with_index do |group, group_idx|
             cat_label = group.first[:category_label]
 
-            sheet.add_row([cat_label] + [nil] * 5, style: category_band_style)
+            sheet.add_row([cat_label] + [nil] * 7, style: category_band_style)
             sheet.merge_cells("A#{excel_row}:#{COL_LAST}#{excel_row}")
             excel_row += 1
 
@@ -143,12 +145,14 @@ module Admin
               [
                 "SKU",
                 "Название",
+                "Размеры",
+                "Вес (кг)",
                 "Цена PLN",
                 "Цена сервиса BYN",
                 "Таможня BYN (всего)",
                 "Ссылка на товар"
               ],
-              style: Array.new(6, subheader_style)
+              style: Array.new(8, subheader_style)
             )
             excel_row += 1
 
@@ -158,6 +162,8 @@ module Admin
                 [
                   r[:sku],
                   r[:display_name],
+                  r[:dimensions_text],
+                  r[:weight_kg].present? && r[:weight_kg].to_f.positive? ? r[:weight_kg].to_f : nil,
                   r[:price_pln].positive? ? r[:price_pln] : nil,
                   r[:price_byn].positive? ? r[:price_byn] : nil,
                   r[:customs_byn],
@@ -172,7 +178,7 @@ module Admin
             excel_row += 1 if group_idx < groups.length - 1
           end
 
-          sheet.column_widths 14, 52, 14, 28, 26, 80
+          sheet.column_widths 14, 48, 34, 14, 14, 28, 26, 80
         end
 
         path = export_path
@@ -186,39 +192,49 @@ module Admin
         short.present? ? "#{base} (#{short})" : base
       end
 
+      def dimensions_display_for(product)
+        base = product.dimensions_ru.to_s.strip.presence || product.dimensions.to_s.strip.presence
+        pkg = product.package_dimensions.to_s.strip
+        return nil if base.blank? && pkg.blank?
+        return base if pkg.blank? || pkg == base
+        return "Упаковка: #{pkg}" if base.blank?
+
+        "#{base}\nУпаковка: #{pkg}"
+      end
+
       private
 
       def build_zebra_data_row_styles(styles)
         mk = lambda do |bg|
+          text_cell = {
+            border: { style: :thin, color: "D8D8D8" },
+            bg_color: bg,
+            alignment: { horizontal: :left, vertical: :top, wrap_text: true }
+          }
+          num_cell = {
+            format_code: "#,##0.00",
+            border: { style: :thin, color: "D8D8D8" },
+            bg_color: bg,
+            alignment: { horizontal: :right, vertical: :center }
+          }
+          weight_cell = {
+            format_code: "#,##0.###",
+            border: { style: :thin, color: "D8D8D8" },
+            bg_color: bg,
+            alignment: { horizontal: :right, vertical: :center }
+          }
           [
             styles.add_style(
               border: { style: :thin, color: "D8D8D8" },
               bg_color: bg,
               alignment: { horizontal: :left, vertical: :center }
             ),
-            styles.add_style(
-              border: { style: :thin, color: "D8D8D8" },
-              bg_color: bg,
-              alignment: { horizontal: :left, vertical: :top, wrap_text: true }
-            ),
-            styles.add_style(
-              format_code: "#,##0.00",
-              border: { style: :thin, color: "D8D8D8" },
-              bg_color: bg,
-              alignment: { horizontal: :right, vertical: :center }
-            ),
-            styles.add_style(
-              format_code: "#,##0.00",
-              border: { style: :thin, color: "D8D8D8" },
-              bg_color: bg,
-              alignment: { horizontal: :right, vertical: :center }
-            ),
-            styles.add_style(
-              format_code: "#,##0.00",
-              border: { style: :thin, color: "D8D8D8" },
-              bg_color: bg,
-              alignment: { horizontal: :right, vertical: :center }
-            ),
+            styles.add_style(text_cell),
+            styles.add_style(text_cell),
+            styles.add_style(weight_cell),
+            styles.add_style(num_cell),
+            styles.add_style(num_cell),
+            styles.add_style(num_cell),
             styles.add_style(
               fg_color: "0563C1",
               u: true,
