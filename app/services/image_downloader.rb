@@ -233,13 +233,30 @@ class ImageDownloader
     def normalize_remote_image_url(url)
       raw = url.to_s.strip
       return nil if raw.blank?
-      return nil if raw.match?(/pvid/i)
+
+      # IKEA часто отдаёт protocol-relative URL: //www.ikea.com/...
+      raw = "https:#{raw}" if raw.start_with?("//")
+
+      # HTML-листинг иногда кладёт относительный путь без схемы: /globalassets/...
+      raw = "https://www.ikea.com#{raw}" if raw.start_with?("/")
 
       uri = URI.parse(raw)
       return nil unless uri.is_a?(URI::HTTP) || uri.is_a?(URI::HTTPS)
 
       uri.fragment = nil
-      uri.query = nil
+      # Раньше мы отбрасывали любые URL, где встречалось "pvid" — это ломало нормальные CDN-ссылки IKEA.
+      # Убираем только query-параметр pvid (если есть), остальные параметры сохраняем.
+      if uri.query.present?
+        pairs = URI.decode_www_form(uri.query)
+        filtered = pairs.reject { |k, _| k.to_s.casecmp("pvid").zero? }
+        uri.query =
+          if filtered.empty?
+            nil
+          else
+            URI.encode_www_form(filtered)
+          end
+      end
+
       uri.to_s
     rescue URI::InvalidURIError
       nil
