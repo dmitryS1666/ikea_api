@@ -201,8 +201,10 @@
                   <%= check_box_tag :confirm_purge, "1", false, class: "custom-control-input", id: "confirm_purge_cb", required: true %>
                   <%= label_tag :confirm_purge_cb, "Подтверждаю очистку очередей", class: "custom-control-label" %>
                 </div>
-                <%= submit_tag "Очистить очереди Sidekiq", class: "btn btn-warning",
-                    data: { confirm: "Удалить все джобы из перечисленных очередей и retry/scheduled/dead?", disable_with: "Очистка…" } %>
+                <%= button_tag type: "submit", class: "btn btn-warning",
+                    data: { confirm: "Удалить все джобы из перечисленных очередей и retry/scheduled/dead?", disable_with: "Очистка…" } do %>
+                  Очистить очереди Sidekiq
+                <% end %>
               <% end %>
             </div>
             <div class="col-md-6">
@@ -212,8 +214,10 @@
                   <%= check_box_tag :confirm_restart, "1", false, class: "custom-control-input", id: "confirm_restart_cb", required: true %>
                   <%= label_tag :confirm_restart_cb, "Подтверждаю очистку и перезапуск Sidekiq", class: "custom-control-label" %>
                 </div>
-                <%= submit_tag "Очистить и перезапустить Sidekiq", class: "btn btn-danger",
-                    data: { confirm: "Очистить все очереди Sidekiq и выполнить systemctl restart? Текущие джобы воркера будут прерваны.", disable_with: "Выполняется…" } %>
+                <%= button_tag type: "submit", class: "btn btn-danger",
+                    data: { confirm: "Очистить все очереди Sidekiq и выполнить systemctl restart? Текущие джобы воркера будут прерваны.", disable_with: "Выполняется…" } do %>
+                  Очистить и перезапустить Sidekiq
+                <% end %>
               <% end %>
             </div>
           </div>

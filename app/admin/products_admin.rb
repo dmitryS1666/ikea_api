@@ -6,6 +6,8 @@ Trestle.resource(:products, model: Product) do
   routes do
     get :search, on: :collection
     get :by_category, on: :collection
+    post :build_products_xlsx, on: :collection
+    get :download_products_xlsx, on: :collection
     get :export_extended_attrs_input, on: :collection
     post :import_extended_attrs, on: :collection
     post :import_bestsellers_csv, on: :collection
@@ -56,7 +58,7 @@ Trestle.resource(:products, model: Product) do
       cat&.translated_name.presence || cat&.name || 'Без категории'
     end
     column :price do |product|
-      number_to_currency(product.price, unit: 'EUR', format: '%n %u')
+      number_to_currency(product.price, unit: 'PLN', format: '%n %u')
     end
     column :weight, label: "Вес (кг)"
     column :quantity, sortable: true
@@ -225,6 +227,32 @@ Trestle.resource(:products, model: Product) do
       import_product_flag_csv(:is_recommended, "Рекомендованные")
     end
 
+    def build_products_xlsx
+      limit = params[:limit].presence&.to_i
+      limit = nil unless limit&.positive?
+
+      Admin::ProductsXlsxExportService.build!(limit: limit)
+      flash[:notice] = "Файл выгрузки XLSX создан. Скачайте его кнопкой «Скачать выгрузку товаров (XLSX)» в панели выше — при следующей генерации этот файл будет заменён."
+      redirect_to admin.path(:index)
+    rescue StandardError => e
+      Rails.logger.error("[build_products_xlsx] #{e.class}: #{e.message}\n#{e.backtrace&.first(15)&.join("\n")}")
+      flash[:error] = "Не удалось сформировать XLSX: #{e.message}"
+      redirect_to admin.path(:index)
+    end
+
+    def download_products_xlsx
+      path = Admin::ProductsXlsxExportService.export_path
+      unless path.file?
+        flash[:error] = "Сначала сформируйте выгрузку (кнопка на странице списка товаров)."
+        redirect_to admin.path(:index) and return
+      end
+
+      send_file path.to_s,
+                filename: "products_by_category_#{Time.zone.now.strftime('%Y%m%d_%H%M')}.xlsx",
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                disposition: "attachment"
+    end
+
     private
 
     def import_product_flag_csv(flag, label)
@@ -351,7 +379,7 @@ Trestle.resource(:products, model: Product) do
     end
 
     tab :pricing, label: "Цена и наличие" do
-      number_field :price, label: "Цена (EUR)"
+      number_field :price, label: "Цена (PLN)"
       number_field :quantity, label: "Количество"
       text_field :home_delivery, label: "Доставка на дом"
     end

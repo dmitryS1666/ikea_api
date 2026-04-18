@@ -3,6 +3,7 @@
 # Только польский сайт: цена в злотых (PLN) и наличие (PlDetailsFetcher.shelf_snapshot),
 # обновление канонической ссылки на товар. В БД пишутся только price, quantity, url (+ updated_at).
 # Поле products.price — всегда в PLN для записей, обновлённых этим сервисом.
+# Если страница PL недоступна (нет URL, 404, пустой HTML/снимок) — quantity принудительно 0.
 class Products::PlPriceStockRefreshService
   def self.refresh!(product)
     new(product).refresh!
@@ -14,9 +15,11 @@ class Products::PlPriceStockRefreshService
 
   def refresh!
     pl_url = pl_page_url_for(product)
-    return { updated: false, reason: :no_pl_url } if pl_url.blank?
+    if pl_url.blank?
+      return apply_not_found_on_pl!(reason: :no_pl_url)
+    end
 
-    snap = PlDetailsFetcher.shelf_snapshot(pl_url)
+    snap = shelf_snapshot_rescue_not_found(pl_url)
     if snap.blank? || (snap[:canonical_url].blank? && snap[:price].blank? && snap[:availability].blank?)
       qty = normalized_quantity(nil)
       changed = product.quantity != qty
@@ -83,9 +86,30 @@ class Products::PlPriceStockRefreshService
     u.sub(%r{https?://www\.ikea\.com/[^/]+/[^/]+}i, "https://www.ikea.com/pl/pl")
   end
 
+  # Страница товара отсутствует (404) — как пустой ответ: остаток 0, без изменения url/price здесь.
+  def self.http_not_found_error?(error)
+    error.message.to_s.match?(/\b404\b/)
+  end
+
   private
 
   attr_reader :product
+
+  def shelf_snapshot_rescue_not_found(pl_url)
+    PlDetailsFetcher.shelf_snapshot(pl_url)
+  rescue StandardError => e
+    raise e unless self.class.http_not_found_error?(e)
+
+    Rails.logger.info "PlPriceStockRefreshService: PL page not found for sku=#{product.sku} url=#{pl_url}: #{e.message}"
+    {}
+  end
+
+  def apply_not_found_on_pl!(reason:)
+    qty = normalized_quantity(nil)
+    changed = product.quantity != qty
+    product.update_columns(quantity: qty, updated_at: Time.current)
+    { updated: changed, reason: reason }
+  end
 
   def normalized_quantity(availability)
     self.class.normalized_quantity(availability)

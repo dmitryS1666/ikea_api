@@ -1,6 +1,33 @@
 <div id="trestle-smart-search-panel" class="card mb-4">
   <div class="card-body">
-    <div class="d-flex gap-2 flex-wrap">
+    <div class="d-flex gap-2 flex-wrap align-items-center">
+      <% if Admin::ProductsXlsxExportService.export_ready? %>
+        <%= link_to "⬇️ Скачать выгрузку товаров (XLSX)",
+                    admin.path(:download_products_xlsx),
+                    class: "btn btn-primary",
+                    data: { turbo: false } %>
+        <span class="text-muted small">
+          обновлён <%= Admin::ProductsXlsxExportService.exported_at.strftime("%d.%m.%Y %H:%M") %>
+        </span>
+      <% else %>
+        <span class="text-muted small">Файла выгрузки XLSX пока нет — сформируйте кнопкой справа.</span>
+      <% end %>
+
+      <%= form_tag admin.path(:build_products_xlsx), method: :post, class: "d-inline", data: { turbo: false } do %>
+        <%= submit_tag "📊 Сформировать XLSX (все товары)",
+                      class: "btn btn-outline-primary",
+                      data: { confirm: "Пересоздать файл? Предыдущая выгрузка XLSX будет удалена." } %>
+      <% end %>
+
+      <%= form_tag admin.path(:build_products_xlsx), method: :post, class: "d-inline", data: { turbo: false } do %>
+        <%= hidden_field_tag :limit, 5 %>
+        <%= submit_tag "📊 Тест: XLSX (5 товаров)",
+                      class: "btn btn-outline-secondary",
+                      data: { confirm: "Сформировать тестовую выгрузку из 5 товаров? Текущий файл XLSX будет заменён." } %>
+      <% end %>
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap mt-2">
       <%= link_to "⬇️ Выгрузить JSON для парсера расширенных атрибутов",
                   admin.path(:export_extended_attrs_input),
                   class: "btn btn-outline-primary",

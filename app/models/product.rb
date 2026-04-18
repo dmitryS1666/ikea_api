@@ -240,13 +240,9 @@ class Product < ApplicationRecord
         # Обработка как массива (новая структура) или объекта (старая)
         data_to_process = payload.is_a?(Array) ? payload : [payload]
         
-        # Определяем валюту на основе URL (Литва - EUR, Польша - PLN)
-        # Если URL пустой или не содержит /lt/ или /pl/, по умолчанию считаем PLN
-        currency = url.to_s.include?("/lt/") ? 'EUR' : 'PLN'
-        
-        # Получаем курсы валют
+        # variants_payload приходит с польской витрины, поэтому цену варианта
+        # трактуем как PLN независимо от текущего URL товара.
         pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 0
-        eur_rate = ExchangeRate.fetch_or_create('EUR')&.rate_per_unit || 0
         buffer = PriceCalculationService.exchange_rate_buffer
         
         processed_payload = data_to_process.map do |variant_group|
@@ -256,15 +252,11 @@ class Product < ApplicationRecord
             original_price = item[:price].to_f
 
             if original_price > 0
-              price_byn = if currency == 'EUR'
-                            # Если цена в EUR (Литва), сначала переводим в PLN для калькулятора
-                            # (так как PriceCalculationService.product_price_byn ожидает PLN)
-                            price_pln = (original_price * eur_rate / pln_rate) rescue 0
-                            PriceCalculationService.product_price_byn(price_pln, pln_rate: pln_rate, buffer: buffer)
-                          else
-                            # Если цена в PLN (Польша)
-                            PriceCalculationService.product_price_byn(original_price, pln_rate: pln_rate, buffer: buffer)
-                          end
+              price_byn = PriceCalculationService.product_price_byn(
+                original_price,
+                pln_rate: pln_rate,
+                buffer: buffer
+              )
               item[:price_byn] = ActionController::Base.helpers.number_with_delimiter(price_byn, delimiter: ' ')
             else
               item[:price_byn] = nil

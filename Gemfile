@@ -99,3 +99,5 @@ end
 gem "trestle-tinymce", "~> 0.4.0"
 gem "groupdate"
 gem "slim-rails"
+
+gem "caxlsx", "~> 4.2"

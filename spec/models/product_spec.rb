@@ -35,6 +35,18 @@ RSpec.describe Product, type: :model do
       expect(data.last.dig(:item, :price_byn)).to be_nil
       expect(data.first.dig(:item, :price_byn)).to be_present
     end
+
+    it "treats variant payload prices as PLN even for LT urls" do
+      product.url = "https://www.ikea.com/lt/ru/p/vimle-s29545213/"
+
+      product.normalized_variants_for_api
+
+      expect(PriceCalculationService).to have_received(:product_price_byn).with(
+        100.0,
+        pln_rate: 3.5,
+        buffer: 0
+      )
+    end
   end
 
   describe "#normalized_variant_skus" do
