@@ -244,16 +244,28 @@ class Product < ApplicationRecord
         # трактуем как PLN независимо от текущего URL товара.
         pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 0
         buffer = PriceCalculationService.exchange_rate_buffer
+
+        variant_skus =
+          data_to_process.flat_map do |vg|
+            Array(vg.deep_symbolize_keys[:data]).filter_map { |v| v.dig(:item, :sku).presence || v.dig(:item, 'sku').presence }.map(&:to_s)
+          end.uniq
+        variants_by_sku = variant_skus.empty? ? {} : Product.where(sku: variant_skus).index_by(&:sku)
         
         processed_payload = data_to_process.map do |variant_group|
           group = variant_group.deep_symbolize_keys
           group[:data].each do |variant|
             item = variant[:item]
             original_price = item[:price].to_f
+            sku_v = item[:sku].presence || item['sku'].presence
+            rec = sku_v.present? ? variants_by_sku[sku_v.to_s] : nil
+            w_kg = (rec || self).weight.to_f
+            d_pln = (rec || self).delivery_cost.to_f
 
             if original_price > 0
               price_byn = PriceCalculationService.product_price_byn(
                 original_price,
+                weight_kg: w_kg,
+                delivery_pln: d_pln,
                 pln_rate: pln_rate,
                 buffer: buffer
               )

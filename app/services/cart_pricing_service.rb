@@ -9,10 +9,11 @@ class CartPricingService
     buffer = PriceCalculationService.exchange_rate_buffer
     pln_rate_with_buffer = pln_rate * buffer
 
-    items_total_pln = 0.0
+    items_goods_pln = 0.0
     discount_total_pln = 0.0
     total_weight = 0.0
     total_items_cost_eur = 0.0
+    logistics_pln = 0.0
 
     # Pre-calculate promo applicability for all items at once
     promos = promo_valid ? [promo] : []
@@ -23,7 +24,9 @@ class CartPricingService
       product_pln = item.product&.price || 0
       weight = item.product&.weight || 0
       quantity = item.quantity
-      total_weight += weight * quantity
+      delivery_unit_pln = item.product&.delivery_cost.to_f
+      line_weight = weight * quantity
+      total_weight += line_weight
 
       # Расчет наценки K для конкретного товара
       markup_k = PriceCalculationService.compute_k(product_pln)
@@ -37,17 +40,20 @@ class CartPricingService
       unit_price_after_promo_pln = [product_pln - unit_discount_pln, 0].max
       unit_price_with_markup_pln = unit_price_after_promo_pln * (1 + markup_k)
       
-      line_total_pln = unit_price_with_markup_pln * quantity
-      items_total_pln += line_total_pln
+      line_goods_pln = unit_price_with_markup_pln * quantity
+      line_delivery_pln = delivery_unit_pln * quantity
+      line_wc_pln = BelarusDeliveryService.calculate(line_weight)
+      line_total_pln = line_goods_pln + line_delivery_pln + line_wc_pln
 
-      # BYN значения для отображения
-      unit_price_byn = (unit_price_with_markup_pln * pln_rate_with_buffer).round(2)
+      items_goods_pln += line_goods_pln
+      logistics_pln += line_delivery_pln + line_wc_pln
+
       line_total_byn = (line_total_pln * pln_rate_with_buffer).round(2)
+      unit_price_byn = quantity.positive? ? (line_total_byn / quantity).round(2) : 0.0
 
       # Расчет пошлины для отдельной позиции (line total) для информации
       item_cost_eur = (product_pln * pln_rate / eur_rate).round(2) if eur_rate.positive?
       line_cost_eur = (item_cost_eur || 0) * quantity
-      line_weight = weight * quantity
       total_items_cost_eur += line_cost_eur
       
       line_customs = (line_cost_eur.positive? && line_weight.positive?) ? CustomsDutyService.calculate(line_cost_eur, line_weight, eur_rate) : nil
@@ -58,7 +64,7 @@ class CartPricingService
         unit_price_pln: product_pln,
         unit_price_byn: unit_price_byn,
         unit_discount_pln: unit_discount_pln,
-        line_total_pln: line_total_pln,
+        line_total_pln: line_total_pln.round(2),
         line_total_byn: line_total_byn,
         promo_applied: promo_applied,
         promo_code: promo_applied ? promo.code : nil,
@@ -72,24 +78,15 @@ class CartPricingService
     # Расчет пошлины для всей корзины
     cart_customs = CustomsDutyService.calculate(total_items_cost_eur, total_weight, eur_rate)
 
-    # Расчет логистики для ВСЕЙ корзины
-    poland_delivery_pln = PolandDeliveryService.calculate(total_weight)
-    belarus_delivery_pln = BelarusDeliveryService.calculate(total_weight)
+    # Итого в PLN и BYN: сумма строк (как в регламенте по каждой позиции)
+    total_pln = items.sum { |i| i[:line_total_pln].to_f }
+    total_byn = items.sum { |i| i[:line_total_byn].to_f }.round(2)
 
-    # Итого в PLN
-    total_pln = items_total_pln + poland_delivery_pln + belarus_delivery_pln
-    
-    # Итого в BYN
-    total_byn = (total_pln * pln_rate_with_buffer).round(2)
-    
-    # Расчет "виртуальных" BYN значений для доставки для UI
-    poland_delivery_byn = (poland_delivery_pln * pln_rate_with_buffer).round(2)
-    belarus_delivery_byn = (belarus_delivery_pln * pln_rate_with_buffer).round(2)
-    delivery_total_byn = (poland_delivery_byn + belarus_delivery_byn).round(2)
+    logistics_byn = (logistics_pln * pln_rate_with_buffer).round(2)
+    delivery_total_byn = logistics_byn
 
-    # Динамические правила (минимальный заказ и т.д.)
-    # subtotal_new_byn для правил - это сумма ТОВАРОВ с наценкой
-    items_total_byn = (items_total_pln * pln_rate_with_buffer).round(2)
+    # Для правил — только товары с наценкой (без доставки и WC_BY)
+    items_total_byn = (items_goods_pln * pln_rate_with_buffer).round(2)
     rules = CartRulesService.call(subtotal_new_byn: items_total_byn)
 
     {
@@ -97,6 +94,7 @@ class CartPricingService
       totals: {
         subtotal_new_byn: items_total_byn, # Для совместимости с CheckoutService
         items_total_byn: items_total_byn,
+        total_pln: total_pln.round(2),
         delivery_total_byn: delivery_total_byn,
         total_byn: total_byn,
         discount_total_byn: (discount_total_pln * (1 + 0.10) * pln_rate_with_buffer).round(2), # Примерный дисконт в BYN

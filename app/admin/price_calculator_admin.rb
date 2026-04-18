@@ -47,10 +47,12 @@ Trestle.resource(:price_calculator, model: PriceCalculator) do
           date = params[:date].present? ? Date.parse(params[:date]) : Date.today
           
           if product_price && product_price > 0 && weight && weight > 0
+            delivery_pln = params[:delivery_pln].present? ? params[:delivery_pln].to_f : nil
             @calculation = PriceCalculationService.calculate(
               product_price,
               weight,
               use_gls_pickup: use_gls,
+              delivery_pln: delivery_pln,
               date: date
             )
             

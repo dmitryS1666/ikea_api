@@ -45,25 +45,40 @@ RSpec.describe PriceCalculationService do
   end
 
   describe '.calculate' do
-    context 'с параметрами из примера' do
+    context 'с параметрами из регламента (фиксированная доставка 50 PLN)' do
       let(:product_price_zl) { 500.0 }
       let(:weight_kg) { 15.0 }
-      let(:delivery_cost_zl) { 79.0 } # В системе это PolandDeliveryService.calculate(15) -> 79
       
-      it 'возвращает расчет близкий к примеру' do
-        result = described_class.calculate(product_price_zl, weight_kg, use_gls_pickup: false, date: date)
+      it 'возвращает расчет как в примере' do
+        result = described_class.calculate(
+          product_price_zl,
+          weight_kg,
+          use_gls_pickup: false,
+          delivery_pln: 50.0,
+          date: date
+        )
         
-        # Наценка: 10% (50 PLN)
-        # Доставка: 79 PLN (для 15 кг)
-        # Весовая логистика: 15 * 16.85 = 252.75 PLN
-        # Итого PLN: 500 + 50 + 79 + 252.75 = 881.75 PLN
-        # Итого BYN: 881.75 * 0.85 * 1.05 = 786.96 BYN
+        # K: 10% → 500 * 1.10 = 550 PLN
+        # Доставка: 50 PLN
+        # WC_BY: 15 * 16.85 = 252.75 PLN
+        # Итого PLN: 852.75
         
         expect(result[:markup_k]).to eq(0.10)
-        expect(result[:total_pln]).to eq(881.75)
+        expect(result[:total_pln]).to eq(852.75)
         
-        expected_byn = (881.75 * pln_rate * 1.05).round(2)
+        expected_byn = (852.75 * pln_rate * 1.05).round(2)
         expect(result[:total_price_byn]).to eq(expected_byn)
+      end
+    end
+
+    context 'без явной доставки — тариф по Польше (15 кг → 79 PLN)' do
+      let(:product_price_zl) { 500.0 }
+      let(:weight_kg) { 15.0 }
+
+      it 'подставляет poland_delivery_rates' do
+        result = described_class.calculate(product_price_zl, weight_kg, use_gls_pickup: false, date: date)
+        expect(result[:delivery_pln]).to eq(79.0)
+        expect(result[:total_pln]).to eq(881.75)
       end
     end
     

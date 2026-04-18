@@ -117,7 +117,7 @@ module Api
         if params[:cart_token].present?
           cart, = CartTokenResolver.call(request: request, params: { cart_token: params[:cart_token] })
           pricing = CartPricingService.call(cart: cart)
-          subtotal = pricing[:totals][:total_byn].to_f
+          subtotal = pricing[:totals][:items_total_byn].to_f
           weight = cart.cart_items.joins(:product).sum('products.weight * cart_items.quantity').to_f
           volume = cart.cart_items.joins(:product).sum('products.package_volume * cart_items.quantity').to_f
           [weight, volume, subtotal]
@@ -126,8 +126,8 @@ module Api
           skus = items.map { |i| i[:sku] || i['sku'] }.compact
           products = Product.where(sku: skus).index_by(&:sku)
           
-          # Для расчета без корзины нам нужно знать цены и веса
-          total_pln_with_markup = 0.0
+          # Согласованно с CartPricingService: товары с K + delivery_cost + WC_BY по весу строки
+          total_pln = 0.0
           total_weight = 0.0
           
           items.each do |i|
@@ -137,14 +137,19 @@ module Api
             next unless p && qty.positive?
             
             pln_price = p.price.to_f
+            w = p.weight.to_f
+            line_weight = w * qty
             markup_k = PriceCalculationService.compute_k(pln_price)
-            total_pln_with_markup += pln_price * (1 + markup_k) * qty
-            total_weight += p.weight.to_f * qty
+            line_goods = pln_price * (1 + markup_k) * qty
+            line_delivery = p.delivery_cost.to_f * qty
+            line_wc = BelarusDeliveryService.calculate(line_weight)
+            total_pln += line_goods + line_delivery + line_wc
+            total_weight += line_weight
           end
           
           pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 0
           buffer = PriceCalculationService.exchange_rate_buffer
-          subtotal_byn = (total_pln_with_markup * pln_rate * buffer).round(2)
+          subtotal_byn = (total_pln * pln_rate * buffer).round(2)
           
           [total_weight, 0, subtotal_byn]
         end

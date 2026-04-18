@@ -32,7 +32,13 @@ module FavoriteResponseFormatter
       sku: product.sku,
       name: product.name,
       name_ru: product.name_ru,
-      price_byn: format_byn(PriceCalculationService.product_price_byn(product.price)),
+      price_byn: format_byn(
+        PriceCalculationService.product_price_byn(
+          product.price,
+          weight_kg: product.weight.to_f,
+          delivery_pln: product.delivery_cost.to_f
+        )
+      ),
       quantity: product.quantity,
       is_favorite: true, # Since it's in favorite list
       category_id: product.category_id,

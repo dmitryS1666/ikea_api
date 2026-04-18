@@ -82,7 +82,13 @@ class ProductSerializer
       settings = params[:calculator_settings] || {}
       buffer = settings['exchange_rate_buffer'] || PriceCalculationService.exchange_rate_buffer
   
-      price = PriceCalculationService.product_price_byn(pln_price, pln_rate: pln_rate, buffer: buffer)
+      price = PriceCalculationService.product_price_byn(
+        pln_price,
+        weight_kg: product.weight.to_f,
+        delivery_pln: product.delivery_cost.to_f,
+        pln_rate: pln_rate,
+        buffer: buffer
+      )
   
       ActionController::Base.helpers.number_with_delimiter(price, delimiter: ' ')
     else

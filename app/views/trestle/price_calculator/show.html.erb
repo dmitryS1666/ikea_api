@@ -92,9 +92,18 @@
             </div>
             
             <div class="form-group mb-3">
+              <%= label_tag :delivery_pln, "Доставка (PLN), опционально", class: "form-label" %>
+              <%= number_field_tag :delivery_pln, params[:delivery_pln],
+                  class: "form-control", step: 0.01, min: 0, placeholder: "оставьте пустым — тариф по Польше" %>
+              <small class="form-text text-muted">
+                Как поле <code>delivery_cost</code> у товара. Если пусто — берётся ступенчатый тариф из <code>poland_delivery_rates</code> (и опция GLS ниже).
+              </small>
+            </div>
+
+            <div class="form-group mb-3">
               <%= label_tag :use_gls, class: "form-check-label" do %>
                 <%= check_box_tag :use_gls, '1', params[:use_gls] == '1', class: "form-check-input" %>
-                Использовать пункт отбора GLS (бесплатно до 30 кг)
+                Использовать пункт отбора GLS (бесплатно до 30 кг) — только если доставка PLN не задана вручную
               <% end %>
             </div>
             
@@ -133,7 +142,7 @@
               <strong>Сумма в PLN:</strong><br>
               <small class="text-muted">
                 <code>Цена_PLN × (1 + K) + Доставка_PLN + WC_BY</code><br>
-                Доставка по Польше — ступенчатый тариф из <code>poland_delivery_rates</code> (и опция GLS).
+                Доставка — из поля выше (как у товара) или ступенчатый тариф <code>poland_delivery_rates</code> + GLS, если поле пустое.
               </small>
             </li>
             <li class="mb-2">
@@ -221,8 +230,8 @@
                 <td class="text-right">+ <%= number_to_currency(@calculation[:product_price_zl] * @calculation[:markup_k], unit: 'PLN', format: '%n %u', precision: 2) %></td>
               </tr>
               <tr>
-                <td>Доставка по Польше:</td>
-                <td class="text-right">+ <%= number_to_currency(@calculation[:poland_delivery_zl], unit: 'PLN', format: '%n %u', precision: 2) %></td>
+                <td>Доставка (PLN):</td>
+                <td class="text-right">+ <%= number_to_currency(@calculation[:delivery_pln] || @calculation[:poland_delivery_zl], unit: 'PLN', format: '%n %u', precision: 2) %></td>
               </tr>
               <tr>
                 <td>Весовая логистика РБ:</td>
