@@ -31,7 +31,7 @@ module Api
           article_products = article.content_article_products.order(:position)
           article_categories = article.content_article_categories.order(:position)
 
-          linked_products_map = Product.where(sku: article_products.pluck(:product_sku)).index_by(&:sku)
+          linked_products_map = Product.with_available_stock.where(sku: article_products.pluck(:product_sku)).index_by(&:sku)
           body_block_products_map = preload_body_block_products_for_articles([article])
           categories_map = Category.where(ikea_id: article_categories.pluck(:category_id)).index_by(&:ikea_id)
 
@@ -60,7 +60,7 @@ module Api
           scope = scope.with_rubric(rubric) if rubric.present?
 
           if params[:product_sku].present?
-            product = Product.find_by(sku: params[:product_sku])
+            product = Product.with_available_stock.find_by(sku: params[:product_sku])
             scope = scope.relevant_for_product(product) if product
           end
 
@@ -79,7 +79,7 @@ module Api
 
           return {} if product_skus.empty?
 
-          Product.where(sku: product_skus)
+          Product.with_available_stock.where(sku: product_skus)
                  .includes(:category, :category_products, :seo_meta)
                  .index_by(&:sku)
         end

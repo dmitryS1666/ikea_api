@@ -7,7 +7,7 @@ module Api
         cart, token, _ = CartTokenResolver.call(request: request, params: params)
         sku = params.require(:sku)
         quantity = params.require(:quantity).to_i
-        Product.find_by!(sku: sku)
+        Product.with_available_stock.find_by!(sku: sku)
 
         cart_item = cart.cart_items.find_or_initialize_by(product_sku: sku)
         if cart_item.new_record?

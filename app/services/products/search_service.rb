@@ -11,6 +11,7 @@ module Products
     end
 
     def call
+      @scope = @scope.merge(Product.with_available_stock)
       filter_by_price
       filter_by_attributes
       sort_results

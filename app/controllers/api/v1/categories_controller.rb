@@ -113,9 +113,9 @@ module Api
       
       def map
         # Кешируем карту категорий
-        json = Rails.cache.fetch('categories_map_json', expires_in: 1.day) do
+        json = Rails.cache.fetch('categories_map_json_v2', expires_in: 1.day) do
           categories = Category.active
-                              .includes(:products)
+                              .includes(:products_with_available_stock)
                               .with_attached_icon
                               .with_attached_background_image
                               .where.not(translated_name: nil)

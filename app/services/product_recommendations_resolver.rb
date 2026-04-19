@@ -39,7 +39,7 @@ class ProductRecommendationsResolver
     normalized_skus = Array(skus).map(&:to_s).map(&:strip).reject(&:blank?)
     return [] if normalized_skus.empty?
 
-    products_by_sku = Product.where(sku: normalized_skus).index_by { |product| product.sku.to_s }
+    products_by_sku = Product.with_available_stock.where(sku: normalized_skus).index_by { |product| product.sku.to_s }
 
     normalized_skus.filter_map do |sku|
       products_by_sku[sku]
@@ -49,7 +49,7 @@ class ProductRecommendationsResolver
   def resolve_from_category(category_id)
     return [] if category_id.blank?
 
-    Product.where(category_id: category_id)
+    Product.with_available_stock.where(category_id: category_id)
            .order(updated_at: :desc)
            .limit(@limit + @exclude_skus.size)
            .to_a

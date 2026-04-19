@@ -63,7 +63,7 @@ module Api
       end
 
       def find_product
-        @product = Product.find_by!(sku: params[:product_sku])
+        @product = Product.with_available_stock.find_by!(sku: params[:product_sku])
       end
 
       def review_create_params

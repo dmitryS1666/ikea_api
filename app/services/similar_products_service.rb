@@ -2,7 +2,7 @@ class SimilarProductsService
   def self.for(product:, limit: 8)
     return [] unless product
 
-    scope = Product.where('quantity > 0').where.not(sku: product.sku)
+    scope = Product.with_available_stock.where.not(sku: product.sku)
 
     # Strategy is configurable from admin via CalculatorSetting.
     # Supported values:

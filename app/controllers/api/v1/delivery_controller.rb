@@ -124,7 +124,7 @@ module Api
         else
           items = Array(params[:items])
           skus = items.map { |i| i[:sku] || i['sku'] }.compact
-          products = Product.where(sku: skus).index_by(&:sku)
+          products = Product.with_available_stock.where(sku: skus).index_by(&:sku)
           
           # Согласованно с CartPricingService: товары с K + delivery_cost + WC_BY по весу строки
           total_pln = 0.0

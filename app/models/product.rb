@@ -29,6 +29,8 @@ class Product < ApplicationRecord
 
   # Scopes
   scope :active, -> { all }
+  # Публичные списки: только позиции с положительным остатком (как в SimilarProductsService)
+  scope :with_available_stock, -> { where('products.quantity > 0') }
   scope :bestsellers, -> { where(is_bestseller: true) }
   scope :new_arrivals, -> { where(is_new: true) }
   scope :popular, -> { where(is_popular: true) }

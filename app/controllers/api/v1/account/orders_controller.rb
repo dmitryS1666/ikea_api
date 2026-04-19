@@ -31,8 +31,8 @@ module Api
           missing_items = []
 
           order.order_items.each do |item|
-            product = Product.find_by(sku: item.product_sku)
-            if product && product.quantity.to_i > 0
+            product = Product.with_available_stock.find_by(sku: item.product_sku)
+            if product
               cart_item = cart.cart_items.find_or_initialize_by(product_sku: item.product_sku)
               cart_item.quantity = (cart_item.quantity || 0) + item.quantity
               cart_item.save!

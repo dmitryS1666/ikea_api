@@ -5,7 +5,7 @@ module Api
       before_action :authenticate_user, except: [:index, :show, :bestsellers, :popular, :new_arrivals, :recommended, :categories]
       
       def index
-        products = Product.includes(:category, :seo_meta, :category_products)
+        products = Product.with_available_stock.includes(:category, :seo_meta, :category_products)
         products = apply_sort(products, params[:sort])
         products = products.page(params[:page]).per(params[:per_page] || 50)
       
@@ -25,7 +25,7 @@ module Api
       end
       
       def show
-        product = Product.includes(:seo_meta, :category, :category_products).find_by!(sku: params[:sku])
+        product = Product.with_available_stock.includes(:seo_meta, :category, :category_products).find_by!(sku: params[:sku])
         
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
         render json: ProductSerializer.new(product, {
@@ -39,7 +39,7 @@ module Api
       end
       
       def bestsellers
-        products = Product.bestsellers
+        products = Product.bestsellers.with_available_stock
                          .includes(:category, :seo_meta, :category_products)
                          .page(params[:page])
                          .per(params[:per_page] || 10)
@@ -58,7 +58,7 @@ module Api
       end
 
       def new_arrivals
-        products = Product.new_arrivals
+        products = Product.new_arrivals.with_available_stock
                          .includes(:category, :seo_meta, :category_products)
                          .page(params[:page])
                          .per(params[:per_page] || 10)
@@ -77,7 +77,7 @@ module Api
       end
 
       def recommended
-        products = Product.recommended
+        products = Product.recommended.with_available_stock
                          .includes(:category, :seo_meta, :category_products)
                          .page(params[:page])
                          .per(params[:per_page] || 10)
@@ -96,7 +96,7 @@ module Api
       end
       
       def popular
-        products = Product.popular
+        products = Product.popular.with_available_stock
                          .includes(:category, :seo_meta, :category_products)
                          .page(params[:page])
                          .per(params[:per_page] || 10)

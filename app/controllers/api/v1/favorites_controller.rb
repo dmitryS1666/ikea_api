@@ -16,7 +16,7 @@ module Api
         sku = params.require(:sku)
         
         # Verify product exists
-        Product.find_by!(sku: sku)
+        Product.with_available_stock.find_by!(sku: sku)
 
         favorite_item = favorite.favorite_items.find_or_initialize_by(product_sku: sku)
         favorite_item.save!

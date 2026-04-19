@@ -173,13 +173,13 @@ module Api
         sku_query = normalized_sku_query(query)
       
         if sku_query.present?
-          Product.where(
+          Product.with_available_stock.where(
             "name ILIKE :term OR name_ru ILIKE :term OR small_desc_name ILIKE :term OR sku ILIKE :term OR regexp_replace(sku, '[^A-Za-z0-9]', '', 'g') ILIKE :sku_term",
             term: term,
             sku_term: "%#{sku_query}%"
           )
         else
-          Product.where(
+          Product.with_available_stock.where(
             "name ILIKE :term OR name_ru ILIKE :term OR small_desc_name ILIKE :term OR sku ILIKE :term",
             term: term
           )
@@ -291,7 +291,7 @@ module Api
         # Находим категории, которые начинаются с запроса, чтобы повысить товары из них
         top_matching_categories = Category.active.where("translated_name ILIKE ?", "#{query}%").pluck(:ikea_id).map(&:to_s)
 
-        products = Product.where("name_ru ILIKE :term OR small_desc_name ILIKE :term", term: term)
+        products = Product.with_available_stock.where("name_ru ILIKE :term OR small_desc_name ILIKE :term", term: term)
                           .limit(100)
 
         suggestions = products.map do |p|

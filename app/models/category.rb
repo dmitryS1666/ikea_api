@@ -13,6 +13,11 @@ class Category < ApplicationRecord
   validates :name, presence: true
 
   has_many :products, foreign_key: :category_id, primary_key: :ikea_id
+  has_many :products_with_available_stock,
+           -> { merge(Product.with_available_stock) },
+           class_name: "Product",
+           foreign_key: :category_id,
+           primary_key: :ikea_id
 
   has_many :category_products, foreign_key: :category_id, primary_key: :ikea_id, dependent: :destroy
   has_many :products_through_categories, through: :category_products, source: :product
