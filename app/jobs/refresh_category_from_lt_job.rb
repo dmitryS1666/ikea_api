@@ -110,10 +110,13 @@ class RefreshCategoryFromLtJob < ApplicationJob
         # Создаем/обновляем базовый продукт (цена и остатки с PL)
         canon = process_one_listing_item(product_data, parser, category, {}, task, stats, nil)
         next if canon.blank?
-        
-        touched_canonical_skus << canon
-        product = Product.find_by(sku: canon)
+
+        # Один и тот же артикул в БД может быть как s12345678, так и 12345678 — find_by(sku: canon) иногда мимо.
+        # В «канон» для отвязки и category_products кладём только реальный products.sku после резолва.
+        product = Products::ListingSkuResolver.find_product(canon) || Product.find_by(sku: canon.to_s.strip)
         next unless product
+
+        touched_canonical_skus << product.sku.to_s
 
         # 3. Обогащаем данными (LT -> PL + AI)
         # Внутри enrich_product! происходит:
@@ -310,7 +313,7 @@ class RefreshCategoryFromLtJob < ApplicationJob
 
   def detach_category_products_not_in_listing(category, canonical_skus)
     cid = category.ikea_id.to_s
-    skus = canonical_skus.map(&:to_s).uniq
+    skus = expanded_listing_skus_for_category_job(canonical_skus)
     return 0 if skus.empty?
 
     rel = CategoryProduct.joins(:product).where(category_id: cid).where.not(products: { sku: skus })
@@ -334,7 +337,7 @@ class RefreshCategoryFromLtJob < ApplicationJob
 
   def ensure_category_links_for_listing!(category, canonical_skus)
     cid = category.ikea_id.to_s
-    skus = canonical_skus.map(&:to_s).uniq
+    skus = expanded_listing_skus_for_category_job(canonical_skus)
     return 0 if skus.empty?
 
     created_links = 0
@@ -346,6 +349,11 @@ class RefreshCategoryFromLtJob < ApplicationJob
   rescue StandardError => e
     Rails.logger.error "RefreshCategoryFromLtJob: ensure links failed for category=#{category.ikea_id}: #{e.message}"
     0
+  end
+
+  # Листинг и БД расходятся по виду SKU (s12345678 vs 12345678). Для where(sku: …) и отвязки нужны все алиасы.
+  def expanded_listing_skus_for_category_job(canonical_skus)
+    Array(canonical_skus).flat_map { |s| Products::ListingSkuResolver.aliases(s) }.map(&:to_s).map(&:strip).reject(&:blank?).uniq
   end
 
   def parallel_each(collection, threads: THREADS)
