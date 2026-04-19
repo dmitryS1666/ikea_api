@@ -260,7 +260,7 @@ class Products::ExtendedAttributesFetchService
 
     attributes[:set_items] = pl_details[:set_items] if pl_details[:set_items].present? && attributes[:set_items].blank?
     attributes[:bundle_items] = pl_details[:bundle_items] if pl_details[:bundle_items].present? && attributes[:bundle_items].blank?
-    if pl_details[:related_products].present?
+    if Products::RelatedProductsCollection::ENABLED && pl_details[:related_products].present?
       merged_rp = (parse_json_array(attributes[:related_products]) + Array(pl_details[:related_products]).map(&:to_s)).compact.uniq
       attributes[:related_products] = merged_rp if merged_rp.any?
     end
@@ -401,7 +401,7 @@ class Products::ExtendedAttributesFetchService
 
     attributes[:set_items] = pl_details[:set_items] if pl_details[:set_items]
     attributes[:bundle_items] = pl_details[:bundle_items] if pl_details[:bundle_items]
-    if pl_details[:related_products].present?
+    if Products::RelatedProductsCollection::ENABLED && pl_details[:related_products].present?
       merged_rp = (parse_json_array(attributes[:related_products]) + Array(pl_details[:related_products]).map(&:to_s)).compact.uniq
       attributes[:related_products] = merged_rp if merged_rp.any?
     end

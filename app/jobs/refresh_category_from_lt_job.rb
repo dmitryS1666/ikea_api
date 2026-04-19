@@ -8,7 +8,7 @@
 #      (сопоставление с БД через Products::ListingSkuResolver — s12345678 vs 12345678).
 #   3) Отцепить от категории товары, которых нет в актуальном списке (CategoryProduct), без удаления Product.
 #   4) Для каждого затронутого SKU: PL+LT — ExtendedAttributesFetchService (цена, qty, картинки URL,
-#      related_products, included_products, вес/размеры/описание/материалы/документы с LT и PL).
+#      included_products, вес/размеры/описание/материалы/документы с LT и PL). related_products — см. RelatedProductsCollection::ENABLED.
 #      Затем IkeaLvProductVariantsService (force: true) — варианты с PIP PL.
 #      Затем ImageDownloader.sync_product_images — локальные WebP при наличии remote images.
 #   5) Опционально: lt_jsonl_path в payload — строки JSONL по SKU (и алиасам) для приоритета LT;

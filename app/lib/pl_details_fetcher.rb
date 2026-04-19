@@ -934,6 +934,11 @@ class PlDetailsFetcher
   end
   
   def extract_related_products(product_data, doc = nil)
+    unless Products::RelatedProductsCollection::ENABLED
+      Rails.logger.debug "PlDetailsFetcher.extract_related_products: skipped (RelatedProductsCollection::ENABLED is false)"
+      return []
+    end
+
     related = []
     
     Rails.logger.debug "PlDetailsFetcher.extract_related_products: Starting extraction"
