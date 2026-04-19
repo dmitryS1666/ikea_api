@@ -57,6 +57,14 @@
               <%= number_field_tag :limit, nil, class: "form-control", placeholder: "Оставьте пустым для без ограничений", min: 1 %>
             </div>
 
+            <div class="form-group d-none" id="recover_missing_weights_field">
+              <div class="custom-control custom-checkbox">
+                <%= check_box_tag :only_missing_weight, "1", true, class: "custom-control-input", id: "only_missing_weight_checkbox" %>
+                <%= label_tag :only_missing_weight_checkbox, "Только товары без веса (поле weight пустое)", class: "custom-control-label" %>
+              </div>
+              <small class="form-text text-muted">Рекомендуется оставить включённым. Если снять галочку, пойдут запросы по всем товарам в базе.</small>
+            </div>
+
             <div class="form-group" id="threads_field">
               <%= label_tag :threads, "Количество потоков", class: "form-label" %>
               <%= number_field_tag :threads, 2, class: "form-control", min: 1, max: 10, placeholder: "Рекомендуется 2-5" %>
@@ -562,6 +570,7 @@
     const extraDataField = document.getElementById('extra_data_field');
     const extraFileField = document.getElementById('extra_file_field');
     const webpImageSearchField = document.getElementById('webp_image_search_field');
+    const recoverMissingWeightsField = document.getElementById('recover_missing_weights_field');
 
     function toggleFields() {
       const task = taskSelect.value;
@@ -575,6 +584,7 @@
       extraDataField.classList.add('d-none');
       extraFileField.classList.add('d-none');
       if (webpImageSearchField) webpImageSearchField.classList.add('d-none');
+      if (recoverMissingWeightsField) recoverMissingWeightsField.classList.add('d-none');
 
       if (task === 'extended_attributes_by_skus' || task === 'recover_broken_product_images' || task === 'update_product_variants' || task === 'refresh_category_lt' || task === 'category_filters_one') {
         extraDataField.classList.remove('d-none');
@@ -590,6 +600,8 @@
         if (webpImageSearchField) webpImageSearchField.classList.remove('d-none');
       } else if (task === 'pl_prices_stock') {
         threadsField.classList.remove('d-none');
+      } else if (task === 'recover_missing_weights') {
+        if (recoverMissingWeightsField) recoverMissingWeightsField.classList.remove('d-none');
       }
 
       if (task === 'category_filters_one') {
