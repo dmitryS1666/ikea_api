@@ -75,36 +75,55 @@ module Products
       "традиционный" => ["tradycyjny", "klasyczny", "traditional", "classic"]
     }.freeze
 
-    def initialize(category)
+    # parameters: список id фильтров из available_filters (например %w[f-series f-colors]).
+    # nil — переиндексировать все фильтры категории (прежнее поведение).
+    def initialize(category, parameters: nil)
       @category = category
       @filters = Array(category.available_filters)
+      @parameters = normalize_filter_parameters(parameters)
     end
 
     def reindex!
-      return if @filters.blank?
+      if selective_mode?
+        ProductFilterValue.where(category_id: @category.ikea_id, parameter: @parameters).delete_all
+      else
+        return if @filters.blank?
 
-      ProductFilterValue.where(category_id: @category.ikea_id).delete_all
+        ProductFilterValue.where(category_id: @category.ikea_id).delete_all
+      end
+
+      eff = filters_to_apply
+      return if eff.blank?
 
       products = @category.products_through_categories
       promo_skus = active_promo_skus(products)
 
       products.find_each do |product|
-        index_product(product, promo_skus: promo_skus)
+        index_product(product, promo_skus: promo_skus, filters: eff)
       end
     end
 
     def reindex_product(product)
-      return if @filters.blank?
+      if selective_mode?
+        ProductFilterValue.where(category_id: @category.ikea_id, product_id: product.id, parameter: @parameters).delete_all
+      else
+        return if @filters.blank?
 
-      ProductFilterValue.where(category_id: @category.ikea_id, product_id: product.id).delete_all
-      index_product(product)
+        ProductFilterValue.where(category_id: @category.ikea_id, product_id: product.id).delete_all
+      end
+
+      eff = filters_to_apply
+      return if eff.blank?
+
+      index_product(product, filters: eff)
     end
 
-    def index_product(product, promo_skus: nil)
-      return if @filters.blank?
+    def index_product(product, promo_skus: nil, filters: nil)
+      filters ||= filters_to_apply
+      return if filters.blank?
 
       promo_skus ||= active_promo_skus(Product.where(id: product.id))
-      values = match_product(product, promo_skus: promo_skus)
+      values = match_product(product, promo_skus: promo_skus, filters: filters)
 
       rows = []
       values.each do |parameter, value_ids|
@@ -125,10 +144,27 @@ module Products
 
     private
 
-    def match_product(product, promo_skus:)
+    def normalize_filter_parameters(parameters)
+      list = Array(parameters).map { |p| p.to_s.strip.presence }.compact.uniq
+      list.presence
+    end
+
+    def selective_mode?
+      @parameters.present?
+    end
+
+    def filters_to_apply
+      return [] if @filters.blank?
+
+      return @filters unless selective_mode?
+
+      @filters.select { |f| @parameters.include?(f["parameter"].to_s) }
+    end
+
+    def match_product(product, promo_skus:, filters:)
       results = Hash.new { |h, k| h[k] = [] }
 
-      @filters.each do |filter|
+      filters.each do |filter|
         parameter = filter["parameter"].to_s
         values = Array(filter["values"])
 

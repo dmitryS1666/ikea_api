@@ -86,9 +86,14 @@
             </div>
 
             <div class="form-group d-none" id="extra_data_field">
-              <%= label_tag :extra_data, "Список SKU (через пробел или запятую)", class: "form-label" %>
-              <%= text_area_tag :extra_data, nil, class: "form-control", rows: 5, placeholder: "Например: 123.456.78, 987.654.32" %>
-              <div class="mt-2">
+              <%= label_tag :extra_data, "Список SKU (через пробел или запятую)", class: "form-label", id: "extra_data_main_label" %>
+              <%= text_area_tag :extra_data, nil, class: "form-control", rows: 5, placeholder: "Например: 123.456.78, 987.654.32", id: "extra_data_textarea" %>
+              <small id="category_filters_one_hint" class="form-text text-muted d-none">
+                Переиндексация фильтров одной категории: укажите <code>ikea_id</code> (одна строка) или JSON.
+                Выборочно: <code>{"ikea_id":"20515","parameters":["f-series"]}</code> (коллекции = <code>f-series</code>).
+                Только один товар: добавьте <code>"product_id":123</code>. Без <code>parameters</code> — все фильтры.
+              </small>
+              <div class="mt-2" id="extra_data_sku_file_block">
                 <%= label_tag :sku_file_path, "ИЛИ путь к файлу со списком SKU на сервере", class: "form-label" %>
                 <%= text_field_tag :sku_file_path, nil, class: "form-control", placeholder: "/absolute/path/to/file.txt" %>
               </div>
@@ -571,6 +576,10 @@
     const extraFileField = document.getElementById('extra_file_field');
     const webpImageSearchField = document.getElementById('webp_image_search_field');
     const recoverMissingWeightsField = document.getElementById('recover_missing_weights_field');
+    const extraDataMainLabel = document.getElementById('extra_data_main_label');
+    const extraDataTextarea = document.getElementById('extra_data_textarea');
+    const categoryFiltersOneHint = document.getElementById('category_filters_one_hint');
+    const extraDataSkuFileBlock = document.getElementById('extra_data_sku_file_block');
 
     function toggleFields() {
       const task = taskSelect.value;
@@ -585,6 +594,10 @@
       extraFileField.classList.add('d-none');
       if (webpImageSearchField) webpImageSearchField.classList.add('d-none');
       if (recoverMissingWeightsField) recoverMissingWeightsField.classList.add('d-none');
+      if (categoryFiltersOneHint) categoryFiltersOneHint.classList.add('d-none');
+      if (extraDataSkuFileBlock) extraDataSkuFileBlock.classList.remove('d-none');
+      if (extraDataMainLabel) extraDataMainLabel.textContent = 'Список SKU (через пробел или запятую)';
+      if (extraDataTextarea) extraDataTextarea.placeholder = 'Например: 123.456.78, 987.654.32';
 
       if (task === 'extended_attributes_by_skus' || task === 'recover_broken_product_images' || task === 'update_product_variants' || task === 'refresh_category_lt' || task === 'category_filters_one') {
         extraDataField.classList.remove('d-none');
@@ -606,6 +619,10 @@
 
       if (task === 'category_filters_one') {
         limitField.classList.add('d-none');
+        if (categoryFiltersOneHint) categoryFiltersOneHint.classList.remove('d-none');
+        if (extraDataSkuFileBlock) extraDataSkuFileBlock.classList.add('d-none');
+        if (extraDataMainLabel) extraDataMainLabel.textContent = 'IKEA ID категории или JSON';
+        if (extraDataTextarea) extraDataTextarea.placeholder = '20515 или {"ikea_id":"20515","parameters":["f-series"]}';
       }
     }
 

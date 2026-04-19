@@ -1,7 +1,8 @@
 class ReindexProductFiltersJob < ApplicationJob
   queue_as :parser
 
-  def perform(product_id, category_ids = nil)
+  # parameters — только указанные фильтры (например %w[f-series]); nil — все фильтры категории для товара
+  def perform(product_id, category_ids = nil, parameters: nil)
     product = Product.find_by(id: product_id)
     return unless product
 
@@ -15,7 +16,7 @@ class ReindexProductFiltersJob < ApplicationJob
                  end
 
     categories.find_each do |category|
-      Products::FilterValuesIndexer.new(category).reindex_product(product)
+      Products::FilterValuesIndexer.new(category, parameters: parameters).reindex_product(product)
     end
   end
 end

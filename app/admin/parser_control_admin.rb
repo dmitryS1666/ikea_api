@@ -81,11 +81,13 @@ Trestle.resource :parser_control, model: ParserControl do
           if task_type == "category_filters_one"
             rc = parse_category_filters_one_extra(extra_data)
             if rc[:ikea_id].blank?
-              flash[:error] = "Укажите ikea_id категории для переиндексации фильтров (номер или JSON: {\"ikea_id\":\"20515\"})"
+              flash[:error] = "Укажите ikea_id категории для переиндексации фильтров (номер или JSON, например {\"ikea_id\":\"20515\"} или с выборочными фильтрами: {\"ikea_id\":\"20515\",\"parameters\":[\"f-series\"]})"
               redirect_to admin.instance_path(ParserControl.new(id: 'show'))
               return
             end
             payload[:ikea_id] = rc[:ikea_id]
+            payload[:parameters] = rc[:parameters] if rc[:parameters].present?
+            payload[:product_id] = rc[:product_id] if rc[:product_id].present?
           end
 
           if task_type == "recover_missing_weights"
@@ -134,7 +136,12 @@ Trestle.resource :parser_control, model: ParserControl do
           job = if task_type == 'refresh_category_lt'
                   job_class.perform_later(task_id: task.id, ikea_id: payload[:ikea_id].to_s)
                 elsif task_type == 'category_filters_one'
-                  job_class.perform_later(payload[:ikea_id].to_s, task_id: task.id)
+                  job_class.perform_later(
+                    payload[:ikea_id].to_s,
+                    task_id: task.id,
+                    parameters: payload[:parameters],
+                    product_id: payload[:product_id]
+                  )
                 elsif task_type == 'pl_prices_stock'
                   job_class.perform_later(task_id: task.id, threads: threads)
                 elsif task_type == 'recover_missing_weights'
@@ -427,20 +434,52 @@ Trestle.resource :parser_control, model: ParserControl do
 
     def parse_category_filters_one_extra(raw)
       s = raw.to_s.strip
-      return { ikea_id: nil } if s.blank?
+      return { ikea_id: nil, parameters: nil, product_id: nil } if s.blank?
 
       if s.start_with?("{")
         begin
           h = JSON.parse(s)
-          return { ikea_id: nil } unless h.is_a?(Hash)
+          return { ikea_id: nil, parameters: nil, product_id: nil } unless h.is_a?(Hash)
 
-          { ikea_id: (h["ikea_id"] || h[:ikea_id]).to_s.strip.presence }
+          product_raw = h["product_id"] || h[:product_id]
+          product_id =
+            if product_raw.blank?
+              nil
+            else
+              pid = product_raw.to_i
+              pid.positive? ? pid : nil
+            end
+
+          parameters = filter_parameters_from_extra_hash(h)
+
+          {
+            ikea_id: (h["ikea_id"] || h[:ikea_id]).to_s.strip.presence,
+            parameters: parameters,
+            product_id: product_id
+          }
         rescue JSON::ParserError
-          { ikea_id: s.presence }
+          { ikea_id: s.presence, parameters: nil, product_id: nil }
         end
       else
-        { ikea_id: s.presence }
+        { ikea_id: s.presence, parameters: nil, product_id: nil }
       end
+    end
+
+    def filter_parameters_from_extra_hash(h)
+      raw = h["parameters"] || h[:parameters]
+      return nil if raw.blank?
+
+      list =
+        case raw
+        when Array
+          raw.flat_map { |x| x.to_s.split(/[\s,;]+/) }
+        when String
+          raw.split(/[\s,;]+/)
+        else
+          [raw.to_s]
+        end
+
+      list.map(&:strip).reject(&:blank?).uniq.presence
     end
 
     def parse_refresh_category_lt_extra(raw)

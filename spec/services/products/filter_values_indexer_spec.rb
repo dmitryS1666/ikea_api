@@ -51,5 +51,70 @@ RSpec.describe Products::FilterValuesIndexer do
 
       expect(ProductFilterValue.where(parameter: "f-colors", value_id: "10028")).to exist
     end
+
+    it "reindexes only listed parameters and leaves others unchanged" do
+      category = create(:category, ikea_id: "700888", available_filters: [
+        {
+          "parameter" => "f-price-buckets",
+          "values" => [
+            { "id" => "PRICE_19900_19901", "name" => "199 zl" }
+          ]
+        },
+        {
+          "parameter" => "f-colors",
+          "values" => [
+            { "id" => "10028", "name" => "szary" }
+          ]
+        }
+      ])
+
+      product = create(:product,
+                       price: 199,
+                       full_attributes: { "Kolor" => "Szary" })
+
+      category.products_through_categories << product
+
+      described_class.new(category).reindex!
+
+      expect(ProductFilterValue.where(product_id: product.id, parameter: "f-price-buckets")).to exist
+      expect(ProductFilterValue.where(product_id: product.id, parameter: "f-colors")).to exist
+
+      described_class.new(category, parameters: %w[f-colors]).reindex!
+
+      expect(ProductFilterValue.where(product_id: product.id, parameter: "f-colors", value_id: "10028")).to exist
+      expect(ProductFilterValue.where(product_id: product.id, parameter: "f-price-buckets", value_id: "PRICE_19900_19901")).to exist
+    end
+  end
+
+  describe "#reindex_product" do
+    it "updates only selected parameters for one product" do
+      category = create(:category, ikea_id: "700777", available_filters: [
+        {
+          "parameter" => "f-price-buckets",
+          "values" => [
+            { "id" => "PRICE_19900_19901", "name" => "199 zl" }
+          ]
+        },
+        {
+          "parameter" => "f-colors",
+          "values" => [
+            { "id" => "10028", "name" => "szary" }
+          ]
+        }
+      ])
+
+      product = create(:product,
+                       price: 199,
+                       full_attributes: { "Kolor" => "Szary" })
+
+      category.products_through_categories << product
+
+      described_class.new(category).reindex_product(product)
+
+      described_class.new(category, parameters: %w[f-colors]).reindex_product(product)
+
+      expect(ProductFilterValue.where(product_id: product.id, parameter: "f-colors")).to exist
+      expect(ProductFilterValue.where(product_id: product.id, parameter: "f-price-buckets")).to exist
+    end
   end
 end
