@@ -68,9 +68,8 @@ class WebpayPaymentLinkService
         fields['wsb_cancel_return_url'] = webpay_config.cancel_url
       end
 
-      if webpay_config.notify_url.present?
-        fields['wsb_notify_url'] = webpay_config.notify_url
-      end
+      notify = effective_notify_url
+      fields['wsb_notify_url'] = notify if notify.present?
 
       fields.merge!(cart_fields(total, order))
       fields
@@ -116,6 +115,20 @@ class WebpayPaymentLinkService
 
     def generate_order_number(order)
       "ORDER-#{order.id}-#{SecureRandom.hex(4)}"
+    end
+
+    def effective_notify_url
+      if webpay_config.notify_url.is_a?(String)
+        s = webpay_config.notify_url.strip
+        return s if s.present?
+
+        return nil
+      end
+
+      base = webpay_config.link_base_url.to_s.strip.chomp('/')
+      return nil if base.blank?
+
+      "#{base}/api/v1/webhooks/webpay"
     end
 
     def webpay_config

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_15_035757) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_19_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -423,11 +423,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_15_035757) do
     t.string "payment_order_number"
     t.decimal "weight"
     t.text "cancellation_reason"
+    t.string "webpay_transaction_id"
+    t.datetime "webpay_paid_at"
     t.index ["crm_external_id"], name: "index_orders_on_crm_external_id"
     t.index ["payment_link_token"], name: "index_orders_on_payment_link_token", unique: true
     t.index ["promo_code_id"], name: "index_orders_on_promo_code_id"
     t.index ["status"], name: "index_orders_on_status"
     t.index ["user_id"], name: "index_orders_on_user_id"
+    t.index ["webpay_transaction_id"], name: "index_orders_on_webpay_transaction_id", unique: true, where: "(webpay_transaction_id IS NOT NULL)"
   end
 
   create_table "parser_tasks", force: :cascade do |t|

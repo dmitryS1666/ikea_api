@@ -183,7 +183,15 @@ rails server
 - `WEBPAY_STORE_ID` — идентификатор магазина в Webpay (по умолчанию `11111111`).
 - `WEBPAY_SECRET_KEY` — ваш секретный ключ (в тестовой среде можно использовать `xxxaL8v9AjMPTB7w4bmXDaEcbjMCNqyw`, как предоставлено выше).
 - `WEBPAY_STORE_NAME` — название магазина, показывается на форме (`IKEA by Shop`).
-- `WEBPAY_RETURN_URL`, `WEBPAY_CANCEL_URL`, `WEBPAY_NOTIFY_URL` — внешние адреса, на которые Webpay вернёт покупателя или отправит уведомление.
+- `WEBPAY_RETURN_URL`, `WEBPAY_CANCEL_URL`, `WEBPAY_NOTIFY_URL` — внешние адреса, на которые Webpay вернёт покупателя или отправит уведомление. Если `WEBPAY_NOTIFY_URL` **не задан** в окружении, в форму подставляется `{WEBPAY_LINK_BASE_URL}/api/v1/webhooks/webpay`. Пустая строка `WEBPAY_NOTIFY_URL=` отключает notify в форме.
+- `WEBPAY_BILLING_API_URL` — Billing API для `get_transaction` (тест: `https://sandbox.webpay.by`, прод: `https://billing.webpay.by`).
+- `WEBPAY_BILLING_USERNAME`, `WEBPAY_BILLING_PASSWORD` — логин и **обычный** пароль личного кабинета WebPay; для запроса пароль передаётся как MD5, см. [payment verification](https://docs.webpay.by/en/paymentIntegration/cardIntegration/paymentVerification/). Если заданы, после серверного уведомления выполняется дополнительная проверка `get_transaction`.
+- `WEBPAY_NOTIFY_TRUSTED_IPS` — через запятую доверенные IP (для продакшена укажите `178.163.225.84`). Если пусто, IP нотификатора не проверяется (удобно для sandbox и локальных тестов).
+
+**Подтверждение оплаты**
+
+- `POST /api/v1/webhooks/webpay` — тело как у стандартного POST-нотификатора WebPay; при успехе ответ `200`, при неверной подписи — `403`. Заказ переводится в статус `paid`, сохраняются `webpay_transaction_id` и `webpay_paid_at`.
+- Если notify с интернета недоступен (localhost), после редиректа на `WEBPAY_RETURN_URL` с параметрами `wsb_order_num` и `wsb_tid` клиент вызывает `POST /api/v1/account/orders/:id/confirm_webpay` с JSON `{ "transaction_id": "<wsb_tid>" }` (нужен JWT пользователя). Требуются `WEBPAY_BILLING_USERNAME` и `WEBPAY_BILLING_PASSWORD`.
 - `WEBPAY_CURRENCY_ID` — валюта (`BYN` по умолчанию).
 - `WEBPAY_LANGUAGE_ID` — локаль формы (`russian`).
 - `WEBPAY_VERSION` — версия протокола (`2`).

@@ -63,6 +63,7 @@ Rails.application.routes.draw do
         resources :orders, only: [:index, :show] do
           member do
             post :reorder
+            post :confirm_webpay
           end
         end
         resource :profile, only: [:show, :update], controller: 'profile' do
@@ -172,6 +173,7 @@ Rails.application.routes.draw do
       # Webhooks
       namespace :webhooks do
         post 'amo_crm', to: 'amo_crm#receive'
+        post 'webpay', to: 'webpay#create'
       end
     end
   end
