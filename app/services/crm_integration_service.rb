@@ -238,6 +238,38 @@ class CrmIntegrationService
     response.success?
   end
 
+  def self.notify_cooperation(cooperation_request)
+    Rails.logger.info "[AmoCRM] Notifying about cooperation request #{cooperation_request.id}"
+
+    contact_id = find_or_create_contact_for_cooperation(cooperation_request)
+    return false unless contact_id && contact_id != :error
+
+    pipeline_id = ENV['AMO_CRM_COOP_PIPELINE_ID']&.to_i
+    status_id = (ENV['AMO_CRM_COOP_STATUS_ID']&.to_i).presence
+
+    lead_payload = {
+      name: "Сотрудничество: #{cooperation_request.full_name}",
+      custom_fields_values: [
+        { field_id: contact_field_id('COOP_TYPE'), values: [{ value: cooperation_request.cooperation_type }] },
+        { field_id: contact_field_id('COOP_COMPANY'), values: [{ value: cooperation_request.company }] },
+        { field_id: contact_field_id('COOP_CITY'), values: [{ value: cooperation_request.city }] },
+        { field_id: contact_field_id('COOP_COMMENT'), values: [{ value: cooperation_request.comment }] },
+        { field_id: contact_field_id('COOP_PD_CONSENT'), values: [{ value: cooperation_request.personal_data_consent }] },
+        { field_id: contact_field_id('COOP_EMAIL_CONSENT'), values: [{ value: cooperation_request.marketing_email_consent }] }
+      ].reject { |f| f.dig(:values, 0, :value).blank? },
+      _embedded: { contacts: [{ id: contact_id }] }
+    }
+
+    lead_payload[:pipeline_id] = pipeline_id if pipeline_id.present? && pipeline_id.positive?
+    lead_payload[:status_id] = status_id if status_id.present? && status_id.positive?
+
+    response = post_with_log("#{base_url}/api/v4/leads", body: [lead_payload].to_json, headers: headers)
+    response.success?
+  rescue => e
+    Rails.logger.error "[AmoCRM] Notify cooperation failed: #{e.message}"
+    false
+  end
+
   def self.sync_order(order)
     contact_id = order.user.crm_contact_id || find_contact(order.user)
     if contact_id == :error
@@ -360,6 +392,41 @@ class CrmIntegrationService
     response.parsed_response.dig('_embedded', 'contacts', 0, 'id')
   end
 
+  def self.find_or_create_contact_for_cooperation(cooperation_request)
+    query = cooperation_request.phone.presence || cooperation_request.email
+
+    if query.present?
+      Rails.logger.info "[AmoCRM] Finding contact for cooperation #{query}"
+      response = get_with_log("#{base_url}/api/v4/contacts", query: { query: query }, headers: headers)
+      return :error if response.code >= 500
+      found = response.success? ? response.parsed_response.dig('_embedded', 'contacts', 0, 'id') : nil
+      return found if found.present?
+    end
+
+    contact_payload = {
+      name: cooperation_request.full_name,
+      first_name: cooperation_request.first_name,
+      last_name: cooperation_request.last_name,
+      custom_fields_values: []
+    }
+
+    if cooperation_request.phone.present?
+      contact_payload[:custom_fields_values] << {
+        field_id: contact_field_id('PHONE'),
+        values: [{ value: cooperation_request.phone, enum_code: 'MOB' }]
+      }
+    end
+
+    if cooperation_request.email.present?
+      contact_payload[:custom_fields_values] << {
+        field_id: contact_field_id('EMAIL'),
+        values: [{ value: cooperation_request.email, enum_code: 'WORK' }]
+      }
+    end
+
+    create_contact_with_id(contact_payload)
+  end
+
   def self.sync_order_items(lead_id, order)
     items_text = order.order_items.map { |oi| "#{oi.product_sku} x #{oi.quantity}" }.join("\n")
     note_payload = {
@@ -405,10 +472,16 @@ class CrmIntegrationService
       'RETURN_FILES' => 578811,
       'RETURN_TYPE' => 578813,
       'RETURN_DATE' => 578815,
+      'COOP_COMPANY' => ENV['AMO_CRM_COOP_COMPANY_FIELD_ID']&.to_i,
+      'COOP_CITY' => ENV['AMO_CRM_COOP_CITY_FIELD_ID']&.to_i,
+      'COOP_TYPE' => ENV['AMO_CRM_COOP_TYPE_FIELD_ID']&.to_i,
+      'COOP_COMMENT' => ENV['AMO_CRM_COOP_COMMENT_FIELD_ID']&.to_i,
+      'COOP_PD_CONSENT' => ENV['AMO_CRM_COOP_PD_CONSENT_FIELD_ID']&.to_i,
+      'COOP_EMAIL_CONSENT' => ENV['AMO_CRM_COOP_EMAIL_CONSENT_FIELD_ID']&.to_i,
       'WEIGHT' => 363323,
       'TRACK_NUMBER' => 377661,
       'CANCELLATION_REASON' => 578819
     }
-    mapping[code] || code
+    mapping[code].presence || code
   end
 end

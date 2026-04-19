@@ -113,6 +113,7 @@ en:
         breadcrumb_rules: { label: "Правила хлебных крошек" }
         calculator_setting: { label: "Настройки калькулятора" }
         categories: { label: "Категории" }
+        cooperation_requests: { label: "Сотрудничество" }
         content_articles: { label: "Статьи" }
         cron_schedules: { label: "Cron расписания" }
         customs_duty_calculator: { label: "Калькулятор пошлин" }
@@ -202,6 +203,9 @@ en:
       return_request:
         one: "Запрос на возврат"
         other: "Запросы на возврат"
+      cooperation_request:
+        one: "Заявка на сотрудничество"
+        other: "Заявки на сотрудничество"
       review:
         one: "Отзыв"
         other: "Отзывы"

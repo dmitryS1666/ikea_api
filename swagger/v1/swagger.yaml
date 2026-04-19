@@ -39,6 +39,8 @@ info:
     - `POST /api/v1/products/{sku}/reviews` — Оставить отзыв
     - `GET /api/v1/account/reviews` — Мои отзывы
     - `PATCH/DELETE /api/v1/reviews/{id}` — Управление своими отзывами
+    - `GET /api/v1/account/returns` — Список заявок на возврат
+    - `POST /api/v1/account/returns` — Создать заявку на возврат по заказу
     
     **Избранное (Favorites):**
     - `GET /api/v1/favorites` — Список избранного
@@ -1738,35 +1740,155 @@ paths:
   /api/v1/account/returns:
     get:
       summary: Список запросов на возврат
+      description: |
+        Возвращает заявки на возврат текущего пользователя, отсортированные по дате создания (сначала новые).
+
+        **Авторизация:** заголовок `Authorization: Bearer <JWT>` (тот же токен, что для личного кабинета).
+
+        **Пагинация:** параметры `page` и `per_page` (по умолчанию 10 записей на страницу).
       tags:
         - Account
       security:
         - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Номер страницы (начиная с 1)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          description: Количество заявок на страницу
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
       responses:
         '200':
-          description: Список возвратов
+          description: Список заявок и метаданные пагинации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReturnRequestsListResponse'
+        '401':
+          description: Не передан или невалиден JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
     post:
       summary: Создать запрос на возврат
+      description: |
+        Форма возврата в личном кабинете: создаёт заявку по **своему** заказу (`order_id` должен принадлежать текущему пользователю).
+
+        **Обязательные поля:** `order_id`, `reason`. Поле `comment` необязательно.
+
+        **Файлы:** можно передать одно или несколько вложений в поле `attachments` (массив файлов). Для загрузки файлов используйте `Content-Type: multipart/form-data`. Если файлов нет, допустим JSON (`application/json`) с теми же полями.
+
+        **После создания:** на сервере ставится фоновая задача синхронизации с AmoCRM; успешный ответ `201` означает только сохранение заявки в базе приложения, не гарантирует мгновенную доставку в CRM.
+
+        **Статусы заявки** (`status` в ответе): `new`, `in_review`, `approved`, `rejected`, `completed` — дальнейшая обработка в админке / CRM.
       tags:
         - Account
       security:
         - BearerAuth: []
       requestBody:
+        required: true
         content:
           multipart/form-data:
             schema:
               type: object
               required: [order_id, reason]
               properties:
-                order_id: { type: integer }
-                reason: { type: string }
-                comment: { type: string }
+                order_id:
+                  type: integer
+                  description: Идентификатор заказа пользователя
+                reason:
+                  type: string
+                  description: Причина возврата (текст с формы)
+                comment:
+                  type: string
+                  description: Дополнительный комментарий
                 attachments:
                   type: array
-                  items: { type: string, format: binary }
+                  description: Файлы (фото чека, упаковки и т.п.) — несколько полей с одним именем или массив в клиенте
+                  items:
+                    type: string
+                    format: binary
+          application/json:
+            schema:
+              type: object
+              required: [order_id, reason]
+              properties:
+                order_id:
+                  type: integer
+                  description: Идентификатор заказа пользователя
+                reason:
+                  type: string
+                  description: Причина возврата
+                comment:
+                  type: string
+                  description: Дополнительный комментарий
       responses:
         '201':
-          description: Запрос создан
+          description: Заявка создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReturnRequestCreateResponse'
+        '401':
+          description: Не передан или невалиден JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        '404':
+          description: Заказ с указанным `order_id` не найден или не принадлежит текущему пользователю
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        '422':
+          description: Ошибка валидации (например, пустая причина)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrors'
+
+  /api/v1/cooperation_requests:
+    post:
+      summary: Отправить заявку на сотрудничество
+      description: |
+        Публичная форма «Сотрудничество» (без JWT). Создаёт заявку в базе и ставит фоновую задачу синхронизации с AmoCRM.
+
+        **Обязательные поля:** `first_name`, `last_name`, `email`, `phone`, `city`, `cooperation_type`, `comment`, `personal_data_consent`.
+        Поля `company` и `marketing_email_consent` — опциональные.
+
+        **Важно:** ответ `201` подтверждает сохранение заявки в приложении; доставка в CRM выполняется асинхронно (по очереди).
+      tags:
+        - Forms
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CooperationRequestCreatePayload'
+      responses:
+        '201':
+          description: Заявка создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CooperationRequestCreateResponse'
+        '422':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrors'
 
   /api/v1/homepage/slider/main:
     get:
@@ -2624,6 +2746,126 @@ components:
             properties:
               filename: { type: string }
               url: { type: string }
+
+    ErrorMessage:
+      type: object
+      description: Типичный ответ при ошибке аутентификации или «не найдено»
+      properties:
+        error:
+          type: string
+          example: Не авторизован
+
+    ValidationErrors:
+      type: object
+      description: |
+        Ответ при ошибке валидации ActiveRecord (формат может различаться по окружению).
+        Часто содержит ключ `errors` с деталями по полям.
+      additionalProperties: true
+
+    ReturnRequest:
+      type: object
+      description: Заявка на возврат (форма личного кабинета)
+      properties:
+        id:
+          type: integer
+          description: Внутренний идентификатор заявки
+        order_id:
+          type: integer
+          description: Заказ, по которому оформлен возврат
+        status:
+          type: string
+          enum: [new, in_review, approved, rejected, completed]
+          description: Статус обработки заявки
+        reason:
+          type: string
+          description: Указанная пользователем причина возврата
+        comment:
+          type: string
+          nullable: true
+          description: Дополнительный комментарий
+        created_at:
+          type: string
+          format: date-time
+          description: Время создания заявки (ISO 8601)
+        attachments_count:
+          type: integer
+          minimum: 0
+          description: Количество прикреплённых файлов
+
+    ReturnRequestListMeta:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: Общее число заявок пользователя
+        page:
+          type: integer
+          description: Текущая страница
+        per_page:
+          type: integer
+          description: Размер страницы
+
+    ReturnRequestsListResponse:
+      type: object
+      required: [returns, meta]
+      properties:
+        returns:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReturnRequest'
+        meta:
+          $ref: '#/components/schemas/ReturnRequestListMeta'
+
+    ReturnRequestCreateResponse:
+      type: object
+      required: [return_request]
+      properties:
+        return_request:
+          $ref: '#/components/schemas/ReturnRequest'
+
+    CooperationRequest:
+      type: object
+      description: Заявка с публичной формы сотрудничества
+      properties:
+        id: { type: integer }
+        first_name: { type: string }
+        last_name: { type: string }
+        phone: { type: string }
+        email: { type: string }
+        company: { type: string, nullable: true }
+        city: { type: string }
+        cooperation_type: { type: string }
+        comment: { type: string }
+        personal_data_consent: { type: boolean }
+        marketing_email_consent: { type: boolean }
+        status:
+          type: string
+          enum: [new, in_review, contacted, closed, rejected]
+        created_at:
+          type: string
+          format: date-time
+
+    CooperationRequestCreatePayload:
+      type: object
+      required: [first_name, last_name, email, phone, city, cooperation_type, comment, personal_data_consent]
+      properties:
+        first_name: { type: string, description: "Имя" }
+        last_name: { type: string, description: "Фамилия" }
+        email: { type: string, description: "Email" }
+        phone: { type: string, description: "Телефон" }
+        city: { type: string, description: "Город" }
+        cooperation_type: { type: string, description: "Тип сотрудничества (например, Частный дизайнер)" }
+        comment: { type: string, description: "Комментарий" }
+        company: { type: string, nullable: true, description: "Компания (если есть)" }
+        personal_data_consent: { type: boolean, description: "Согласие с политикой обработки персональных данных" }
+        marketing_email_consent: { type: boolean, description: "Согласие на email-уведомления по условиям сотрудничества" }
+
+    CooperationRequestCreateResponse:
+      type: object
+      required: [cooperation_request]
+      properties:
+        cooperation_request:
+          $ref: '#/components/schemas/CooperationRequest'
 
     Meta:
       type: object

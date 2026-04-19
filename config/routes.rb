@@ -76,6 +76,9 @@ Rails.application.routes.draw do
         resources :returns, only: [:index, :create]
         resources :receipts, only: [:index]
       end
+
+      # Public forms
+      resources :cooperation_requests, only: [:create]
       
       # Categories
       resources :categories, only: [:index, :show] do

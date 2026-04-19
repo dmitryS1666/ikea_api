@@ -222,6 +222,27 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_19_120000) do
     t.index ["tags"], name: "index_content_articles_on_tags", using: :gin
   end
 
+  create_table "cooperation_requests", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "phone"
+    t.string "email"
+    t.string "company"
+    t.string "city"
+    t.text "message", null: false
+    t.string "status", default: "new", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "first_name"
+    t.string "last_name"
+    t.string "cooperation_type"
+    t.text "comment"
+    t.boolean "personal_data_consent", default: false, null: false
+    t.boolean "marketing_email_consent", default: false, null: false
+    t.index ["cooperation_type"], name: "index_cooperation_requests_on_cooperation_type"
+    t.index ["created_at"], name: "index_cooperation_requests_on_created_at"
+    t.index ["status"], name: "index_cooperation_requests_on_status"
+  end
+
   create_table "cron_schedules", force: :cascade do |t|
     t.string "task_type", null: false
     t.string "schedule", null: false
