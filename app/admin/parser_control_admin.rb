@@ -93,6 +93,9 @@ Trestle.resource :parser_control, model: ParserControl do
           if task_type == "recover_missing_weights"
             # hidden "0" + checkbox "1": без галочки уходит только "0"
             payload[:only_missing_weight] = params[:only_missing_weight].to_s != "0"
+            payload[:sku] = params[:sku].to_s.strip.presence
+            payload[:skus] = params[:skus].to_s.strip.presence
+            payload[:category_ikea_id] = params[:recover_category_ikea_id].to_s.strip.presence
           end
 
           # Обработка дополнительных данных (SKUs и т.д.)
@@ -148,7 +151,10 @@ Trestle.resource :parser_control, model: ParserControl do
                   job_class.perform_later(
                     limit: limit,
                     task_id: task.id,
-                    only_missing_weight: payload[:only_missing_weight]
+                    only_missing_weight: payload[:only_missing_weight],
+                    sku: payload[:sku],
+                    skus: payload[:skus],
+                    category_ikea_id: payload[:category_ikea_id]
                   )
                 elsif %w[extended_attrs_import extended_attributes_by_skus fix_missing_images update_all_product_images update_product_variants].include?(task_type)
                   # Для полного обновления картинок передаем cleanup: true по умолчанию

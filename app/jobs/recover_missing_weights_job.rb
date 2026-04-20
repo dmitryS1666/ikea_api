@@ -6,7 +6,7 @@ class RecoverMissingWeightsJob < ApplicationJob
   BATCH_SIZE = 50
   THREADS_COUNT = 2
 
-  def perform(limit: nil, task_id: nil, only_missing_weight: true)
+  def perform(limit: nil, task_id: nil, only_missing_weight: true, sku: nil, skus: nil, category_ikea_id: nil)
     task = task_id ? ParserTask.find(task_id) : create_parser_task("recover_missing_weights", limit: limit)
     
     # Сбрасываем счетчики если задача перезапускается
@@ -25,16 +25,22 @@ class RecoverMissingWeightsJob < ApplicationJob
       check_task_not_stopped!(task)
       task.mark_as_running!
       
-      query =
-        if only_missing_weight
-          Product.where(weight: nil)
-        else
-          Product.all
-        end
+      query = build_scope(
+        only_missing_weight: only_missing_weight,
+        sku: sku,
+        skus: skus,
+        category_ikea_id: category_ikea_id
+      )
       query = query.limit(limit) if limit.present?
 
       total_count = query.count
-      task.update_payload!(total_to_process: total_count, only_missing_weight: only_missing_weight)
+      task.update_payload!(
+        total_to_process: total_count,
+        only_missing_weight: only_missing_weight,
+        sku: sku,
+        skus: normalize_skus(skus),
+        category_ikea_id: category_ikea_id.to_s.strip.presence
+      )
 
       notify_started("recover_missing_weights", limit: total_count)
       scope_note = only_missing_weight ? "without weight (NULL)" : "all products"
@@ -101,4 +107,41 @@ class RecoverMissingWeightsJob < ApplicationJob
   end
 
   private
+
+  def build_scope(only_missing_weight:, sku:, skus:, category_ikea_id:)
+    scope = only_missing_weight ? Product.where(weight: nil) : Product.all
+    requested_skus = normalize_skus([sku, skus].compact)
+
+    if requested_skus.present?
+      aliases = requested_skus.flat_map { |val| Products::ListingSkuResolver.aliases(val) }.map(&:to_s).uniq
+      scope = scope.where(sku: aliases)
+    end
+
+    category_id = category_ikea_id.to_s.strip.presence
+    if category_id.present?
+      scope =
+        scope
+          .left_joins(:category_products)
+          .where("products.category_id = :cid OR category_products.category_id = :cid", cid: category_id)
+          .distinct
+    end
+
+    scope
+  end
+
+  def normalize_skus(raw)
+    return [] if raw.blank?
+
+    values =
+      case raw
+      when String
+        raw.split(/[\s,;\n\r\t]+/)
+      when Array
+        raw.flat_map { |v| v.to_s.split(/[\s,;\n\r\t]+/) }
+      else
+        [raw.to_s]
+      end
+
+    values.map { |v| v.to_s.strip }.reject(&:blank?).uniq
+  end
 end

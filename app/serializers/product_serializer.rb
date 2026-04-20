@@ -207,6 +207,7 @@ class ProductSerializer
     size = ProductSerializer.build_size_block(dimensions_map, detailed_info["Информация об упаковке"])
     enrich_size_block_from_measurements_modal!(size, measurements_modal, product)
     size["packages"] = ProductSerializer.build_packages_for_customer_payload(size, measurements_modal)
+    normalize_size_block_ru!(size)
 
     materials = ProductSerializer.build_materials_block(detailed_info["Материал и уход"])
     enrich_materials_block_from_product!(materials, product, product_details_modal)
@@ -260,11 +261,11 @@ class ProductSerializer
     Array(measurements_modal["product_measurements"]).each do |row|
       next unless row.is_a?(Hash)
 
-      name = row["name"].to_s.gsub(":", "").strip
+      name = normalize_measurement_label_ru(row["name"])
       measure = row["measure"].to_s.strip
       next if name.blank? || measure.blank?
 
-      out[name] = measure
+      out[name] ||= measure
     end
     out
   end
@@ -294,6 +295,40 @@ class ProductSerializer
     "depth" => "Глубина",
     "weight" => "Вес",
     "diameter" => "Диаметр"
+  }.freeze
+
+  DIMENSION_LABELS_RU = {
+    "ширина" => "Ширина",
+    "szerokość" => "Ширина",
+    "szerokosc" => "Ширина",
+    "width" => "Ширина",
+    "глубина" => "Глубина",
+    "głębokość" => "Глубина",
+    "glebokosc" => "Глубина",
+    "depth" => "Глубина",
+    "высота" => "Высота",
+    "wysokość" => "Высота",
+    "wysokosc" => "Высота",
+    "height" => "Высота",
+    "длина" => "Длина",
+    "długość" => "Длина",
+    "dlugosc" => "Длина",
+    "length" => "Длина",
+    "макс нагрузка" => "Макс нагрузка",
+    "maksymalne obciążenie" => "Макс нагрузка",
+    "maksymalne obciazenie" => "Макс нагрузка",
+    "объем" => "Объем",
+    "pojemność" => "Объем",
+    "pojemnosc" => "Объем",
+    "volume" => "Объем",
+    "вес" => "Вес",
+    "waga" => "Вес",
+    "weight" => "Вес",
+    "диаметр" => "Диаметр",
+    "diameter" => "Диаметр",
+    "упаковка(-и)" => "Упаковка(-и)",
+    "paczka(i)" => "Упаковка(-и)",
+    "packages" => "Упаковка(-и)"
   }.freeze
 
   ARTICLE_IN_LABEL_RE = /\b(\d{3}\.\d{3}\.\d{2})\b|\b(\d{8})\b/.freeze
@@ -327,7 +362,7 @@ class ProductSerializer
     art = pkg["article_number"] || pkg["articleNumber"]
     if art.is_a?(Hash)
       h = art.stringify_keys
-      lab = h["label"].presence || "Номер товара"
+      lab = "Номер товара"
       val = h["value"].presence
       out["article_number"] = { "label" => lab, "value" => val } if val.present?
     elsif art.present?
@@ -342,7 +377,7 @@ class ProductSerializer
       case m
       when Hash
         m = m.stringify_keys
-        n = m["name"].to_s.strip
+        n = normalize_measurement_label_ru(m["name"])
         v = (m["measure"] || m["value"]).to_s.strip
         next if n.blank? || v.blank?
 
@@ -539,6 +574,54 @@ class ProductSerializer
     return nil if d.except("label").empty?
 
     d
+  end
+
+  def self.normalize_size_block_ru!(size_block)
+    return size_block unless size_block.is_a?(Hash)
+
+    normalized = {}
+    size_block.each do |key, value|
+      key_s = key.to_s
+      next if key_s == "packaging" || key_s == "packages"
+
+      ru_key = normalize_measurement_label_ru(key_s)
+      next if ru_key.blank?
+      next if normalized.key?(ru_key) && normalized[ru_key].present?
+
+      normalized[ru_key] = value
+    end
+
+    packaging = size_block["packaging"]
+    packages = size_block["packages"]
+    size_block.clear
+    normalized.each { |k, v| size_block[k] = v }
+    size_block["packaging"] = packaging if packaging.present?
+
+    if packages.is_a?(Array)
+      packages.each do |pkg|
+        next unless pkg.is_a?(Hash)
+
+        if pkg["article_number"].is_a?(Hash)
+          pkg["article_number"]["label"] = "Номер товара"
+        end
+
+        Array(pkg["measurements"]).each do |row|
+          next unless row.is_a?(Hash)
+
+          row["name"] = normalize_measurement_label_ru(row["name"])
+        end
+      end
+    end
+
+    size_block["packages"] = packages if packages.present?
+    size_block
+  end
+
+  def self.normalize_measurement_label_ru(label)
+    base = label.to_s.gsub(":", "").strip
+    return nil if base.blank?
+
+    DIMENSION_LABELS_RU[base.downcase] || base
   end
 
   def self.enrich_materials_block_from_product!(block, product, product_details_modal)
