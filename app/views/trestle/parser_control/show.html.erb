@@ -40,6 +40,7 @@
                     ['Проверка отсутствующих картинок', 'fix_missing_images'],
                     ['Импорт атрибутов из файла (JSON)', 'extended_attrs_import'],
                     ['Загрузка атрибутов по списку SKU', 'extended_attributes_by_skus'],
+                    ['Импорт товаров по списку SKU + time_ikea_id', 'import_products_by_skus'],
                     ['Восполнение ссылок на картинки', 'recover_missing_images'],
                     ['Актуализация вариантов (цвета/размеры)', 'update_product_variants'],
                     ['Полное обновление всех картинок (WebP)', 'update_all_product_images'],
@@ -177,6 +178,7 @@
                         'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)',
                         'fix_missing_images' => 'Проверка отсутствующих картинок',
                         'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
+                        'import_products_by_skus' => 'Импорт товаров по SKU + time_ikea_id',
                         'recover_missing_images' => 'Восполнение ссылок на картинки',
                         'update_product_variants' => 'Актуализация вариантов',
                         'update_all_product_images' => 'Обновление всех картинок (WebP)',
@@ -294,6 +296,7 @@
                       'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)',
                       'fix_missing_images' => 'Проверка отсутствующих картинок',
                       'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
+                      'import_products_by_skus' => 'Импорт товаров по SKU + time_ikea_id',
                       'recover_missing_weights' => 'Восполнение недостающего веса',
                       'update_all_product_images' => 'Обновление всех картинок (WebP)',
                       'recover_broken_product_images' => 'Восстановление битых картинок',
@@ -454,6 +457,7 @@
             'extended_attrs_import': 'Импорт расширенных атрибутов (JSON)',
             'fix_missing_images': 'Проверка отсутствующих картинок',
             'extended_attributes_by_skus': 'Загрузка атрибутов по списку SKU',
+            'import_products_by_skus': 'Импорт товаров по SKU + time_ikea_id',
             'recover_missing_weights': 'Восполнение недостающего веса',
             'update_all_product_images': 'Обновление всех картинок (WebP)',
             'recover_broken_product_images': 'Восстановление битых картинок',
@@ -616,7 +620,7 @@
       if (extraDataMainLabel) extraDataMainLabel.textContent = 'Список SKU (через пробел или запятую)';
       if (extraDataTextarea) extraDataTextarea.placeholder = 'Например: 123.456.78, 987.654.32';
 
-      if (task === 'extended_attributes_by_skus' || task === 'recover_broken_product_images' || task === 'update_product_variants' || task === 'refresh_category_lt' || task === 'category_filters_one') {
+      if (task === 'extended_attributes_by_skus' || task === 'import_products_by_skus' || task === 'recover_broken_product_images' || task === 'update_product_variants' || task === 'refresh_category_lt' || task === 'category_filters_one') {
         extraDataField.classList.remove('d-none');
       } else if (task === 'extended_attrs_import') {
         extraFileField.classList.remove('d-none');

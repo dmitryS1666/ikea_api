@@ -99,7 +99,7 @@ Trestle.resource :parser_control, model: ParserControl do
           end
 
           # Обработка дополнительных данных (SKUs и т.д.)
-          if task_type == "extended_attributes_by_skus" || task_type == "recover_broken_product_images" || task_type == "update_all_product_images" || task_type == "update_product_variants"
+          if task_type == "extended_attributes_by_skus" || task_type == "import_products_by_skus" || task_type == "recover_broken_product_images" || task_type == "update_all_product_images" || task_type == "update_product_variants"
             payload[:skus] = extra_data
             payload[:sku_file_path] = sku_file_path if sku_file_path.present?
           end
@@ -156,7 +156,7 @@ Trestle.resource :parser_control, model: ParserControl do
                     skus: payload[:skus],
                     category_ikea_id: payload[:category_ikea_id]
                   )
-                elsif %w[extended_attrs_import extended_attributes_by_skus fix_missing_images update_all_product_images update_product_variants].include?(task_type)
+                elsif %w[extended_attrs_import extended_attributes_by_skus import_products_by_skus fix_missing_images update_all_product_images update_product_variants].include?(task_type)
                   # Для полного обновления картинок передаем cleanup: true по умолчанию
                   cleanup = params[:cleanup] == '1' || params[:cleanup].nil?
                   job_args = { task_id: task.id, reset: reset, cleanup: cleanup, threads: threads, sku: payload[:skus] }
@@ -535,6 +535,8 @@ Trestle.resource :parser_control, model: ParserControl do
         ImportExtendedAttributesFromFileJob
       when 'extended_attributes_by_skus'
         FetchExtendedAttributesBySkusJob
+      when 'import_products_by_skus'
+        ImportProductsBySkusJob
       when 'recover_missing_images'
         RecoverMissingImagesJob
       when 'recover_broken_product_images'
@@ -580,6 +582,7 @@ Trestle.resource :parser_control, model: ParserControl do
         'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)',
         'fix_missing_images' => 'Проверка и докачка отсутствующих картинок',
         'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
+        'import_products_by_skus' => 'Импорт товаров по списку SKU + time_ikea_id',
         'recover_missing_images' => 'Поиск и восполнение ссылок на картинки',
         'recover_broken_product_images' => 'Восстановление битых картинок из лога или по списку SKU',
         'update_all_product_images' => 'Полное обновление всех картинок (WebP + Resumable)',
