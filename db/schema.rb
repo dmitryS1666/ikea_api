@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_19_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_22_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -632,6 +632,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_19_120000) do
     t.string "variant_type"
     t.text "variants_payload"
     t.boolean "ai_translated"
+    t.string "time_ikea_id"
     t.index ["cached_slug"], name: "index_products_on_cached_slug"
     t.index ["category_id"], name: "index_products_on_category_id"
     t.index ["is_bestseller"], name: "index_products_on_is_bestseller"
@@ -644,6 +645,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_19_120000) do
     t.index ["price"], name: "index_products_on_price"
     t.index ["sku"], name: "index_products_on_sku", unique: true
     t.index ["sku"], name: "index_products_on_sku_trgm", opclass: :gist_trgm_ops, using: :gist
+    t.index ["time_ikea_id"], name: "index_products_on_time_ikea_id"
     t.index ["unique_id"], name: "index_products_on_unique_id", unique: true, where: "(unique_id IS NOT NULL)"
     t.index ["updated_at"], name: "index_products_on_updated_at"
     t.index ["views_count"], name: "index_products_on_views_count"

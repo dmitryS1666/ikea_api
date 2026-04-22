@@ -210,6 +210,7 @@ module Products
     def absolute_path(path)
       raw = path.to_s.strip
       return nil if raw.blank?
+      return raw if Pathname.new(raw).absolute? && File.exist?(raw)
 
       relative =
         begin
@@ -218,6 +219,7 @@ module Products
         rescue URI::InvalidURIError
           raw
         end
+      return relative.to_s if relative.to_s.start_with?("/") && File.exist?(relative.to_s)
 
       cleaned = relative.sub(/\A\//, "")
 

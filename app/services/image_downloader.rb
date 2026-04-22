@@ -38,6 +38,8 @@ class ImageDownloader
 
       target_count = limit.presence || image_urls.size
       if healthy_local_images.size >= target_count
+        changed ||= convert_local_images_to_webp(product)
+
         return build_sync_result(
           changed: changed,
           downloaded: [],
@@ -61,6 +63,9 @@ class ImageDownloader
         persist_local_images!(product, final_local_images)
         changed = true
       end
+
+      webp_changed = convert_local_images_to_webp(product)
+      changed ||= webp_changed
 
       build_sync_result(
         changed: changed || download_result[:changed],
@@ -286,6 +291,23 @@ class ImageDownloader
         end
 
       product.update_column(:local_images, value)
+    end
+
+    def convert_local_images_to_webp(product)
+      return false unless defined?(Products::ConvertLocalImagesToWebpService)
+      return false if normalize_string_array(product.local_images).empty?
+
+      result =
+        Products::ConvertLocalImagesToWebpService.new(
+          scope: Product.where(id: product.id),
+          dry_run: false,
+          batch_size: 1
+        ).call
+
+      result.updated_products.to_i.positive? || result.converted_images.to_i.positive?
+    rescue StandardError => e
+      Rails.logger.warn("ImageDownloader: webp conversion skipped for sku=#{product.sku}: #{e.class} #{e.message}")
+      false
     end
 
     def product_images_folder(product)
