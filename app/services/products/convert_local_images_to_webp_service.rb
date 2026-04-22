@@ -103,6 +103,12 @@ module Products
     def process_image(product, image_path)
       @result.processed_images += 1
 
+      if defined?(ProductLocalImages) && ProductLocalImages.blob_ref?(image_path)
+        @result.skipped_images += 1
+        log("SKIP active_storage ref sku=#{product.sku} path=#{image_path}")
+        return [image_path, false]
+      end
+
       if image_path.to_s.downcase.end_with?(".webp")
         @result.skipped_images += 1
         @result.skipped_skus << product.sku

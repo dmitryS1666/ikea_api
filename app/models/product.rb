@@ -210,14 +210,7 @@ class Product < ApplicationRecord
   end
 
   def variant_item_payload
-    images =
-      begin
-        raw = local_images
-        raw = JSON.parse(raw) if raw.is_a?(String)
-        Array(raw).compact
-      rescue JSON::ParserError
-        []
-      end
+    images = ProductLocalImages.expand_paths(local_images)
 
     {
       sku: sku,
@@ -286,6 +279,8 @@ class Product < ApplicationRecord
           group
         end
 
+        normalize_variant_payload_images!(processed_payload)
+
         return payload.is_a?(Array) ? processed_payload : processed_payload.first
       rescue JSON::ParserError
       end
@@ -337,6 +332,24 @@ class Product < ApplicationRecord
   end
 
   private
+
+  # variants_payload: раскрыть as: в /images/products/..., убрать ikea.com при наличии локальных путей
+  def normalize_variant_payload_images!(processed_payload)
+    Array(processed_payload).each do |group|
+      data = group[:data] || group["data"]
+      Array(data).each do |variant|
+        item = variant[:item] || variant["item"]
+        next unless item
+
+        raw = item[:images] || item["images"]
+        next if raw.blank?
+
+        normalized = ProductLocalImages.normalize_api_image_array(raw)
+        item[:images] = normalized
+        item["images"] = normalized
+      end
+    end
+  end
 
   def cache_slug
     self.cached_slug = generate_slug

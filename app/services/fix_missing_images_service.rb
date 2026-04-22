@@ -20,9 +20,13 @@ class FixMissingImagesService
         []
       end
       
-      # Проверяем наличие файлов на диске
+      # Проверяем наличие файлов на диске (legacy public/) или blob в ActiveStorage
       missing_any = local_images.any? do |path|
-        !File.exist?(Rails.root.join('public', path.sub(/^\//, '')))
+        if defined?(ProductLocalImages) && ProductLocalImages.blob_ref?(path)
+          !ProductLocalImages.ref_healthy?(path)
+        else
+          !File.exist?(Rails.root.join("public", path.sub(%r{^/}, "")))
+        end
       end
       
       # Если хотя бы одной картинки нет на диске или список пуст при наличии оригинальных URL
@@ -40,7 +44,11 @@ class FixMissingImagesService
           # Очищаем битые пути перед перекачкой, чтобы ImageDownloader не думал, что они есть
           # Но только те, которых реально нет
           valid_local = local_images.select do |path|
-            File.exist?(Rails.root.join('public', path.sub(/^\//, '')))
+            if defined?(ProductLocalImages) && ProductLocalImages.blob_ref?(path)
+              ProductLocalImages.ref_healthy?(path)
+            else
+              File.exist?(Rails.root.join("public", path.sub(%r{^/}, "")))
+            end
           end
           
           product.update_column(:local_images, valid_local.to_json)

@@ -6,6 +6,8 @@ require "digest"
 require "open-uri"
 require "fileutils"
 require "pathname"
+require "open3"
+require "tempfile"
 
 class ImageDownloader
   DEFAULT_OPEN_TIMEOUT = 20
@@ -119,8 +121,8 @@ class ImageDownloader
             next
           end
 
-          unless ImageStorage::Local.healthy?(downloaded_path)
-            safe_delete_local_file(downloaded_path)
+          unless local_image_ref_healthy?(downloaded_path)
+            purge_local_image_ref!(downloaded_path)
             result[:failed] << { url: url, reason: "unhealthy_file" }
             next
           end
@@ -128,13 +130,13 @@ class ImageDownloader
           fingerprint = fingerprint_for_path(downloaded_path)
 
           if fingerprint.present? && content_fingerprints.include?(fingerprint)
-            safe_delete_local_file(downloaded_path)
+            purge_local_image_ref!(downloaded_path)
             result[:skipped] << { url: url, reason: "duplicate_content" }
             next
           end
 
           if final_paths.include?(downloaded_path)
-            safe_delete_local_file(downloaded_path)
+            purge_local_image_ref!(downloaded_path)
             result[:skipped] << { url: url, reason: "duplicate_path" }
             next
           end
@@ -168,51 +170,26 @@ class ImageDownloader
       }
     end
 
-    def download_single_image(product, url)
-      io =
-        if defined?(ProxyRotator)
-          ProxyRotator.with_proxy_retry do |proxy_options|
-            URI.open(
-              url,
-              open_timeout: DEFAULT_OPEN_TIMEOUT,
-              read_timeout: DEFAULT_READ_TIMEOUT,
-              proxy_http_basic_authentication: proxy_options ? [
-                "http://#{proxy_options[:http_proxyaddr]}:#{proxy_options[:http_proxyport]}",
-                proxy_options[:http_proxyuser],
-                proxy_options[:http_proxypass]
-              ] : nil,
-              "User-Agent" => ENV.fetch('USER_AGENT', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
-            )
-          end
-        else
-          URI.open(
-            url,
-            open_timeout: DEFAULT_OPEN_TIMEOUT,
-            read_timeout: DEFAULT_READ_TIMEOUT,
-            "User-Agent" => ENV.fetch('USER_AGENT', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+    def download_single_image(_product, url)
+      existing = ProductLocalImages.find_existing_blob_for_url(url)
+      return ProductLocalImages.encode_ref(existing) if existing
+
+      io = download_remote_io(url)
+      return nil unless io
+
+      begin
+        final_io, content_type, filename = build_upload_io_and_meta(url, io)
+        blob =
+          ActiveStorage::Blob.create_and_upload!(
+            io: final_io,
+            filename: filename,
+            content_type: content_type
           )
-        end
-
-      content_type =
-        if io.respond_to?(:content_type)
-          io.content_type
-        elsif io.respond_to?(:meta) && io.meta.is_a?(Hash)
-          io.meta["content-type"]
-        end
-
-      extension = detect_extension(url, content_type)
-      filename = build_filename(product, url, extension)
-      folder = product_images_folder(product)
-
-      # Подстрой под свой реальный интерфейс хранилища,
-      # если метод называется иначе.
-      ImageStorage::Local.save(
-        io.read,
-        filename: filename,
-        folder: folder
-      )
-    ensure
-      io&.close if defined?(io) && io.respond_to?(:close)
+        ProductLocalImages.ensure_etalon_mirror!(blob)
+        ProductLocalImages.encode_ref(blob)
+      ensure
+        io.close! if io.is_a?(Tempfile)
+      end
     end
 
     def normalize_string_array(value)
@@ -273,7 +250,7 @@ class ImageDownloader
       paths.each_with_object([]) do |path, result|
         next if path.blank?
         next if seen.include?(path)
-        next unless ImageStorage::Local.healthy?(path)
+        next unless local_image_ref_healthy?(path)
 
         seen << path
         result << path
@@ -295,7 +272,9 @@ class ImageDownloader
 
     def convert_local_images_to_webp(product)
       return false unless defined?(Products::ConvertLocalImagesToWebpService)
-      return false if normalize_string_array(product.local_images).empty?
+      paths = normalize_string_array(product.local_images)
+      return false if paths.empty?
+      return false if paths.all? { |p| ProductLocalImages.blob_ref?(p) }
 
       result =
         Products::ConvertLocalImagesToWebpService.new(
@@ -308,22 +287,6 @@ class ImageDownloader
     rescue StandardError => e
       Rails.logger.warn("ImageDownloader: webp conversion skipped for sku=#{product.sku}: #{e.class} #{e.message}")
       false
-    end
-
-    def product_images_folder(product)
-      identifier = product.id.presence || product.sku.presence || "unknown_product"
-      "products/#{identifier}"
-    end
-
-    def build_filename(product, url, extension)
-      prefix = build_filename_prefix(product, url)
-      "#{prefix}#{extension}"
-    end
-
-    def build_filename_prefix(product, url)
-      identifier = product.sku.presence || product.id
-      url_hash = Digest::SHA256.hexdigest(url)[0, 16]
-      [identifier, url_hash].compact.join("_")
     end
 
     def detect_extension(url, content_type)
@@ -343,13 +306,22 @@ class ImageDownloader
       ".jpg"
     end
 
-    def already_downloaded_for_url?(product, url, current_paths)
-      expected_prefix = build_filename_prefix(product, url)
+    def already_downloaded_for_url?(_product, url, current_paths)
+      normalized = normalize_remote_image_url(url)
+      return false if normalized.blank?
+
+      existing = ProductLocalImages.find_existing_blob_for_url(normalized)
+      return false unless existing
+
+      ref = ProductLocalImages.encode_ref(existing)
+      return true if current_paths.include?(ref)
 
       current_paths.any? do |path|
-        next false unless ImageStorage::Local.healthy?(path)
+        next false unless ProductLocalImages.blob_ref?(path)
 
-        File.basename(path).start_with?(expected_prefix)
+        ProductLocalImages.blob_from_ref(path)&.id == existing.id
+      rescue StandardError
+        false
       end
     end
 
@@ -361,6 +333,15 @@ class ImageDownloader
     end
 
     def fingerprint_for_path(path)
+      if ProductLocalImages.blob_ref?(path)
+        blob = ProductLocalImages.blob_from_ref(path)
+        return nil unless blob
+
+        return blob.checksum if blob.checksum.present?
+
+        return Digest::SHA256.hexdigest(blob.download)
+      end
+
       absolute_path = absolute_local_path(path)
       return nil unless absolute_path.present?
       return nil unless File.exist?(absolute_path)
@@ -371,7 +352,12 @@ class ImageDownloader
       nil
     end
 
-    def safe_delete_local_file(path)
+    def purge_local_image_ref!(path)
+      if ProductLocalImages.blob_ref?(path)
+        ProductLocalImages.purge_ref!(path)
+        return
+      end
+
       absolute_path = absolute_local_path(path)
       return if absolute_path.blank?
       return unless File.exist?(absolute_path)
@@ -381,10 +367,109 @@ class ImageDownloader
       nil
     end
 
+    def local_image_ref_healthy?(path)
+      return ProductLocalImages.ref_healthy?(path) if ProductLocalImages.blob_ref?(path)
+
+      ImageStorage::Local.healthy?(path)
+    end
+
+    def download_remote_io(url)
+      io =
+        if defined?(ProxyRotator)
+          ProxyRotator.with_proxy_retry do |proxy_options|
+            URI.open(
+              url,
+              open_timeout: DEFAULT_OPEN_TIMEOUT,
+              read_timeout: DEFAULT_READ_TIMEOUT,
+              proxy_http_basic_authentication: proxy_options ? [
+                "http://#{proxy_options[:http_proxyaddr]}:#{proxy_options[:http_proxyport]}",
+                proxy_options[:http_proxyuser],
+                proxy_options[:http_proxypass]
+              ] : nil,
+              "User-Agent" => ENV.fetch("USER_AGENT", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            )
+          end
+        else
+          URI.open(
+            url,
+            open_timeout: DEFAULT_OPEN_TIMEOUT,
+            read_timeout: DEFAULT_READ_TIMEOUT,
+            "User-Agent" => ENV.fetch("USER_AGENT", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+          )
+        end
+
+      tmp = Tempfile.new(["product_img_dl", ".bin"])
+      tmp.binmode
+      tmp.write(io.read)
+      tmp.flush
+      tmp.rewind
+      tmp
+    ensure
+      io&.close if io.respond_to?(:close)
+    end
+
+    def build_upload_io_and_meta(url, io)
+      io.rewind
+      base = ProductLocalImages.deterministic_base_filename(url)
+      ext = detect_extension(url, nil)
+      src = nil
+      dst = nil
+
+      cwebp_ok =
+        begin
+          _stdout, _stderr, st = Open3.capture3("cwebp", "-version")
+          st.success?
+        rescue StandardError
+          false
+        end
+
+      if cwebp_ok && %w[.jpg .jpeg .png .webp].include?(ext.downcase)
+        bytes = io.read
+        src = Tempfile.new([base, ext.to_s])
+        src.binmode
+        src.write(bytes)
+        src.flush
+        dst = Tempfile.new([base, ".webp"])
+        dst.close
+        _o, err, st = Open3.capture3(
+          "cwebp", "-q", "82", "-m", "6", "-af", "-sharp_yuv", "-mt", src.path, "-o", dst.path
+        )
+        if st.success? && File.exist?(dst.path) && File.size?(dst.path).to_i.positive?
+          return [StringIO.new(File.binread(dst.path)), "image/webp", "#{base}.webp"]
+        end
+
+        Rails.logger.warn("ImageDownloader: cwebp failed for #{url}: #{err.to_s.strip.presence || 'unknown'}")
+      end
+
+      io.rewind
+      [StringIO.new(io.read), marcel_mime(ext, nil), "#{base}#{ext}"]
+    ensure
+      src&.close!
+      dst&.close!
+    end
+
+    def marcel_mime(ext, content_type)
+      ct = content_type.to_s.strip.presence
+      return ct if ct.present?
+
+      case ext.downcase
+      when ".jpg", ".jpeg" then "image/jpeg"
+      when ".png" then "image/png"
+      when ".webp" then "image/webp"
+      else
+        "application/octet-stream"
+      end
+    end
+
     def absolute_local_path(path)
       return nil if path.blank?
 
-      pathname = Pathname.new(path.to_s)
+      raw = path.to_s.strip
+      if raw.match?(%r{\A/(images|uploads)/}i)
+        return Rails.root.join("public", raw.delete_prefix("/")).to_s
+      end
+
+      pathname = Pathname.new(raw)
 
       if pathname.absolute?
         pathname.to_s

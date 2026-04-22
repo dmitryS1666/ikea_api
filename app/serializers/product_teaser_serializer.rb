@@ -114,16 +114,7 @@ class ProductTeaserSerializer
   end
 
   attribute :local_images do |product|
-    images = product.local_images
-    if images.is_a?(String)
-      begin
-        JSON.parse(images)
-      rescue JSON::ParserError
-        [images]
-      end
-    else
-      Array(images)
-    end
+    ProductLocalImages.expand_paths(product.local_images)
   end
 
   attribute :variants do |product|

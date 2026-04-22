@@ -78,7 +78,7 @@ module CartResponseFormatter
       category_id: product.category_id,
       collection: product.collection,
       images: {
-        local_images: product.local_images || [],
+        local_images: ProductLocalImages.expand_paths(product.local_images || []),
         images: product.images || []
       }
     }
@@ -100,7 +100,7 @@ module CartResponseFormatter
         category_id: similar.category_id,
         collection: similar.collection,
         images: {
-          local_images: similar.local_images || [],
+          local_images: ProductLocalImages.expand_paths(similar.local_images || []),
           images: similar.images || []
         }
       }
@@ -134,7 +134,7 @@ module CartResponseFormatter
       category_id: product.category_id,
       collection: product.collection,
       images: {
-        local_images: product.local_images || [],
+        local_images: ProductLocalImages.expand_paths(product.local_images || []),
         images: product.images || []
       }
     }

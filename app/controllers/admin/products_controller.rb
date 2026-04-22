@@ -13,12 +13,10 @@ class Admin::ProductsController < ApplicationController
     category_ikea_id = params[:category_id].to_s.strip
     return render(json: []) if category_ikea_id.blank?
 
-    # В проекте Product имеет:
-    # has_many :categories, through: :category_products
-    # Category.primary_key = 'ikea_id'
+    # Как на странице категории в Trestle: и products.category_id, и category_products
+    # (joins(:categories) пропускал товары только с «основной» категорией без строки в join-таблице).
     products = Product
-      .joins(:categories)
-      .where(categories: { ikea_id: category_ikea_id })
+      .in_category_ikea_id(category_ikea_id)
       .distinct
       .order(:name_ru, :name, :sku)
       .limit(500)

@@ -10,7 +10,7 @@
 #   4) Для каждого затронутого SKU: PL+LT — ExtendedAttributesFetchService (цена, qty, картинки URL,
 #      included_products, вес/размеры/описание/материалы/документы с LT и PL). related_products — см. RelatedProductsCollection::ENABLED.
 #      Затем IkeaLvProductVariantsService (force: true) — варианты с PIP PL.
-#      Затем ImageDownloader.sync_product_images — локальные WebP при наличии remote images.
+#      Затем ImageDownloader.sync_product_images (после вариантов и ensure) — локальные WebP + зеркало в public/images.
 #   5) Опционально: lt_jsonl_path в payload — строки JSONL по SKU (и алиасам) для приоритета LT;
 #      include_referenced — дозагрузка связанных SKU в категорию.
 #
@@ -174,10 +174,9 @@ class RefreshCategoryFromLtJob < ApplicationJob
         stats[:updated] += 1 if ext[:updated]
       end
 
-      sync_local_images!(product, stats, mutex)
       product.reload
 
-      # Варианты (PIP PL -> LT)
+      # Варианты (PIP PL): variants_payload с URL картинок по цветам/размерам
       vres = IkeaLvProductVariantsService.new(product: product, force: true).call
       if mutex
         mutex.synchronize { stats[:updated] += 1 if vres[:changed] }
@@ -193,6 +192,11 @@ class RefreshCategoryFromLtJob < ApplicationJob
 
       # Сопутствующие товары (related, included, etc)
       Products::ReferencedProductsEnsureService.ensure_for!(product, category: category)
+
+      # Локальные картинки — после финального состояния images / вариантов (как в EnrichVariantProductJob)
+      product.reload
+      sync_local_images!(product, stats, mutex)
+      sync_variant_siblings_images!(product, stats, mutex)
     rescue StandardError => e
       Rails.logger.error "RefreshCategoryFromLtJob: enrich #{product.sku}: #{e.message}"
       if mutex
@@ -237,6 +241,24 @@ class RefreshCategoryFromLtJob < ApplicationJob
     end
   rescue StandardError => e
     Rails.logger.warn "RefreshCategoryFromLtJob: images sku=#{product.sku}: #{e.message}"
+  end
+
+  # Отдельные Product по SKU из variants / variants_payload — догружаем local_images (ActiveStorage + зеркало в public)
+  def sync_variant_siblings_images!(parent, stats, mutex)
+    from_column = parent.normalized_variant_skus.map(&:to_s).map(&:strip).reject(&:blank?)
+    from_payload = Products::VariantProductsEnsureService.variant_skus_from_variants_payload(parent.variants_payload)
+    skus = (from_column + from_payload).uniq - [parent.sku.to_s]
+    return if skus.empty?
+
+    skus.each do |vs|
+      other = Products::ListingSkuResolver.find_product(vs) || Product.find_by(sku: vs)
+      next unless other
+      next if Array(other.images).compact.reject(&:blank?).empty?
+
+      sync_local_images!(other, stats, mutex)
+    end
+  rescue StandardError => e
+    Rails.logger.warn "RefreshCategoryFromLtJob: variant siblings images parent=#{parent.sku}: #{e.message}"
   end
 
   def process_listing_sequential(products_data, parser, category, availability_data, task, stats, max_created)

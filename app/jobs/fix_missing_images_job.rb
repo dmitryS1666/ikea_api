@@ -38,9 +38,13 @@ class FixMissingImagesJob < ApplicationJob
             []
           end
           
-          # Проверяем наличие и целостность файлов на диске
+          # Проверяем наличие и целостность: legacy public/ или ActiveStorage ref
           missing_any = local_images.any? do |path|
-            !ImageStorage::Local.healthy?(path)
+            if ProductLocalImages.blob_ref?(path)
+              !ProductLocalImages.ref_healthy?(path)
+            else
+              !ImageStorage::Local.healthy?(path)
+            end
           end
           
           # Если хотя бы одной картинки нет на диске или список пуст при наличии оригинальных URL
@@ -55,7 +59,11 @@ class FixMissingImagesJob < ApplicationJob
             if original_urls.any?
               # Очищаем битые пути перед перекачкой
               valid_local = local_images.select do |path|
-                ImageStorage::Local.healthy?(path)
+                if ProductLocalImages.blob_ref?(path)
+                  ProductLocalImages.ref_healthy?(path)
+                else
+                  ImageStorage::Local.healthy?(path)
+                end
               end
               
               product.update_column(:local_images, valid_local.to_json)

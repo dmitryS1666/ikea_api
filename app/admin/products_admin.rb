@@ -113,10 +113,9 @@ Trestle.resource(:products, model: Product) do
       return render(json: []) if category_ikea_id.blank?
 
       products = Product
-        .joins(:categories)
-        .where(categories: { ikea_id: category_ikea_id })
+        .in_category_ikea_id(category_ikea_id)
         .distinct
-        .order(:name)
+        .order(:name_ru, :name, :sku)
         .limit(500)
 
       render json: products.map { |p|

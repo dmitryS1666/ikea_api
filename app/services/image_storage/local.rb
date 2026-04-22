@@ -53,7 +53,7 @@ module ImageStorage
       
       def delete(path)
         return false unless path.present?
-        file_path = Rails.root.join('public', path)
+        file_path = Rails.root.join("public", path.to_s.sub(%r{^/}, ""))
         File.delete(file_path) if File.exist?(file_path)
         true
       rescue => e
@@ -70,15 +70,33 @@ module ImageStorage
   
         full_path.to_s
       end
-  
+
       def path_for(path)
-        return path if Pathname.new(path).absolute?
-  
-        Rails.root.join(path).to_s
+        raw = path.to_s.strip
+        return nil if raw.blank?
+
+        pathname = Pathname.new(raw)
+        if pathname.absolute?
+          return raw if raw.start_with?(Rails.root.join("public").to_s)
+          return raw if raw.start_with?(Rails.root.to_s)
+          if raw.match?(%r{\A/(images|uploads)/}i)
+            return Rails.root.join("public", raw.delete_prefix("/")).to_s
+          end
+
+          return raw
+        end
+
+        if raw.match?(/\A(images|uploads)\//i)
+          return Rails.root.join("public", raw).to_s
+        end
+
+        Rails.root.join("public", raw.sub(%r{^/}, "")).to_s
       end
   
       def healthy?(path)
         absolute_path = path_for(path)
+        return false unless absolute_path.present?
+
         File.exist?(absolute_path) &&
           File.file?(absolute_path) &&
           File.size(absolute_path).positive?

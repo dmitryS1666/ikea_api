@@ -109,16 +109,7 @@ class ProductSerializer
   end
 
   attribute :local_images do |product|
-    images = product.local_images
-    if images.is_a?(String)
-      begin
-        JSON.parse(images)
-      rescue JSON::ParserError
-        [images]
-      end
-    else
-      Array(images)
-    end
+    ProductLocalImages.expand_paths(product.local_images)
   end
 
   attribute :related_products do |product|
@@ -1009,7 +1000,10 @@ class ProductSerializer
         item["url"] || item[:url] ||
           item["imageUrl"] || item[:imageUrl]
       else
-        item.to_s.presence
+        s = item.to_s.strip.presence
+        next unless s
+
+        ProductLocalImages.expand_path(s) || s
       end
     end
   end
