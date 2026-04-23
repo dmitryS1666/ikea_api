@@ -56,7 +56,6 @@ module Products
     def assign_identity(attrs)
       name = item["name"].to_s.strip.presence || extract_name_from_details
       attrs[:name] = name if name.present?
-      attrs[:name_ru] = name if name.present?
 
       sdn = item["small_desc_name"].to_s.strip.presence
       attrs[:small_desc_name] = sdn if sdn.present?

@@ -220,8 +220,8 @@
               <thead>
                 <tr>
                   <th>SKU</th>
-                  <th>Название</th>
-                  <th>Название (RU)</th>
+                  <th>Название (PL)</th>
+                  <th>Кратко (small_desc_name)</th>
                   <th>Цена</th>
                 </tr>
               </thead>
@@ -232,12 +232,12 @@
                       <%= link_to product.sku, ProductsAdmin.instance_path(product), data: { turbo: false } %>
                     </td>
                     <td>
-                      <% name = product.name_ru.presence || product.name %>
+                      <% name = product.name.to_s.presence || product.sku %>
                       <% extra = product.small_desc_name.to_s.strip %>
                       <% title = extra.present? ? "#{name} — #{extra}" : name %>
                       <%= link_to title, ProductsAdmin.instance_path(product), data: { turbo: false } %>
                     </td>
-                    <td><%= product.name_ru || content_tag(:em, "Нет", class: "text-muted") %></td>
+                    <td><%= product.small_desc_name.presence || content_tag(:em, "Нет", class: "text-muted") %></td>
                     <td><%= product.price ? number_to_currency(product.price, unit: 'PLN', format: '%n %u') : '-' %></td>
                   </tr>
                 <% end %>

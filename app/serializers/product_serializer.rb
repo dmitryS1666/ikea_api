@@ -2,7 +2,6 @@ class ProductSerializer
   include FastJsonapi::ObjectSerializer
 
   attributes :sku,
-             :name_ru,
              :small_desc_name,
              :slug,
              :price,
@@ -22,6 +21,11 @@ class ProductSerializer
              :promo,
              :customs_duty,
              :included_products
+
+  # Фронт по-прежнему читает ключ `name_ru`; значение — оригинальное полное имя с витрины (`name`).
+  attribute :name_ru do |product|
+    product.name.to_s.presence
+  end
 
   attribute :promo do |product, params|
     promos = params[:active_promos] || PromoCode.active_now.to_a
@@ -944,8 +948,8 @@ class ProductSerializer
   end
 
   def self.extract_variant_name(entry)
-    entry["name_ru"] || entry[:name_ru] ||
-      entry["name"] || entry[:name] ||
+    entry["name"] || entry[:name] ||
+      entry["name_ru"] || entry[:name_ru] ||
       entry["typeName"] || entry[:typeName] ||
       entry["validDesignText"] || entry[:validDesignText]
   end

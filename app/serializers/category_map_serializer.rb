@@ -12,7 +12,7 @@ class CategoryMapSerializer
       {
         sku: product.sku,
         name: product.name,
-        name_ru: product.name_ru || product.name,
+        name_ru: product.name.to_s.presence,
         url: product.url
       }
     end

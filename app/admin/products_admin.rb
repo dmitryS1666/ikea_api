@@ -50,7 +50,7 @@ Trestle.resource(:products, model: Product) do
 
   table do
     column :sku, link: true
-    column :name_ru
+    column :name, header: "Название (в API — ключ name_ru)"
     column :small_desc_name
     column :category do |product|
       # Только category_id (belongs_to) — устарело: товары часто привязаны через category_products.
@@ -115,11 +115,11 @@ Trestle.resource(:products, model: Product) do
       products = Product
         .in_category_ikea_id(category_ikea_id)
         .distinct
-        .order(:name_ru, :name, :sku)
+        .order(:name, :sku)
         .limit(500)
 
       render json: products.map { |p|
-        display_name = p.name_ru.presence || p.name.presence || p.sku
+        display_name = p.name.to_s.presence || p.sku
         extra = p.small_desc_name.to_s.strip
 
         {
@@ -144,10 +144,10 @@ Trestle.resource(:products, model: Product) do
         )
       end
 
-      products = products.limit(50).order(:name_ru)
+      products = products.limit(50).order(:name)
 
       render json: products.map { |p|
-        display_name = p.name_ru.presence || p.name.presence || p.sku
+        display_name = p.name.to_s.presence || p.sku
         extra = p.small_desc_name.to_s.strip
         label = extra.present? ? "#{display_name} — #{extra}" : display_name
         {
@@ -357,8 +357,8 @@ Trestle.resource(:products, model: Product) do
     tab :basic, label: "Основное" do
       text_field :sku, label: "Артикул"
       text_field :url, label: "Ссылка"
-      text_field :name_ru, label: "Название"
-      text_field :small_desc_name, label: "Краткое описание к названию"
+      text_field :name, label: "Название (витрина PL; в JSON API отдаётся в поле name_ru)"
+      text_field :small_desc_name, label: "Краткое описание к названию (часто RU с LT)"
       number_field :weight, label: "Вес (кг)", step: 0.001
       select :category_id, Category.all.map { |c| [c.translated_name, c.ikea_id] }, { label: "Основная категория", include_blank: "Без категории" }
       
@@ -608,6 +608,7 @@ Trestle.resource(:products, model: Product) do
       form_group :meta, label: "Метаданные" do
         static_field :created_at, label: "Дата создания"
         static_field :updated_at, label: "Дата обновления"
+        text_field :name_ru, label: "name_ru (архив)", help: "Не используется в API как заголовок; для API см. поле «Название» выше."
       end
     end
   end

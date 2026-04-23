@@ -229,7 +229,7 @@ Trestle.resource(:content_articles, model: ContentArticle) do
                         end
     
                         column :name, label: "Название" do |cap|
-                          name = cap.product&.name_ru.presence || cap.product&.name.presence || "—"
+                          name = cap.product&.name.presence || cap.product&.sku.presence || "—"
                           extra = cap.product&.small_desc_name.to_s.strip
                           extra.present? ? "#{name} — #{extra}" : name
                         end

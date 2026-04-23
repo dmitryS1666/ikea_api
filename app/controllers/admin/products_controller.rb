@@ -18,13 +18,13 @@ class Admin::ProductsController < ApplicationController
     products = Product
       .in_category_ikea_id(category_ikea_id)
       .distinct
-      .order(:name_ru, :name, :sku)
+      .order(:name, :sku)
       .limit(500)
 
     render json: products.map { |p|
       {
         sku: p.sku,
-        name: (p.name_ru.presence || p.name.presence || p.sku),
+        name: (p.name.to_s.presence || p.sku),
         small_desc_name: p.small_desc_name.to_s.strip.presence
       }
     }
@@ -45,10 +45,10 @@ class Admin::ProductsController < ApplicationController
       products = products.where(predicates, q: query)
     end
 
-    products = products.limit(50).order(:name_ru)
+    products = products.limit(50).order(:name)
 
     render json: products.map { |p|
-      display_name = p.name_ru.presence || p.name.presence || p.sku
+      display_name = p.name.to_s.presence || p.sku
       extra = p.small_desc_name.to_s.strip
       label = extra.present? ? "#{display_name} — #{extra}" : display_name
       {

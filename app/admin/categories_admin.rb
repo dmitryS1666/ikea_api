@@ -213,7 +213,7 @@ Trestle.resource(:categories, model: Category) do
           flash[:error] = "Товар с SKU #{sku} уже есть в этой категории."
         else
           @category.category_products.create(product: product)
-          flash[:notice] = "Товар #{product.name_ru || product.name} добавлен."
+          flash[:notice] = "Товар #{product.name.presence || product.sku} добавлен."
         end
       else
         flash[:error] = "Товар с SKU #{sku} не найден в базе."
@@ -793,7 +793,7 @@ Trestle.resource(:categories, model: Category) do
           end
 
           column :name do |cp|
-            name = cp.product&.name_ru || cp.product&.name
+            name = cp.product&.name.presence || cp.product&.sku
             extra = cp.product&.small_desc_name.to_s.strip
             label = extra.present? ? "#{name} — #{extra}" : name
             if cp.product

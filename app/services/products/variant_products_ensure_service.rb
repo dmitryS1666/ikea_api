@@ -114,8 +114,12 @@ module Products
           category_id: cid
         )
 
-      # При создании варианта также разрешаем ИИ-перевод, если нет на LT
-      Products::ExtendedAttributesFetchService.fetch_for_product(product, force_ai_translation: true)
+      # LT — донор текстов; если LT нет — полная карточка с PL без обязательного OpenAI.
+      Products::ExtendedAttributesFetchService.fetch_for_product(
+        product,
+        force_ai_translation: false,
+        fallback_pl_when_lt_missing: true
+      )
       product.reload
 
       if stub_still_empty_after_fetch?(product)

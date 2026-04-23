@@ -2,7 +2,6 @@ class ProductTeaserSerializer
   include FastJsonapi::ObjectSerializer
 
   attributes :sku,
-             :name_ru,
              :small_desc_name,
              :slug,
              :price, 
@@ -22,6 +21,10 @@ class ProductTeaserSerializer
              :variants,
              :promo,
              :customs_duty
+
+  attribute :name_ru do |product|
+    product.name.to_s.presence
+  end
 
   attribute :promo do |product, params|
     # Get pre-fetched promos if available, otherwise fetch active now

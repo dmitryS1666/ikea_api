@@ -38,7 +38,11 @@ class ImportProductsBySkusJob < ApplicationJob
           task.increment_created!
         end
 
-        ext = Products::ExtendedAttributesFetchService.fetch_for_product(product, force_ai_translation: true)
+        ext = Products::ExtendedAttributesFetchService.fetch_for_product(
+          product,
+          force_ai_translation: false,
+          fallback_pl_when_lt_missing: true
+        )
         if ext[:updated]
           stats[:updated] += 1
           task.increment_updated!

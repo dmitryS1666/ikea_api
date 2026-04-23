@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
-# Связывает с категорией уже существующие Product по артикулам из related/set/bundle/included/variants.
+# Связывает с категорией уже существующие Product по артикулам из related/set/variants.
+# Элементы набора (included_products) не трогаем — они не из листинга и создаются IncludedProductsBootstrapService.
 # Новые строки в БД не создаём — иначе сыплются пустые «IKEA 12345678» без карточки.
 class Products::ReferencedProductsEnsureService
   ARTICLE_PATTERN = /\A\d{8}\z/.freeze
@@ -29,7 +30,6 @@ class Products::ReferencedProductsEnsureService
     list = []
     list.concat Array(product.related_products).map(&:to_s)
     list.concat Array(product.set_items).map(&:to_s)
-    list.concat Array(product.included_products).map(&:to_s)
     list.concat product.normalized_variant_skus.map(&:to_s)
     list.filter_map { |s| normalize_article(s) }.uniq - [normalize_article(product.sku)].compact
   end

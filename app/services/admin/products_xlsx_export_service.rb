@@ -187,7 +187,7 @@ module Admin
       end
 
       def display_name_for(product)
-        base = product.name_ru.presence || product.name.to_s
+        base = product.name.to_s.presence || product.sku.to_s
         short = product.small_desc_name.to_s.strip
         short.present? ? "#{base} (#{short})" : base
       end

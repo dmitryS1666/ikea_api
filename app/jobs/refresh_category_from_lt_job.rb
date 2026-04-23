@@ -7,8 +7,11 @@
 #   2) Постранично забрать SKU с листинга; для каждой строки ParseProductsJob#process_product
 #      (сопоставление с БД через Products::ListingSkuResolver — s12345678 vs 12345678).
 #   3) Отцепить от категории товары, которых нет в актуальном списке (CategoryProduct), без удаления Product.
-#   4) Для каждого затронутого SKU: PL+LT — ExtendedAttributesFetchService (цена, qty, картинки URL,
-#      included_products, вес/размеры/описание/материалы/документы с LT и PL). related_products — см. RelatedProductsCollection::ENABLED.
+#   4) Для каждого затронутого SKU: сначала SKU с листинга PL; LT — донор русских текстов (если страница LT есть),
+#      иначе полная карточка с PL без обязательного OpenAI (fallback_pl_when_lt_missing). Цена/qty с PL.
+#      included_products — только из модалки «Elementy w zestawie» на PL; отсутствующие позиции набора
+#      догружаются IncludedProductsBootstrapService (без variants/related, без привязки к категории).
+#      related_products — см. RelatedProductsCollection::ENABLED и process_related.
 #      Затем IkeaLvProductVariantsService (force: true) — варианты с PIP PL.
 #      Затем ImageDownloader.sync_product_images (после вариантов и ensure) — локальные WebP + зеркало в public/images.
 #   5) Опционально: lt_jsonl_path в payload — строки JSONL по SKU (и алиасам) для приоритета LT;
@@ -175,9 +178,10 @@ class RefreshCategoryFromLtJob < ApplicationJob
       row = jsonl_row_for_product(rows_by_sku, product.sku)
       # Принудительно используем ИИ-перевод, если нет на LT
       ext = Products::ExtendedAttributesFetchService.fetch_for_product(
-        product, 
+        product,
         results_jsonl_row: row,
-        force_ai_translation: true
+        force_ai_translation: false,
+        fallback_pl_when_lt_missing: true
       )
       
       if mutex
@@ -197,6 +201,7 @@ class RefreshCategoryFromLtJob < ApplicationJob
       end
 
       product.reload
+
       if product.variants_payload.present?
         # Это создаст новые Product для вариантов и вызовет ExtendedAttributesFetchService для них
         Products::VariantProductsEnsureService.ensure!(product, category: category)
@@ -204,6 +209,10 @@ class RefreshCategoryFromLtJob < ApplicationJob
 
       # В одном проходе контролируем качество вариантов: описания/материалы/картинки.
       ensure_variant_siblings_quality!(product, category, task, stats, mutex)
+
+      # Позиции набора — после вариантов: иначе VariantProductsEnsureService повесил бы CategoryProduct на ту же строку.
+      product.reload
+      Products::IncludedProductsBootstrapService.ensure!(product)
 
       related_in_base, related_missing = collect_related_skus_for(product)
       persist_missing_related_skus!(product, related_missing)
@@ -296,7 +305,11 @@ class RefreshCategoryFromLtJob < ApplicationJob
       other = Products::ListingSkuResolver.find_product(vs) || Product.find_by(sku: vs)
       next unless other
 
-      ext = Products::ExtendedAttributesFetchService.fetch_for_product(other, force_ai_translation: true)
+      ext = Products::ExtendedAttributesFetchService.fetch_for_product(
+        other,
+        force_ai_translation: false,
+        fallback_pl_when_lt_missing: true
+      )
       if ext[:updated]
         if mutex
           mutex.synchronize { stats[:updated] += 1 }

@@ -62,7 +62,7 @@ Trestle.resource(:product_recommendation_settings, model: ProductRecommendationS
           selected_products = Product.where(sku: Array(setting.product_skus)).index_by(&:sku)
           options = Array(setting.product_skus).map do |sku|
             product = selected_products[sku]
-            label = product.present? ? "#{product.name_ru.presence || product.name} (#{product.sku})" : sku
+            label = product.present? ? "#{product.name.presence || product.sku} (#{product.sku})" : sku
             [label, sku]
           end
 

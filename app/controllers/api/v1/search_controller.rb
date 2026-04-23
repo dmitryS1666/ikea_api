@@ -291,11 +291,14 @@ module Api
         # Находим категории, которые начинаются с запроса, чтобы повысить товары из них
         top_matching_categories = Category.active.where("translated_name ILIKE ?", "#{query}%").pluck(:ikea_id).map(&:to_s)
 
-        products = Product.with_available_stock.where("name_ru ILIKE :term OR small_desc_name ILIKE :term", term: term)
+        products = Product.with_available_stock.where(
+          "name ILIKE :term OR name_ru ILIKE :term OR small_desc_name ILIKE :term",
+          term: term
+        )
                           .limit(100)
 
         suggestions = products.map do |p|
-          display_name = p.small_desc_name.presence || p.name_ru.presence
+          display_name = p.small_desc_name.presence || p.name.presence
           next if display_name.blank?
 
           # Оцениваем, является ли товар аксессуаром

@@ -182,7 +182,7 @@
       if (data.products && Array.isArray(data.products.data)) {
         var products = data.products.data.map(function(item) {
           var attrs = item.attributes || {};
-          return escapeHtml(attrs.name_ru || attrs.sku || '');
+          return escapeHtml(attrs.name_ru || attrs.name || attrs.sku || '');
         }).filter(Boolean);
 
         if (products.length) {

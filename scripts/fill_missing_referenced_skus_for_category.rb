@@ -60,7 +60,11 @@ def ensure_product_and_enrich!(sku, dry_run:)
 
   return [product, created] if dry_run
 
-  Products::ExtendedAttributesFetchService.fetch_for_product(product, force_ai_translation: true)
+  Products::ExtendedAttributesFetchService.fetch_for_product(
+    product,
+    force_ai_translation: false,
+    fallback_pl_when_lt_missing: true
+  )
   product.reload
   [product, created]
 end

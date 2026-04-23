@@ -208,16 +208,14 @@ class PlDetailsFetcher
     result.merge!(description_data)
     Rails.logger.info "PlDetailsFetcher: Description data extracted - description: #{description_data[:description].present?}, materials: #{description_data[:materials].present?}"
     
-    # Наборы, состав из bundle-секции и сопутствующие товары (методы уже были в классе — подключаем к результату parse_html)
+    # Наборы (set_items), «товары в наборе» только из модалки PIPF, сопутствующие товары
     si = extract_set_items(product_data, doc)
     result[:set_items] = si if si.any?
     rp = extract_related_products(product_data, doc)
     result[:related_products] = rp if rp.any?
     ip = extract_included_products(product_data, doc)
-    bi = extract_bundle_items(product_data, doc)
-    bi_norm = bi.filter_map { |x| normalize_product_token(x) }
-    merged_included = (Array(ip) + bi_norm).uniq
-    result[:included_products] = merged_included if merged_included.any?
+    result[:included_products] = ip if ip.any?
+    included_sheet_needs_headless = ip.empty? && included_products_sheet_clickable?(doc)
     sv = extract_variants(product_data, doc)
     result[:variants] = sv if sv.any?
     vpt = infer_variant_picker_types_from_doc(doc)
@@ -242,20 +240,23 @@ class PlDetailsFetcher
     # Извлекаем данные из модального окна с описанием продукта
     modal_data = extract_modal_details(doc, product_data)
     
-    # Если модальное окно не найдено или данные неполные, используем headless браузер
+    # Если модальное окно не найдено или данные неполные, используем headless браузер.
+    # Отдельно: «Elementy w zestawie» открывается только по клику — без headless состав набора в DOM не появляется.
     modal_incomplete =
       modal_data[:materials].blank? || modal_data[:care_instructions].blank? || modal_data[:safety_info].blank?
-    if use_headless && modal_incomplete
-      if self.class.headless_browser_executable_available?
-        Rails.logger.info "PlDetailsFetcher: Modal data incomplete, trying headless browser"
-        headless_modal_data = fetch_modal_with_headless_browser(full_url)
-        modal_data.merge!(headless_modal_data) if headless_modal_data.present?
-      else
-        Rails.logger.warn "PlDetailsFetcher: модалка неполная, headless пропущен — нет Chrome/Chromium (задайте CHROME_PATH или BROWSER_PATH)"
-      end
+    if use_headless && (modal_incomplete || included_sheet_needs_headless) && self.class.headless_browser_executable_available?
+      Rails.logger.info "PlDetailsFetcher: headless browser (modal_incomplete=#{modal_incomplete}, included_sheet=#{included_sheet_needs_headless})"
+      headless_modal_data = fetch_modal_with_headless_browser(full_url)
+      modal_data.merge!(headless_modal_data) if headless_modal_data.present?
+    elsif use_headless && (modal_incomplete || included_sheet_needs_headless)
+      Rails.logger.warn "PlDetailsFetcher: headless нужен, но нет Chrome/Chromium (CHROME_PATH / BROWSER_PATH)"
     end
-    
+
+    prev_included = Array(result[:included_products])
     result.merge!(modal_data)
+    if modal_data[:included_products].present?
+      result[:included_products] = (prev_included + Array(modal_data[:included_products])).uniq
+    end
 
     meas = extract_pipf_measurements_modal_combined(doc, product_data)
     meas[:fields].each do |k, v|
@@ -829,6 +830,9 @@ class PlDetailsFetcher
       else
         Rails.logger.warn "PlDetailsFetcher.fetch_modal_with_headless_browser: Modal button was not clicked, trying to extract from page anyway"
       end
+
+      # Модалка «Elementy w zestawie» — только после клика по строке списка (sheet).
+      included_skus = try_open_included_products_sheet!(browser) || []
       
       # Получаем HTML страницы после открытия модального окна
       page_html = browser.body
@@ -842,8 +846,9 @@ class PlDetailsFetcher
       # Извлекаем данные из модального окна
       pd_headless = parse_hydration_product_data(modal_doc)
       result = extract_modal_details(modal_doc, pd_headless)
-      
-      Rails.logger.info "PlDetailsFetcher.fetch_modal_with_headless_browser: Extracted - materials: #{result[:materials].present?}, care: #{result[:care_instructions].present?}, safety: #{result[:safety_info].present?}, good_to_know: #{result[:good_to_know].present?}"
+      result[:included_products] = included_skus if included_skus.present?
+
+      Rails.logger.info "PlDetailsFetcher.fetch_modal_with_headless_browser: Extracted - materials: #{result[:materials].present?}, care: #{result[:care_instructions].present?}, safety: #{result[:safety_info].present?}, good_to_know: #{result[:good_to_know].present?}, included_products: #{included_skus&.length || 0}"
       
       result
       
@@ -908,26 +913,6 @@ class PlDetailsFetcher
           item_no = el['data-item-no'] || el.text.strip
           items << item_no if item_no.match?(/^[0-9a-zA-Z]+$/)
         end
-      end
-    end
-    
-    items.uniq
-  end
-  
-  def extract_bundle_items(product_data, doc)
-    possible_paths = [
-      product_data&.dig('bundleSection', 'items'),
-      product_data&.dig('bundleItems'),
-      product_data&.dig('productBundle', 'items')
-    ]
-    
-    items = []
-    possible_paths.each do |path|
-      if path.is_a?(Array) && path.any?
-        items = path.map { |item| item['itemNo'] || item['itemNoGlobal'] || item }
-                    .compact
-                    .select { |item_no| item_no.to_s.match?(/^[0-9a-zA-Z]+$/) }
-        break if items.any?
       end
     end
     
@@ -1068,47 +1053,79 @@ class PlDetailsFetcher
     result
   end
 
-  def extract_included_products(product_data, doc)
-    items = []
+  # На PIPF кнопка строки списка с заголовком «Elementy w zestawie» (и аналоги) — без SSR-модалки состава.
+  def included_products_sheet_clickable?(doc)
+    return false unless doc
 
-    possible_paths = [
-      product_data&.dig("includedProducts"),
-      product_data&.dig("included_products"),
-      product_data&.dig("productInformationSection", "includedProducts"),
-      product_data&.dig("productDetails", "includedProducts"),
-      product_data&.dig("pageProps", "productInformationSectionProps", "includedProductsProps", "includedProductCardsProps"),
-      product_data&.dig("pageProps", "product", "subProducts")
-    ]
+    doc.css("button.pipf-list-view-item__action").any? do |btn|
+      txt = btn.text.to_s.downcase
+      txt.include?("elementy w zestawie") ||
+        txt.match?(/elements?\s+in\s+the\s+package|items\s+in\s+the\s+set/) ||
+        txt.match?(/элементы|входит\s+в\s+комплект/) ||
+        txt.include?("bestanddelen") ||
+        txt.include?("komponenty")
+    end
+  end
 
-    possible_paths.each do |path|
-      next unless path.present?
-      Array(path).each do |entry|
-        token =
-          if entry.is_a?(Hash)
-            entry["itemNo"] || entry["itemNoGlobal"] || entry["visibleItemNo"] || entry["articleNumber"] || entry["sku"] || entry["id"]
-          else
-            entry
-          end
-        if token.blank? && entry.is_a?(Hash) && entry["url"].present?
-          m = entry["url"].to_s.match(/-([a-z0-9]{8,9})\/?$/i)
-          token = m[1] if m
-        end
-        norm = normalize_product_token(token)
-        items << norm if norm.present?
-      end
+  # Headless: клик по строке «Elementy w zestawie» → sheet с .pipf-included-products-modal.
+  def try_open_included_products_sheet!(browser)
+    clicked = browser.evaluate(<<~'JS')
+      (function() {
+        const buttons = Array.from(document.querySelectorAll("button.pipf-list-view-item__action"));
+        const re = /elementy\\s+w\\s+zestawie|elements?\\s+in\\s+the\\s+package|items\\s+in\\s+the\\s+set|komponenty|bestanddelen|элементы|в\\s+комплект/i;
+        const target = buttons.find(function(b) { return re.test((b.innerText || "").trim()); });
+        if (!target) { return false; }
+        try { target.scrollIntoView({ block: "center", inline: "nearest" }); } catch (e) {}
+        target.click();
+        return true;
+      })();
+    JS
+
+    return [] unless clicked
+
+    24.times do
+      sleep(0.35)
+      open = browser.evaluate(<<~'JS')
+        (function() {
+          return document.querySelector(".pipf-included-products-modal__list li, .pipf-included-products-modal a[href*='/p/']") !== null;
+        })();
+      JS
+      return extract_included_products(nil, Nokogiri::HTML(browser.body)) if open
     end
 
-    modal = doc.at_css(".pipf-included-products-modal__list")
-    if modal
-      modal.css("[data-item-no], [data-product-id], [data-sku], a[href*='/p/']").each do |el|
-        token = el["data-item-no"] || el["data-product-id"] || el["data-sku"]
-        if token.blank? && el["href"].present?
-          m = el["href"].match(/-([a-z0-9]{8,9})\/?$/i)
-          token = m[1] if m
-        end
-        norm = normalize_product_token(token)
-        items << norm if norm.present?
-      end
+    extract_included_products(nil, Nokogiri::HTML(browser.body))
+  rescue StandardError => e
+    Rails.logger.debug "PlDetailsFetcher.try_open_included_products_sheet!: #{e.message}"
+    []
+  end
+
+  # Только модалка «Elementy w zestawie» / pipf-included-products-modal (см. PIPF list view + sheet).
+  # Не берём subProducts / JSON — там смешиваются варианты и прочие сущности.
+  def extract_included_products(_product_data, doc)
+    modal_root = doc.at_css(".pipf-included-products-modal")
+    return [] unless modal_root
+
+    items = []
+
+    modal_root.css("a[href*='/p/']").each do |el|
+      next unless el["href"].present?
+
+      m = el["href"].to_s.match(/-([a-z0-9]{8,9})\/?$/i)
+      token = m&.[](1)
+      norm = normalize_product_token(token)
+      items << norm if norm.present?
+    end
+
+    modal_root.css(".pipf-product-identifier__value").each do |el|
+      compact = el.text.to_s.gsub(/[^0-9a-z]/i, "").downcase
+      norm = normalize_product_token(compact)
+      items << norm if norm.present?
+    end
+
+    modal_root.css("[data-item-no], [data-product-id], [data-sku]").each do |el|
+      token = el["data-item-no"] || el["data-product-id"] || el["data-sku"]
+      norm = normalize_product_token(token)
+      items << norm if norm.present?
     end
 
     items.uniq

@@ -34,10 +34,15 @@
                 </td>
               </tr>
             <% end %>
-            <% if @product.name_ru.present? %>
+            <% if @product.name.present? %>
               <tr>
-                <th>Название:</th>
-                <td><%= @product.name_ru %><br><%= @product.small_desc_name %></td>
+                <th>Название (в API — name_ru):</th>
+                <td>
+                  <%= @product.name %>
+                  <% if @product.small_desc_name.present? %>
+                    <br><span class="text-muted"><%= @product.small_desc_name %></span>
+                  <% end %>
+                </td>
               </tr>
             <% end %>
             <% if @product.collection.present? %>

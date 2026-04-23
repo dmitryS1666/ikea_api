@@ -31,7 +31,7 @@ module FavoriteResponseFormatter
     {
       sku: product.sku,
       name: product.name,
-      name_ru: product.name_ru,
+      name_ru: product.name.to_s.presence,
       price_byn: format_byn(
         PriceCalculationService.product_price_byn(
           product.price,

@@ -8,13 +8,22 @@
 #   — цена и остаток — с PL (zł / API) и API наличия;
 #   — варианты: списки SKU с LT и с PL объединяются (PL PIP часто даёт itemNo / полную матрицу).
 #
+# Если страница LT недоступна и передан `fallback_pl_when_lt_missing: true`, не прерываем загрузку:
+# подтягиваем описательные поля с PL и не требуем OpenAI (`force_ai_translation` остаётся для явного ИИ-fallback).
+#
 # Связи наборов / сопутствующие SKU и документы без LT — дополняются с PL, если пусто.
 class Products::ExtendedAttributesFetchService
-  def self.fetch_for_product(product, results_jsonl_row: nil, force_ai_translation: false)
-    new.fetch(product, results_jsonl_row: results_jsonl_row, force_ai_translation: force_ai_translation)
+  def self.fetch_for_product(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false)
+    new.fetch(
+      product,
+      results_jsonl_row: results_jsonl_row,
+      force_ai_translation: force_ai_translation,
+      fallback_pl_when_lt_missing: fallback_pl_when_lt_missing,
+      strip_listing_relations: strip_listing_relations
+    )
   end
 
-  def fetch(product, results_jsonl_row: nil, force_ai_translation: false)
+  def fetch(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false)
     pl_url = pl_product_url(product)
     return { updated: false } if pl_url.blank?
 
@@ -40,6 +49,9 @@ class Products::ExtendedAttributesFetchService
       if lt_details.blank?
         if force_ai_translation
           Rails.logger.info "ExtendedAttributesFetchService: LT data missing for #{product.sku} after all attempts, falling back to AI translation of PL data"
+          use_lt_descriptive = false
+        elsif fallback_pl_when_lt_missing
+          Rails.logger.info "ExtendedAttributesFetchService: LT missing for #{product.sku}, using PL-only card (LT not required)"
           use_lt_descriptive = false
         else
           Rails.logger.warn "ExtendedAttributesFetchService: LT data missing for #{product.sku}, skipping product until translation fallback ready"
@@ -97,6 +109,12 @@ class Products::ExtendedAttributesFetchService
 
     mirror_ru_for_lt_text!(attributes)
     translate_remaining_fields(product, attributes)
+
+    if strip_listing_relations
+      attributes[:variants] = []
+      attributes[:related_products] = []
+      attributes[:variants_payload] = nil if Product.column_names.include?("variants_payload")
+    end
 
     strip_nil_overwrites_from_product!(product, attributes)
 
@@ -213,7 +231,6 @@ class Products::ExtendedAttributesFetchService
   end
 
   def supplement_lt_descriptive_gaps(lt_details, attributes)
-    attributes[:name_ru] = lt_details[:name] if attributes[:name_ru].blank? && lt_details[:name].present?
     if attributes[:content].blank? && lt_details[:description].present?
       attributes[:content] = lt_details[:description]
     end
@@ -258,11 +275,6 @@ class Products::ExtendedAttributesFetchService
       attributes[:small_desc_name] = lt_details[:small_desc_name]
     end
 
-    if lt_details[:included_products].present?
-      existing = Array(attributes[:included_products]).presence || Array(product.included_products).map(&:to_s)
-      attributes[:included_products] = (existing + Array(lt_details[:included_products]).map(&:to_s)).compact.uniq
-    end
-
     if lt_details[:variants].present? && attributes[:variants].blank?
       attributes[:variants] = normalize_variants_payload(lt_details[:variants])
     end
@@ -290,8 +302,8 @@ class Products::ExtendedAttributesFetchService
     end
     merge_pl_variants_union!(pl_details, attributes) if pl_details[:variants].present?
 
-    combined_included =
-      Array(pl_details[:set_items]).map(&:to_s) + Array(pl_details[:included_products]).map(&:to_s)
+    # included_products — только из модалки набора на PL (см. PlDetailsFetcher), не смешиваем с set_items.
+    combined_included = Array(pl_details[:included_products]).map(&:to_s)
     if combined_included.any?
       existing = Array(product.included_products).map(&:to_s)
       merged = (existing + combined_included + Array(attributes[:included_products]).map(&:to_s)).compact.uniq
@@ -356,8 +368,9 @@ class Products::ExtendedAttributesFetchService
   end
 
   def apply_lt_descriptive(lt_details, attributes)
-    if lt_details[:name].present? && attributes[:name_ru].blank?
-      attributes[:name_ru] = lt_details[:name]
+    # Полное имя остаётся в `name` (витрина PL); русское краткое — в `small_desc_name`, не дублируем в name_ru.
+    if lt_details[:small_desc_name].present? && attributes[:small_desc_name].blank?
+      attributes[:small_desc_name] = lt_details[:small_desc_name]
     end
     if lt_details[:description].present? && attributes[:content].blank?
       attributes[:content] = lt_details[:description]
@@ -431,8 +444,7 @@ class Products::ExtendedAttributesFetchService
     end
     merge_pl_variants_union!(pl_details, attributes) if pl_details[:variants].present?
 
-    combined_included =
-      Array(pl_details[:set_items]).map(&:to_s) + Array(pl_details[:included_products]).map(&:to_s)
+    combined_included = Array(pl_details[:included_products]).map(&:to_s)
     if combined_included.any?
       existing = Array(product.included_products).map(&:to_s)
       merged = (existing + combined_included + Array(attributes[:included_products]).map(&:to_s)).compact.uniq
@@ -454,12 +466,14 @@ class Products::ExtendedAttributesFetchService
 
   def supplement_from_ikea_lt_legacy(product, attributes)
     return unless product.item_no.present?
-    return if attributes[:materials].present? && attributes[:content].present? && attributes[:name_ru].present?
+    return if attributes[:materials].present? && attributes[:content].present? && attributes[:small_desc_name].present?
 
     lt_details = LtDetailsFetcher.fetch(product.item_no)
     return unless lt_details.present? && lt_details[:translated]
 
-    attributes[:name_ru] = lt_details[:name] if attributes[:name_ru].blank? && lt_details[:name].present?
+    if lt_details[:small_desc_name].present? && attributes[:small_desc_name].blank?
+      attributes[:small_desc_name] = lt_details[:small_desc_name]
+    end
 
     %i[materials good_to_know content].each do |field|
       next if attributes[field].present?
@@ -667,7 +681,8 @@ class Products::ExtendedAttributesFetchService
   end
 
   def translate_remaining_fields(product, attributes)
-    fields = %i[name short_description content materials features care_instructions environmental_info designer safety_info good_to_know]
+    # Не переводим `name` → `name_ru`: оригинальное название в `name`, краткое по-русски — в `small_desc_name` (LT).
+    fields = %i[short_description content materials features care_instructions environmental_info designer safety_info good_to_know]
 
     fields.each do |field|
       field_ru = "#{field}_ru".to_sym

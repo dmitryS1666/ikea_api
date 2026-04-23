@@ -194,7 +194,7 @@ class IkeaLvProductVariantsService
 
         {
           sku: sku,
-          name_ru: product.name_ru,
+          name_ru: product.name.to_s.presence,
           small_desc_name: label.presence || sku.to_s,
           slug: slug,
           price: nil,

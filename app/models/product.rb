@@ -214,7 +214,8 @@ class Product < ApplicationRecord
 
     {
       sku: sku,
-      name_ru: name_ru,
+      # Ключ `name_ru` в payload вариантов — контракт с фронтом; значение как у ProductSerializer: полное имя с витрины.
+      name_ru: name.to_s.presence,
       small_desc_name: small_desc_name,
       price: price&.to_s,
       quantity: quantity || 999,
