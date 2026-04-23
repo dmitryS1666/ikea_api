@@ -13,6 +13,9 @@
 #
 # Связи наборов / сопутствующие SKU и документы без LT — дополняются с PL, если пусто.
 class Products::ExtendedAttributesFetchService
+  # Старые URL фото с польской витрины (часто смесь вариантов цвета); при новом парсе PL их выкидываем и подставляем список под текущий SKU.
+  REMOTE_PL_PRODUCT_IMAGE_URL = %r{\Ahttps?://www\.ikea\.com/pl/pl/images/products}i.freeze
+
   def self.fetch_for_product(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false)
     new.fetch(
       product,
@@ -27,12 +30,12 @@ class Products::ExtendedAttributesFetchService
     pl_url = pl_product_url(product)
     return { updated: false } if pl_url.blank?
 
-    pl_details = fetch_details_with_optional_headless(pl_url)
+    pl_details = fetch_details_with_optional_headless(pl_url, scope_sku: product.sku)
     return { updated: false } if pl_details.blank?
 
     lt_url = lt_product_url(product)
     use_lt_descriptive = lt_url.present? && lt_url != pl_url
-    lt_details = use_lt_descriptive ? fetch_details_with_optional_headless(lt_url) : {}
+    lt_details = use_lt_descriptive ? fetch_details_with_optional_headless(lt_url, scope_sku: product.sku) : {}
 
     if use_lt_descriptive && lt_details.blank?
       # ПОДСТРАХОВКА: Если по первому артикулу (из SKU) LT не ответил, пробуем второй (из item_no)
@@ -43,7 +46,7 @@ class Products::ExtendedAttributesFetchService
       if db_article.present? && db_article != sku_article
         alt_lt_url = "https://www.ikea.com/lt/ru/p/-#{db_article}/"
         Rails.logger.info "ExtendedAttributesFetchService: LT primary URL failed for #{product.sku}, trying alternative: #{alt_lt_url}"
-        lt_details = fetch_details_with_optional_headless(alt_lt_url)
+        lt_details = fetch_details_with_optional_headless(alt_lt_url, scope_sku: product.sku)
       end
 
       if lt_details.blank?
@@ -127,6 +130,10 @@ class Products::ExtendedAttributesFetchService
   end
 
   private
+
+  def strip_remote_pl_ikea_gallery_urls(urls)
+    Array(urls).reject { |u| REMOTE_PL_PRODUCT_IMAGE_URL.match?(u.to_s) }
+  end
 
   MERGE_SEED_FIELDS = %i[
     name_ru name short_desc_name short_description content materials features
@@ -290,9 +297,10 @@ class Products::ExtendedAttributesFetchService
 
     if pl_details[:images].present? && pl_details[:images].is_a?(Array)
       pl_images = pl_details[:images].map(&:to_s).map(&:strip).reject(&:blank?).uniq
-      base = parse_json_array(product.images)
+      original = parse_json_array(product.images)
+      base = strip_remote_pl_ikea_gallery_urls(original)
       merged_imgs = (base + pl_images).uniq
-      attributes[:images] = merged_imgs if merged_imgs != base
+      attributes[:images] = merged_imgs if merged_imgs != original
     end
 
     attributes[:set_items] = pl_details[:set_items] if pl_details[:set_items].present? && attributes[:set_items].blank?
@@ -357,11 +365,11 @@ class Products::ExtendedAttributesFetchService
     nil
   end
 
-  def fetch_details_with_optional_headless(url)
-    details = PlDetailsFetcher.fetch(url, use_headless: false) || {}
+  def fetch_details_with_optional_headless(url, scope_sku: nil)
+    details = PlDetailsFetcher.fetch(url, use_headless: false, scope_sku: scope_sku) || {}
     if !pl_modal_fields_complete?(details) && pl_headless_enabled?
       Rails.logger.info "ExtendedAttributesFetchService: incomplete modal for #{url} -> headless"
-      headless = PlDetailsFetcher.fetch(url, use_headless: true)
+      headless = PlDetailsFetcher.fetch(url, use_headless: true, scope_sku: scope_sku)
       details = headless if headless.present?
     end
     details
@@ -428,9 +436,10 @@ class Products::ExtendedAttributesFetchService
   def merge_pl_structural_and_commerce(product, pl_details, attributes)
     if pl_details[:images].present? && pl_details[:images].is_a?(Array) && pl_details[:images].any?
       all_images = pl_details[:images].map(&:to_s).map(&:strip).reject(&:blank?).uniq
-      existing_images = parse_json_array(product.images)
+      original = parse_json_array(product.images)
+      existing_images = strip_remote_pl_ikea_gallery_urls(original)
       merged = (existing_images + all_images).uniq
-      attributes[:images] = merged if merged != existing_images
+      attributes[:images] = merged if merged != original
     end
 
     %i[weight net_weight package_volume package_dimensions dimensions collection].each do |key|

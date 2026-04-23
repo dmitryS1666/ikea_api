@@ -40,13 +40,17 @@ class PlDetailsFetcher
     s.sub(/\/+\z/, "")
   end
 
-  def self.fetch(url, use_headless: true)
-    new.fetch(url, use_headless: use_headless)
+  def self.fetch(url, use_headless: true, scope_sku: nil)
+    new(scope_sku: scope_sku).fetch(url, use_headless: use_headless)
   end
 
   # Парсинг готового HTML (например, полученного через scrape.do)
-  def self.parse_html(html, url = nil, use_headless: true)
-    new.parse_html(html, url, use_headless: use_headless)
+  def self.parse_html(html, url = nil, use_headless: true, scope_sku: nil)
+    new(scope_sku: scope_sku).parse_html(html, url, use_headless: use_headless)
+  end
+
+  def initialize(scope_sku: nil)
+    @scope_sku = scope_sku
   end
   
   def fetch(url, use_headless: true)
@@ -3689,7 +3693,7 @@ class PlDetailsFetcher
     result.compact
   end
   
-  def extract_images(doc, _product_data, _existing_images = [])
+  def extract_images(doc, product_data, _existing_images = [])
     # В images сохраняем только реальные фото из модального окна галереи товара (PIPF),
     # чтобы не попадали служебные/иконки/шумы из остальной страницы.
     modal = doc.at_css("[class*='pipf-product-gallery-modal']")
@@ -3700,54 +3704,165 @@ class PlDetailsFetcher
       return []
     end
 
-    urls = []
+    pairs = []
 
     modal.css("img").each do |img|
-      candidates = [
-        img["src"],
-        img["data-src"],
-        img["data-lazy-src"],
-        img["data-original"],
-        img["data-image"]
-      ].compact
+      collect_gallery_candidate_urls_for_node(img, pairs)
+    end
 
-      srcset = img["srcset"].to_s
-      if srcset.present?
-        srcset.split(",").each do |part|
-          candidate = part.to_s.strip.split(/\s+/).first
-          candidates << candidate if candidate.present?
-        end
+    modal.css("a[href]").each do |a|
+      raw = a["href"].to_s.strip
+      u = normalize_pipf_gallery_image_url(raw)
+      pairs << { url: u, node: a } if u
+    end
+
+    modal.css("[data-image-url], [data-image-src], [data-product-image]").each do |el|
+      %w[data-image-url data-image-src data-product-image].each do |attr|
+        raw = el[attr].to_s.strip
+        u = normalize_pipf_gallery_image_url(raw)
+        pairs << { url: u, node: el } if u
+      end
+    end
+
+    images = pairs.filter_map { |p| p[:url] }.uniq
+    target = normalize_product_token(@scope_sku) if @scope_sku.present?
+
+    if target.present?
+      scoped = scope_gallery_urls_to_item(images, pairs, modal, product_data, target)
+      if scoped.any?
+        Rails.logger.info "PlDetailsFetcher.extract_images: scoped to SKU #{target}, #{scoped.length}/#{images.length} gallery URLs"
+        return scoped
       end
 
-      candidates.each { |u| urls << u }
+      Rails.logger.warn "PlDetailsFetcher.extract_images: scope_sku=#{@scope_sku} but no scoped gallery match; keeping #{images.length} unfiltered URLs"
     end
-
-    modal.css("a[href]").each { |a| urls << a["href"] }
-    modal.css("[data-image-url], [data-image-src], [data-product-image]").each do |el|
-      urls << el["data-image-url"] if el["data-image-url"].present?
-      urls << el["data-image-src"] if el["data-image-src"].present?
-      urls << el["data-product-image"] if el["data-product-image"].present?
-    end
-
-    images =
-      urls.filter_map do |raw|
-        next if raw.blank?
-        url = raw.to_s.strip
-        next if url.blank?
-        url = "https://www.ikea.com#{url}" if url.start_with?("/")
-        next unless url.start_with?("http://", "https://")
-        next if url.match?(/pvid/i)
-
-        normalized = url.split("?").first
-        next unless normalized.match?(/\.(jpg|jpeg|png|webp)\z/i)
-        next if normalized.match?(/placeholder|icon|logo|sprite/i)
-        next unless normalized.include?("ikea.com")
-
-        normalized
-      end.uniq
 
     Rails.logger.info "PlDetailsFetcher.extract_images: Extracted #{images.length} gallery images from modal"
     images
+  end
+
+  def collect_gallery_candidate_urls_for_node(node, pairs)
+    candidates = [
+      node["src"],
+      node["data-src"],
+      node["data-lazy-src"],
+      node["data-original"],
+      node["data-image"]
+    ].compact
+
+    srcset = node["srcset"].to_s
+    if srcset.present?
+      srcset.split(",").each do |part|
+        candidate = part.to_s.strip.split(/\s+/).first
+        candidates << candidate if candidate.present?
+      end
+    end
+
+    candidates.each do |raw|
+      u = normalize_pipf_gallery_image_url(raw)
+      pairs << { url: u, node: node } if u
+    end
+  end
+
+  def normalize_pipf_gallery_image_url(raw)
+    return nil if raw.blank?
+    url = raw.to_s.strip
+    return nil if url.blank?
+    url = "https://www.ikea.com#{url}" if url.start_with?("/")
+    return nil unless url.start_with?("http://", "https://")
+    return nil if url.match?(/pvid/i)
+
+    normalized = url.split("?").first
+    return nil unless normalized.match?(/\.(jpg|jpeg|png|webp)\z/i)
+    return nil if normalized.match?(/placeholder|icon|logo|sprite/i)
+    return nil unless normalized.include?("ikea.com")
+
+    normalized
+  end
+
+  def scope_gallery_urls_to_item(all_urls, pairs, modal, product_data, target)
+    dom_urls =
+      pairs.filter_map do |p|
+        next unless gallery_dom_node_matches_item?(p[:node], modal, target)
+
+        p[:url]
+      end.uniq
+    return dom_urls if dom_urls.any?
+
+    hyd = gallery_urls_for_item_from_product_data(product_data, target)
+    return hyd if hyd.any?
+
+    pat = all_urls.select { |u| gallery_url_matches_item_pattern?(u, target) }
+    pat.uniq.presence || []
+  end
+
+  def gallery_dom_node_matches_item?(node, modal_root, target)
+    return false unless node && modal_root && target.present?
+
+    el = node
+    loop do
+      %w[data-item-no data-product-id data-sku data-item-no-global].each do |attr|
+        token = el[attr]
+        norm = normalize_product_token(token)
+        return true if norm == target
+      end
+      break if el == modal_root
+
+      el = el.parent
+      break unless el
+    end
+
+    false
+  end
+
+  def gallery_urls_for_item_from_product_data(product_data, target)
+    return [] unless product_data.is_a?(Hash) && target.present?
+
+    raw = []
+    collect_gallery_urls_for_item_in_json(product_data, target, raw, 0)
+    raw.filter_map { |u| normalize_pipf_gallery_image_url(u) }.uniq
+  end
+
+  def collect_gallery_urls_for_item_in_json(obj, target, acc, depth)
+    return if depth > 18
+
+    case obj
+    when Hash
+      item_no = normalize_product_token(extract_item_no_from_hash(obj))
+      if item_no == target
+        u = extract_media_url_from_gallery_entry(obj)
+        acc << u if u.present?
+      end
+      obj.each_value { |v| collect_gallery_urls_for_item_in_json(v, target, acc, depth + 1) }
+    when Array
+      obj.each { |v| collect_gallery_urls_for_item_in_json(v, target, acc, depth + 1) }
+    end
+  end
+
+  def extract_media_url_from_gallery_entry(h)
+    return nil unless h.is_a?(Hash)
+
+    u =
+      h.dig("content", "url") ||
+      h.dig("content", "src") ||
+      h["url"] ||
+      h["src"] ||
+      h["contentUrl"] ||
+      h["imageUrl"] ||
+      (h["image"].is_a?(String) ? h["image"] : nil)
+    u = u["url"] if u.is_a?(Hash) && u["url"]
+    u.to_s.strip.presence
+  end
+
+  def gallery_url_matches_item_pattern?(url, target)
+    u = url.to_s.downcase
+    t = target.to_s.downcase
+    return true if t.present? && u.include?(t)
+
+    digits = t.delete("^0-9")
+    return false if digits.length < 8
+
+    u.include?(digits)
   end
 
   def browser_mode

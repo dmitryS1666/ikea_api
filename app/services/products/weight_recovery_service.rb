@@ -20,12 +20,12 @@ module Products
       # см. Products::ExtendedAttributesFetchService (LT PIP / JSONL, затем добор с PL).
       begin
         Rails.logger.info "[WeightRecovery] [#{ @product.sku }] Fetching simple HTML..."
-        pl_details = PlDetailsFetcher.fetch(@product.url, use_headless: false) || {}
+        pl_details = PlDetailsFetcher.fetch(@product.url, use_headless: false, scope_sku: @product.sku) || {}
         
         if pl_details[:weight].blank? && pl_headless_enabled?
           Rails.logger.info "[WeightRecovery] [#{ @product.sku }] Weight not found in simple HTML, trying headless..."
           # Если не нашли вес простым запросом, пробуем через headless (медленнее, но надежнее для модалок)
-          pl_details = PlDetailsFetcher.fetch(@product.url, use_headless: true) || {}
+          pl_details = PlDetailsFetcher.fetch(@product.url, use_headless: true, scope_sku: @product.sku) || {}
         end
 
         updates = vgh_updates(pl_details)

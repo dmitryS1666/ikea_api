@@ -51,5 +51,30 @@ RSpec.describe PlDetailsFetcher do
       expect(result[:small_desc_name]).to eq('светло-зеленый, 26x13x7 см')
       expect(result[:sku]).to eq('30600958')
     end
+
+    it 'scopes gallery images to scope_sku via data-item-no ancestors' do
+      html = <<~HTML
+        <!DOCTYPE html><html><body>
+        <div class="pipf-product-gallery">
+          <div data-item-no="s11111111">
+            <img src="https://www.ikea.com/pl/pl/images/products/other__11111111_pe000001_s5.jpg" alt="" />
+          </div>
+          <div data-item-no="s29537086">
+            <img src="https://www.ikea.com/pl/pl/images/products/ok__29537086_pe000002_s5.jpg" alt="" />
+            <img data-src="https://www.ikea.com/pl/pl/images/products/ok__29537086_pe000003_s5.jpg" alt="" />
+          </div>
+        </div>
+        </body></html>
+      HTML
+
+      scoped = described_class.parse_html(html, "https://www.ikea.com/pl/pl/p/x-s29537086/", use_headless: false, scope_sku: "s29537086")
+      expect(scoped[:images].map { |u| File.basename(u) }).to contain_exactly(
+        "ok__29537086_pe000002_s5.jpg",
+        "ok__29537086_pe000003_s5.jpg"
+      )
+
+      unscoped = described_class.parse_html(html, "https://www.ikea.com/pl/pl/p/x-s29537086/", use_headless: false)
+      expect(unscoped[:images].length).to eq(3)
+    end
   end
 end

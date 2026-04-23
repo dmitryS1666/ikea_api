@@ -38,7 +38,7 @@ class RecoverMissingImagesJob < ApplicationJob
           
           # Получаем данные через PlDetailsFetcher
           # Мы используем PlDetailsFetcher.fetch, который уже умеет работать через прокси
-          pl_details = PlDetailsFetcher.fetch(product.url, use_headless: false)
+          pl_details = PlDetailsFetcher.fetch(product.url, use_headless: false, scope_sku: product.sku)
           
           if pl_details.present? && pl_details[:images].present? && pl_details[:images].any?
             # Сохраняем найденные ссылки в поле images
