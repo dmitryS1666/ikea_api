@@ -90,7 +90,6 @@ class Product < ApplicationRecord
   serialize :related_products, coder: JSON
   serialize :missing_related_skus, coder: JSON
   serialize :set_items, coder: JSON
-  serialize :bundle_items, coder: JSON
   serialize :included_products, coder: JSON
   serialize :images, coder: JSON
   serialize :local_images, coder: JSON
@@ -245,7 +244,14 @@ class Product < ApplicationRecord
           data_to_process.flat_map do |vg|
             Array(vg.deep_symbolize_keys[:data]).filter_map { |v| v.dig(:item, :sku).presence || v.dig(:item, 'sku').presence }.map(&:to_s)
           end.uniq
-        variants_by_sku = variant_skus.empty? ? {} : Product.where(sku: variant_skus).index_by(&:sku)
+        variants_by_sku =
+          if variant_skus.empty?
+            {}
+          else
+            Product.where(sku: variant_skus).each_with_object({}) do |p, memo|
+              Products::ListingSkuResolver.aliases(p.sku).each { |a| memo[a.to_s] = p }
+            end
+          end
         
         processed_payload = data_to_process.map do |variant_group|
           group = variant_group.deep_symbolize_keys
@@ -253,9 +259,20 @@ class Product < ApplicationRecord
             item = variant[:item]
             original_price = item[:price].to_f
             sku_v = item[:sku].presence || item['sku'].presence
-            rec = sku_v.present? ? variants_by_sku[sku_v.to_s] : nil
+            rec = sku_v.present? ? resolve_variant_record(sku_v, variants_by_sku) : nil
+            rec = nil if rec.present? && !same_variant_sku?(rec.sku, sku_v)
             w_kg = (rec || self).weight.to_f
             d_pln = (rec || self).delivery_cost.to_f
+
+            # Для variant-элемента приоритет у реальной карточки варианта в БД:
+            # имя/описание/картинки должны соответствовать выбранному SKU, а не сырому preview из PIP.
+            if rec
+              rec_payload = rec.variant_item_payload
+              item[:name_ru] = rec_payload[:name_ru].presence || item[:name_ru]
+              item[:small_desc_name] = rec_payload[:small_desc_name].presence || item[:small_desc_name]
+              item[:quantity] = rec_payload[:quantity].presence || item[:quantity]
+              item[:images] = rec_payload[:images] if rec_payload[:images].present?
+            end
 
             if original_price > 0
               price_byn = PriceCalculationService.product_price_byn(
@@ -268,6 +285,18 @@ class Product < ApplicationRecord
               item[:price_byn] = ActionController::Base.helpers.number_with_delimiter(price_byn, delimiter: ' ')
             else
               item[:price_byn] = nil
+            end
+
+            item[:sku] = sku_v.to_s if sku_v.present?
+            item["sku"] = item[:sku]
+            item[:images] = ProductLocalImages.normalize_api_image_array(item[:images] || item["images"])
+            item["images"] = item[:images]
+          end
+
+          if group[:type].to_s == "color"
+            Array(group[:data]).each do |v|
+              item = v[:item] || v["item"] || {}
+              v[:color] = normalized_color_label(v[:color] || v["color"], item[:small_desc_name] || item["small_desc_name"])
             end
           end
           # Текущий артикул первым в группе (остальной порядок как в HTML)
@@ -350,6 +379,27 @@ class Product < ApplicationRecord
         item["images"] = normalized
       end
     end
+  end
+
+  def resolve_variant_record(raw_sku, preloaded = {})
+    key = raw_sku.to_s.strip
+    return nil if key.blank?
+
+    preloaded[key] ||
+      Products::ListingSkuResolver.aliases(key).lazy.map { |a| preloaded[a.to_s] }.find(&:present?) ||
+      Products::ListingSkuResolver.find_product(key)
+  end
+
+  def same_variant_sku?(a, b)
+    aa = Products::ListingSkuResolver.aliases(a).map(&:to_s)
+    bb = Products::ListingSkuResolver.aliases(b).map(&:to_s)
+    (aa & bb).any?
+  end
+
+  def normalized_color_label(raw_label, small_desc)
+    from_desc = small_desc.to_s.split(",").last.to_s.strip.presence
+    from_label = raw_label.to_s.split(",").last.to_s.strip.presence
+    from_desc || from_label || small_desc.to_s.strip.presence || raw_label.to_s.strip
   end
 
   def cache_slug

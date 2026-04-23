@@ -25,7 +25,9 @@ module Api
       end
       
       def show
-        product = Product.with_available_stock.includes(:seo_meta, :category, :category_products).find_by!(sku: params[:sku])
+        product =
+          Products::ListingSkuResolver.find_product(params[:sku]) ||
+          Product.includes(:seo_meta, :category, :category_products).find_by!(sku: params[:sku])
         
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
         render json: ProductSerializer.new(product, {

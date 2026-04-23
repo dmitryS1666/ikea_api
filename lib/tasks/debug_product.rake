@@ -31,8 +31,8 @@ namespace :debug do
     puts "  - Видео: #{pl_details[:videos]&.length || 0}"
     puts "  - Мануалы: #{pl_details[:manuals]&.length || 0}"
     puts "  - Связанные продукты: #{pl_details[:related_products]&.length || 0}"
-    puts "  - Комплекты: #{pl_details[:set_items]&.length || 0}"
-    puts "  - Бандлы: #{pl_details[:bundle_items]&.length || 0}"
+    puts "  - Комплекты (set_items): #{pl_details[:set_items]&.length || 0}"
+    puts "  - В составе / включённые SKU: #{pl_details[:included_products]&.length || 0}"
     puts ""
     
     # ШАГ 2: Получение HTML страницы и поиск модальных окон

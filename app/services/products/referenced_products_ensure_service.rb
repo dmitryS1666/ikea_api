@@ -29,7 +29,6 @@ class Products::ReferencedProductsEnsureService
     list = []
     list.concat Array(product.related_products).map(&:to_s)
     list.concat Array(product.set_items).map(&:to_s)
-    list.concat Array(product.bundle_items).map(&:to_s)
     list.concat Array(product.included_products).map(&:to_s)
     list.concat product.normalized_variant_skus.map(&:to_s)
     list.filter_map { |s| normalize_article(s) }.uniq - [normalize_article(product.sku)].compact

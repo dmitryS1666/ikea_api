@@ -208,15 +208,16 @@ class PlDetailsFetcher
     result.merge!(description_data)
     Rails.logger.info "PlDetailsFetcher: Description data extracted - description: #{description_data[:description].present?}, materials: #{description_data[:materials].present?}"
     
-    # Наборы, бандлы и сопутствующие товары (методы уже были в классе — подключаем к результату parse_html)
+    # Наборы, состав из bundle-секции и сопутствующие товары (методы уже были в классе — подключаем к результату parse_html)
     si = extract_set_items(product_data, doc)
     result[:set_items] = si if si.any?
-    bi = extract_bundle_items(product_data, doc)
-    result[:bundle_items] = bi if bi.any?
     rp = extract_related_products(product_data, doc)
     result[:related_products] = rp if rp.any?
     ip = extract_included_products(product_data, doc)
-    result[:included_products] = ip if ip.any?
+    bi = extract_bundle_items(product_data, doc)
+    bi_norm = bi.filter_map { |x| normalize_product_token(x) }
+    merged_included = (Array(ip) + bi_norm).uniq
+    result[:included_products] = merged_included if merged_included.any?
     sv = extract_variants(product_data, doc)
     result[:variants] = sv if sv.any?
     vpt = infer_variant_picker_types_from_doc(doc)

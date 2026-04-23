@@ -57,6 +57,7 @@ module Products
       return true if p.price.blank? || p.price.to_f <= 0
       return true if p.weight.blank? && p.dimensions.blank?
       return true if p.materials.blank? && poor_full_attributes?(p)
+      return true if p.content.to_s.strip.blank? && p.short_description.to_s.strip.blank?
       return true if placeholder_name?(p)
 
       false

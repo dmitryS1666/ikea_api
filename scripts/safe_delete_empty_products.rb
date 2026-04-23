@@ -70,7 +70,6 @@ Product.find_each do |p|
     [:variants, p.variants],
     [:related_products, p.related_products],
     [:set_items, p.set_items],
-    [:bundle_items, p.bundle_items],
     [:included_products, p.included_products]
   ].each do |field_name, field|
     next if field.blank?
@@ -119,8 +118,7 @@ if force_unlink
       variants: product.variants,
       related_products: product.related_products,
       included_products: product.included_products,
-      set_items: product.set_items,
-      bundle_items: product.bundle_items
+      set_items: product.set_items
     }.each do |field_name, field_value|
       next if field_value.blank?
 

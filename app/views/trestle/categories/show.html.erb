@@ -223,11 +223,6 @@
                   <th>Название</th>
                   <th>Название (RU)</th>
                   <th>Цена</th>
-                  <%
-=begin%>
- <th>Действия</th> 
-<%
-=end%>
                 </tr>
               </thead>
               <tbody>
@@ -244,13 +239,6 @@
                     </td>
                     <td><%= product.name_ru || content_tag(:em, "Нет", class: "text-muted") %></td>
                     <td><%= product.price ? number_to_currency(product.price, unit: 'PLN', format: '%n %u') : '-' %></td>
-                    <%
-=begin%>
- <td>
-                      <%= link_to 'Просмотр', admin.instance_path(product), class: 'btn btn-sm btn-primary' %>
-                    </td> 
-<%
-=end%>
                   </tr>
                 <% end %>
               </tbody>

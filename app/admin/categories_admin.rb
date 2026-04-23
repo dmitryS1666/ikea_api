@@ -323,12 +323,18 @@ Trestle.resource(:categories, model: Category) do
 
     def show
       @category = admin.find_instance(params)
-      @paginated_category_products =
+      scope =
         Product
           .in_category_ikea_id(@category.ikea_id)
           .order(:id)
-          .page(params[:products_page])
-          .per(20)
+
+      page = params[:products_page]
+      paginated = scope.page(page).per(20)
+      # При переходах между категориями в URL может оставаться products_page,
+      # который выходит за диапазон для текущей категории.
+      paginated = scope.page(1).per(20) if paginated.out_of_range? && paginated.total_pages.positive?
+
+      @paginated_category_products = paginated
       render "trestle/categories/show"
     end
 

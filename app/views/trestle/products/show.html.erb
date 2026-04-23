@@ -325,6 +325,22 @@
   </div>
 
   <% 
+    # Варианты: SKU из колонки variants (+ текущий товар для контекста группы)
+    variant_skus = ([@product.sku.to_s] + @product.normalized_variant_skus).map(&:to_s).uniq
+    variant_skus = variant_skus.partition { |s| s == @product.sku.to_s }.flatten
+
+    variants_raw = if @product.variants.is_a?(Array)
+                   @product.variants
+                 elsif @product.variants.is_a?(String) && @product.variants.present?
+                   begin
+                     JSON.parse(@product.variants)
+                   rescue
+                     []
+                   end
+                 else
+                   []
+                 end
+
     # Получаем связанные продукты
     related_products = if @product.related_products.is_a?(Array)
                          @product.related_products
@@ -339,21 +355,15 @@
                        end
     
     included_products = Array(@product.included_products).filter_map { |sku| sku.to_s.gsub(/[\[\]\"]/, '').strip.presence }.uniq
-    
-    bundle_items = if @product.bundle_items.is_a?(Array)
-                     @product.bundle_items
-                   elsif @product.bundle_items.is_a?(String) && @product.bundle_items.present?
-                     begin
-                       JSON.parse(@product.bundle_items)
-                     rescue
-                       []
-                     end
-                   else
-                     []
-                   end
+
+    show_related_block =
+      variant_skus.many? ||
+      variants_raw.any? ||
+      related_products.any? ||
+      included_products.any?
   %>
   
-  <% if related_products.any? || included_products.any? || bundle_items.any? %>
+  <% if show_related_block %>
     <div class="row mt-4">
       <div class="col-12">
         <div class="card">
@@ -361,8 +371,49 @@
             <h5>Связанные продукты</h5>
           </div>
           <div class="card-body">
+            <h6 class="mb-3">Варианты (<code>variants</code> → SKU, <%= variant_skus.size %>)</h6>
+            <div class="mb-4">
+              <% if variant_skus.many? %>
+                <ul class="list-group">
+                  <% variant_skus.each do |v_sku| %>
+                    <% v_product = Product.find_by(sku: v_sku) || Product.find_by(item_no: v_sku.to_s.gsub(/\D/, "").presence) %>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                      <% if v_product %>
+                        <%= link_to "#{v_product.name} (#{v_sku})", "/admin/products/#{v_product.id}", class: 'text-decoration-none' %>
+                        <span>
+                          <% if v_sku.to_s == @product.sku.to_s %>
+                            <span class="badge badge-info badge-pill">текущий</span>
+                          <% end %>
+                          <% if v_product.price %>
+                            <span class="badge badge-primary badge-pill"><%= number_to_currency(v_product.price, unit: 'PLN', format: '%n %u') %></span>
+                          <% end %>
+                        </span>
+                      <% else %>
+                        <span><%= v_sku %></span>
+                        <span>
+                          <% if v_sku.to_s == @product.sku.to_s %>
+                            <span class="badge badge-info badge-pill">текущий</span>
+                          <% end %>
+                          <span class="badge badge-secondary badge-pill">Не найден</span>
+                        </span>
+                      <% end %>
+                    </li>
+                  <% end %>
+                </ul>
+              <% elsif variants_raw.any? %>
+                <p class="text-muted small mb-2">Не удалось свести к SKU; сырые элементы <code>variants</code> (<%= variants_raw.size %>):</p>
+                <ul class="list-group">
+                  <% variants_raw.each do |entry| %>
+                    <li class="list-group-item"><pre class="mb-0 small" style="white-space: pre-wrap;"><%= entry.is_a?(Hash) ? JSON.pretty_generate(entry) : h(entry.to_s) %></pre></li>
+                  <% end %>
+                </ul>
+              <% else %>
+                <p class="text-muted mb-0">В данных нет других вариантов (колонка <code>variants</code> пуста или один SKU).</p>
+              <% end %>
+            </div>
+
             <% if related_products.any? %>
-              <h6 class="mb-3">Рекомендуемые товары (<%= related_products.length %>)</h6>
+              <h6 class="mb-3">Рекомендуемые (<code>related_products</code>, <%= related_products.length %>)</h6>
               <div class="mb-4">
                 <ul class="list-group">
                   <% related_products.each do |item| %>
@@ -383,7 +434,7 @@
             <% end %>
             
             <% if included_products.any? %>
-              <h6 class="mb-3">Элементы набора (<%= included_products.length %>)</h6>
+              <h6 class="mb-3">Товары в наборе (<code>included_products</code>, <%= included_products.length %>)</h6>
               <div class="mb-4">
                 <ul class="list-group">
                   <% included_products.each do |item_no| %>
@@ -392,26 +443,6 @@
                       <% if set_product %>
                         <%= link_to "#{set_product.name} (#{item_no})", "/admin/products/#{set_product.id}", class: 'text-decoration-none' %>
                         <span class="badge badge-primary badge-pill"><%= set_product.price ? number_to_currency(set_product.price, unit: 'PLN', format: '%n %u') : 'N/A' %></span>
-                      <% else %>
-                        <span><%= item_no %></span>
-                        <span class="badge badge-secondary badge-pill">Не найден</span>
-                      <% end %>
-                    </li>
-                  <% end %>
-                </ul>
-              </div>
-            <% end %>
-            
-            <% if bundle_items.any? %>
-              <h6 class="mb-3">Элементы комплекта (<%= bundle_items.length %>)</h6>
-              <div class="mb-4">
-                <ul class="list-group">
-                  <% bundle_items.each do |item_no| %>
-                    <% bundle_product = Product.find_by(item_no: item_no) || Product.find_by(sku: item_no) %>
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                      <% if bundle_product %>
-                        <%= link_to "#{bundle_product.name} (#{item_no})", "/admin/products/#{bundle_product.id}", class: 'text-decoration-none' %>
-                        <span class="badge badge-primary badge-pill"><%= bundle_product.price ? number_to_currency(bundle_product.price, unit: 'PLN', format: '%n %u') : 'N/A' %></span>
                       <% else %>
                         <span><%= item_no %></span>
                         <span class="badge badge-secondary badge-pill">Не найден</span>

@@ -30,7 +30,6 @@ def listing_related_refs_for_category(category_ikea_id)
     values.concat Array(p.related_products)
     values.concat Array(p.included_products)
     values.concat Array(p.set_items)
-    values.concat Array(p.bundle_items)
     values.concat p.normalized_variant_skus
     values.each do |value|
       normalized = normalize_ref(value)

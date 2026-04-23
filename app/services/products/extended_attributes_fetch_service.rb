@@ -87,6 +87,7 @@ class Products::ExtendedAttributesFetchService
     end
 
     supplement_materials_from_lt_modal!(lt_details, attributes) if use_lt_descriptive && lt_details.present?
+    supplement_descriptive_from_pl_modal!(pl_details, attributes)
 
     supplement_from_ikea_lt_legacy(product, attributes) if use_lt_descriptive && !jsonl_applied
 
@@ -187,6 +188,30 @@ class Products::ExtendedAttributesFetchService
     attributes[:materials] = h.map { |k, v| "#{k}: #{v}".strip }.reject(&:blank?).join("\n")
   end
 
+  # PL: если парсер не вытащил description/materials в плоские поля, берём их из snapshot-модалки.
+  def supplement_descriptive_from_pl_modal!(pl_details, attributes)
+    modal = pl_details[:product_details_modal]
+    return if modal.blank?
+
+    if attributes[:content].blank?
+      paras = Array(modal["intro_paragraphs"] || modal[:intro_paragraphs]).map(&:to_s).map(&:strip).reject(&:blank?)
+      attributes[:content] = paras.join("\n\n") if paras.any?
+    end
+
+    return unless attributes[:materials].blank?
+
+    materials_hash = ProductSerializer.materials_hash_from_product_details_modal(modal)
+    if materials_hash.present?
+      attributes[:materials] = materials_hash.map { |k, v| "#{k}: #{v}".strip }.reject(&:blank?).join("\n")
+      return
+    end
+
+    materials_text = ProductSerializer.materials_text_from_product_details_modal(modal)
+    attributes[:materials] = materials_text if materials_text.present?
+  rescue StandardError => e
+    Rails.logger.warn "ExtendedAttributesFetchService: PL modal supplement failed #{e.class}: #{e.message}"
+  end
+
   def supplement_lt_descriptive_gaps(lt_details, attributes)
     attributes[:name_ru] = lt_details[:name] if attributes[:name_ru].blank? && lt_details[:name].present?
     if attributes[:content].blank? && lt_details[:description].present?
@@ -259,14 +284,14 @@ class Products::ExtendedAttributesFetchService
     end
 
     attributes[:set_items] = pl_details[:set_items] if pl_details[:set_items].present? && attributes[:set_items].blank?
-    attributes[:bundle_items] = pl_details[:bundle_items] if pl_details[:bundle_items].present? && attributes[:bundle_items].blank?
     if Products::RelatedProductsCollection::ENABLED && pl_details[:related_products].present?
       merged_rp = (parse_json_array(attributes[:related_products]) + Array(pl_details[:related_products]).map(&:to_s)).compact.uniq
       attributes[:related_products] = merged_rp if merged_rp.any?
     end
     merge_pl_variants_union!(pl_details, attributes) if pl_details[:variants].present?
 
-    combined_included = Array(pl_details[:set_items]).map(&:to_s) + Array(pl_details[:bundle_items]).map(&:to_s)
+    combined_included =
+      Array(pl_details[:set_items]).map(&:to_s) + Array(pl_details[:included_products]).map(&:to_s)
     if combined_included.any?
       existing = Array(product.included_products).map(&:to_s)
       merged = (existing + combined_included + Array(attributes[:included_products]).map(&:to_s)).compact.uniq
@@ -400,14 +425,14 @@ class Products::ExtendedAttributesFetchService
     end
 
     attributes[:set_items] = pl_details[:set_items] if pl_details[:set_items]
-    attributes[:bundle_items] = pl_details[:bundle_items] if pl_details[:bundle_items]
     if Products::RelatedProductsCollection::ENABLED && pl_details[:related_products].present?
       merged_rp = (parse_json_array(attributes[:related_products]) + Array(pl_details[:related_products]).map(&:to_s)).compact.uniq
       attributes[:related_products] = merged_rp if merged_rp.any?
     end
     merge_pl_variants_union!(pl_details, attributes) if pl_details[:variants].present?
 
-    combined_included = Array(pl_details[:set_items]).map(&:to_s) + Array(pl_details[:bundle_items]).map(&:to_s)
+    combined_included =
+      Array(pl_details[:set_items]).map(&:to_s) + Array(pl_details[:included_products]).map(&:to_s)
     if combined_included.any?
       existing = Array(product.included_products).map(&:to_s)
       merged = (existing + combined_included + Array(attributes[:included_products]).map(&:to_s)).compact.uniq

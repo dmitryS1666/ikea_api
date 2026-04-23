@@ -202,6 +202,9 @@ class RefreshCategoryFromLtJob < ApplicationJob
         Products::VariantProductsEnsureService.ensure!(product, category: category)
       end
 
+      # В одном проходе контролируем качество вариантов: описания/материалы/картинки.
+      ensure_variant_siblings_quality!(product, category, task, stats, mutex)
+
       related_in_base, related_missing = collect_related_skus_for(product)
       persist_missing_related_skus!(product, related_missing)
       if mutex
@@ -285,6 +288,41 @@ class RefreshCategoryFromLtJob < ApplicationJob
     Rails.logger.warn "RefreshCategoryFromLtJob: variant siblings images parent=#{parent.sku}: #{e.message}"
   end
 
+  def ensure_variant_siblings_quality!(parent, category, task, stats, mutex)
+    skus = variant_skus_for(parent)
+    return if skus.empty?
+
+    skus.each do |vs|
+      other = Products::ListingSkuResolver.find_product(vs) || Product.find_by(sku: vs)
+      next unless other
+
+      ext = Products::ExtendedAttributesFetchService.fetch_for_product(other, force_ai_translation: true)
+      if ext[:updated]
+        if mutex
+          mutex.synchronize { stats[:updated] += 1 }
+        else
+          stats[:updated] += 1
+        end
+      end
+
+      # Держим связи варианта с текущей категорией консистентными.
+      CategoryProduct.find_or_create_by!(product: other, category_id: category.ikea_id.to_s)
+
+      sync_local_images!(other, stats, mutex)
+    rescue StandardError => e
+      Rails.logger.warn "RefreshCategoryFromLtJob: variant quality sku=#{vs} parent=#{parent.sku}: #{e.message}"
+      if mutex
+        mutex.synchronize do
+          stats[:errors] += 1
+          task.increment_errors!
+        end
+      else
+        stats[:errors] += 1
+        task.increment_errors!
+      end
+    end
+  end
+
   def variant_skus_for(parent)
     from_column = parent.normalized_variant_skus.map(&:to_s).map(&:strip).reject(&:blank?)
     from_payload = Products::VariantProductsEnsureService.variant_skus_from_variants_payload(parent.variants_payload)
@@ -303,8 +341,7 @@ class RefreshCategoryFromLtJob < ApplicationJob
       .flat_map do |p|
         Array(p.related_products) +
           Array(p.included_products) +
-          Array(p.set_items) +
-          Array(p.bundle_items)
+          Array(p.set_items)
       end
       .map(&:to_s)
       .map { |s| s.gsub(/\D/, "") }

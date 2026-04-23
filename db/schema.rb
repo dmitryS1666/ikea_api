@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_23_123000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_23_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -564,7 +564,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_23_123000) do
     t.text "variants"
     t.text "related_products"
     t.text "set_items"
-    t.text "bundle_items"
     t.text "images"
     t.text "local_images"
     t.integer "images_total"
