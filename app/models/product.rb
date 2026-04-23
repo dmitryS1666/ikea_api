@@ -88,6 +88,7 @@ class Product < ApplicationRecord
   # Сериализация массивов
   serialize :variants, coder: JSON
   serialize :related_products, coder: JSON
+  serialize :missing_related_skus, coder: JSON
   serialize :set_items, coder: JSON
   serialize :bundle_items, coder: JSON
   serialize :included_products, coder: JSON

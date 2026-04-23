@@ -49,6 +49,12 @@ class RefreshCategoryFromLtJob < ApplicationJob
         nil
       end
     max_created = nil if max_created.present? && max_created <= 0
+    process_related =
+      if payload.key?("process_related")
+        ActiveModel::Type::Boolean.new.cast(payload["process_related"])
+      else
+        false
+      end
 
     category = Category.find_by(ikea_id: ikea_id.to_s)
     unless category
@@ -81,7 +87,9 @@ class RefreshCategoryFromLtJob < ApplicationJob
       detached: 0,
       linked: 0,
       images_synced: 0,
-      created_skus: []
+      created_skus: [],
+      related_skus: [],
+      missing_related_skus: []
     }
     parser = ParseProductsJob.new
     canonical_listing_skus = []
@@ -123,7 +131,7 @@ class RefreshCategoryFromLtJob < ApplicationJob
         # - Проверка LT, если нет - AI перевод
         # - Variants (IkeaLvProductVariantsService)
         # - Related/Included (ReferencedProductsEnsureService)
-        enrich_product!(product, category, rows_by_sku, task, stats, nil)
+        enrich_product!(product, category, rows_by_sku, task, stats, nil, process_related: process_related)
         
         break if max_created.present? && stats[:created] >= max_created
       end
@@ -139,6 +147,10 @@ class RefreshCategoryFromLtJob < ApplicationJob
       end
 
       stats[:duration] = Time.current - started
+      stats[:related_skus] = stats[:related_skus].uniq.sort
+      stats[:related_skus_count] = stats[:related_skus].size
+      stats[:missing_related_skus] = stats[:missing_related_skus].uniq.sort
+      stats[:missing_related_skus_count] = stats[:missing_related_skus].size
       task.update_payload!("created_skus" => stats[:created_skus]) if stats[:created_skus].present?
       task.mark_as_completed!(stats)
       notify_completed("refresh_category_lt", stats)
@@ -156,7 +168,7 @@ class RefreshCategoryFromLtJob < ApplicationJob
 
   private
 
-  def enrich_product!(product, category, rows_by_sku, task, stats, mutex)
+  def enrich_product!(product, category, rows_by_sku, task, stats, mutex, process_related: false)
     check_task_not_stopped!(task)
 
     begin
@@ -190,8 +202,22 @@ class RefreshCategoryFromLtJob < ApplicationJob
         Products::VariantProductsEnsureService.ensure!(product, category: category)
       end
 
-      # Сопутствующие товары (related, included, etc)
-      Products::ReferencedProductsEnsureService.ensure_for!(product, category: category)
+      related_in_base, related_missing = collect_related_skus_for(product)
+      persist_missing_related_skus!(product, related_missing)
+      if mutex
+        mutex.synchronize do
+          stats[:related_skus].concat(related_in_base) if related_in_base.any?
+          stats[:missing_related_skus].concat(related_missing) if related_missing.any?
+        end
+      else
+        stats[:related_skus].concat(related_in_base) if related_in_base.any?
+        stats[:missing_related_skus].concat(related_missing) if related_missing.any?
+      end
+
+      # Временно отключено: не подтягиваем/не создаём связи для related products из этой джобы.
+      if process_related
+        Products::ReferencedProductsEnsureService.ensure_for!(product, category: category)
+      end
 
       # Локальные картинки — после финального состояния images / вариантов (как в EnrichVariantProductJob)
       product.reload
@@ -245,9 +271,7 @@ class RefreshCategoryFromLtJob < ApplicationJob
 
   # Отдельные Product по SKU из variants / variants_payload — догружаем local_images (ActiveStorage + зеркало в public)
   def sync_variant_siblings_images!(parent, stats, mutex)
-    from_column = parent.normalized_variant_skus.map(&:to_s).map(&:strip).reject(&:blank?)
-    from_payload = Products::VariantProductsEnsureService.variant_skus_from_variants_payload(parent.variants_payload)
-    skus = (from_column + from_payload).uniq - [parent.sku.to_s]
+    skus = variant_skus_for(parent)
     return if skus.empty?
 
     skus.each do |vs|
@@ -259,6 +283,50 @@ class RefreshCategoryFromLtJob < ApplicationJob
     end
   rescue StandardError => e
     Rails.logger.warn "RefreshCategoryFromLtJob: variant siblings images parent=#{parent.sku}: #{e.message}"
+  end
+
+  def variant_skus_for(parent)
+    from_column = parent.normalized_variant_skus.map(&:to_s).map(&:strip).reject(&:blank?)
+    from_payload = Products::VariantProductsEnsureService.variant_skus_from_variants_payload(parent.variants_payload)
+    (from_column + from_payload).uniq - [parent.sku.to_s]
+  end
+
+  def collect_related_skus_for(parent)
+    products = [parent]
+    variant_skus_for(parent).each do |vs|
+      p = Products::ListingSkuResolver.find_product(vs) || Product.find_by(sku: vs)
+      products << p if p
+    end
+
+    normalized_articles =
+      products
+      .flat_map do |p|
+        Array(p.related_products) +
+          Array(p.included_products) +
+          Array(p.set_items) +
+          Array(p.bundle_items)
+      end
+      .map(&:to_s)
+      .map { |s| s.gsub(/\D/, "") }
+      .select { |s| s.match?(/\A\d{8}\z/) }
+      .uniq
+
+    existing, missing = normalized_articles.partition { |article| related_sku_exists_in_base?(article) }
+    [existing, missing]
+  end
+
+  def related_sku_exists_in_base?(article)
+    Product.exists?(item_no: article) ||
+      Product.where("regexp_replace(upper(sku), '[^0-9A-Z]', '', 'g') = ?", article.upcase).exists?
+  end
+
+  def persist_missing_related_skus!(product, values)
+    list = Array(values).map(&:to_s).map(&:strip).reject(&:blank?).uniq
+    attr_type = product.class.type_for_attribute("missing_related_skus").type
+    payload = [:json, :jsonb].include?(attr_type) ? list : list.to_json
+    product.update_column(:missing_related_skus, payload)
+  rescue StandardError => e
+    Rails.logger.warn "RefreshCategoryFromLtJob: save missing_related_skus sku=#{product.sku}: #{e.message}"
   end
 
   def process_listing_sequential(products_data, parser, category, availability_data, task, stats, max_created)
