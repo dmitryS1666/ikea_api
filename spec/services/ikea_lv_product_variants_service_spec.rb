@@ -46,7 +46,7 @@ RSpec.describe IkeaLvProductVariantsService do
       HTML
     end
 
-    it "collects selected and linked covers with SKUs and preview images" do
+    it "collects selected and linked covers with SKUs only" do
       doc = Nokogiri::HTML(html)
       rows = service.send(:extract_color_variants, doc)
       expect(rows.size).to eq(2)
@@ -54,7 +54,7 @@ RSpec.describe IkeaLvProductVariantsService do
       expect(skus).to contain_exactly("s29545213", "s29537086")
       linked = rows.find { |r| r.dig(:item, :sku) == "s29537086" }
       expect(linked[:color]).to include("Hallarp")
-      expect(linked.dig(:item, :images).first).to include("0952230_pe801662")
+      expect(linked.dig(:item, :images)).to eq([])
     end
   end
 end

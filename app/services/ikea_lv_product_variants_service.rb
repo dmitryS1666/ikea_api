@@ -102,14 +102,12 @@ class IkeaLvProductVariantsService
 
       label = ""
       sku = ""
-      preview_src = style_picker_preview_src(item_node)
-
       if link
-        label = link["aria-label"].to_s.strip
+        label = normalize_cover_label(link["aria-label"])
         href = link["href"]
         sku = extract_sku_from_url(href)
       elsif selected_div
-        label = selected_div["aria-label"].to_s.strip
+        label = normalize_cover_label(selected_div["aria-label"])
         sku = product.sku.to_s
       end
 
@@ -119,19 +117,11 @@ class IkeaLvProductVariantsService
       display_color = color_display_label(variant_product, label.presence || sku)
       variants << {
         color: display_color,
-        item: variant_payload(variant_product, sku, preview_image: preview_src, cover_label: display_color)
+        item: variant_payload(variant_product, sku, cover_label: display_color)
       }
     end
 
     variants.uniq { |v| v.dig(:item, :sku).to_s.downcase }
-  end
-
-  def style_picker_preview_src(item_node)
-    img = item_node.at_css("img.pipf-image") || item_node.at_css("img")
-    src = img&.[]("src").to_s.strip
-    return if src.blank?
-
-    src.start_with?("http") ? src : absolute_url(src)
   end
 
   def extract_size_variants(doc)
@@ -180,7 +170,7 @@ class IkeaLvProductVariantsService
       variant_product&.sku.to_s
   end
 
-  def variant_payload(variant_product, sku, preview_image: nil, cover_label: nil)
+  def variant_payload(variant_product, sku, cover_label: nil)
     label = cover_label.to_s.strip
     base =
       if variant_product
@@ -203,15 +193,25 @@ class IkeaLvProductVariantsService
         }
       end
     base[:sku] = sku.to_s
-    enrich_item_images!(base, preview_image)
+    # Варианты: только изображения конкретного SKU из карточки товара.
+    # Миниатюры color-picker не используем, чтобы не мешать gallery с thumbnails.
+    base[:images] = normalize_variant_images_for_sku(base[:images])
     base
   end
 
-  def enrich_item_images!(base, preview_image)
-    return if preview_image.blank?
+  def normalize_variant_images_for_sku(raw_images)
+    ProductLocalImages.normalize_api_image_array(raw_images)
+      .reject { |u| u.to_s.include?("?f=") }
+      .uniq
+  end
 
-    imgs = Array(base[:images]).compact
-    base[:images] = imgs.empty? ? [preview_image] : ([preview_image] + imgs).uniq
+  def normalize_cover_label(raw_label)
+    s = raw_label.to_s.strip
+    return s if s.blank?
+
+    s = s.sub(/\A(?:wybierz\s+pokrycie|choose\s+cover)\s*:\s*/i, "")
+    s = s.sub(/\A(?:current|selected)\s+/i, "")
+    s.strip
   end
 
   def find_variant_product_by_sku(sku)

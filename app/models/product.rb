@@ -258,7 +258,6 @@ class Product < ApplicationRecord
           group = variant_group.deep_symbolize_keys
           group[:data].each do |variant|
             item = variant[:item]
-            incoming_images = ProductLocalImages.normalize_api_image_array(item[:images] || item["images"])
             incoming_small_desc = item[:small_desc_name].presence || item["small_desc_name"].presence
             original_price = item[:price].to_f
             sku_v = item[:sku].presence || item['sku'].presence
@@ -274,9 +273,9 @@ class Product < ApplicationRecord
               item[:name_ru] = rec_payload[:name_ru].presence || item[:name_ru]
               item[:small_desc_name] = rec_payload[:small_desc_name].presence || item[:small_desc_name]
               item[:quantity] = rec_payload[:quantity].presence || item[:quantity]
-              item[:images] = merge_variant_images(incoming_images, rec_payload[:images])
+              item[:images] = normalize_variant_item_images(rec_payload[:images])
             else
-              item[:images] = incoming_images
+              item[:images] = []
             end
 
             item[:small_desc_name] = normalize_variant_small_desc_label(item[:small_desc_name] || incoming_small_desc)
@@ -409,16 +408,10 @@ class Product < ApplicationRecord
     from_desc || from_label || small_desc.to_s.strip.presence || raw_label.to_s.strip
   end
 
-  def merge_variant_images(preview_images, db_images)
-    # Важно: для вариантов НЕ удаляем remote preview (ikea.com), иначе
-    # при наличии старых local_images первой станет «чужая» локальная картинка.
-    from_preview = ProductLocalImages.expand_paths(preview_images)
-    from_db = ProductLocalImages.expand_paths(db_images)
-    (from_preview + from_db).uniq
-  end
-
   def normalize_variant_item_images(value)
-    Array(ProductLocalImages.expand_paths(value)).map(&:to_s).map(&:strip).reject(&:blank?).uniq
+    ProductLocalImages.normalize_api_image_array(value)
+      .reject { |u| u.to_s.include?("?f=") }
+      .uniq
   end
 
   def normalize_variant_small_desc_label(raw)
@@ -460,7 +453,19 @@ class Product < ApplicationRecord
       "srednioszary" => "средне-серый"
     }
 
-    normalized = I18n.transliterate(text.downcase)
+    normalized = text.downcase.dup
+    pl_fold = {
+      "ą" => "a",
+      "ć" => "c",
+      "ę" => "e",
+      "ł" => "l",
+      "ń" => "n",
+      "ó" => "o",
+      "ś" => "s",
+      "ź" => "z",
+      "ż" => "z"
+    }
+    pl_fold.each { |src, dst| normalized.gsub!(src, dst) }
     normalized = normalized.gsub(/[\/\-]/, " ")
     translated = normalized.split(/\s+/).map { |w| words_map[w] || w }.join(" ")
     translated.gsub(/\s+/, " ").strip.presence || text
