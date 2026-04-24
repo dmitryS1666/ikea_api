@@ -258,6 +258,8 @@ class Product < ApplicationRecord
           group = variant_group.deep_symbolize_keys
           group[:data].each do |variant|
             item = variant[:item]
+            incoming_images = ProductLocalImages.normalize_api_image_array(item[:images] || item["images"])
+            incoming_small_desc = item[:small_desc_name].presence || item["small_desc_name"].presence
             original_price = item[:price].to_f
             sku_v = item[:sku].presence || item['sku'].presence
             rec = sku_v.present? ? resolve_variant_record(sku_v, variants_by_sku) : nil
@@ -272,8 +274,12 @@ class Product < ApplicationRecord
               item[:name_ru] = rec_payload[:name_ru].presence || item[:name_ru]
               item[:small_desc_name] = rec_payload[:small_desc_name].presence || item[:small_desc_name]
               item[:quantity] = rec_payload[:quantity].presence || item[:quantity]
-              item[:images] = rec_payload[:images] if rec_payload[:images].present?
+              item[:images] = merge_variant_images(incoming_images, rec_payload[:images])
+            else
+              item[:images] = incoming_images
             end
+
+            item[:small_desc_name] = normalize_variant_small_desc_label(item[:small_desc_name] || incoming_small_desc)
 
             if original_price > 0
               price_byn = PriceCalculationService.product_price_byn(
@@ -398,9 +404,52 @@ class Product < ApplicationRecord
   end
 
   def normalized_color_label(raw_label, small_desc)
-    from_desc = small_desc.to_s.split(",").last.to_s.strip.presence
-    from_label = raw_label.to_s.split(",").last.to_s.strip.presence
+    from_desc = normalize_variant_small_desc_label(small_desc.to_s.split(",").last)
+    from_label = normalize_variant_small_desc_label(raw_label.to_s.split(",").last)
     from_desc || from_label || small_desc.to_s.strip.presence || raw_label.to_s.strip
+  end
+
+  def merge_variant_images(preview_images, db_images)
+    from_preview = ProductLocalImages.normalize_api_image_array(preview_images)
+    from_db = ProductLocalImages.normalize_api_image_array(db_images)
+    (from_preview + from_db).uniq
+  end
+
+  def normalize_variant_small_desc_label(raw)
+    text = raw.to_s.strip
+    return nil if text.blank?
+
+    words_map = {
+      "biały" => "белый",
+      "bielony" => "беленый",
+      "czarny" => "черный",
+      "beżowy" => "бежевый",
+      "szary" => "серый",
+      "ciemny" => "темный",
+      "jasny" => "светлый",
+      "żółty" => "желтый",
+      "zielony" => "зеленый",
+      "niebieski" => "синий",
+      "czerwony" => "красный",
+      "brązowy" => "коричневый",
+      "rozowy" => "розовый",
+      "różowy" => "розовый",
+      "pomarańczowy" => "оранжевый",
+      "fioletowy" => "фиолетовый",
+      "kremowy" => "кремовый",
+      "jasno" => "светло",
+      "ciemno" => "темно",
+      "średnio" => "средне",
+      "szaroniebieski" => "серо-синий",
+      "czerwonobrązowy" => "красно-коричневый",
+      "jasnozielony" => "светло-зеленый",
+      "średnioszary" => "средне-серый"
+    }
+
+    normalized = I18n.transliterate(text.downcase)
+    normalized = normalized.gsub(/[\/\-]/, " ")
+    translated = normalized.split(/\s+/).map { |w| words_map[w] || w }.join(" ")
+    translated.gsub(/\s+/, " ").strip.presence || text
   end
 
   def cache_slug
