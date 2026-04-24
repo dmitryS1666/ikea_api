@@ -21,6 +21,7 @@ class ImageDownloader
 
       current_local_images = normalize_string_array(product.local_images)
       healthy_local_images = unique_healthy_paths(current_local_images)
+      healthy_local_images = keep_only_paths_for_urls(healthy_local_images, image_urls) if image_urls.any?
 
       changed = false
 
@@ -330,6 +331,41 @@ class ImageDownloader
         fingerprint = fingerprint_for_path(path)
         acc << fingerprint if fingerprint.present?
       end
+    end
+
+    # Оставляем только local_images, которые соответствуют текущим remote URLs товара.
+    # Это предотвращает «залипание» чужих картинок после смены списка product.images.
+    def keep_only_paths_for_urls(paths, image_urls)
+      return [] if image_urls.blank?
+
+      expected_bases =
+        image_urls.filter_map do |url|
+          normalized = normalize_remote_image_url(url)
+          next if normalized.blank?
+          ProductLocalImages.deterministic_base_filename(normalized)
+        end.to_set
+
+      return [] if expected_bases.empty?
+
+      paths.select do |path|
+        base = base_filename_for_local_ref(path)
+        base.present? && expected_bases.include?(base)
+      end
+    end
+
+    def base_filename_for_local_ref(path)
+      if ProductLocalImages.blob_ref?(path)
+        blob = ProductLocalImages.blob_from_ref(path)
+        return nil unless blob
+        return blob.filename.to_s.sub(/\.[^.]+\z/, "")
+      end
+
+      absolute_path = absolute_local_path(path)
+      return nil if absolute_path.blank?
+
+      File.basename(absolute_path.to_s).sub(/\.[^.]+\z/, "")
+    rescue StandardError
+      nil
     end
 
     def fingerprint_for_path(path)
