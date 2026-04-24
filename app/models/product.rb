@@ -296,7 +296,7 @@ class Product < ApplicationRecord
 
             item[:sku] = sku_v.to_s if sku_v.present?
             item["sku"] = item[:sku]
-            item[:images] = ProductLocalImages.normalize_api_image_array(item[:images] || item["images"])
+            item[:images] = normalize_variant_item_images(item[:images] || item["images"])
             item["images"] = item[:images]
           end
 
@@ -410,9 +410,15 @@ class Product < ApplicationRecord
   end
 
   def merge_variant_images(preview_images, db_images)
-    from_preview = ProductLocalImages.normalize_api_image_array(preview_images)
-    from_db = ProductLocalImages.normalize_api_image_array(db_images)
+    # Важно: для вариантов НЕ удаляем remote preview (ikea.com), иначе
+    # при наличии старых local_images первой станет «чужая» локальная картинка.
+    from_preview = ProductLocalImages.expand_paths(preview_images)
+    from_db = ProductLocalImages.expand_paths(db_images)
     (from_preview + from_db).uniq
+  end
+
+  def normalize_variant_item_images(value)
+    Array(ProductLocalImages.expand_paths(value)).map(&:to_s).map(&:strip).reject(&:blank?).uniq
   end
 
   def normalize_variant_small_desc_label(raw)
@@ -421,29 +427,37 @@ class Product < ApplicationRecord
 
     words_map = {
       "biały" => "белый",
+      "bialy" => "белый",
       "bielony" => "беленый",
       "czarny" => "черный",
       "beżowy" => "бежевый",
+      "bezowy" => "бежевый",
       "szary" => "серый",
       "ciemny" => "темный",
       "jasny" => "светлый",
       "żółty" => "желтый",
+      "zolty" => "желтый",
       "zielony" => "зеленый",
       "niebieski" => "синий",
       "czerwony" => "красный",
       "brązowy" => "коричневый",
+      "brazowy" => "коричневый",
       "rozowy" => "розовый",
       "różowy" => "розовый",
       "pomarańczowy" => "оранжевый",
+      "pomaranczowy" => "оранжевый",
       "fioletowy" => "фиолетовый",
       "kremowy" => "кремовый",
       "jasno" => "светло",
       "ciemno" => "темно",
       "średnio" => "средне",
+      "srednio" => "средне",
       "szaroniebieski" => "серо-синий",
       "czerwonobrązowy" => "красно-коричневый",
+      "czerwonobrazowy" => "красно-коричневый",
       "jasnozielony" => "светло-зеленый",
-      "średnioszary" => "средне-серый"
+      "średnioszary" => "средне-серый",
+      "srednioszary" => "средне-серый"
     }
 
     normalized = I18n.transliterate(text.downcase)
