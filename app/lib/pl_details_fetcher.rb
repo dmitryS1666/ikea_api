@@ -147,6 +147,7 @@ class PlDetailsFetcher
     # PIPCOM: в h1 имя и подзаголовок разведены по span; JSON-LD часто даёт склеенную строку.
     if pipcom_heading[:name].present?
       result[:name] = pipcom_heading[:name]
+      result[:name_ru] = pipcom_heading[:name]
     end
 
     # Collection
@@ -837,6 +838,7 @@ class PlDetailsFetcher
 
       # Модалка «Elementy w zestawie» — только после клика по строке списка (sheet).
       included_skus = try_open_included_products_sheet!(browser) || []
+      accessories_opened = try_open_accessories_modal!(browser)
       
       # Получаем HTML страницы после открытия модального окна
       page_html = browser.body
@@ -851,8 +853,10 @@ class PlDetailsFetcher
       pd_headless = parse_hydration_product_data(modal_doc)
       result = extract_modal_details(modal_doc, pd_headless)
       result[:included_products] = included_skus if included_skus.present?
+      accessories_related = extract_related_products_from_accessories_modal(modal_doc)
+      result[:related_products] = accessories_related if accessories_opened && accessories_related.any?
 
-      Rails.logger.info "PlDetailsFetcher.fetch_modal_with_headless_browser: Extracted - materials: #{result[:materials].present?}, care: #{result[:care_instructions].present?}, safety: #{result[:safety_info].present?}, good_to_know: #{result[:good_to_know].present?}, included_products: #{included_skus&.length || 0}"
+      Rails.logger.info "PlDetailsFetcher.fetch_modal_with_headless_browser: Extracted - materials: #{result[:materials].present?}, care: #{result[:care_instructions].present?}, safety: #{result[:safety_info].present?}, good_to_know: #{result[:good_to_know].present?}, included_products: #{included_skus&.length || 0}, related_products: #{Array(result[:related_products]).length}"
       
       result
       
@@ -923,138 +927,71 @@ class PlDetailsFetcher
     items.uniq
   end
   
-  def extract_related_products(product_data, doc = nil)
+  def extract_related_products(_product_data, doc = nil)
     unless Products::RelatedProductsCollection::ENABLED
       Rails.logger.debug "PlDetailsFetcher.extract_related_products: skipped (RelatedProductsCollection::ENABLED is false)"
       return []
     end
 
-    related = []
-    
-    Rails.logger.debug "PlDetailsFetcher.extract_related_products: Starting extraction"
-    
-    if product_data
-      # Список всех возможных путей для связанных продуктов (как в JS-парсере)
-      paths_to_check = [
-        # Основные пути
-        ['addOns', 'addOns'],
-        ['addOns'],
-        ['recommendedProducts'],
-        ['recommended', 'products'],
-        ['relatedProducts'],
-        ['related', 'products'],
-        ['productSuggestions'],
-        ['suggestions'],
-        ['productRecommendations'],
-        ['recommendations'],
-        ['suggestedProducts'],
-        ['youMightAlsoLike'],
-        ['complementaryProducts'],
-        ['accessories'],
-        ['accessoryProducts'],
-        ['completeTheLook'],
-        ['completeTheLookProducts'],
-        ['frequentlyBoughtTogether'],
-        ['boughtTogether'],
-        ['similarProducts'],
-        ['similar'],
-        ['alternatives'],
-        ['alternativeProducts'],
-        # Вложенные пути
-        ['productInformationSection', 'relatedProducts'],
-        ['productInformationSection', 'recommendedProducts'],
-        ['productInformationSection', 'accessories'],
-        ['mediaSection', 'relatedProducts'],
-        ['mediaSection', 'recommendedProducts'],
-        ['productDetails', 'relatedProducts'],
-        ['productDetails', 'recommendedProducts'],
-        ['productDetails', 'accessories']
-      ]
-      
-      paths_to_check.each do |path|
-        items = product_data.dig(*path)
-        next unless items.present?
-        
-        Rails.logger.debug "PlDetailsFetcher.extract_related_products: Checking path #{path.join('.')}: #{items.class}"
-        
-        # Обрабатываем массив
-        if items.is_a?(Array)
-          items.each do |item|
-            item_no = extract_item_no_from_hash(item)
-            if item_no.present?
-              related << item_no.to_s
-              Rails.logger.debug "PlDetailsFetcher.extract_related_products: Added from #{path.join('.')}: #{item_no}"
-            end
-          end
-        # Обрабатываем объект с вложенными массивами
-        elsif items.is_a?(Hash)
-          # Ищем вложенные массивы items, products, etc.
-          ['items', 'products', 'productsList', 'list'].each do |key|
-            nested_items = items[key] || items[key.to_sym]
-            if nested_items.is_a?(Array)
-              nested_items.each do |item|
-                item_no = extract_item_no_from_hash(item)
-                if item_no.present?
-                  related << item_no.to_s
-                  Rails.logger.debug "PlDetailsFetcher.extract_related_products: Added from #{path.join('.')}.#{key}: #{item_no}"
-                end
-              end
-            end
-          end
-          
-          # Если сам объект содержит itemNo
-          item_no = extract_item_no_from_hash(items)
-          if item_no.present?
-            related << item_no.to_s
-            Rails.logger.debug "PlDetailsFetcher.extract_related_products: Added from #{path.join('.')} (direct): #{item_no}"
-          end
-        end
-      end
-      
-      # Рекурсивный поиск в productData (на случай, если структура изменилась)
-      find_related_in_hash(product_data, related)
-    end
-    
-    # Извлечение из HTML (если есть doc)
-    if doc
-      # Расширенный список селекторов для связанных продуктов
-      html_selectors = [
-        '.pip-product-recommendations [data-item-no]',
-        '.pip-related-products [data-item-no]',
-        '.pip-recommendation [data-item-no]',
-        '[data-product-id]',
-        '[data-item-no]',
-        '[data-sku]',
-        '.pip-accessories [data-item-no]',
-        '.pip-complete-the-look [data-item-no]',
-        '.pip-frequently-bought-together [data-item-no]',
-        '.product-recommendation [data-item-no]',
-        'a[href*="/p/"]'
-      ]
-      
-      html_related = doc.css(html_selectors.join(', '))
-      Rails.logger.debug "PlDetailsFetcher.extract_related_products: Found #{html_related.length} HTML elements with related products"
-      
-      html_related.each do |el|
-        # Из data-атрибутов
-        item_no = el['data-item-no'] || el['data-product-id'] || el['data-sku'] || el['data-item-no-global']
-        
-        # Из href (формат: /pl/pl/p/{item_no}/)
-        if item_no.blank? && el['href']
-          match = el['href'].match(%r{/p/([^/]+)/?})
-          item_no = match[1] if match
-        end
-        
-        if item_no.present?
-          related << item_no
-          Rails.logger.debug "PlDetailsFetcher.extract_related_products: Added from HTML: #{item_no}"
-        end
-      end
-    end
-    
-    result = related.filter_map { |x| normalize_product_token(x) }.uniq
+    Rails.logger.debug "PlDetailsFetcher.extract_related_products: Starting extraction from accessories modal only"
+    result = extract_related_products_from_accessories_modal(doc)
     Rails.logger.info "PlDetailsFetcher.extract_related_products: Extracted #{result.length} related products"
     result
+  end
+
+  def extract_related_products_from_accessories_modal(doc)
+    return [] unless doc
+
+    related = []
+    modal = doc.at_css(".pipf-upsell-modal")
+    return [] unless modal
+
+    modal.css("[data-product-number], .pipf-upsell[data-product-number]").each do |el|
+      sku = normalize_product_token(el["data-product-number"])
+      related << sku if sku.present?
+    end
+
+    modal.css("a[href*='/p/']").each do |a|
+      href = a["href"].to_s
+      token = nil
+      m = href.match(/-([a-z0-9]{8,9})\/?(?:[#?].*)?$/i)
+      token = m[1] if m
+      if token.blank?
+        m2 = href.match(%r{/p/[^/]*-([a-z0-9]{8,9})/?(?:[#?].*)?$}i)
+        token = m2[1] if m2
+      end
+      sku = normalize_product_token(token)
+      related << sku if sku.present?
+    end
+
+    related.uniq
+  end
+
+  def try_open_accessories_modal!(browser)
+    clicked = browser.evaluate(<<~'JS')
+      (function() {
+        const buttons = Array.from(document.querySelectorAll("button"));
+        const target = buttons.find((btn) => {
+          const txt = (btn.textContent || "").toLowerCase();
+          const cls = btn.className || "";
+          return txt.includes("pokaż wszystkie akcesoria") || cls.includes("pipf-accessories-grid__add-accessories-button");
+        });
+        if (!target) return false;
+        target.click();
+        return true;
+      })();
+    JS
+    return false unless clicked
+
+    10.times do
+      sleep(0.4)
+      opened = browser.evaluate("document.querySelector('.pipf-upsell-modal') !== null")
+      return true if opened
+    end
+    false
+  rescue => e
+    Rails.logger.debug "PlDetailsFetcher.try_open_accessories_modal!: #{e.message}"
+    false
   end
 
   # На PIPF кнопка строки списка с заголовком «Elementy w zestawie» (и аналоги) — без SSR-модалки состава.
@@ -3734,7 +3671,8 @@ class PlDetailsFetcher
         return scoped
       end
 
-      Rails.logger.warn "PlDetailsFetcher.extract_images: scope_sku=#{@scope_sku} but no scoped gallery match; keeping #{images.length} unfiltered URLs"
+      Rails.logger.warn "PlDetailsFetcher.extract_images: scope_sku=#{@scope_sku} but no scoped gallery match; returning empty to avoid mixed-variant gallery"
+      return []
     end
 
     Rails.logger.info "PlDetailsFetcher.extract_images: Extracted #{images.length} gallery images from modal"

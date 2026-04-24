@@ -48,6 +48,7 @@ RSpec.describe PlDetailsFetcher do
       result = described_class.parse_html(html, 'https://www.ikea.com/lt/ru/p/sample/', use_headless: false)
 
       expect(result[:name]).to eq('HUMLESJÖN HUMLESJÖN')
+      expect(result[:name_ru]).to eq('HUMLESJÖN HUMLESJÖN')
       expect(result[:small_desc_name]).to eq('светло-зеленый, 26x13x7 см')
       expect(result[:sku]).to eq('30600958')
     end
@@ -75,6 +76,22 @@ RSpec.describe PlDetailsFetcher do
 
       unscoped = described_class.parse_html(html, "https://www.ikea.com/pl/pl/p/x-s29537086/", use_headless: false)
       expect(unscoped[:images].length).to eq(3)
+    end
+
+    it "extracts related_products only from accessories modal cards" do
+      html = <<~HTML
+        <!DOCTYPE html><html><body>
+          <div class="pipf-upsell-modal">
+            <div class="pipf-upsell" data-product-number="80598627"></div>
+            <div class="pipf-upsell" data-product-number="40624384"></div>
+            <a href="https://www.ikea.com/pl/pl/p/foo-bar-90304889/"></a>
+          </div>
+          <a href="https://www.ikea.com/pl/pl/p/should-not-be-related-99999999/"></a>
+        </body></html>
+      HTML
+
+      result = described_class.parse_html(html, "https://www.ikea.com/pl/pl/p/x-s29537086/", use_headless: false)
+      expect(result[:related_products]).to contain_exactly("80598627", "40624384", "90304889")
     end
   end
 end

@@ -288,6 +288,11 @@ class Products::ExtendedAttributesFetchService
   end
 
   def merge_pl_with_lt_priority(product, pl_details, attributes)
+    if pl_details[:name].present?
+      attributes[:name] = pl_details[:name]
+      attributes[:name_ru] = pl_details[:name]
+    end
+
     attributes[:price] = pl_details[:price] if pl_details[:price].present?
     update_quantity(product, pl_details, attributes)
 
@@ -408,6 +413,7 @@ class Products::ExtendedAttributesFetchService
   def apply_pl_descriptive(pl_details, attributes)
     if pl_details[:name].present?
       attributes[:name] = pl_details[:name]
+      attributes[:name_ru] = pl_details[:name]
     end
     if pl_details[:description].present? && attributes[:content].blank?
       attributes[:content] = pl_details[:description]
