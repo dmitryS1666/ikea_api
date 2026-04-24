@@ -300,7 +300,7 @@ class Products::ExtendedAttributesFetchService
       attributes[key] = pl_details[key] if pl_details[key].present? && attributes[key].blank?
     end
 
-    if pl_details[:images].present? && pl_details[:images].is_a?(Array)
+    if pl_details.key?(:images) && pl_details[:images].is_a?(Array)
       pl_images = pl_details[:images].map(&:to_s).map(&:strip).reject(&:blank?).uniq
       original = parse_json_array(product.images)
       base = strip_remote_pl_ikea_gallery_urls(original)
@@ -440,7 +440,7 @@ class Products::ExtendedAttributesFetchService
   end
 
   def merge_pl_structural_and_commerce(product, pl_details, attributes)
-    if pl_details[:images].present? && pl_details[:images].is_a?(Array) && pl_details[:images].any?
+    if pl_details.key?(:images) && pl_details[:images].is_a?(Array)
       all_images = pl_details[:images].map(&:to_s).map(&:strip).reject(&:blank?).uniq
       original = parse_json_array(product.images)
       existing_images = strip_remote_pl_ikea_gallery_urls(original)

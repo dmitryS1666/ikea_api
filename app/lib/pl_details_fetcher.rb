@@ -3663,8 +3663,6 @@ class PlDetailsFetcher
 
     images = pairs.filter_map { |p| p[:url] }.uniq
     target = normalize_product_token(@scope_sku) if @scope_sku.present?
-    existing_normalized = Array(existing_images).filter_map { |u| normalize_pipf_gallery_image_url(u) }.uniq
-
     if target.present?
       scoped = scope_gallery_urls_to_item(images, pairs, modal, product_data, target)
       if scoped.any?
@@ -3672,12 +3670,7 @@ class PlDetailsFetcher
         return scoped
       end
 
-      if existing_normalized.any?
-        Rails.logger.warn "PlDetailsFetcher.extract_images: scope_sku=#{@scope_sku} no scoped gallery match; fallback to existing product images=#{existing_normalized.length}"
-        return existing_normalized
-      end
-
-      Rails.logger.warn "PlDetailsFetcher.extract_images: scope_sku=#{@scope_sku} but no scoped gallery or fallback images; returning empty"
+      Rails.logger.warn "PlDetailsFetcher.extract_images: scope_sku=#{@scope_sku} no scoped gallery match; returning empty to avoid cross-variant image bleed"
       return []
     end
 
