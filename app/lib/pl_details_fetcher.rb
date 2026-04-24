@@ -3630,7 +3630,7 @@ class PlDetailsFetcher
     result.compact
   end
   
-  def extract_images(doc, product_data, _existing_images = [])
+  def extract_images(doc, product_data, existing_images = [])
     # В images сохраняем только реальные фото из модального окна галереи товара (PIPF),
     # чтобы не попадали служебные/иконки/шумы из остальной страницы.
     modal = doc.at_css("[class*='pipf-product-gallery-modal']")
@@ -3663,6 +3663,7 @@ class PlDetailsFetcher
 
     images = pairs.filter_map { |p| p[:url] }.uniq
     target = normalize_product_token(@scope_sku) if @scope_sku.present?
+    existing_normalized = Array(existing_images).filter_map { |u| normalize_pipf_gallery_image_url(u) }.uniq
 
     if target.present?
       scoped = scope_gallery_urls_to_item(images, pairs, modal, product_data, target)
@@ -3671,7 +3672,12 @@ class PlDetailsFetcher
         return scoped
       end
 
-      Rails.logger.warn "PlDetailsFetcher.extract_images: scope_sku=#{@scope_sku} but no scoped gallery match; returning empty to avoid mixed-variant gallery"
+      if existing_normalized.any?
+        Rails.logger.warn "PlDetailsFetcher.extract_images: scope_sku=#{@scope_sku} no scoped gallery match; fallback to existing product images=#{existing_normalized.length}"
+        return existing_normalized
+      end
+
+      Rails.logger.warn "PlDetailsFetcher.extract_images: scope_sku=#{@scope_sku} but no scoped gallery or fallback images; returning empty"
       return []
     end
 
