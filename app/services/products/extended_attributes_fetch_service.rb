@@ -15,6 +15,8 @@
 class Products::ExtendedAttributesFetchService
   # Старые URL фото с польской витрины (часто смесь вариантов цвета); при новом парсе PL их выкидываем и подставляем список под текущий SKU.
   REMOTE_PL_PRODUCT_IMAGE_URL = %r{\Ahttps?://www\.ikea\.com/pl/pl/images/products}i.freeze
+  # Любая витрина IKEA (pl, lt/ru, …) — один и тот же каталог фото; при смене scoped-галереи вычищаем все, иначе LT+PL копятся в кашу.
+  REMOTE_IKEA_PRODUCT_GALLERY_URL = %r{\Ahttps?://www\.ikea\.com/[^/]+/[^/]+/images/products}i.freeze
 
   def self.fetch_for_product(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false)
     new.fetch(
@@ -157,6 +159,35 @@ class Products::ExtendedAttributesFetchService
 
   def strip_remote_pl_ikea_gallery_urls(urls)
     Array(urls).reject { |u| REMOTE_PL_PRODUCT_IMAGE_URL.match?(u.to_s) }
+  end
+
+  def strip_all_ikea_remote_gallery_urls(urls)
+    Array(urls).reject { |u| remote_ikea_gallery_url?(u) }
+  end
+
+  def remote_ikea_gallery_url?(url)
+    REMOTE_IKEA_PRODUCT_GALLERY_URL.match?(url.to_s) || REMOTE_PL_PRODUCT_IMAGE_URL.match?(url.to_s)
+  end
+
+  # Scoped-список с PL (PlDetailsFetcher + scope_sku) — единственный источник удалённых URL; сбрасываем local_images чтобы перекачать под новый набор.
+  def reconcile_pl_scoped_product_images!(product, pl_details, attributes)
+    return unless pl_details.key?(:images) && pl_details[:images].is_a?(Array)
+
+    pl_images = pl_details[:images].map(&:to_s).map(&:strip).reject(&:blank?).uniq
+    original = parse_json_array(product.images)
+
+    if pl_images.any?
+      new_set = pl_images.uniq
+      if new_set != original
+        attributes[:images] = new_set
+        if product.respond_to?(:local_images) && Product.column_names.include?("local_images")
+          attributes[:local_images] = []
+        end
+      end
+    else
+      stripped = strip_all_ikea_remote_gallery_urls(original)
+      attributes[:images] = stripped if stripped != original
+    end
   end
 
   MERGE_SEED_FIELDS = %i[
@@ -312,9 +343,12 @@ class Products::ExtendedAttributesFetchService
   end
 
   def merge_pl_with_lt_priority(product, pl_details, attributes)
-    if pl_details[:name].present?
+    # Уже взяли описательные поля с LT (ru) — не затираем польской витриной.
+    lt_descriptive = attributes[:translated].present? || product.translated
+
+    if pl_details[:name].present? && !lt_descriptive
       attributes[:name] = pl_details[:name]
-      attributes[:name_ru] = pl_details[:name]
+      attributes[:name_ru] = pl_details[:name] if Product.column_names.include?("name_ru")
     end
 
     attributes[:price] = pl_details[:price] if pl_details[:price].present?
@@ -324,13 +358,7 @@ class Products::ExtendedAttributesFetchService
       attributes[key] = pl_details[key] if pl_details[key].present? && attributes[key].blank?
     end
 
-    if pl_details.key?(:images) && pl_details[:images].is_a?(Array)
-      pl_images = pl_details[:images].map(&:to_s).map(&:strip).reject(&:blank?).uniq
-      original = parse_json_array(product.images)
-      base = strip_remote_pl_ikea_gallery_urls(original)
-      merged_imgs = (base + pl_images).uniq
-      attributes[:images] = merged_imgs if merged_imgs != original
-    end
+    reconcile_pl_scoped_product_images!(product, pl_details, attributes)
 
     attributes[:set_items] = pl_details[:set_items] if pl_details[:set_items].present? && attributes[:set_items].blank?
     if Products::RelatedProductsCollection::ENABLED && pl_details[:related_products].present?
@@ -405,7 +433,10 @@ class Products::ExtendedAttributesFetchService
   end
 
   def apply_lt_descriptive(lt_details, attributes)
-    # Полное имя остаётся в `name` (витрина PL); русское краткое — в `small_desc_name`, не дублируем в name_ru.
+    if lt_details[:name].present?
+      attributes[:name] = lt_details[:name]
+      attributes[:name_ru] = lt_details[:name] if Product.column_names.include?("name_ru")
+    end
     if lt_details[:small_desc_name].present? && attributes[:small_desc_name].blank?
       attributes[:small_desc_name] = lt_details[:small_desc_name]
     end
@@ -464,13 +495,7 @@ class Products::ExtendedAttributesFetchService
   end
 
   def merge_pl_structural_and_commerce(product, pl_details, attributes)
-    if pl_details.key?(:images) && pl_details[:images].is_a?(Array)
-      all_images = pl_details[:images].map(&:to_s).map(&:strip).reject(&:blank?).uniq
-      original = parse_json_array(product.images)
-      existing_images = strip_remote_pl_ikea_gallery_urls(original)
-      merged = (existing_images + all_images).uniq
-      attributes[:images] = merged if merged != original
-    end
+    reconcile_pl_scoped_product_images!(product, pl_details, attributes)
 
     %i[weight net_weight package_volume package_dimensions dimensions collection].each do |key|
       attributes[key] = pl_details[key] if pl_details[key].present?
@@ -720,7 +745,15 @@ class Products::ExtendedAttributesFetchService
   end
 
   def translate_remaining_fields(product, attributes)
-    # Не переводим `name` → `name_ru`: оригинальное название в `name`, краткое по-русски — в `small_desc_name` (LT).
+    # Полное имя: если осталось латиница/польский (LT не отдал), пробуем слой TranslationService; иначе RU с LT уже в `name`.
+    if Product.column_names.include?("name_ru")
+      src_name = (attributes[:name] || product.name).to_s
+      if src_name.present? && src_name !~ /[а-яА-ЯЁё]/ && (attributes[:name_ru].blank? && product.read_attribute(:name_ru).blank?)
+        t = TranslationService.translate(src_name)
+        attributes[:name_ru] = t if t.present? && !TranslationService.invalid_translation?(t, src_name)
+      end
+    end
+
     fields = %i[short_description content materials features care_instructions environmental_info designer safety_info good_to_know]
 
     fields.each do |field|
