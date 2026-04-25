@@ -79,6 +79,32 @@ class ImageDownloader
       )
     end
 
+    def download_urls_to_refs(urls, limit: nil)
+      remote_urls =
+        normalize_remote_urls(
+          normalize_string_array(urls).select do |url|
+            s = url.to_s.strip
+            s.match?(/\Ahttps?:\/\//i) || s.start_with?("//") || s.match?(%r{\A/(pl|lt|globalassets)/}i)
+          end
+        )
+    
+      return [] if remote_urls.empty?
+    
+      target_count = limit.presence || remote_urls.size
+    
+      result = download_product_images(
+        nil,
+        remote_urls,
+        limit: target_count,
+        existing_paths: []
+      )
+    
+      unique_healthy_paths(result[:final_local_images]).first(target_count)
+    rescue StandardError => e
+      Rails.logger.warn("ImageDownloader: download_urls_to_refs failed: #{e.class} #{e.message}")
+      []
+    end
+
     # Низкоуровневая загрузка недостающих картинок
     def download_product_images(product, image_urls, limit: nil, existing_paths: nil)
       urls = normalize_remote_urls(normalize_string_array(image_urls))

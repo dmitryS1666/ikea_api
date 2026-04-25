@@ -188,6 +188,13 @@ class RefreshCategoryFromLtJob < ApplicationJob
 
       product.reload
 
+      # ВАЖНО:
+      # ExtendedAttributesFetchService уже записал полную PL-галерею в product.images
+      # и мог сбросить local_images в [].
+      # Скачиваем основную галерею сразу, до вариантов/included/related,
+      # чтобы при ошибке ниже товар не остался с images, но без local_images.
+      sync_local_images!(product, stats, mutex)
+
       # Варианты (PIP PL): variants_payload с URL картинок по цветам/размерам
       vres = IkeaLvProductVariantsService.new(product: product, force: true).call
       if mutex
@@ -254,11 +261,31 @@ class RefreshCategoryFromLtJob < ApplicationJob
   end
 
   def sync_local_images!(product, stats, mutex)
-    return if Array(product.images).compact.reject(&:blank?).empty?
-
+    remote_images =
+      json_array(product.images)
+        .map(&:to_s)
+        .map(&:strip)
+        .reject(&:blank?)
+  
+    if remote_images.empty?
+      clear_local_images_for_refresh!(product)
+      Rails.logger.info(
+        "RefreshCategoryFromLtJob: images skipped sku=#{product.sku} remote=0 local=#{json_array(product.local_images).size}"
+      )
+      return
+    end
+  
     result = ImageDownloader.sync_product_images(product)
+  
+    product.reload
+    local_count = json_array(product.local_images).size
+  
+    Rails.logger.info(
+      "RefreshCategoryFromLtJob: images synced sku=#{product.sku} remote=#{remote_images.size} local=#{local_count} changed=#{result[:changed]}"
+    )
+  
     return unless result[:changed]
-
+  
     if mutex
       mutex.synchronize { stats[:images_synced] += 1 }
     else
@@ -266,6 +293,119 @@ class RefreshCategoryFromLtJob < ApplicationJob
     end
   rescue StandardError => e
     Rails.logger.warn "RefreshCategoryFromLtJob: images sku=#{product.sku}: #{e.message}"
+  end
+
+  def ensure_variant_gallery_from_payload_sku!(product, payload_sku)
+    current_images = json_array(product.images)
+    current_local = json_array(product.local_images)
+  
+    # Если уже есть полноценная галерея и локальные картинки — не трогаем.
+    return false if current_images.size > 1 && current_local.size > 1
+  
+    payload_sku = payload_sku.to_s.strip
+    return false if payload_sku.blank?
+  
+    candidates =
+      ([payload_sku] + Products::ListingSkuResolver.aliases(payload_sku))
+        .map(&:to_s)
+        .map(&:strip)
+        .reject(&:blank?)
+        .uniq
+  
+    candidates.each do |candidate_sku|
+      details = PlDetailsFetcher.fetch(
+        "https://www.ikea.com/pl/pl/p/-#{candidate_sku}/",
+        use_headless: false,
+        scope_sku: candidate_sku
+      )
+  
+      images =
+        Array(details[:images])
+          .map(&:to_s)
+          .map(&:strip)
+          .reject(&:blank?)
+          .uniq
+  
+      next if images.empty?
+  
+      write_remote_images_for_refresh!(product, images)
+  
+      Rails.logger.info(
+        "RefreshCategoryFromLtJob: variant gallery fallback sku=#{product.sku} payload_sku=#{payload_sku} candidate=#{candidate_sku} images=#{images.size}"
+      )
+  
+      return true
+    rescue StandardError => e
+      Rails.logger.warn(
+        "RefreshCategoryFromLtJob: variant gallery fallback failed sku=#{product.sku} payload_sku=#{payload_sku} candidate=#{candidate_sku}: #{e.message}"
+      )
+    end
+  
+    false
+  end
+
+  def write_remote_images_for_refresh!(product, images)
+    images =
+      Array(images)
+        .map(&:to_s)
+        .map(&:strip)
+        .reject(&:blank?)
+        .uniq
+  
+    return false if images.empty?
+  
+    attrs = {
+      images: typed_json_column_value(product, :images, images),
+      updated_at: Time.current
+    }
+  
+    if Product.column_names.include?("local_images")
+      attrs[:local_images] = typed_json_column_value(product, :local_images, [])
+    end
+  
+    product.update_columns(attrs)
+    true
+  end
+  
+  def typed_json_column_value(record, column, value)
+    attr_type = record.class.type_for_attribute(column.to_s).type
+    [:json, :jsonb].include?(attr_type) ? value : value.to_json
+  end
+
+  def json_array(value)
+    return value if value.is_a?(Array)
+    return [] if value.blank?
+  
+    parsed = JSON.parse(value.to_s)
+    parsed.is_a?(Array) ? parsed : []
+  rescue JSON::ParserError
+    []
+  end
+
+  def clear_local_images_for_refresh!(product)
+    return unless product.respond_to?(:local_images)
+    return unless Product.column_names.include?("local_images")
+  
+    current =
+      json_array(product.local_images)
+        .map(&:to_s)
+        .map(&:strip)
+        .reject(&:blank?)
+  
+    return if current.empty?
+  
+    attr_type = product.class.type_for_attribute("local_images").type
+    value = [:json, :jsonb].include?(attr_type) ? [] : [].to_json
+  
+    product.update_column(:local_images, value)
+  
+    Rails.logger.info(
+      "RefreshCategoryFromLtJob: cleared stale local_images for sku=#{product.sku} because remote images are empty"
+    )
+  rescue StandardError => e
+    Rails.logger.warn(
+      "RefreshCategoryFromLtJob: clear local_images failed sku=#{product.sku}: #{e.message}"
+    )
   end
 
   # Отдельные Product по SKU из variants / variants_payload — догружаем local_images (ActiveStorage + зеркало в public)
@@ -276,7 +416,7 @@ class RefreshCategoryFromLtJob < ApplicationJob
     skus.each do |vs|
       other = Products::ListingSkuResolver.find_product(vs) || Product.find_by(sku: vs)
       next unless other
-      next if Array(other.images).compact.reject(&:blank?).empty?
+      next if json_array(other.images).compact.reject(&:blank?).empty?
 
       sync_local_images!(other, stats, mutex)
     end
@@ -297,6 +437,7 @@ class RefreshCategoryFromLtJob < ApplicationJob
         force_ai_translation: false,
         fallback_pl_when_lt_missing: true
       )
+
       if ext[:updated]
         if mutex
           mutex.synchronize { stats[:updated] += 1 }
@@ -304,6 +445,17 @@ class RefreshCategoryFromLtJob < ApplicationJob
           stats[:updated] += 1
         end
       end
+
+      other.reload
+
+      # ВАЖНО:
+      # Для вариантов из variants_payload исходный SKU может быть s49537066,
+      # а товар в БД найден как 49537066.
+      # Если обычный ExtendedAttributesFetchService не наполнил галерею,
+      # достаём PL-галерею напрямую по исходному payload SKU.
+      ensure_variant_critical_pl_data_from_payload_sku!(other, vs)
+
+      other.reload
 
       # Держим связи варианта с текущей категорией консистентными.
       CategoryProduct.find_or_create_by!(product: other, category_id: category.ikea_id.to_s)
@@ -323,10 +475,117 @@ class RefreshCategoryFromLtJob < ApplicationJob
     end
   end
 
+  def ensure_variant_critical_pl_data_from_payload_sku!(product, payload_sku)
+    payload_sku = payload_sku.to_s.strip
+    return false if payload_sku.blank?
+  
+    current_images = json_array(product.images)
+    current_local = json_array(product.local_images)
+    current_mm = product.full_attributes.is_a?(Hash) ? product.full_attributes.deep_stringify_keys["measurements_modal"] : nil
+  
+    # Если уже есть нормальные картинки И физические упаковки — не трогаем.
+    if current_images.size > 1 &&
+       current_local.size > 1 &&
+       measurements_modal_has_physical_packages?(current_mm)
+      return false
+    end
+  
+    candidates =
+      ([payload_sku] + Products::ListingSkuResolver.aliases(payload_sku))
+        .map(&:to_s)
+        .map(&:strip)
+        .reject(&:blank?)
+        .uniq
+  
+    candidates.each do |candidate_sku|
+      details = PlDetailsFetcher.fetch(
+        "https://www.ikea.com/pl/pl/p/-#{candidate_sku}/",
+        use_headless: true,
+        scope_sku: candidate_sku
+      )
+  
+      next if details.blank?
+  
+      attrs = {}
+  
+      %i[dimensions weight net_weight package_volume package_dimensions].each do |key|
+        attrs[key] = details[key] if details[key].present?
+      end
+  
+      if details[:measurements_modal].present?
+        full = product.full_attributes.is_a?(Hash) ? product.full_attributes.deep_stringify_keys : {}
+        full["measurements_modal"] = details[:measurements_modal].is_a?(Hash) ? details[:measurements_modal].deep_stringify_keys : details[:measurements_modal]
+        full["measurements_modal_extracted_at"] = Time.current.iso8601
+        attrs[:full_attributes] = typed_json_column_value(product, :full_attributes, full)
+      end
+  
+      images =
+        Array(details[:images])
+          .map(&:to_s)
+          .map(&:strip)
+          .reject(&:blank?)
+          .uniq
+  
+      if images.any?
+        attrs[:images] = typed_json_column_value(product, :images, images)
+        attrs[:local_images] = typed_json_column_value(product, :local_images, []) if Product.column_names.include?("local_images")
+      end
+  
+      next if attrs.empty?
+  
+      attrs[:updated_at] = Time.current
+      product.update_columns(attrs)
+  
+      Rails.logger.info(
+        "RefreshCategoryFromLtJob: variant critical PL fallback sku=#{product.sku} payload_sku=#{payload_sku} candidate=#{candidate_sku} images=#{images.size} measurements=#{details[:measurements_modal].present?}"
+      )
+  
+      return true
+    rescue StandardError => e
+      Rails.logger.warn(
+        "RefreshCategoryFromLtJob: variant critical PL fallback failed sku=#{product.sku} payload_sku=#{payload_sku} candidate=#{candidate_sku}: #{e.message}"
+      )
+    end
+  
+    false
+  end
+  
+  def measurements_modal_has_physical_packages?(mm)
+    return false unless mm.is_a?(Hash)
+  
+    packages = Array(mm["packages"] || mm[:packages])
+    return false if packages.empty?
+  
+    packages.any? do |pkg|
+      measurements = Array(pkg["measurements"] || pkg[:measurements])
+      names = measurements.map { |m| (m["name"] || m[:name]).to_s }
+      names.include?("Ширина") &&
+        names.include?("Высота") &&
+        names.include?("Длина") &&
+        names.include?("Вес")
+    end
+  end
+
   def variant_skus_for(parent)
-    from_column = parent.normalized_variant_skus.map(&:to_s).map(&:strip).reject(&:blank?)
-    from_payload = Products::VariantProductsEnsureService.variant_skus_from_variants_payload(parent.variants_payload)
-    (from_column + from_payload).uniq - [parent.sku.to_s]
+    # Для LT-refresh берём только реальные варианты из variants_payload,
+    # который собирает IkeaLvProductVariantsService из PIP style/variant picker.
+    #
+    # parent.normalized_variant_skus здесь использовать нельзя:
+    # для set/combo товаров IKEA туда могут попадать комплектующие набора,
+    # например части дивана, а не цветовые/размерные варианты.
+    from_payload =
+      Products::VariantProductsEnsureService
+        .variant_skus_from_variants_payload(parent.variants_payload)
+  
+    parent_aliases =
+      Products::ListingSkuResolver.aliases(parent.sku).map(&:to_s)
+  
+    from_payload
+      .map(&:to_s)
+      .map(&:strip)
+      .reject(&:blank?)
+      .uniq
+      .reject { |sku| parent_aliases.include?(sku) }
   end
 
   def collect_related_skus_for(parent)

@@ -42,6 +42,7 @@ class IkeaLvProductVariantsService
 
     doc = Nokogiri::HTML(html)
     variants_data = extract_variants(doc)
+    # variants_data = localize_variant_picker_images(variants_data) if variants_data.present?
 
     if variants_data.present?
       # Собираем все уникальные SKU из всех типов вариантов
@@ -73,6 +74,51 @@ class IkeaLvProductVariantsService
   end
 
   private
+
+  def localize_variant_picker_images(variants_data)
+    Array(variants_data).each do |group|
+      Array(group[:data] || group["data"]).each do |variant|
+        item = variant[:item] || variant["item"]
+        next unless item
+  
+        has_preview_images =
+          item.key?(:preview_images) || item.key?("preview_images")
+  
+        source_images =
+          Array(item[:images] || item["images"]) +
+          Array(item[:preview_images] || item["preview_images"])
+  
+        remote_images =
+          source_images
+            .map(&:to_s)
+            .map(&:strip)
+            .reject(&:blank?)
+            .select do |url|
+              url.match?(/\Ahttps?:\/\//i) ||
+                url.start_with?("//") ||
+                url.match?(%r{\A/(pl|lt|globalassets)/}i)
+            end
+            .uniq
+  
+        next if remote_images.empty?
+  
+        local_refs = ImageDownloader.download_urls_to_refs(remote_images, limit: 1)
+        next if local_refs.empty?
+  
+        item[:images] = local_refs
+        item["images"] = local_refs
+  
+        # Не добавляем новое поле в API, если его раньше не было.
+        # Но если preview_images уже есть в payload, тоже переводим его в локальный путь.
+        if has_preview_images
+          item[:preview_images] = local_refs
+          item["preview_images"] = local_refs
+        end
+      end
+    end
+  
+    variants_data
+  end
 
   def extract_variants(doc)
     all_variants = []
@@ -115,13 +161,62 @@ class IkeaLvProductVariantsService
 
       variant_product = find_variant_product_by_sku(sku)
       display_color = color_display_label(variant_product, label.presence || sku)
+      preview_images = extract_style_picker_images(item_node)
+
       variants << {
         color: display_color,
-        item: variant_payload(variant_product, sku, cover_label: display_color)
+        item: variant_payload(
+          variant_product,
+          sku,
+          cover_label: display_color,
+          preview_images: preview_images
+        )
       }
     end
 
     variants.uniq { |v| v.dig(:item, :sku).to_s.downcase }
+  end
+
+  def extract_style_picker_images(node)
+    urls = []
+  
+    node.css("img, source").each do |img|
+      %w[src data-src data-lazy-src data-original data-image].each do |attr|
+        urls << img[attr] if img[attr].present?
+      end
+  
+      %w[srcset data-srcset].each do |attr|
+        srcset = img[attr].to_s
+        next if srcset.blank?
+  
+        srcset.split(",").each do |part|
+          candidate = part.to_s.strip.split(/\s+/).first
+          urls << candidate if candidate.present?
+        end
+      end
+    end
+  
+    urls
+      .filter_map { |url| normalize_style_picker_image_url(url) }
+      .uniq
+  end
+  
+  def normalize_style_picker_image_url(raw)
+    url = raw.to_s.strip
+    return nil if url.blank?
+  
+    url = "https:#{url}" if url.start_with?("//")
+    url = "https://www.ikea.com#{url}" if url.start_with?("/")
+  
+    return nil unless url.start_with?("http://", "https://")
+    return nil unless url.include?("ikea.com")
+    return nil if url.match?(/placeholder|icon|logo|sprite/i)
+  
+    # Убираем resize-query, чтобы не ловить дубли.
+    clean = url.split("?").first
+    return nil unless clean.match?(/\.(jpg|jpeg|png|webp)\z/i)
+  
+    clean
   end
 
   def extract_size_variants(doc)
@@ -170,8 +265,10 @@ class IkeaLvProductVariantsService
       variant_product&.sku.to_s
   end
 
-  def variant_payload(variant_product, sku, cover_label: nil)
+  def variant_payload(variant_product, sku, cover_label: nil, preview_images: [])
     label = cover_label.to_s.strip
+    preview_images = normalize_variant_images_for_sku(preview_images)
+  
     base =
       if variant_product
         h = variant_product.variant_item_payload
@@ -181,7 +278,7 @@ class IkeaLvProductVariantsService
         slug =
           SlugifyService.call("#{label} #{sku}").presence ||
             "variant-#{sku.to_s.downcase.gsub(/[^a-z0-9]+/i, '-').gsub(/^-|-$/, '')}"
-
+  
         {
           sku: sku,
           name_ru: product.name.to_s.presence,
@@ -192,10 +289,17 @@ class IkeaLvProductVariantsService
           images: []
         }
       end
+  
     base[:sku] = sku.to_s
-    # Варианты: только изображения конкретного SKU из карточки товара.
-    # Миниатюры color-picker не используем, чтобы не мешать gallery с thumbnails.
-    base[:images] = normalize_variant_images_for_sku(base[:images])
+  
+    # ВАЖНО:
+    # Для цветового переключателя используем картинку из style-picker.
+    # Она не должна попадать в product.images/local_images.
+    product_images = normalize_variant_images_for_sku(base[:images])
+  
+    base[:preview_images] = preview_images if preview_images.any?
+    base[:images] = preview_images.presence || product_images
+  
     base
   end
 

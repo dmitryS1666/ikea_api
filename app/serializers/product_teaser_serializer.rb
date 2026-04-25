@@ -55,7 +55,9 @@ class ProductTeaserSerializer
 
   attribute :customs_duty do |product, params|
     # Only calculate if we have price and weight
-    if product.price.to_f > 0 && product.weight.to_f > 0
+    safe_weight = safe_product_weight_kg(product)
+
+    if product.price.to_f > 0 && safe_weight.present?
       rates = params[:rates] || {
         eur: ExchangeRate.fetch_or_create('EUR')&.rate_per_unit,
         pln: ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
@@ -63,7 +65,7 @@ class ProductTeaserSerializer
       
       if rates[:eur] && rates[:pln]
         price_eur = (product.price.to_f * rates[:pln] / rates[:eur]).round(2)
-        calculation = CustomsDutyService.calculate(price_eur, product.weight.to_f, rates[:eur])
+        calculation = CustomsDutyService.calculate(price_eur, safe_weight, rates[:eur])
         {
           total_byn: calculation[:total_byn],
           duty_byn: calculation[:duty_byn],
@@ -122,5 +124,30 @@ class ProductTeaserSerializer
 
   attribute :variants do |product|
     product.normalized_variants_for_api
+  end
+
+  def self.safe_product_weight_kg(product)
+    weight = product.weight.to_f
+  
+    return nil if weight <= 0
+  
+    extracted_weight = nil
+  
+    if weight > 100 && product.full_attributes_ru.present?
+      extracted_weight = Products::WeightExtractor.extract_kg(product.full_attributes_ru)
+    end
+  
+    if extracted_weight.present?
+      # Явный кейс бага: в БД 330 кг, а из упаковки достается 0.49 кг.
+      if extracted_weight < 100 && weight / extracted_weight > 10
+        return extracted_weight
+      end
+  
+      # Если extractor подтверждает тяжелый вес — тоже возвращаем его.
+      return extracted_weight if (weight - extracted_weight).abs <= 0.01
+    end
+  
+    # Если данных упаковки нет, не ломаем реальные тяжелые товары.
+    weight
   end
 end

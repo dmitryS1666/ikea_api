@@ -52,16 +52,18 @@ class ProductSerializer
   end
 
   attribute :customs_duty do |product, params|
-    if product.price.to_f > 0 && product.weight.to_f > 0
+    safe_weight = safe_product_weight_kg(product)
+  
+    if product.price.to_f > 0 && safe_weight.present?
       rates = params[:rates] || {
         eur: ExchangeRate.fetch_or_create('EUR')&.rate_per_unit,
         pln: ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
       }
-
+  
       if rates[:eur] && rates[:pln]
         price_eur = (product.price.to_f * rates[:pln] / rates[:eur]).round(2)
-        calculation = CustomsDutyService.calculate(price_eur, product.weight.to_f, rates[:eur])
-
+        calculation = CustomsDutyService.calculate(price_eur, safe_weight, rates[:eur])
+  
         {
           total_byn: calculation[:total_byn],
           duty_byn: calculation[:duty_byn],
@@ -251,17 +253,20 @@ class ProductSerializer
 
   def self.dimensions_map_from_measurements_modal(measurements_modal)
     return {} unless measurements_modal.is_a?(Hash)
-
+  
     out = {}
+  
     Array(measurements_modal["product_measurements"]).each do |row|
       next unless row.is_a?(Hash)
-
-      name = normalize_measurement_label_ru(row["name"])
-      measure = row["measure"].to_s.strip
+  
+      name = translate_measurement_label_for_api(row["name"] || row[:name])
+      measure = normalize_api_measurement_value(row["measure"] || row[:measure])
+  
       next if name.blank? || measure.blank?
-
+  
       out[name] ||= measure
     end
+  
     out
   end
 
@@ -269,16 +274,42 @@ class ProductSerializer
   def self.dimensions_map_from_product_column(dimensions_str)
     s = dimensions_str.to_s.strip
     return {} if s.blank?
-
+  
     parts = s.split(/\s*[×x]\s*/i).map(&:strip)
     return {} if parts.size < 3
-
+  
     w, d, h = parts[0], parts[1], parts[2]
+  
     {
-      "Ширина" => w,
-      "Глубина" => d,
-      "Высота" => h
+      "Ширина" => normalize_api_measurement_value(w),
+      "Глубина" => normalize_api_measurement_value(d),
+      "Высота" => normalize_api_measurement_value(h)
     }
+  end
+
+  def self.safe_product_weight_kg(product)
+    weight = product.weight.to_f
+  
+    return nil if weight <= 0
+  
+    extracted_weight = nil
+  
+    if weight > 100 && product.full_attributes_ru.present?
+      extracted_weight = Products::WeightExtractor.extract_kg(product.full_attributes_ru)
+    end
+  
+    if extracted_weight.present?
+      # Явный кейс бага: в БД 330 кг, а из упаковки достается 0.49 кг.
+      if extracted_weight < 100 && weight / extracted_weight > 10
+        return extracted_weight
+      end
+  
+      # Если extractor подтверждает тяжелый вес — тоже возвращаем его.
+      return extracted_weight if (weight - extracted_weight).abs <= 0.01
+    end
+  
+    # Если данных упаковки нет, не ломаем реальные тяжелые товары.
+    weight
   end
 
   MEASUREMENT_KEYS = %w[length width height weight diameter].freeze
@@ -323,7 +354,29 @@ class ProductSerializer
     "diameter" => "Диаметр",
     "упаковка(-и)" => "Упаковка(-и)",
     "paczka(i)" => "Упаковка(-и)",
-    "packages" => "Упаковка(-и)"
+    "packages" => "Упаковка(-и)",
+    "grubość" => "Толщина",
+    "grubosc" => "Толщина",
+    "thickness" => "Толщина",
+    "minimalna szerokość" => "Мин ширина",
+    "min width" => "Мин ширина",
+
+    "maksymalna szerokość" => "Макс ширина",
+    "maksymalna szerokosc" => "Макс ширина",
+    "max width" => "Макс ширина",
+
+    "waga wypełnienia" => "Вес наполнителя",
+    "waga wypelnienia" => "Вес наполнителя",
+    "filling weight" => "Вес наполнителя",
+
+    "całkowita waga" => "Общий вес",
+    "calkowita waga" => "Общий вес",
+    "total weight" => "Общий вес",
+
+    "głębokość do zabudowy" => "Глубина для встраивания",
+    "glebokosc do zabudowy" => "Глубина для встраивания",
+    "built-in depth" => "Глубина для встраивания",
+    "depth for built-in" => "Глубина для встраивания"
   }.freeze
 
   ARTICLE_IN_LABEL_RE = /\b(\d{3}\.\d{3}\.\d{2})\b|\b(\d{8})\b/.freeze
@@ -332,16 +385,136 @@ class ProductSerializer
   def self.build_packages_for_customer_payload(size_block, measurements_modal)
     from_modal = extract_packages_from_measurements_modal(measurements_modal)
     return from_modal if from_modal.any?
-
-    packaging = size_block["packaging"]
+  
+    packaging = size_block["packaging"] || size_block[:packaging]
     packages_from_packaging_block(packaging)
   end
 
   def self.extract_packages_from_measurements_modal(mm)
     return [] unless mm.is_a?(Hash)
-
+  
     raw = mm["packages"] || mm[:packages]
-    Array(raw).filter_map { |pkg| normalize_package_entry_from_modal(pkg) }
+    packages = Array(raw)
+  
+    packages.flat_map do |pkg|
+      split_package_measurements_if_needed(pkg)
+    end.compact
+  end
+
+  def self.split_package_measurements_if_needed(pkg)
+    return [] unless pkg.is_a?(Hash)
+  
+    measurements =
+      Array(pkg["measurements"] || pkg[:measurements])
+        .map { |row| normalize_package_measurement_row(row) }
+        .compact
+  
+    return [] if measurements.empty?
+  
+    groups = []
+    current = []
+  
+    measurements.each do |row|
+      name = row["name"].to_s
+  
+      # Если пошла новая "Ширина", а в текущем блоке уже был вес/кол-во,
+      # значит началась следующая физическая упаковка.
+      if name == "Ширина" && current.any? && current.any? { |r| %w[Вес Упаковка(-и)].include?(r["name"]) }
+        groups << current
+        current = []
+      end
+  
+      current << row
+  
+      # Paczka(i) обычно закрывает одну упаковку.
+      if name == "Упаковка(-и)"
+        groups << current
+        current = []
+      end
+    end
+  
+    groups << current if current.any?
+  
+    groups.each_with_index.map do |group, idx|
+      next if group.empty?
+  
+      copy = pkg.deep_dup
+      copy["measurements"] = group
+  
+      # Если исходный package_label отсутствует, но упаковок несколько —
+      # проставляем Paczka N.
+      if copy["package_label"].blank? && groups.size > 1
+        copy["package_label"] = "Paczka #{idx + 1}"
+      end
+  
+      copy
+    end.compact
+  end
+  
+  def self.normalize_package_measurement_row(row)
+    return nil unless row.is_a?(Hash)
+  
+    name = row["name"] || row[:name]
+    measure = row["measure"] || row[:measure]
+  
+    name = translate_measurement_label_for_api(name)
+    measure = normalize_api_measurement_value(measure)
+  
+    return nil if name.blank? || measure.blank?
+  
+    {
+      "name" => name,
+      "measure" => measure
+    }
+  end
+
+  def self.translate_measurement_label_for_api(label)
+    s = label.to_s.gsub(/\u00A0/, " ").gsub(/\s+/, " ").strip.gsub(":", "")
+  
+    case s.downcase
+    when "szerokość", "szerokosc", "width", "ширина"
+      "Ширина"
+    when "głębokość", "glebokosc", "depth", "глубина"
+      "Глубина"
+    when "wysokość", "wysokosc", "height", "высота"
+      "Высота"
+    when "długość", "dlugosc", "length", "длина"
+      "Длина"
+    when "długość łóżka", "dlugosc lozka"
+      "Длина кровати"
+    when "szerokość łóżka", "szerokosc lozka"
+      "Ширина кровати"
+    when "wysokość siedziska", "wysokosc siedziska"
+      "Высота сиденья"
+    when "głębokość siedziska", "glebokosc siedziska"
+      "Глубина сиденья"
+    when "szerokość siedziska", "szerokosc siedziska"
+      "Ширина сиденья"
+    when "głębokość szezlonga", "glebokosc szezlonga"
+      "Глубина козетки"
+    when "waga", "weight", "вес"
+      "Вес"
+    when "paczka(i)", "paczki", "package(s)", "packages", "упаковка(-и)"
+      "Упаковка(-и)"
+    when "grubość", "grubosc", "thickness", "толщина"
+      "Толщина"
+    when "głębokość do zabudowy", "glebokosc do zabudowy", "built-in depth", "depth for built-in"
+      "Глубина для встраивания"
+    else
+      s
+    end
+  end
+  
+  def self.normalize_api_measurement_value(value)
+    s = value.to_s.gsub(/\u00A0/, " ").gsub(/\s+/, " ").strip
+    return nil if s.blank?
+  
+    s = s.gsub(/\bcm\b/i, "см")
+    s = s.gsub(/\bkg\b/i, "кг")
+    s = s.gsub(/\bg\b/i, "гр")
+    s = s.gsub(/\b(\d+)\.0(?=\s|$)/, '\1')
+  
+    s
   end
 
   def self.normalize_package_entry_from_modal(pkg)
@@ -458,19 +631,36 @@ class ProductSerializer
   end
 
   def self.enrich_size_block_from_measurements_modal!(size_block, measurements_modal, product)
-    packaging = size_block["packaging"]
-    prev_desc = packaging.is_a?(Hash) ? packaging["desc"] : nil
-    return size_block unless packaging_missing_physical_measurements?(packaging)
-
-    merged = build_packaging_from_measurements_modal(measurements_modal)
-    if merged["details"].any? || merged["desc"].present?
-      merged = merged.merge("desc" => prev_desc.presence || merged["desc"])
-      size_block["packaging"] = merged
-    elsif product.package_dimensions.present? && product.weight.present?
-      fallback = build_packaging_from_product_columns(product)
-      size_block["packaging"] = fallback.merge("desc" => prev_desc.presence || fallback["desc"])
+    return unless size_block.is_a?(Hash)
+  
+    if measurements_modal.is_a?(Hash)
+      modal_packaging = build_packaging_from_measurements_modal(measurements_modal)
+  
+      # ВАЖНО:
+      # Если measurements_modal содержит упаковки, они имеют приоритет.
+      # Не даём старому fallback product.package_dimensions + product.weight
+      # схлопнуть несколько физических упаковок в одну строку.
+      if Array(modal_packaging["details"]).any?
+        size_block["packaging"] = modal_packaging
+        return
+      end
     end
-    size_block
+  
+    # Старый fallback оставляем только если modal packages реально нет.
+    if product.package_dimensions.present? && product.weight.present?
+      pd = product.package_dimensions.to_s
+  
+      size_block["packaging"] ||= {}
+      size_block["packaging"]["desc"] ||= nil
+      size_block["packaging"]["details"] ||= [
+        {
+          "width" => nil,
+          "height" => nil,
+          "length" => normalize_api_measurement_value(pd),
+          "weight" => normalize_api_measurement_value("#{product.weight} кг")
+        }.compact
+      ]
+    end
   end
 
   def self.build_packaging_from_product_columns(product)
@@ -487,88 +677,70 @@ class ProductSerializer
 
   def self.build_packaging_from_measurements_modal(measurements_modal)
     return { "desc" => nil, "details" => [] } unless measurements_modal.is_a?(Hash)
-
+  
     note = measurements_modal["package_count_note"].presence
-    if note.blank? && measurements_modal["number_of_packages"].present?
-      note = "Упаковок: #{measurements_modal["number_of_packages"]}"
-    end
-
-    details = Array(measurements_modal["packages"]).filter_map { |pkg| package_row_to_api_detail(pkg) }
-    { "desc" => note, "details" => details }
+    note ||= "Упаковок: #{measurements_modal["number_of_packages"]}" if measurements_modal["number_of_packages"].present?
+  
+    details =
+      extract_packages_from_measurements_modal(measurements_modal).filter_map do |pkg|
+        package_row_to_api_detail(pkg)
+      end
+  
+    {
+      "desc" => note,
+      "details" => details
+    }
   end
 
   def self.package_row_to_api_detail(pkg)
     return nil unless pkg.is_a?(Hash)
-
-    if pkg["measurements"].is_a?(Array) && pkg["measurements"].first.is_a?(Array)
-      w = h = l = wt = diam = nil
-      Array(pkg["measurements"]).each do |grp|
-        Array(grp).each do |it|
-          next unless it.is_a?(Hash)
-
-          case it["type"].to_s
-          when "width"
-            w = it["text"].presence
-            w ||= "#{it['value']} см" if it["value"].present?
-          when "height"
-            h = it["text"].presence
-            h ||= "#{it['value']} см" if it["value"].present?
-          when "length", "depth"
-            l = it["text"].presence
-            l ||= "#{it['value']} см" if it["value"].present?
-          when "diameter"
-            diam = it["text"].presence
-            diam ||= "#{it['value']} см" if it["value"].present?
-          when "weight"
-            wt = it["text"].presence
-            wt ||= "#{it['value']} кг" if it["value"].present?
-          end
-        end
-      end
-      ct = pkg.dig("quantity", "value")
-      label = [pkg["name"], pkg["typeName"], pkg.dig("articleNumber", "value")].compact.join(" · ").presence
-      d = {
-        "count" => integer_or_original(ct),
-        "length" => l,
-        "width" => w,
-        "height" => h,
-        "weight" => wt,
-        "diameter" => diam
-      }.compact
-      d["label"] = label if label.present?
-      return nil if d.except("label").empty?
-
-      d
+  
+    measurements = Array(pkg["measurements"] || pkg[:measurements])
+  
+    values = measurements.each_with_object({}) do |row, memo|
+      next unless row.is_a?(Hash)
+  
+      name = translate_measurement_label_for_api(row["name"] || row[:name])
+      measure = normalize_api_measurement_value(row["measure"] || row[:measure])
+  
+      memo[name] = measure if name.present? && measure.present?
     end
-
-    hmap = {}
-    Array(pkg["measurements"]).each do |m|
-      next unless m.is_a?(Hash)
-
-      n = m["name"].to_s.downcase
-      v = m["measure"].to_s.strip
-      next if v.blank?
-
-      if n.match?(/ширина|szerokość|szerokosc|width/)
-        hmap["width"] = v
-      elsif n.match?(/высота|wysokość|wysokosc|height/)
-        hmap["height"] = v
-      elsif n.match?(/длина|długość|dlugosc|length/)
-        hmap["length"] = v
-      elsif n.match?(/диаметр|diameter/)
-        hmap["diameter"] = v
-      elsif n.match?(/вес|weight|waga/)
-        hmap["weight"] = v
-      elsif n.match?(/упаковка/)
-        hmap["count"] = integer_or_original(v)
+  
+    width = values["Ширина"]
+    height = values["Высота"]
+    length = values["Длина"]
+    weight = values["Вес"]
+  
+    count = values["Упаковка(-и)"].to_i
+    count = 1 if count <= 0
+  
+    return nil if width.blank? && height.blank? && length.blank? && weight.blank?
+  
+    article =
+      pkg["article_number"] ||
+      pkg[:article_number] ||
+      {}
+  
+    article_value =
+      if article.is_a?(Hash)
+        article["value"] || article[:value]
       end
-    end
-    label = [pkg["name"], pkg["type_name"], pkg.dig("article_number", "value")].compact.join(" · ").presence
-    d = hmap.compact
-    d["label"] = label if label.present?
-    return nil if d.except("label").empty?
-
-    d
+  
+    label_parts = [
+      pkg["name"] || pkg[:name],
+      pkg["type_name"] || pkg[:type_name],
+      article_value
+    ].compact.map(&:to_s).reject(&:blank?)
+  
+    {
+      "width" => width,
+      "height" => height,
+      "length" => length,
+      "weight" => weight,
+      "count" => count,
+      "label" => label_parts.join(" · "),
+      "package_label" => pkg["package_label"] || pkg[:package_label]
+    }.compact
   end
 
   def self.normalize_size_block_ru!(size_block)
@@ -583,7 +755,7 @@ class ProductSerializer
       next if ru_key.blank?
       next if normalized.key?(ru_key) && normalized[ru_key].present?
 
-      normalized[ru_key] = value
+      normalized[ru_key] = normalize_api_measurement_value(value)
     end
 
     packaging = size_block["packaging"]

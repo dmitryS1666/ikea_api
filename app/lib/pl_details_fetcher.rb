@@ -74,6 +74,39 @@ class PlDetailsFetcher
     parsed
   end
 
+  def extract_related_products_from_recommendation_panel(doc)
+    return [] unless doc
+  
+    panels =
+      doc.css(".pipf-recommendation-panel").select do |panel|
+        title = panel.at_css(".pipf-recommendation-panel__header")&.text.to_s.downcase
+        title.include?("produkty pokrewne") ||
+          title.include?("related products") ||
+          title.include?("похожие товары")
+      end
+  
+    panels.flat_map do |panel|
+      from_attrs =
+        panel.css("[data-product-number], [data-ref-id]").flat_map do |node|
+          [
+            node["data-product-number"],
+            node["data-ref-id"]
+          ]
+        end
+  
+      from_links =
+        panel.css("a[href*='/p/']").map do |a|
+          href = a["href"].to_s
+          href[/\-([a-z]?\d{8})\/?$/i, 1] || href[/\/p\/[^\/]*-([a-z]?\d{8})\//i, 1]
+        end
+  
+      (from_attrs + from_links)
+        .map(&:to_s)
+        .map { |s| s.gsub(/[^0-9a-z]/i, "") }
+        .select { |s| s.match?(/\A\d{8}\z/i) || s.match?(/\As\d{8}\z/i) }
+    end.uniq
+  end
+
   # Минимальный разбор страницы товара PL: цена в PLN (злотые), наличие, canonical URL.
   # Без модалок, headless, изображений и прочего — для фоновых задач «только полка».
   def self.shelf_snapshot(url)
@@ -231,8 +264,14 @@ class PlDetailsFetcher
     # Images - строго из области галереи товара (pipf-product-gallery-modal),
     # с мягким fallback на контейнеры pipf-product-gallery.
     # Не передаём JSON-LD: там часто слепок всех вариантов; для scope_sku галарея и так из модалки.
-    all_images = extract_images(doc, product_data, [])
-    result[:images] = all_images
+    schema_images =
+      Array(result[:images])
+        .filter_map { |url| normalize_pipf_gallery_image_url(url) }
+        .uniq
+
+    all_images = extract_images(doc, product_data, schema_images)
+
+    result[:images] = all_images.presence || schema_images
     
     # Videos
     result[:videos] = extract_videos(doc, product_data)
@@ -248,9 +287,18 @@ class PlDetailsFetcher
     
     # Если модальное окно не найдено или данные неполные, используем headless браузер.
     # Отдельно: «Elementy w zestawie» открывается только по клику — без headless состав набора в DOM не появляется.
+    meas = extract_pipf_measurements_modal_combined(doc, product_data)
+    measurements_incomplete = measurements_modal_incomplete?(meas[:snapshot])
+    related_needs_headless =
+      Products::RelatedProductsCollection::ENABLED &&
+      Array(result[:related_products]).empty? &&
+      accessories_modal_clickable?(doc)
+    
     modal_incomplete =
       modal_data[:materials].blank? || modal_data[:care_instructions].blank? || modal_data[:safety_info].blank?
-    if use_headless && (modal_incomplete || included_sheet_needs_headless) && self.class.headless_browser_executable_available?
+    if use_headless &&
+      (modal_incomplete || included_sheet_needs_headless || measurements_incomplete || related_needs_headless) &&
+      self.class.headless_browser_executable_available?
       Rails.logger.info "PlDetailsFetcher: headless browser (modal_incomplete=#{modal_incomplete}, included_sheet=#{included_sheet_needs_headless})"
       headless_modal_data = fetch_modal_with_headless_browser(full_url)
       modal_data.merge!(headless_modal_data) if headless_modal_data.present?
@@ -264,18 +312,51 @@ class PlDetailsFetcher
       result[:included_products] = (prev_included + Array(modal_data[:included_products])).uniq
     end
 
-    meas = extract_pipf_measurements_modal_combined(doc, product_data)
-    meas[:fields].each do |k, v|
+    final_meas =
+      if modal_data[:measurements_modal].present?
+        {
+          fields: %i[dimensions weight net_weight package_volume package_dimensions].each_with_object({}) do |key, memo|
+            memo[key] = modal_data[key] if modal_data[key].present?
+          end,
+          snapshot: modal_data[:measurements_modal]
+        }
+      else
+        meas
+      end
+    
+    final_meas[:fields].each do |k, v|
       next if v.blank?
-
       result[k] = v
     end
-    result[:measurements_modal] = meas[:snapshot] if meas[:snapshot].present?
+
+    result[:measurements_modal] = final_meas[:snapshot] if final_meas[:snapshot].present?
 
     # Цепочка категорий на витрине (последний числовой id в хлебных крошках — «текущий» раздел, напр. 700631)
     result[:pl_breadcrumb_category_ids] = extract_pl_breadcrumb_category_ids(doc)
 
     result
+  end
+
+  def measurements_modal_incomplete?(snapshot)
+    return true unless snapshot.is_a?(Hash)
+  
+    packages = Array(snapshot["packages"] || snapshot[:packages])
+    return true if packages.empty?
+  
+    note = snapshot["package_count_note"].to_s
+    expected = note[/(\d+)\s+pacz/i, 1].to_i
+    expected = snapshot["number_of_packages"].to_i if expected <= 0 && snapshot["number_of_packages"].present?
+  
+    return true if expected.positive? && packages.size < expected
+  
+    packages.any? do |pkg|
+      rows = Array(pkg["measurements"] || pkg[:measurements])
+      names = rows.map { |r| (r["name"] || r[:name]).to_s }
+      !names.include?("Ширина") ||
+        !names.include?("Высота") ||
+        !names.include?("Длина") ||
+        !names.include?("Вес")
+    end
   end
   
   private
@@ -385,9 +466,15 @@ class PlDetailsFetcher
     html_too_short = html.to_s.length < 5_000
 
     # If extended attributes are missing (common when the page is not hydrated).
-    extended_missing = parsed[:description].blank? && parsed[:materials].blank? && parsed[:care_instructions].blank? && parsed[:dimensions].blank?
+    extended_missing =
+      parsed[:description].blank? &&
+      parsed[:materials].blank? &&
+      parsed[:care_instructions].blank? &&
+      parsed[:dimensions].blank?
 
-    basic_missing || html_too_short || extended_missing
+    images_missing = Array(parsed[:images]).compact.reject(&:blank?).empty?
+
+    basic_missing || html_too_short || extended_missing || images_missing
   end
 
   # Choose the better parse between two versions of the same page.
@@ -397,8 +484,22 @@ class PlDetailsFetcher
     return a if b.blank?
 
     score = ->(h) do
-      keys = %i[description short_description materials care_instructions safety_info good_to_know dimensions package_dimensions weight]
-      keys.count { |k| h[k].present? }
+      keys = %i[
+        description
+        short_description
+        materials
+        care_instructions
+        safety_info
+        good_to_know
+        dimensions
+        package_dimensions
+        weight
+      ]
+    
+      base = keys.count { |k| h[k].present? }
+      image_bonus = [Array(h[:images]).compact.reject(&:blank?).size, 8].min
+    
+      base + image_bonus
     end
 
     score_a = score.call(a)
@@ -860,6 +961,8 @@ class PlDetailsFetcher
       # Модалка «Elementy w zestawie» — только после клика по строке списка (sheet).
       included_skus = try_open_included_products_sheet!(browser) || []
       accessories_opened = try_open_accessories_modal!(browser)
+
+      measurements_opened = try_open_measurements_sheet!(browser)
       
       # Получаем HTML страницы после открытия модального окна
       page_html = browser.body
@@ -873,9 +976,28 @@ class PlDetailsFetcher
       # Извлекаем данные из модального окна
       pd_headless = parse_hydration_product_data(modal_doc)
       result = extract_modal_details(modal_doc, pd_headless)
+      meas = extract_pipf_measurements_modal_combined(modal_doc, pd_headless)
+
+      if measurements_opened && meas[:snapshot].present?
+        result[:measurements_modal] = meas[:snapshot]
+      
+        meas[:fields].each do |k, v|
+          next if v.blank?
+          result[k] = v
+        end
+      end
+
       result[:included_products] = included_skus if included_skus.present?
       accessories_related = extract_related_products_from_accessories_modal(modal_doc)
-      result[:related_products] = accessories_related if accessories_opened && accessories_related.any?
+
+      related =
+        if accessories_opened && accessories_related.any?
+          accessories_related
+        else
+          extract_related_products_from_recommendation_panel(modal_doc)
+        end
+      
+      result[:related_products] = related.uniq if related.any?
 
       Rails.logger.info "PlDetailsFetcher.fetch_modal_with_headless_browser: Extracted - materials: #{result[:materials].present?}, care: #{result[:care_instructions].present?}, safety: #{result[:safety_info].present?}, good_to_know: #{result[:good_to_know].present?}, included_products: #{included_skus&.length || 0}, related_products: #{Array(result[:related_products]).length}"
       
@@ -953,11 +1075,15 @@ class PlDetailsFetcher
       Rails.logger.debug "PlDetailsFetcher.extract_related_products: skipped (RelatedProductsCollection::ENABLED is false)"
       return []
     end
-
-    Rails.logger.debug "PlDetailsFetcher.extract_related_products: Starting extraction from accessories modal only"
-    result = extract_related_products_from_accessories_modal(doc)
-    Rails.logger.info "PlDetailsFetcher.extract_related_products: Extracted #{result.length} related products"
-    result
+  
+    related = extract_related_products_from_accessories_modal(doc)
+  
+    if related.empty?
+      related = extract_related_products_from_recommendation_panel(doc)
+    end
+  
+    Rails.logger.info "PlDetailsFetcher.extract_related_products: Extracted #{related.length} related products"
+    related.uniq
   end
 
   def extract_related_products_from_accessories_modal(doc)
@@ -995,7 +1121,11 @@ class PlDetailsFetcher
         const target = buttons.find((btn) => {
           const txt = (btn.textContent || "").toLowerCase();
           const cls = btn.className || "";
-          return txt.includes("pokaż wszystkie akcesoria") || cls.includes("pipf-accessories-grid__add-accessories-button");
+          return txt.includes("pokaż wszystkie akcesoria") ||
+            txt.includes("akcesoria") ||
+            txt.includes("accessories") ||
+            txt.includes("related") ||
+            cls.includes("pipf-accessories-grid__add-accessories-button");
         });
         if (!target) return false;
         target.click();
@@ -1033,8 +1163,8 @@ class PlDetailsFetcher
   def try_open_included_products_sheet!(browser)
     clicked = browser.evaluate(<<~'JS')
       (function() {
-        const buttons = Array.from(document.querySelectorAll("button.pipf-list-view-item__action"));
-        const re = /elementy\\s+w\\s+zestawie|elements?\\s+in\\s+the\\s+package|items\\s+in\\s+the\\s+set|komponenty|bestanddelen|элементы|в\\s+комплект/i;
+        const buttons = Array.from(document.querySelectorAll("button.pipf-list-view-item__action, button"));
+        const re = /elementy\s+w\s+zestawie|w\s+zestawie|w\s+komplecie|elements?\s+in\s+the\s+package|items\s+in\s+the\s+set|included\s+products|комплект|в\s+комплект/i
         const target = buttons.find(function(b) { return re.test((b.innerText || "").trim()); });
         if (!target) { return false; }
         try { target.scrollIntoView({ block: "center", inline: "nearest" }); } catch (e) {}
@@ -2140,7 +2270,7 @@ class PlDetailsFetcher
   end
 
   def extract_measurements_modal_from_dom(doc)
-    modal = doc.at_css(".pipf-measurements-modal")
+    modal = find_measurements_modal_root(doc)
     return { fields: {}, snapshot: {} } unless modal
 
     snapshot = {
@@ -2170,8 +2300,8 @@ class PlDetailsFetcher
     snapshot["package_count_note"] = normalize_text(pkg_note.text) if pkg_note
 
     modal.css(".pipf-measurements-modal__package-container").each do |pc|
-      pkg = extract_dom_measurement_package_block(pc)
-      snapshot["packages"] << pkg if pkg.present?
+      packages = extract_dom_measurement_package_blocks(pc)
+      snapshot["packages"].concat(packages) if packages.any?
     end
 
     snapshot["number_of_packages"] = snapshot["packages"].size if snapshot["packages"].any?
@@ -2186,31 +2316,138 @@ class PlDetailsFetcher
     { fields: fields, snapshot: snapshot.compact }
   end
 
-  def extract_dom_measurement_package_block(pc)
+  def find_measurements_modal_root(doc)
+    return nil unless doc
+  
+    doc.at_css(".pipf-measurements-modal") ||
+      doc.at_css("#measurements-packaging") ||
+      doc.at_css("li#measurements-packaging") ||
+      doc.at_css("[id*='measurements-packaging']") ||
+      doc.at_css(".pipf-measurements-modal__package-container")&.ancestor("li") ||
+      doc.at_css(".pipf-measurements-modal__package-container")&.ancestor("div")
+  end
+
+  def extract_dom_measurement_package_blocks(pc)
     name = normalize_text(pc.at_css("h4.pipf-measurements-modal__package-header")&.text)
     type_name = normalize_text(pc.at_css('span[aria-hidden="true"]')&.text)
+  
     ident = pc.at_css(".pipf-product-identifier")
-    label = normalize_text(ident.at_css(".pipf-product-identifier__label")&.text)
-    value = normalize_text(ident.at_css(".pipf-product-identifier__value")&.text)
-
-    measurements = []
-    pc.css(".pipf-measurements-modal__package-measurement-wrapper").each do |li|
-      n = normalize_text(li.at_css(".pipf-measurements-modal__package-measurement-name")&.text).gsub(":", "").strip
-      rest = li.xpath("./text()").map(&:text).join
-      v = normalize_text(rest)
-      val_span = li.at_css(".pipf-measurements-modal__package-measurement-value")
-      v = normalize_text(val_span.text) if v.blank? && val_span
-      measurements << { "name" => n, "measure" => v } if n.present? || v.present?
+    ident_label = translate_measurement_label(
+      normalize_text(ident&.at_css(".pipf-product-identifier__label")&.text)
+    )
+    ident_value = normalize_text(ident&.at_css(".pipf-product-identifier__value")&.text)
+  
+    article_number =
+      if ident_label.present? || ident_value.present?
+        {
+          "label" => ident_label.presence || "Номер товара",
+          "value" => ident_value
+        }
+      end
+  
+    # Важный момент:
+    # 1) Для multi-pack контейнера есть h4.pipf-measurements-modal__package-heading: Paczka 1/2/3.
+    # 2) Для второго компонента комплекта может быть только ul без package-heading.
+    heading_nodes = pc.css(".pipf-measurements-modal__package-heading").to_a
+  
+    package_nodes =
+      if heading_nodes.any?
+        heading_nodes.map(&:parent)
+      else
+        pc.css(".pipf-measurements-modal__package-measurement-container").map do |ul|
+          ul.parent
+        end
+      end
+  
+    package_nodes = [pc] if package_nodes.empty?
+  
+    package_nodes.each_with_index.filter_map do |node, idx|
+      package_label = normalize_text(node.at_css(".pipf-measurements-modal__package-heading")&.text)
+      package_label = "Paczka #{idx + 1}" if package_label.blank? && package_nodes.size > 1
+  
+      measurements = extract_dom_package_measurements(node)
+      next if measurements.empty?
+  
+      {
+        "name" => name.presence,
+        "type_name" => type_name.presence,
+        "article_number" => article_number,
+        "package_label" => package_label.presence,
+        "measurements" => measurements
+      }.compact
     end
-
-    return nil if name.blank? && type_name.blank? && measurements.empty?
-
-    {
-      "name" => name.presence,
-      "type_name" => type_name.presence,
-      "article_number" => ({ "label" => label, "value" => value }.compact.presence),
-      "measurements" => measurements
-    }.compact
+  end
+  
+  def extract_dom_package_measurements(node)
+    node.css(".pipf-measurements-modal__package-measurement-wrapper").filter_map do |li|
+      name_el = li.at_css(".pipf-measurements-modal__package-measurement-name")
+  
+      raw_name =
+        normalize_text(name_el&.text)
+          .gsub(":", "")
+          .strip
+  
+      name = translate_measurement_label(raw_name)
+  
+      # Значение часто лежит просто текстовым узлом после span:
+      # <span>Waga:&nbsp;</span>53.80 kg
+      value =
+        normalize_text(
+          li.children
+            .reject { |child| child.element? && child == name_el }
+            .map(&:text)
+            .join(" ")
+        )
+  
+      # Для Paczka(i) значение лежит во вложенном span value.
+      if value.blank?
+        value = normalize_text(li.at_css(".pipf-measurements-modal__package-measurement-value")&.text)
+      end
+  
+      next if name.blank? || value.blank?
+  
+      {
+        "name" => name,
+        "measure" => normalize_measurement_value(value)
+      }
+    end
+  end
+  
+  def translate_measurement_label(label)
+    s = label.to_s.gsub(/\u00A0/, " ").gsub(/\s+/, " ").strip
+    s = s.gsub(":", "").strip
+  
+    case s.downcase
+    when "szerokość", "szerokosc", "width"
+      "Ширина"
+    when "wysokość", "wysokosc", "height"
+      "Высота"
+    when "długość", "dlugosc", "length"
+      "Длина"
+    when "głębokość", "glebokosc", "depth"
+      "Глубина"
+    when "waga", "weight"
+      "Вес"
+    when "paczka(i)", "paczki", "package(s)", "packages"
+      "Упаковка(-и)"
+    when "numer artykułu", "article number"
+      "Номер товара"
+    else
+      s
+    end
+  end
+  
+  def normalize_measurement_value(value)
+    s = value.to_s.gsub(/\u00A0/, " ").gsub(/\s+/, " ").strip
+  
+    s = s.gsub(/\bcm\b/i, "см")
+    s = s.gsub(/\bkg\b/i, "кг")
+  
+    # 79.0 -> 79
+    # 153.0 см -> 153 см
+    s = s.gsub(/\b(\d+)\.0(?=\s|$)/, '\1')
+  
+    s
   end
 
   def measurement_fields_from_dom_snapshot(snapshot)
@@ -3652,28 +3889,61 @@ class PlDetailsFetcher
   end
   
   def extract_images(doc, product_data, existing_images = [])
-    # В images сохраняем только реальные фото из модального окна галереи товара (PIPF),
-    # чтобы не попадали служебные/иконки/шумы из остальной страницы.
-    modal = doc.at_css("[class*='pipf-product-gallery-modal']")
-    modal ||= doc.at_css(".pipf-product-gallery")
-    modal ||= doc.at_css(".pipf-product-gallery__media")
+    # Главная галерея текущей карточки товара.
+    #
+    # Важно:
+    # - .pipf-product-gallery-modal / #all уже относятся к текущему PIP URL/SKU.
+    # - URL картинок IKEA НЕ содержит SKU, поэтому дополнительный scope_sku-match
+    #   для DOM-модалки ошибочно выкидывает валидные изображения.
+    # - Видео и poster видео не берём: собираем только img, а normalize дополнительно
+    #   отсекает /pvid/ и видео-расширения.
+    strict_modal =
+      doc.at_css("#all.pipf-product-gallery-modal__wrapper") ||
+      doc.at_css(".pipf-product-gallery-modal__wrapper") ||
+      doc.at_css("[class*='pipf-product-gallery-modal__wrapper']") ||
+      doc.at_css("[class*='pipf-product-gallery-modal']")
+  
+    if strict_modal
+      pairs = []
+  
+      strict_modal.css(".pipf-product-gallery-modal__media img, img.pipf-image, img").each do |img|
+        collect_gallery_candidate_urls_for_node(img, pairs)
+      end
+  
+      images = pairs.filter_map { |p| p[:url] }.uniq
+  
+      if images.any?
+        Rails.logger.info(
+          "PlDetailsFetcher.extract_images: Extracted #{images.length} gallery images from PIPF modal for current product"
+        )
+        return images
+      end
+  
+      Rails.logger.info "PlDetailsFetcher.extract_images: PIPF modal found but no image URLs extracted"
+    end
+  
+    # Fallback для страниц без полной modal-wrapper в HTML.
+    # Тут оставляем старую scoped-защиту, потому что более широкие контейнеры могут
+    # содержать служебные/вариантные картинки.
+    modal = doc.at_css(".pipf-product-gallery") || doc.at_css(".pipf-product-gallery__media")
+  
     unless modal
       Rails.logger.info "PlDetailsFetcher.extract_images: gallery modal not found (.pipf-product-gallery-modal)"
       return []
     end
-
+  
     pairs = []
-
+  
     modal.css("img").each do |img|
       collect_gallery_candidate_urls_for_node(img, pairs)
     end
-
+  
     modal.css("a[href]").each do |a|
       raw = a["href"].to_s.strip
       u = normalize_pipf_gallery_image_url(raw)
       pairs << { url: u, node: a } if u
     end
-
+  
     modal.css("[data-image-url], [data-image-src], [data-product-image]").each do |el|
       %w[data-image-url data-image-src data-product-image].each do |attr|
         raw = el[attr].to_s.strip
@@ -3681,21 +3951,36 @@ class PlDetailsFetcher
         pairs << { url: u, node: el } if u
       end
     end
-
+  
     images = pairs.filter_map { |p| p[:url] }.uniq
     target = normalize_product_token(@scope_sku) if @scope_sku.present?
+  
     if target.present?
       scoped = scope_gallery_urls_to_item(images, pairs, modal, product_data, target)
+    
       if scoped.any?
         Rails.logger.info "PlDetailsFetcher.extract_images: scoped to SKU #{target}, #{scoped.length}/#{images.length} gallery URLs"
         return scoped
       end
-
-      Rails.logger.warn "PlDetailsFetcher.extract_images: scope_sku=#{@scope_sku} no scoped gallery match; returning empty to avoid cross-variant image bleed"
+    
+      # ВАЖНО:
+      # .pipf-product-gallery — это DOM-галерея текущей PIP-страницы.
+      # URL картинок IKEA не содержит sku/item_no, поэтому scope_sku почти всегда
+      # не сможет совпасть по URL. Нельзя из-за этого обнулять валидную DOM-галерею.
+      if images.any?
+        Rails.logger.warn(
+          "PlDetailsFetcher.extract_images: scope_sku=#{@scope_sku} no scoped match, but fallback PIPF gallery has #{images.length} image(s); returning DOM gallery"
+        )
+        return images
+      end
+    
+      Rails.logger.warn(
+        "PlDetailsFetcher.extract_images: scope_sku=#{@scope_sku} no scoped fallback gallery match and no images found"
+      )
       return []
     end
-
-    Rails.logger.info "PlDetailsFetcher.extract_images: Extracted #{images.length} gallery images from modal"
+  
+    Rails.logger.info "PlDetailsFetcher.extract_images: Extracted #{images.length} gallery images from fallback gallery container"
     images
   end
 
@@ -3707,15 +3992,17 @@ class PlDetailsFetcher
       node["data-original"],
       node["data-image"]
     ].compact
-
-    srcset = node["srcset"].to_s
-    if srcset.present?
+  
+    %w[srcset data-srcset data-src-set].each do |attr|
+      srcset = node[attr].to_s
+      next if srcset.blank?
+  
       srcset.split(",").each do |part|
         candidate = part.to_s.strip.split(/\s+/).first
         candidates << candidate if candidate.present?
       end
     end
-
+  
     candidates.each do |raw|
       u = normalize_pipf_gallery_image_url(raw)
       pairs << { url: u, node: node } if u
@@ -3724,17 +4011,25 @@ class PlDetailsFetcher
 
   def normalize_pipf_gallery_image_url(raw)
     return nil if raw.blank?
+  
     url = raw.to_s.strip
     return nil if url.blank?
+  
+    url = "https:#{url}" if url.start_with?("//")
     url = "https://www.ikea.com#{url}" if url.start_with?("/")
+  
     return nil unless url.start_with?("http://", "https://")
-    return nil if url.match?(/pvid/i)
-
+  
+    # Не качаем видео и превью видео.
+    return nil if url.match?(%r{/pvid/}i)
+    return nil if url.match?(/\.(mp4|webm|mov|m4v)(\?|#|\z)/i)
+  
     normalized = url.split("?").first
+  
     return nil unless normalized.match?(/\.(jpg|jpeg|png|webp)\z/i)
     return nil if normalized.match?(/placeholder|icon|logo|sprite/i)
     return nil unless normalized.include?("ikea.com")
-
+  
     normalized
   end
 
@@ -3782,19 +4077,77 @@ class PlDetailsFetcher
   end
 
   def collect_gallery_urls_for_item_in_json(obj, target, acc, depth)
-    return if depth > 18
-
+    return if depth > 20
+    return if obj.blank?
+  
     case obj
     when Hash
       item_no = normalize_product_token(extract_item_no_from_hash(obj))
+  
       if item_no == target
-        u = extract_media_url_from_gallery_entry(obj)
-        acc << u if u.present?
+        # Нашли JSON-узел конкретного артикула/sku.
+        # Теперь забираем ВСЕ картинки внутри этого узла, а не только один imageUrl.
+        collect_all_ikea_image_urls_from_json(obj, acc, depth + 1)
+        return
       end
-      obj.each_value { |v| collect_gallery_urls_for_item_in_json(v, target, acc, depth + 1) }
+  
+      obj.each_value do |value|
+        collect_gallery_urls_for_item_in_json(value, target, acc, depth + 1)
+      end
+  
     when Array
-      obj.each { |v| collect_gallery_urls_for_item_in_json(v, target, acc, depth + 1) }
+      obj.each do |value|
+        collect_gallery_urls_for_item_in_json(value, target, acc, depth + 1)
+      end
     end
+  end
+
+  def collect_all_ikea_image_urls_from_json(obj, acc, depth)
+    return if depth > 25
+    return if obj.blank?
+  
+    case obj
+    when Hash
+      obj.each do |key, value|
+        key_s = key.to_s.downcase
+  
+        if image_json_key?(key_s)
+          case value
+          when String
+            acc << value
+          when Hash
+            acc << value["url"]
+            acc << value["src"]
+            acc << value["contentUrl"]
+            acc << value["content_url"]
+          when Array
+            value.each { |item| collect_all_ikea_image_urls_from_json(item, acc, depth + 1) }
+          end
+        end
+  
+        collect_all_ikea_image_urls_from_json(value, acc, depth + 1)
+      end
+  
+    when Array
+      obj.each { |value| collect_all_ikea_image_urls_from_json(value, acc, depth + 1) }
+  
+    when String
+      s = obj.to_s
+      acc << s if s.include?("ikea.com") && s.match?(/\.(jpg|jpeg|png|webp)(\?|#|\z)/i)
+    end
+  end
+  
+  def image_json_key?(key)
+    key.in?(
+      %w[
+        url src image imageurl image_url contenturl content_url
+        mainimage main_image mainimageurl main_image_url
+        media mediaurl media_url
+        productimage product_image
+        fallbackimage fallback_image
+        images gallery
+      ]
+    )
   end
 
   def extract_media_url_from_gallery_entry(h)

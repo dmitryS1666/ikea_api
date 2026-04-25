@@ -115,6 +115,12 @@ class Products::ExtendedAttributesFetchService
     mirror_ru_for_lt_text!(attributes)
     translate_remaining_fields(product, attributes)
 
+    # ВАЖНО:
+    # Название серии/товара IKEA не переводим.
+    # name/name_ru должны оставаться как на сайте-источнике: BÅRSLÖV, VIMLE, BESTÅ и т.п.
+    # Переводим только описание, материалы, уход, безопасность и small_desc_name.
+    preserve_source_product_name!(product, pl_details, attributes)
+
     if strip_listing_relations
       attributes[:variants] = []
       attributes[:related_products] = []
@@ -134,6 +140,35 @@ class Products::ExtendedAttributesFetchService
   end
 
   private
+
+  def preserve_source_product_name!(product, pl_details, attributes)
+    source_name =
+      pl_details[:name].presence ||
+      pl_details["name"].presence ||
+      attributes[:name].presence ||
+      product.name.to_s
+  
+    clean_name = normalize_ikea_product_name(source_name)
+    return if clean_name.blank?
+  
+    attributes[:name] = clean_name if Product.column_names.include?("name")
+    attributes[:name_ru] = clean_name if Product.column_names.include?("name_ru")
+  end
+  
+  def normalize_ikea_product_name(value)
+    s = value.to_s.gsub(/\u00A0/, " ").gsub(/\s+/, " ").strip
+    return nil if s.blank?
+  
+    # Если прилетело "BÅRSLÖV, 3-os sofa..."
+    s = s.split(",").first.to_s.strip
+  
+    # BÅRSLÖV БОРСЛЁВ -> BÅRSLÖV
+    # BESTÅ БЕСТО -> BESTÅ
+    # IKEA 365+ ИКЕА 365+ -> IKEA 365+
+    s = s.sub(/\s+[А-ЯЁа-яё].*\z/, "").strip
+  
+    s.presence
+  end
 
   # Сайт-источник: цепочка /cat/...-{id} в шапке товара. Создаём CategoryProduct и ставим products.category_id на листовой id.
   def link_product_to_pl_breadcrumb_categories!(product, pl_details)
@@ -172,22 +207,33 @@ class Products::ExtendedAttributesFetchService
   # Scoped-список с PL (PlDetailsFetcher + scope_sku) — единственный источник удалённых URL; сбрасываем local_images чтобы перекачать под новый набор.
   def reconcile_pl_scoped_product_images!(product, pl_details, attributes)
     return unless pl_details.key?(:images) && pl_details[:images].is_a?(Array)
-
-    pl_images = pl_details[:images].map(&:to_s).map(&:strip).reject(&:blank?).uniq
+  
+    pl_images =
+      pl_details[:images]
+        .map(&:to_s)
+        .map(&:strip)
+        .reject(&:blank?)
+        .uniq
+  
     original = parse_json_array(product.images)
-
+  
     if pl_images.any?
-      new_set = pl_images.uniq
-      if new_set != original
-        attributes[:images] = new_set
+      if pl_images != original || parse_json_array(attributes[:images]) != pl_images
+        attributes[:images] = pl_images
+  
         if product.respond_to?(:local_images) && Product.column_names.include?("local_images")
           attributes[:local_images] = []
         end
       end
-    else
-      stripped = strip_all_ikea_remote_gallery_urls(original)
-      attributes[:images] = stripped if stripped != original
+  
+      return
     end
+  
+    Rails.logger.warn(
+      "ExtendedAttributesFetchService: PL scoped images empty for sku=#{product.sku}; keeping images unchanged"
+    )
+  
+    attributes.delete(:images)
   end
 
   MERGE_SEED_FIELDS = %i[

@@ -17,5 +17,12 @@ class OrderSerializer
     order.tracking_info
   end
 
+  attribute :status_description do |order|
+    I18n.t(
+      "activerecord.attributes.order.statuses.#{order.status}",
+      default: order.status.to_s.humanize
+    )
+  end
+
   has_many :order_items
 end

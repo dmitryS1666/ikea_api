@@ -28,22 +28,23 @@ module Products
       end
 
       # Хэш для product.update! — без цены (цену и остаток подмешивает PL в ExtendedAttributesFetchService).
-      def to_product_attributes(product, raw_row)
-        new(product, raw_row).to_attributes
-      end
+      def to_product_attributes(product, raw_row, trust_images: false)
+        new(product, raw_row, trust_images: trust_images).to_attributes
+      end     
     end
 
-    def initialize(product, raw_row)
+    def initialize(product, raw_row, trust_images: false)
       @product = product
       @item = raw_row.to_h.stringify_keys
       @details = (@item["Подробная информация о товаре"] || {}).to_h.stringify_keys
+      @trust_images = trust_images
     end
 
     def to_attributes
       attrs = {}
       assign_identity(attrs)
       assign_from_details(attrs)
-      assign_media(attrs)
+      assign_media(attrs) if @trust_images
       assign_dimensions_weight_packaging(attrs)
       assign_full_attributes_blob(attrs)
       attrs.compact_blank
@@ -136,46 +137,65 @@ module Products
 
     def assign_dimensions_weight_packaging(attrs)
       dimensions_hash, technical_hash = extract_dimensions_and_technical
-
+    
       pack = details["Информация об упаковке"]
       apply_packaging_hash(pack, dimensions_hash, attrs)
-
+    
+      extracted_weight = Products::WeightExtractor.extract_kg(
+        "size" => dimensions_hash
+      )
+    
+      attrs[:weight] = extracted_weight if extracted_weight.present?
+    
       if dimensions_hash.present?
         dim_json = dimensions_hash.to_json
         attrs[:dimensions] = dim_json
         attrs[:dimensions_ru] = dim_json
       end
-
-      weight_from_dims = extract_weight_from_dimensions(dimensions_hash)
-      if weight_from_dims.present?
-        attrs[:weight] = weight_from_dims
-      elsif attrs[:weight].blank? && product.weight.blank?
-        # fallback: любой "Вес" в плоских характеристиках
-        wkey = dimensions_hash.keys.find { |k| k.to_s.match?(/вес/i) }
-        attrs[:weight] = parse_weight_scalar(dimensions_hash[wkey]) if wkey
-      end
-
-      # Технические поля в JSON для API/админки (как в JsonFileImportService full_attributes)
+    
+      # Технические поля в JSON для API/админки
       @technical_map = technical_hash
       @dimensions_map = dimensions_hash
     end
 
     def apply_packaging_hash(pack, dimensions_hash, attrs)
       return unless pack.is_a?(Hash)
-
+    
       p = pack.stringify_keys
-      w = p["Вес"]
-      if w.present?
-        wt = parse_weight_scalar(w)
-        attrs[:weight] = wt if wt.present?
-      end
-
+    
+      width  = p["Ширина"].to_s.strip.presence
+      height = p["Высота"].to_s.strip.presence
+      length = p["Длина"].to_s.strip.presence
+      weight = p["Вес"].to_s.strip.presence
+    
+      count_raw = p["Упаковка(-и)"] || p["Упаковок"] || p["Количество упаковок"]
+      count = count_raw.to_s[/\d+/].to_i
+      count = 1 if count <= 0
+    
       %w[Ширина Высота Длина].each do |k|
         next if p[k].blank?
+    
         dimensions_hash["#{k} упаковки"] ||= p[k].to_s.strip
       end
-
-      parts = [p["Ширина"], p["Высота"], p["Длина"]].map { |x| x.to_s.strip.presence }.compact
+    
+      if width.present? || height.present? || length.present? || weight.present?
+        dimensions_hash["packaging"] ||= {}
+        dimensions_hash["packaging"]["desc"] ||= "Упаковок: #{count}"
+        dimensions_hash["packaging"]["details"] ||= []
+    
+        detail = {
+          "width" => width,
+          "height" => height,
+          "length" => length,
+          "weight" => weight,
+          "count" => count,
+          "label" => [p["Название"], p["Артикульный номер"]].map(&:presence).compact.join(" · ")
+        }.compact
+    
+        dimensions_hash["packaging"]["details"] << detail
+      end
+    
+      parts = [width, height, length].compact
       attrs[:package_dimensions] = parts.join(" × ") if parts.size >= 2
     end
 
@@ -268,10 +288,9 @@ module Products
     end
 
     def extract_weight_from_dimensions(dimensions_hash)
-      key = dimensions_hash.keys.find { |k| k.to_s.match?(/^вес/i) }
-      return nil unless key
-
-      parse_weight_scalar(dimensions_hash[key])
+      Products::WeightExtractor.extract_kg(
+        "size" => dimensions_hash
+      )
     end
 
     def parse_weight_scalar(str)

@@ -220,7 +220,20 @@ module Products
       end
 
       weight_val = extract_weight(attributes_data.dig('dimensions', 'weight') || attributes_data.dig('dimensions', 'Вес'))
-      product.weight = weight_val if weight_val
+      source_for_weight =
+        if product.full_attributes_ru.present?
+          product.full_attributes_ru
+        elsif defined?(full_attributes_ru) && full_attributes_ru.present?
+          full_attributes_ru
+        elsif defined?(attributes_data) && attributes_data.present?
+          attributes_data
+        else
+          {}
+        end
+      
+      weight_val = Products::WeightExtractor.extract_kg(source_for_weight)
+      
+      product.weight = weight_val if weight_val.present?
     end
 
     def extract_weight(weight_str)

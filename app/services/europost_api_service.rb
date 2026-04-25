@@ -6,6 +6,12 @@ require "openssl"
 
 class EuropostApiService
   BASE_URL = ENV.fetch("EUROPOST_BASE_URL", "https://api.eurotorg.by:10352/Json")
+  EXTERNAL_BASE_URL = ENV.fetch("EUROPOST_EXTERNAL_BASE_URL", "https://api.eurotorg.by")
+
+  class Error < StandardError; end
+  class ValidationError < Error; end
+  class HttpError < Error; end
+  class ResponseError < Error; end
 
   def self.get_jwt!
     payload = {
@@ -101,6 +107,26 @@ class EuropostApiService
     table
   end
 
+  # API v1.8.0
+  # POST /api/external/postal/create
+  # New optional fields:
+  # - is_relabeling
+  # - is_oversize
+  # - is_completeness_check
+  # - packing_payer
+  # - shipment_payer
+  def self.postal_create(data:)
+    validate_postal_create_data!(data)
+    post_external_json!("/api/external/postal/create", data)
+  end
+
+  # API v1.8.0
+  # POST /api/external/postal/payment/calculate
+  def self.postal_payment_calculate(data:)
+    validate_hash_payload!(data, context: "postal_payment_calculate")
+    post_external_json!("/api/external/postal/payment/calculate", data)
+  end
+
   # -----------------
   # internal
   # -----------------
@@ -135,4 +161,75 @@ class EuropostApiService
     JSON.parse(body)
   end
   private_class_method :post_json!
+
+  def self.post_external_json!(path, payload)
+    uri = URI.join("#{EXTERNAL_BASE_URL}/", path.sub(%r{\A/}, ""))
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = (uri.scheme == "https")
+    http.verify_mode = OpenSSL::SSL::VERIFY_PEER if http.use_ssl?
+
+    req = Net::HTTP::Post.new(uri.request_uri)
+    req["Content-Type"] = "application/json; charset=utf-8"
+    req["Accept"] = "application/json"
+    req["Authorization"] = "Bearer #{jwt}"
+    req.body = JSON.generate(payload)
+
+    res = http.request(req)
+    body = res.body.to_s.force_encoding("UTF-8").sub("\xEF\xBB\xBF", "")
+
+    unless res.is_a?(Net::HTTPSuccess)
+      raise HttpError, "HTTP #{res.code}: #{body.presence || res.message}"
+    end
+
+    parsed = JSON.parse(body)
+    raise ResponseError, "Expected JSON object response, got: #{parsed.class}" unless parsed.is_a?(Hash)
+
+    if parsed["error"].present?
+      raise ResponseError, parsed["error"].to_s
+    end
+
+    parsed
+  rescue JSON::ParserError => e
+    raise ResponseError, "Invalid JSON response: #{e.message}"
+  end
+  private_class_method :post_external_json!
+
+  def self.validate_postal_create_data!(data)
+    validate_hash_payload!(data, context: "postal_create")
+
+    validate_optional_boolean!(data, "is_relabeling")
+    validate_optional_boolean!(data, "is_oversize")
+    validate_optional_boolean!(data, "is_completeness_check")
+    validate_optional_payer!(data, "packing_payer")
+    validate_optional_payer!(data, "shipment_payer")
+  end
+  private_class_method :validate_postal_create_data!
+
+  def self.validate_hash_payload!(payload, context:)
+    return if payload.is_a?(Hash)
+
+    raise ValidationError, "#{context} expects Hash payload"
+  end
+  private_class_method :validate_hash_payload!
+
+  def self.validate_optional_boolean!(payload, key)
+    return unless payload.key?(key)
+
+    value = payload[key]
+    return if [true, false, 1, 0, "1", "0", "true", "false"].include?(value)
+
+    raise ValidationError, "#{key} must be boolean-like"
+  end
+  private_class_method :validate_optional_boolean!
+
+  def self.validate_optional_payer!(payload, key)
+    return unless payload.key?(key)
+
+    value = payload[key]
+    valid_values = %w[sender recipient]
+    return if valid_values.include?(value.to_s)
+
+    raise ValidationError, "#{key} must be one of: #{valid_values.join(', ')}"
+  end
+  private_class_method :validate_optional_payer!
 end

@@ -326,10 +326,9 @@ module Products
     end
 
     def extract_weight_from_dimensions(dimensions_hash)
-      key = dimensions_hash.keys.find { |k| k.to_s.match?(/вес/i) }
-      return nil unless key
-
-      dimensions_hash[key].to_s.gsub(",", ".").scan(/(\d+(?:\.\d+)?)/).flatten.first&.to_f
+      Products::WeightExtractor.extract_kg(
+        "size" => dimensions_hash
+      )
     end
 
     def extract_link_sets(item, details)

@@ -422,25 +422,47 @@ class ParseProductsJob < ApplicationJob
     variants =
       product_data&.dig("gprDescription", "variants") ||
       product_data&.dig(:gprDescription, :variants)
-
+  
     if variants.is_a?(Array) && article.present?
       row = variants.find { |v| variant_row_matches_article?(v, article) }
+  
       if row.is_a?(Hash)
-        url = row["imageUrl"] || row[:imageUrl] || row["mainImageUrl"] || row[:mainImageUrl]
-        return [url].compact.map(&:to_s).map(&:strip).reject(&:blank?) if url.present?
+        url =
+          row["imageUrl"] ||
+          row[:imageUrl] ||
+          row["mainImageUrl"] ||
+          row[:mainImageUrl] ||
+          row["image"] ||
+          row[:image]
+  
+        return [url.to_s.strip] if url.present?
       end
-      return []
+  
+      Rails.logger.warn(
+        "ParseProductsJob: no scoped listing image for listing_sku=#{listing_sku}, item_no=#{item_no}; fallback to row image"
+      )
     end
-
-    if product_data["imageUrl"] || product_data[:imageUrl]
-      return [product_data["imageUrl"] || product_data[:imageUrl]].compact
-    end
-
-    if product_data["images"] || product_data[:images]
-      return Array(product_data["images"] || product_data[:images])
-    end
-
-    []
+  
+    direct =
+      product_data["imageUrl"] ||
+      product_data[:imageUrl] ||
+      product_data["mainImageUrl"] ||
+      product_data[:mainImageUrl] ||
+      product_data["image"] ||
+      product_data[:image]
+  
+    return [direct.to_s.strip] if direct.present?
+  
+    # ВАЖНО:
+    # images из listing/search API может содержать все цветовые варианты.
+    # Для строки листинга берём только первую картинку, не весь массив.
+    images = product_data["images"] || product_data[:images]
+  
+    Array(images)
+      .map(&:to_s)
+      .map(&:strip)
+      .reject(&:blank?)
+      .first(1)
   end
 
   def listing_item_article_8(item_no, listing_sku)
