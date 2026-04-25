@@ -270,17 +270,8 @@ class ParseProductsJob < ApplicationJob
     Rails.logger.info "ParseProductsJob: Processing product listing_sku=#{listing_sku} db_sku=#{product&.sku || 'new'}, item_no=#{item_no}, name=#{name}, url=#{url}"
     
     # Базовые атрибуты из API поиска или CategoryProductsFetcher
-    # Поддержка разных форматов данных
-    images = if product_data.dig('gprDescription', 'variants')
-               product_data.dig('gprDescription', 'variants')&.map { |v| v['imageUrl'] || v[:imageUrl] }&.compact || []
-             elsif product_data['imageUrl'] || product_data[:imageUrl]
-               # CategoryProductsFetcher возвращает одно изображение в imageUrl
-               [product_data['imageUrl'] || product_data[:imageUrl]].compact
-             elsif product_data['images'] || product_data[:images]
-               Array(product_data['images'] || product_data[:images])
-             else
-               []
-             end
+    # gprDescription.variants — это все цвета/варианты; кладём в карточку только image текущей строки листинга.
+    images = extract_listing_images_for_row(product_data, item_no, listing_sku)
     
     # Цена может быть в разных форматах (ОБЯЗАТЕЛЬНОЕ ПОЛЕ)
     price = product_data.dig('salesPrice', 'numeral') || 
@@ -425,6 +416,49 @@ class ParseProductsJob < ApplicationJob
     result
   end
 
+  # Из листинга: одна строка = один товар/вариант — не склеиваем imageUrl всех gprDescription.variants.
+  def extract_listing_images_for_row(product_data, item_no, listing_sku)
+    article = listing_item_article_8(item_no, listing_sku)
+    variants =
+      product_data&.dig("gprDescription", "variants") ||
+      product_data&.dig(:gprDescription, :variants)
+
+    if variants.is_a?(Array) && article.present?
+      row = variants.find { |v| variant_row_matches_article?(v, article) }
+      if row.is_a?(Hash)
+        url = row["imageUrl"] || row[:imageUrl] || row["mainImageUrl"] || row[:mainImageUrl]
+        return [url].compact.map(&:to_s).map(&:strip).reject(&:blank?) if url.present?
+      end
+      return []
+    end
+
+    if product_data["imageUrl"] || product_data[:imageUrl]
+      return [product_data["imageUrl"] || product_data[:imageUrl]].compact
+    end
+
+    if product_data["images"] || product_data[:images]
+      return Array(product_data["images"] || product_data[:images])
+    end
+
+    []
+  end
+
+  def listing_item_article_8(item_no, listing_sku)
+    [item_no, listing_sku].compact.map { |x| x.to_s.match(/(\d{8})/)&.captures&.first }.compact.first
+  end
+
+  def variant_row_matches_article?(row, article_8)
+    return false unless row.is_a?(Hash)
+
+    token = row["itemNo"] || row["itemNoGlobal"] || row["visibleItemNo"] || row["id"] || row["sku"]
+    if token.blank? && row["pipUrl"].present?
+      m = row["pipUrl"].to_s.match(/-([a-z0-9]{8,9})\/?$/i)
+      token = m[1] if m
+    end
+    d = token.to_s.gsub(/\D/, "")
+    d.include?(article_8) || d[-8, 8] == article_8
+  end
+
   # Не затираем уже богатые данные в БД пустыми/урезанными полями с витрины (s* vs без s — одна строка).
   def preserve_existing_product_from_listing!(product, attributes)
     attributes.delete(:name_ru) if product.name_ru.present?
@@ -442,9 +476,10 @@ class ParseProductsJob < ApplicationJob
       attributes.delete(:variants)
     end
 
+    # Картинки: не очищать поле пустой выборкой. Сужение с листинга (1 превью вместо слепка всех вариантов) — нормально.
     inn = Array(attributes[:images]).compact.reject(&:blank?)
     old = Array(product.images).compact.reject(&:blank?)
-    attributes.delete(:images) if old.size > inn.size && old.size.positive?
+    attributes.delete(:images) if inn.empty? && old.size.positive?
   end
 
   # Извлечение количества из API ответа (поле availability)

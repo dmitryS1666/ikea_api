@@ -230,7 +230,8 @@ class PlDetailsFetcher
     
     # Images - строго из области галереи товара (pipf-product-gallery-modal),
     # с мягким fallback на контейнеры pipf-product-gallery.
-    all_images = extract_images(doc, product_data, result[:images] || [])
+    # Не передаём JSON-LD: там часто слепок всех вариантов; для scope_sku галарея и так из модалки.
+    all_images = extract_images(doc, product_data, [])
     result[:images] = all_images
     
     # Videos
@@ -271,10 +272,30 @@ class PlDetailsFetcher
     end
     result[:measurements_modal] = meas[:snapshot] if meas[:snapshot].present?
 
+    # Цепочка категорий на витрине (последний числовой id в хлебных крошках — «текущий» раздел, напр. 700631)
+    result[:pl_breadcrumb_category_ids] = extract_pl_breadcrumb_category_ids(doc)
+
     result
   end
   
   private
+
+  def extract_pl_breadcrumb_category_ids(doc)
+    return [] unless doc
+
+    root = doc.at_css("ol.hnf-breadcrumb__list") || doc.at_css("ol[data-breadcrumb-links]")
+    return [] unless root
+
+    ids = []
+    root.css('a[href*="/cat/"]').each do |a|
+      href = a["href"].to_s
+      m = href.match(%r{/cat/[^/]+-(\d{4,})/?}i)
+      next unless m
+
+      ids << m[1]
+    end
+    ids.map(&:to_s).uniq
+  end
 
   # Только JSON из hydration (как начало parse_html), без побочных полей.
   def parse_hydration_product_data(doc)

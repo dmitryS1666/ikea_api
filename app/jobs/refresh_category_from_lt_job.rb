@@ -15,15 +15,11 @@
 #      Затем IkeaLvProductVariantsService (force: true) — варианты с PIP PL.
 #      Затем ImageDownloader.sync_product_images (после вариантов и ensure) — локальные WebP + зеркало в public/images.
 #   5) Опционально: lt_jsonl_path в payload — строки JSONL по SKU (и алиасам) для приоритета LT;
-#      include_referenced — дозагрузка связанных SKU в категорию.
+#      process_related: true в payload — ReferencedProductsEnsureService (связанные в БД + категория).
 #
 # Контракт API с фронтом не меняется: те же поля ProductSerializer, типы и структура variants.
-#
-# Параллельность: 2 потока (Mutex + connection_pool.with_connection).
 class RefreshCategoryFromLtJob < ApplicationJob
   queue_as :parser
-
-  THREADS = 2
 
   def perform(ikea_id:, task_id: nil, max_created: nil)
     task =
@@ -249,15 +245,6 @@ class RefreshCategoryFromLtJob < ApplicationJob
     end
   end
 
-  def enrich_products!(canonical_skus, category, rows_by_sku, _include_referenced, task, stats, stats_mutex)
-    parallel_each(canonical_skus, threads: THREADS) do |sku|
-      product = Product.find_by(sku: sku)
-      next unless product
-      enrich_product!(product, category, rows_by_sku, task, stats, stats_mutex)
-      nil
-    end
-  end
-
   def jsonl_row_for_product(rows_by_sku, sku)
     Products::ListingSkuResolver.aliases(sku).each do |key|
       row = rows_by_sku[key.to_s]
@@ -379,16 +366,6 @@ class RefreshCategoryFromLtJob < ApplicationJob
     Rails.logger.warn "RefreshCategoryFromLtJob: save missing_related_skus sku=#{product.sku}: #{e.message}"
   end
 
-  def process_listing_sequential(products_data, parser, category, availability_data, task, stats, max_created)
-    page_skus = []
-    products_data.each do |product_data|
-      canon = process_one_listing_item(product_data, parser, category, availability_data, task, stats, nil)
-      page_skus << canon if canon.present?
-      break if stats[:created] >= max_created
-    end
-    page_skus
-  end
-
   def process_one_listing_item(product_data, parser, category, availability_data, task, stats, mutex)
     check_task_not_stopped!(task)
 
@@ -494,28 +471,5 @@ class RefreshCategoryFromLtJob < ApplicationJob
   # Листинг и БД расходятся по виду SKU (s12345678 vs 12345678). Для where(sku: …) и отвязки нужны все алиасы.
   def expanded_listing_skus_for_category_job(canonical_skus)
     Array(canonical_skus).flat_map { |s| Products::ListingSkuResolver.aliases(s) }.map(&:to_s).map(&:strip).reject(&:blank?).uniq
-  end
-
-  def parallel_each(collection, threads: THREADS)
-    return [] if collection.blank?
-
-    n = [threads, collection.size].min
-    chunk_size = (collection.size / n.to_f).ceil
-    chunks = collection.each_slice(chunk_size).to_a
-    results = []
-    mutex = Mutex.new
-
-    threads_list =
-      chunks.reject(&:empty?).map do |chunk|
-        Thread.new do
-          ActiveRecord::Base.connection_pool.with_connection do
-            part = chunk.filter_map { |item| yield(item) }
-            mutex.synchronize { results.concat(part) }
-          end
-        end
-      end
-
-    threads_list.each(&:join)
-    results
   end
 end

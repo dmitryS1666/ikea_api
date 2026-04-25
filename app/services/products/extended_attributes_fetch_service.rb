@@ -123,13 +123,37 @@ class Products::ExtendedAttributesFetchService
 
     if attributes.any?
       product.update!(attributes)
-      { updated: true }
-    else
-      { updated: false }
     end
+    if pl_details.present? && (pl_details[:pl_breadcrumb_category_ids].present? || pl_details["pl_breadcrumb_category_ids"].present?)
+      link_product_to_pl_breadcrumb_categories!(product, pl_details)
+    end
+
+    { updated: attributes.any? }
   end
 
   private
+
+  # Сайт-источник: цепочка /cat/...-{id} в шапке товара. Создаём CategoryProduct и ставим products.category_id на листовой id.
+  def link_product_to_pl_breadcrumb_categories!(product, pl_details)
+    raw = pl_details[:pl_breadcrumb_category_ids] || pl_details["pl_breadcrumb_category_ids"]
+    return if raw.blank?
+
+    ids = Array(raw).map(&:to_s).map(&:strip).reject(&:blank?).uniq
+    return if ids.empty?
+
+    leaf = ids.last
+    ids.each do |ikea_cid|
+      next unless Category.exists?(ikea_id: ikea_cid)
+
+      CategoryProduct.find_or_create_by!(product: product, category_id: ikea_cid)
+    end
+
+    if leaf.present? && Category.exists?(ikea_id: leaf) && product.read_attribute(:category_id).to_s != leaf
+      product.update_column(:category_id, leaf)
+    end
+  rescue StandardError => e
+    Rails.logger.warn "ExtendedAttributesFetchService: pl breadcrumb link sku=#{product.sku}: #{e.class} #{e.message}"
+  end
 
   def strip_remote_pl_ikea_gallery_urls(urls)
     Array(urls).reject { |u| REMOTE_PL_PRODUCT_IMAGE_URL.match?(u.to_s) }
