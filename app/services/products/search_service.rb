@@ -145,8 +145,7 @@ module Products
       sorted_ids.each_with_index { |id, idx| case_sql << "WHEN #{id.to_i} THEN #{idx} " }
       case_sql << "ELSE #{sorted_ids.length} END"
 
-      id_order = direction == :asc ? 'ASC' : 'DESC'
-      @scope.reorder(Arel.sql(case_sql)).order(Arel.sql("products.id #{id_order}"))
+      @scope.reorder(Arel.sql(case_sql))
     end
 
     def fallback_price_sort(direction)
