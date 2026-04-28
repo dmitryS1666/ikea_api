@@ -14,7 +14,7 @@ module Products
       filter_by_attributes
       sort_results
 
-      @scope.distinct
+      @scope
     end
 
     private
