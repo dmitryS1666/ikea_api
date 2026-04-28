@@ -102,9 +102,9 @@ module Products
 
       case sort_option.to_s
       when 'cheapest'
-        @scope = @scope.order(Arel.sql('products.price ASC NULLS LAST, products.id ASC'))
+        @scope = sort_by_display_price(direction: :asc)
       when 'expensive'
-        @scope = @scope.order(Arel.sql('products.price DESC NULLS LAST, products.id DESC'))
+        @scope = sort_by_display_price(direction: :desc)
       when 'newest'
         @scope = @scope.order('products.created_at DESC')
       when 'popular'
@@ -112,6 +112,47 @@ module Products
       else
         @scope = @scope.order('products.id DESC')
       end
+    end
+
+    def sort_by_display_price(direction:)
+      pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
+      buffer = CalculatorSetting.get('exchange_rate_buffer') || PriceCalculationService.exchange_rate_buffer
+
+      priced_rows = @scope.where.not(price: nil).pluck(:id, :price, :weight, :delivery_cost)
+      return fallback_price_sort(direction) if priced_rows.empty?
+
+      sorted_ids =
+        priced_rows
+          .map do |id, price, weight, delivery_cost|
+            price_byn = PriceCalculationService.product_price_byn(
+              price.to_f,
+              weight_kg: weight.to_f,
+              delivery_pln: delivery_cost.to_f,
+              pln_rate: pln_rate,
+              buffer: buffer
+            )
+
+            [id, price_byn]
+          end
+          .sort_by do |id, price_byn|
+            direction == :asc ? [price_byn, id] : [-price_byn, -id]
+          end
+          .map(&:first)
+
+      return fallback_price_sort(direction) if sorted_ids.empty?
+
+      case_sql = +"CASE products.id "
+      sorted_ids.each_with_index { |id, idx| case_sql << "WHEN #{id.to_i} THEN #{idx} " }
+      case_sql << "ELSE #{sorted_ids.length} END"
+
+      id_order = direction == :asc ? 'ASC' : 'DESC'
+      @scope.reorder(Arel.sql(case_sql)).order(Arel.sql("products.id #{id_order}"))
+    end
+
+    def fallback_price_sort(direction)
+      direction_sql = direction == :asc ? 'ASC' : 'DESC'
+      id_sql = direction == :asc ? 'ASC' : 'DESC'
+      @scope.reorder(Arel.sql("products.price #{direction_sql} NULLS LAST, products.id #{id_sql}"))
     end
   end
 end
