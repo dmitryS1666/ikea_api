@@ -1,34 +1,77 @@
 module Products
   class SearchService
+    EXCLUDED_FILTER_PARAMETERS = %w[f-type].freeze
+
     def initialize(category, params = {})
       @category = category
-      @params = params
-      @scope = category.products_through_categories.active
-    rescue NoMethodError
-      @scope = category.products.active
-    rescue
-      @scope = Product.active
+      @params = params || {}
+      @scope = initial_scope
     end
 
     def call
       @scope = @scope.merge(Product.with_available_stock)
-      filter_by_price
+      filter_by_display_price
       filter_by_attributes
       sort_results
-      
+
       @scope.distinct
     end
 
     private
 
-    def filter_by_price
-      if @params[:min_price].present?
-        @scope = @scope.where('products.price >= ?', @params[:min_price])
+    def initial_scope
+      if @category&.ikea_id.present?
+        Product.catalog_category_scope(@category.ikea_id)
+      else
+        Product.active
       end
+    rescue NoMethodError
+      @category&.products&.active || Product.active
+    rescue StandardError
+      Product.active
+    end
 
-      if @params[:max_price].present?
-        @scope = @scope.where('products.price <= ?', @params[:max_price])
-      end
+    # На витрине и в Category#display_filters_for_api цена отдается в BYN
+    # через PriceCalculationService.product_price_byn(...).
+    # Поэтому входные min_price/max_price тоже сравниваем с расчетной BYN-ценой,
+    # а не с сырой products.price в PLN.
+    def filter_by_display_price
+      min_price = number_from_param(@params[:min_price])
+      max_price = number_from_param(@params[:max_price])
+      return if min_price.nil? && max_price.nil?
+
+      matching_ids = ids_matching_display_price(min_price, max_price)
+      @scope = matching_ids.empty? ? @scope.none : @scope.where(id: matching_ids)
+    end
+
+    def ids_matching_display_price(min_price, max_price)
+      pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
+      buffer = CalculatorSetting.get('exchange_rate_buffer') || PriceCalculationService.exchange_rate_buffer
+
+      @scope
+        .where.not(price: nil)
+        .pluck(:id, :price, :weight, :delivery_cost)
+        .filter_map do |id, price, weight, delivery_cost|
+          price_byn = PriceCalculationService.product_price_byn(
+            price.to_f,
+            weight_kg: weight.to_f,
+            delivery_pln: delivery_cost.to_f,
+            pln_rate: pln_rate,
+            buffer: buffer
+          )
+
+          next if min_price && price_byn < min_price
+          next if max_price && price_byn > max_price
+
+          id
+        end
+    end
+
+    def number_from_param(value)
+      text = value.to_s.tr(',', '.').gsub(/[^\d.]/, '')
+      return nil if text.blank?
+
+      text.to_f
     end
 
     def filter_by_attributes
@@ -37,11 +80,17 @@ module Products
       return unless @category&.ikea_id
 
       filters.each do |filter_param, values|
+        filter_param = filter_param.to_s
+        next if filter_param.blank?
+        next if filter_param == 'f-price-buckets'
+        next if filter_param == 'f-availability'
+        next if EXCLUDED_FILTER_PARAMETERS.include?(filter_param)
+
         value_ids = Array(values).map(&:to_s).reject(&:blank?)
         next if value_ids.empty?
 
         subquery = ProductFilterValue
-                     .where(category_id: @category.ikea_id, parameter: filter_param.to_s, value_id: value_ids)
+                     .where(category_id: @category.ikea_id, parameter: filter_param, value_id: value_ids)
                      .select(:product_id)
 
         @scope = @scope.where(id: subquery)
@@ -53,13 +102,12 @@ module Products
 
       case sort_option.to_s
       when 'cheapest'
-        @scope = @scope.order('products.price ASC')
+        @scope = @scope.order(Arel.sql('products.price ASC NULLS LAST, products.id ASC'))
       when 'expensive'
-        @scope = @scope.order('products.price DESC')
+        @scope = @scope.order(Arel.sql('products.price DESC NULLS LAST, products.id DESC'))
       when 'newest'
         @scope = @scope.order('products.created_at DESC')
       when 'popular'
-        # Популярное: сначала те, у кого есть popularity_score, затем по рейтингу
         @scope = @scope.order(Arel.sql('products.popularity_score DESC, products.rating_weighted DESC, products.views_count DESC'))
       else
         @scope = @scope.order('products.id DESC')

@@ -81,23 +81,29 @@ class Category < ApplicationRecord
   end
 
   def current_category_price_range_byn
-    products_scope = products_through_categories.where.not(price: nil)
+    products_scope = Product.catalog_category_scope(ikea_id).where.not(price: nil)
     return nil unless products_scope.exists?
-  
+
     pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
     return nil if pln_rate.blank?
-  
+
     buffer = CalculatorSetting.get('exchange_rate_buffer') || PriceCalculationService.exchange_rate_buffer
-  
-    prices_byn = products_scope.pluck(:price).filter_map do |price|
+
+    prices_byn = products_scope.pluck(:price, :weight, :delivery_cost).filter_map do |price, weight, delivery_cost|
       pln_price = price.to_f
       next if pln_price <= 0
-  
-      PriceCalculationService.product_price_byn(pln_price, pln_rate: pln_rate, buffer: buffer)
+
+      PriceCalculationService.product_price_byn(
+        pln_price,
+        weight_kg: weight.to_f,
+        delivery_pln: delivery_cost.to_f,
+        pln_rate: pln_rate,
+        buffer: buffer
+      )
     end
-  
+
     return nil if prices_byn.empty?
-  
+
     {
       min: prices_byn.min,
       max: prices_byn.max
@@ -308,7 +314,7 @@ class Category < ApplicationRecord
     price_range = current_category_price_range_byn
     return nil if price_range.blank?
   
-    products_count = products_through_categories.where.not(price: nil).distinct.count
+    products_count = Product.catalog_category_scope(ikea_id).where.not(price: nil).distinct.count
     return nil if products_count.zero?
   
     filter.merge(

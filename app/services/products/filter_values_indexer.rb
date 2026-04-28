@@ -1,5 +1,10 @@
+require "set"
+
 module Products
   class FilterValuesIndexer
+    INSERT_BATCH_SIZE = 1_000
+    EXCLUDED_PARAMETERS = %w[f-type].freeze
+
     BOOLEAN_PARAMS = %w[
       f-top-seller
       f-special-price
@@ -11,7 +16,7 @@ module Products
       "f-type" => ["Typ", "Rodzaj", "Тип", "Вид"],
       "f-function" => ["Funkcja", "Funkcje", "Функция", "Функции"],
       "f-feature" => ["Właściwości", "Cechy", "Funkcje", "Свойства", "Характеристики", "Особенности", "Функции"],
-      "f-series" => ["Seria", "Koleкcja", "Серия", "Коллекция"],
+      "f-series" => ["Seria", "Serie", "Kolekcja", "Kolekcje", "Collection", "Серия", "Коллекция"],
       "f-energy-labels" => ["Etykieta energetyczna", "Klasa energetyczna", "Энергетическая этикетка", "Класс энергопотребления", "Энергетический класс"],
       "f-number-of-cooking-zones" => ["Liczba pól grzewczych", "Liczba stref grzewczych", "Liczba pół grzewczych", "Количество конфорок", "Количество зон нагрева", "Количество варочных зон"],
       "f-colors" => ["Kolor", "Kolory", "Kolorystyka", "Kolor/wyкоńчение", "Kolor/wykonczenie", "Цвет", "Цвета", "Цветовая гамма", "Цвет/отделка"],
@@ -80,50 +85,63 @@ module Products
     def initialize(category, parameters: nil)
       @category = category
       @filters = Array(category.available_filters)
+      @parameters_provided = !parameters.nil?
       @parameters = normalize_filter_parameters(parameters)
     end
 
     def reindex!
+      eff = filters_to_apply
+      return if eff.blank?
+
       if selective_mode?
         ProductFilterValue.where(category_id: @category.ikea_id, parameter: @parameters).delete_all
       else
-        return if @filters.blank?
-
         ProductFilterValue.where(category_id: @category.ikea_id).delete_all
       end
 
-      eff = filters_to_apply
-      return if eff.blank?
+      products = Product.catalog_category_scope(@category.ikea_id)
+      promo_skus = active_promo_skus(products).to_set
 
-      products = @category.products_through_categories
-      promo_skus = active_promo_skus(products)
-
+      rows = []
       products.find_each do |product|
-        index_product(product, promo_skus: promo_skus, filters: eff)
+        rows.concat(build_rows_for_product(product, promo_skus: promo_skus, filters: eff))
+        flush_rows(rows) if rows.size >= INSERT_BATCH_SIZE
       end
+
+      flush_rows(rows)
     end
 
     def reindex_product(product)
+      eff = filters_to_apply
+      return if eff.blank?
+
       if selective_mode?
         ProductFilterValue.where(category_id: @category.ikea_id, product_id: product.id, parameter: @parameters).delete_all
       else
-        return if @filters.blank?
-
         ProductFilterValue.where(category_id: @category.ikea_id, product_id: product.id).delete_all
       end
 
-      eff = filters_to_apply
-      return if eff.blank?
+      return unless product.quantity.to_i.positive?
 
       index_product(product, filters: eff)
     end
 
     def index_product(product, promo_skus: nil, filters: nil)
-      filters ||= filters_to_apply
-      return if filters.blank?
+      rows = build_rows_for_product(product, promo_skus: promo_skus, filters: filters)
+      flush_rows(rows)
+    end
 
-      promo_skus ||= active_promo_skus(Product.where(id: product.id))
+    def build_rows_for_product(product, promo_skus: nil, filters: nil)
+      filters ||= filters_to_apply
+      return [] if filters.blank?
+
+      promo_skus ||= active_promo_skus(Product.where(id: product.id)).to_set
       values = match_product(product, promo_skus: promo_skus, filters: filters)
+      rows_for_values(product, values)
+    end
+
+    def rows_for_values(product, values)
+      now = Time.current
 
       rows = []
       values.each do |parameter, value_ids|
@@ -133,32 +151,45 @@ module Products
             category_id: @category.ikea_id,
             parameter: parameter,
             value_id: value_id,
-            created_at: Time.current,
-            updated_at: Time.current
+            created_at: now,
+            updated_at: now
           }
         end
       end
 
-      ProductFilterValue.insert_all(rows) if rows.any?
+      rows.uniq { |row| [row[:product_id], row[:category_id], row[:parameter], row[:value_id]] }
+    end
+
+    def flush_rows(rows)
+      return if rows.blank?
+
+      rows.uniq! { |row| [row[:product_id], row[:category_id], row[:parameter], row[:value_id]] }
+      ProductFilterValue.insert_all(rows, unique_by: :index_product_filter_values_unique)
+      rows.clear
     end
 
     private
 
     def normalize_filter_parameters(parameters)
-      list = Array(parameters).map { |p| p.to_s.strip.presence }.compact.uniq
-      list.presence
+      Array(parameters)
+        .map { |p| p.to_s.strip.presence }
+        .compact
+        .uniq
+        .reject { |parameter| EXCLUDED_PARAMETERS.include?(parameter) }
     end
 
     def selective_mode?
-      @parameters.present?
+      @parameters_provided
     end
 
     def filters_to_apply
       return [] if @filters.blank?
 
-      return @filters unless selective_mode?
+      available = @filters.reject { |f| EXCLUDED_PARAMETERS.include?(f["parameter"].to_s) }
+      return available unless selective_mode?
+      return [] if @parameters.blank?
 
-      @filters.select { |f| @parameters.include?(f["parameter"].to_s) }
+      available.select { |f| @parameters.include?(f["parameter"].to_s) }
     end
 
     def match_product(product, promo_skus:, filters:)
@@ -245,23 +276,19 @@ module Products
         .compact
         .group_by { |value| normalize_series_name(value["name"].presence || value["id"]) }
         .reject { |normalized_name, _| normalized_name.blank? }
-    
+
       matched_series_names = extract_series_names_from_product(product, grouped_values.keys)
       return if matched_series_names.blank?
-    
+
       grouped_values.each do |normalized_name, grouped_filter_values|
         next unless matched_series_names.include?(normalized_name)
-    
-        # если внутри категории одна и та же серия встречается в нескольких filter values
-        # (например BILLY = шкафы / двери / фурнитура), не индексируем ее автоматически,
-        # потому что по name/name_ru товара нельзя надежно понять нужный value_id
-        next if grouped_filter_values.size > 1
-    
-        value = grouped_filter_values.first
-        value_id = value["id"].to_s
-        next if value_id.blank?
-    
-        results[parameter] << value_id
+
+        grouped_filter_values.each do |value|
+          value_id = value["id"].to_s
+          next if value_id.blank?
+
+          results[parameter] << value_id
+        end
       end
     end
 
@@ -279,7 +306,10 @@ module Products
     def match_textual_parameter(results, parameter, values, product, keys)
       text_values = attribute_values_for_keys(product, keys)
       text_values.concat(extract_features_text(product)) if parameter == "f-feature"
-      
+      text_values.concat(material_text_pool(product)) if %w[f-material f-materials].include?(parameter)
+      text_values.concat(dimension_text_pool(product)) if %w[f-size f-length f-width f-height f-depth].include?(parameter)
+      text_values.concat([product.name, product.name_ru, product.small_desc_name].compact) if parameter == "f-type"
+
       if keys.blank? || text_values.blank?
         text_values.concat(attribute_text_pool(product))
       end
@@ -409,12 +439,21 @@ module Products
     def attribute_values_for_keys(product, keys)
       return [] if keys.blank?
 
-      attributes = product.full_attributes || {}
+      raw_attributes = {}
+      raw_attributes.merge!(safe_hash(product.full_attributes))
+      raw_attributes.merge!(safe_hash(product.dimensions)) if product.respond_to?(:dimensions)
+      raw_attributes.merge!(safe_hash(product.dimensions_ru)) if product.respond_to?(:dimensions_ru)
+
+      attributes = flatten_hash(raw_attributes)
+      normalized_keys = Array(keys).map { |key| normalize_text(key) }.reject(&:blank?)
       values = []
 
-      keys.each do |key|
-        value = attributes[key]
-        values.concat(normalize_value(value))
+      attributes.each do |attr_key, attr_value|
+        normalized_attr_key = normalize_text(attr_key)
+        next if normalized_attr_key.blank?
+        next unless normalized_keys.any? { |key| normalized_attr_key.include?(key) || key.include?(normalized_attr_key) }
+
+        values.concat(normalize_value(attr_value))
       end
 
       values
@@ -434,18 +473,46 @@ module Products
       pool = [
         product.name,
         product.name_ru,
-        product.small_desc_name
+        product.small_desc_name,
+        product.collection,
+        product.short_description,
+        product.short_description_ru,
+        product.material_info,
+        product.material_info_ru,
+        product.good_info,
+        product.good_info_ru,
+        product.dimensions,
+        product.dimensions_ru,
+        product.package_dimensions
       ].compact.map(&:to_s)
-    
+
       (product.full_attributes || {}).each do |k, v|
         pool << k.to_s
-        Array(v).each { |vv| pool << vv.to_s }
+        normalize_value(v).each { |vv| pool << vv.to_s }
       end
 
-      Array(product.materials).each { |v| pool << v.to_s }
-      Array(product.features).each { |v| pool << v.to_s }
-    
+      material_text_pool(product).each { |v| pool << v.to_s }
+      normalize_value(product.features).each { |v| pool << v.to_s }
+      normalize_value(product.features_ru).each { |v| pool << v.to_s }
+
       pool
+    end
+
+    def material_text_pool(product)
+      [
+        product.materials,
+        product.materials_ru,
+        product.material_info,
+        product.material_info_ru
+      ].flat_map { |value| normalize_value(value) }
+    end
+
+    def dimension_text_pool(product)
+      [
+        product.dimensions,
+        product.dimensions_ru,
+        product.package_dimensions
+      ].flat_map { |value| normalize_value(value) }
     end
 
     def normalize_value(value)
@@ -493,8 +560,8 @@ module Products
       
       text = value.to_s.downcase
       
-      # Убираем польскую диакритику
-      text = text.tr('ąćęłńóśźż', 'acelnoszz')
+      # Убираем диакритику, которая часто встречается в PL/LT/SV названиях IKEA
+      text = text.tr('ąćęłńóśźżäöüå', 'acelnoszzaoua')
       # Убираем русскую "ё"
       text = text.tr('ё', 'е')
       
@@ -527,10 +594,11 @@ module Products
 
     def extract_series_names_from_product(product, available_series_names)
       texts = [
-        product.name,
         product.name_ru,
+        product.name,
+        product.small_desc_name,
         (product.respond_to?(:collection) ? product.collection : nil)
-      ].compact.map { |text| text.to_s.upcase }.uniq
+      ].compact.map { |text| normalize_series_text(text) }.uniq
     
       return [] if texts.empty?
       return [] if available_series_names.blank?
@@ -553,6 +621,10 @@ module Products
       /(^|[^[:alnum:]])#{Regexp.escape(series_name)}([^[:alnum:]]|$)/i
     end
     
+    def normalize_series_text(value)
+      normalize_text(value).upcase
+    end
+
     def normalize_series_name(name)
       return nil if name.blank?
     
@@ -572,7 +644,7 @@ module Products
       text = text.gsub(/\A\s*ПЕРФОРИРОВАННЫЕ ДОСКИ\s+/i, "")
       text = text.gsub(/\A\s*ВСТАВКИ И АКСЕССУАРЫ ДЛЯ\s+/i, "")
     
-      text = text.squeeze(" ").strip.upcase
+      text = normalize_series_text(text)
       text.presence
     end
   end

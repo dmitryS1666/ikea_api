@@ -49,7 +49,7 @@ module Categories
     def collect_measurements
       result = Hash.new { |h, k| h[k] = [] }
 
-      category.products_through_categories.find_each do |product|
+      Product.catalog_category_scope(category.ikea_id).find_each do |product|
         measurements = indexer.send(:extract_measurements, product)
 
         measurements.each do |type, value|

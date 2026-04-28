@@ -46,6 +46,15 @@ class Product < ApplicationRecord
     where(category_id: ikea_id).or(where(id: linked_ids))
   }
 
+  # Единая область товаров категории для каталога, фильтров и переиндексации.
+  # В проекте товары могут быть привязаны двумя способами:
+  #   1) напрямую через products.category_id;
+  #   2) через join category_products.
+  # Если использовать только category_products, часть товаров/значений фильтров теряется.
+  scope :catalog_category_scope, lambda { |ikea_id|
+    in_category_ikea_id(ikea_id).active.with_available_stock
+  }
+
   # Локальные пути ещё указывают на jpg/jpeg/png (до конвертации в .webp в хранилище)
   scope :with_raster_local_images, lambda {
     where.not(local_images: [nil, "", "[]"])
