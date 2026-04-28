@@ -78,6 +78,19 @@ Trestle.resource :parser_control, model: ParserControl do
             payload[:detach_orphans] = rc[:detach_orphans] unless rc[:detach_orphans].nil?
           end
 
+          if task_type == "refresh_product_lt"
+            rc = parse_refresh_product_lt_extra(extra_data)
+            if rc[:sku].blank?
+              flash[:error] = "Укажите SKU товара (строкой или JSON: {\"sku\":\"60580273\",\"category_ikea_id\":\"20515\",\"lt_jsonl_path\":\"/path/file.jsonl\",\"process_related\":true})"
+              redirect_to admin.instance_path(ParserControl.new(id: 'show'))
+              return
+            end
+            payload[:sku] = rc[:sku]
+            payload[:category_ikea_id] = rc[:category_ikea_id] if rc[:category_ikea_id].present?
+            payload[:lt_jsonl_path] = rc[:lt_jsonl_path] if rc[:lt_jsonl_path].present?
+            payload[:process_related] = rc[:process_related] unless rc[:process_related].nil?
+          end
+
           if task_type == "category_filters_one"
             rc = parse_category_filters_one_extra(extra_data)
             if rc[:ikea_id].blank?
@@ -138,6 +151,8 @@ Trestle.resource :parser_control, model: ParserControl do
           # Передаем task_id в job и сохраняем job_id
           job = if task_type == 'refresh_category_lt'
                   job_class.perform_later(task_id: task.id, ikea_id: payload[:ikea_id].to_s)
+                elsif task_type == 'refresh_product_lt'
+                  job_class.perform_later(task_id: task.id, sku: payload[:sku].to_s)
                 elsif task_type == 'category_filters_one'
                   job_class.perform_later(
                     payload[:ikea_id].to_s,
@@ -511,6 +526,40 @@ Trestle.resource :parser_control, model: ParserControl do
       end
     end
 
+    def parse_refresh_product_lt_extra(raw)
+      s = raw.to_s.strip
+      return { sku: nil, category_ikea_id: nil, lt_jsonl_path: nil, process_related: nil } if s.blank?
+
+      unless s.start_with?("{")
+        return {
+          sku: Products::ListingSkuResolver.coerce_listing_identifier(s),
+          category_ikea_id: nil,
+          lt_jsonl_path: nil,
+          process_related: nil
+        }
+      end
+
+      begin
+        h = JSON.parse(s)
+        return { sku: nil, category_ikea_id: nil, lt_jsonl_path: nil, process_related: nil } unless h.is_a?(Hash)
+
+        has_process_related = h.key?("process_related") || h.key?(:process_related)
+        {
+          sku: Products::ListingSkuResolver.coerce_listing_identifier(h["sku"] || h[:sku]),
+          category_ikea_id: (h["category_ikea_id"] || h[:category_ikea_id]).to_s.strip.presence,
+          lt_jsonl_path: (h["lt_jsonl_path"] || h[:lt_jsonl_path]).to_s.strip.presence,
+          process_related: has_process_related ? ActiveModel::Type::Boolean.new.cast(h["process_related"] || h[:process_related]) : nil
+        }
+      rescue JSON::ParserError
+        {
+          sku: Products::ListingSkuResolver.coerce_listing_identifier(s),
+          category_ikea_id: nil,
+          lt_jsonl_path: nil,
+          process_related: nil
+        }
+      end
+    end
+
     def job_class_for_task_type(task_type)
       case task_type
       when 'categories'
@@ -549,6 +598,8 @@ Trestle.resource :parser_control, model: ParserControl do
         RecoverMissingWeightsJob
       when 'refresh_category_lt'
         RefreshCategoryFromLtJob
+      when 'refresh_product_lt'
+        RefreshProductFromLtJob
       when 'category_filters_one'
         ReindexCategoryFiltersJob
       when 'pl_prices_stock'
@@ -589,6 +640,7 @@ Trestle.resource :parser_control, model: ParserControl do
         'update_product_variants' => 'Актуализация вариантов (цвета/размеры)',
         'recover_missing_weights' => 'Восполнение недостающего веса (2 потока + прокси)',
         'refresh_category_lt' => 'Актуализация категории (список с LT, PL-поля)',
+        'refresh_product_lt' => 'Актуализация одного товара по SKU (LT/PL)',
         'pl_prices_stock' => 'Обновление цен и остатков (PL) для всех SKU'
       }[type] || type
     end
