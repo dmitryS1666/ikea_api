@@ -73,15 +73,15 @@ module Api
 
       def europost_offices
         offices = EuropostApiService.offices_out
-        render json: { 
+        render json: {
           offices: offices.map { |o|
             {
               external_id: o['WarehouseId'],
               name: o['WarehouseName'],
               city: o['Address7Name'],
-              address: o['Info1'].presence || "#{o['Address5Name']}, #{o['Address4Name']} #{o['Address3Name']}",
+              address: europost_address(o),
               phone: nil,
-              working_hours: o['Info1'],
+              working_hours: europost_working_hours(o),
               lat: o['Latitude'],
               lon: o['Longitude'],
               provider: 'europost'
@@ -112,6 +112,22 @@ module Api
       end
 
       private
+
+      def europost_address(office)
+        [office['Address5Name'], office['Address4Name'], office['Address3Name']]
+          .map { |value| value.to_s.strip }
+          .reject(&:blank?)
+          .join(', ')
+          .presence
+      end
+
+      def europost_working_hours(office)
+        info_texts = [office['Info1'], office['Info2'], office['Info3']]
+          .map { |value| value.to_s.strip }
+          .reject(&:blank?)
+
+        info_texts.find { |text| text.match?(/режим\s*работы|hours|time/i) } || info_texts.first || ""
+      end
 
       def calculation_basis
         if params[:cart_token].present?
