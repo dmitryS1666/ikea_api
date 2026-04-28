@@ -75,6 +75,8 @@ Rails.application.routes.draw do
         resources :purchases, only: [:index]
         resources :returns, only: [:index, :create]
         resources :receipts, only: [:index]
+        resources :delivery_addresses, only: [:index, :create, :update, :destroy]
+        resources :pickup_points, only: [:index, :create, :destroy]
       end
 
       # Public forms
@@ -103,7 +105,6 @@ Rails.application.routes.draw do
           get :pickup_points
           get :pickup_points_search
           get :europost_offices
-          get :autolight_offices
         end
       end
       

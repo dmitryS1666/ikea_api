@@ -24,22 +24,11 @@ else
   puts "FAILURE: Europost tracking info mismatch."
 end
 
-order.update!(delivery_type: 'autolight', track_number: 'AL987654321')
-puts "\nTesting Autolight Tracking:"
-tracking = DeliveryTrackingService.call(order)
-puts tracking.inspect
-
-if tracking[:provider] == 'Автолайт' && tracking[:tracking_url].include?('AL987654321')
-  puts "SUCCESS: Autolight tracking info correct."
-else
-  puts "FAILURE: Autolight tracking info mismatch."
-end
-
 puts "\nTesting Serializer Output:"
 json = OrderSerializer.new(order).serializable_hash.to_json
 puts json
 
-if json.include?('tracking_info') && json.include?('AL987654321')
+if json.include?('tracking_info') && json.include?('EP123456789')
   puts "SUCCESS: Serializer includes tracking info."
 else
   puts "FAILURE: Serializer missing tracking info."

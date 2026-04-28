@@ -8,8 +8,9 @@ module Api
       def types
         render json: {
           types: [
-            { key: 'pickup', name: 'Пункт выдачи' },
-            { key: 'courier', name: 'Курьер' }
+            { key: DeliveryTypeNormalizer::EUROPOST_PICKUP, name: 'Пункт выдачи Европочты' },
+            { key: DeliveryTypeNormalizer::COURIER, name: 'Курьер' },
+            { key: DeliveryTypeNormalizer::IKEYA_DELIVERY, name: 'Доставка IKEYA' }
           ],
           providers: PickupPoint::PROVIDERS
         }
@@ -18,6 +19,34 @@ module Api
       # POST /api/v1/delivery/calculate
       # Either provide cart_token or items.
       def calculate
+        delivery_type = params[:delivery_type].to_s
+        normalized_delivery_type = DeliveryTypeNormalizer.normalize(params[:delivery_type])
+        cart_for_options = cart_for_delivery_options
+        options = DeliveryOptionsService.call(cart_for_options)
+        selected_method = options[:methods].find { |m| m[:code] == normalized_delivery_type }
+
+        if selected_method.nil?
+          return render json: {
+            error: "Неподдерживаемый тип доставки",
+            delivery_type: delivery_type,
+            normalized_delivery_type: normalized_delivery_type
+          }, status: :unprocessable_entity
+        end
+
+        unless selected_method[:available]
+          return render json: {
+            error: "Выбранный тип доставки недоступен для текущей корзины",
+            delivery_type: delivery_type,
+            normalized_delivery_type: normalized_delivery_type,
+            reason: selected_method[:reason],
+            available_methods: options[:methods]
+          }, status: :unprocessable_entity
+        end
+
+        eta = DeliveryEtaService.call(
+          order_date: Date.current,
+          with_storage: normalized_delivery_type == DeliveryTypeNormalizer::EUROPOST_PICKUP
+        )
         weight_kg, _, subtotal_byn = calculation_basis
         
         # Получаем расчет через новый сервис для консистентности
@@ -31,6 +60,17 @@ module Api
         
         total_delivery_pln = poland_delivery_pln + belarus_delivery_pln
         total_delivery_byn = (total_delivery_pln * pln_rate_with_buffer).round(2)
+        poland_delivery_byn = (poland_delivery_pln * pln_rate_with_buffer).round(2)
+        belarus_delivery_byn = (belarus_delivery_pln * pln_rate_with_buffer).round(2)
+
+        delivery_price_byn =
+          if normalized_delivery_type == DeliveryTypeNormalizer::IKEYA_DELIVERY
+            0.0
+          else
+            poland_delivery_byn
+          end
+        delivery_to_belarus_price_byn = belarus_delivery_byn
+        total_delivery_price_byn = (delivery_price_byn + delivery_to_belarus_price_byn).round(2)
 
         rules = CartRulesService.call(subtotal_new_byn: subtotal_byn)
 
@@ -43,13 +83,30 @@ module Api
             subtotal_byn: sprintf('%.2f', subtotal_byn)
           },
           delivery: {
-            type: params[:delivery_type],
+            type: normalized_delivery_type,
+            eta: {
+              delivery_date: eta[:delivery_date],
+              storage_until: eta[:storage_until]
+            },
             base_cost_byn: sprintf('%.2f', total_delivery_byn),
-            poland_delivery_byn: sprintf('%.2f', (poland_delivery_pln * pln_rate_with_buffer).round(2)),
-            belarus_delivery_byn: sprintf('%.2f', (belarus_delivery_pln * pln_rate_with_buffer).round(2)),
+            poland_delivery_byn: sprintf('%.2f', poland_delivery_byn),
+            belarus_delivery_byn: sprintf('%.2f', belarus_delivery_byn),
             free_delivery_threshold_byn: sprintf('%.2f', rules[:rules][:free_delivery_threshold_byn]),
             free_delivery_eligible: subtotal_byn >= rules[:rules][:free_delivery_threshold_byn],
-            free_delivery_missing_byn: sprintf('%.2f', rules[:flags][:free_delivery_missing_byn])
+            free_delivery_missing_byn: sprintf('%.2f', rules[:flags][:free_delivery_missing_byn]),
+            delivery_type: delivery_type,
+            normalized_delivery_type: normalized_delivery_type,
+            available: selected_method[:available],
+            delivery_date: eta[:delivery_date],
+            storage_until: eta[:storage_until],
+            delivery_price_byn: sprintf('%.2f', delivery_price_byn),
+            delivery_to_belarus_price_byn: sprintf('%.2f', delivery_to_belarus_price_byn),
+            total_delivery_price_byn: sprintf('%.2f', total_delivery_price_byn),
+            display: {
+              title: "Доставка",
+              subtitle: normalized_delivery_type,
+              total_delivery_price_byn: sprintf('%.2f', total_delivery_price_byn)
+            }
           },
           pickup_point: pp_eval
         }
@@ -72,6 +129,10 @@ module Api
       end
 
       def europost_offices
+        if params[:cart_id].present?
+          return render_filtered_europost_offices_for_cart
+        end
+
         offices = EuropostApiService.offices_out
         render json: {
           offices: offices.map { |o|
@@ -85,27 +146,6 @@ module Api
               lat: o['Latitude'],
               lon: o['Longitude'],
               provider: 'europost'
-            }
-          }
-        }
-      end
-
-      def autolight_offices
-        res = AutolightApiService.get_post_offices_list
-        offices = res['result'] || []
-        
-        render json: {
-          offices: offices.map { |o|
-            {
-              external_id: o['code'],
-              name: o['name'],
-              city: o['cityName'],
-              address: o['address'],
-              phone: o['contacts'],
-              working_hours: o['workTime'],
-              lat: o['coordLat'],
-              lon: o['coordLong'],
-              provider: 'autolight'
             }
           }
         }
@@ -172,21 +212,14 @@ module Api
       end
 
       def pickup_point_eligibility(pp, weight_kg, volume_m3)
-        eligible = true
-        reasons = []
-
-        if pp.max_weight_kg.present? && weight_kg.to_f > pp.max_weight_kg.to_f
-          eligible = false
-          reasons << 'max_weight_exceeded'
-        end
-        if pp.max_volume_m3.present? && volume_m3.to_f > pp.max_volume_m3.to_f
-          eligible = false
-          reasons << 'max_volume_exceeded'
-        end
-
+        eligibility = DeliveryOptionsService.pickup_point_eligibility(
+          pp: pp,
+          weight_kg: weight_kg,
+          volume_m3: volume_m3
+        )
         payload = pickup_point_payload(pp)
-        payload[:eligible] = eligible
-        payload[:reasons] = reasons
+        payload[:eligible] = eligibility[:eligible]
+        payload[:reasons] = eligibility[:reasons]
         payload
       end
 
@@ -202,6 +235,89 @@ module Api
           lat: p.lat&.to_f,
           lon: p.lon&.to_f,
           priority: p.priority
+        }
+      end
+
+      def cart_for_delivery_options
+        return cart_from_items if params[:cart_token].blank? && params[:items].present?
+
+        cart, = CartTokenResolver.call(request: request, params: { cart_token: params[:cart_token] })
+        cart
+      end
+
+      def cart_from_items
+        items = Array(params[:items])
+        skus = items.map { |i| i[:sku] || i['sku'] }.compact
+        products = Product.where(sku: skus).index_by(&:sku)
+
+        virtual_item = Struct.new(:product, :quantity)
+        virtual_items = items.filter_map do |entry|
+          sku = (entry[:sku] || entry['sku']).to_s
+          quantity = (entry[:quantity] || entry['quantity']).to_i
+          product = products[sku]
+          next if product.nil? || quantity <= 0
+
+          virtual_item.new(product, quantity)
+        end
+
+        Struct.new(:cart_items).new(virtual_items)
+      end
+
+      def render_filtered_europost_offices_for_cart
+        cart = Cart.find_by(id: params[:cart_id])
+        unless cart
+          render json: { error: "Корзина не найдена" }, status: :unprocessable_entity
+          return
+        end
+
+        options = DeliveryOptionsService.call(cart)
+        cart_vgh = options[:cart_vgh]
+        parcels = options[:parcels]
+        eta = DeliveryEtaService.call(order_date: Date.current, with_storage: true)
+        pricing = delivery_pricing_for_weight(cart_vgh[:weight_kg].to_f)
+
+        points = PickupPoint.active.where(provider: "europost").ordered
+        offices = points.filter_map do |point|
+          available_for_cart = cart_vgh[:eligible_for_europost] &&
+                               DeliveryOptionsService.pickup_point_supports_parcels?(pp: point, parcels: parcels)
+          next unless available_for_cart
+
+          {
+            id: point.id,
+            provider: "europost",
+            external_id: point.id.to_s,
+            city: point.city,
+            address: point.address,
+            working_hours: point.working_hours,
+            lat: point.lat&.to_f,
+            lng: point.lon&.to_f,
+            available_for_cart: true,
+            delivery_date: eta[:delivery_date],
+            storage_until: eta[:storage_until],
+            delivery_price_byn: sprintf("%.2f", pricing[:delivery_price_byn]),
+            delivery_to_belarus_price_byn: sprintf("%.2f", pricing[:delivery_to_belarus_price_byn]),
+            total_delivery_price_byn: sprintf("%.2f", pricing[:total_delivery_price_byn])
+          }
+        end
+
+        render json: { offices: offices }
+      end
+
+      def delivery_pricing_for_weight(weight_kg)
+        pln_rate = ExchangeRate.fetch_or_create("PLN")&.rate_per_unit || 0
+        buffer = PriceCalculationService.exchange_rate_buffer
+        pln_rate_with_buffer = pln_rate * buffer
+
+        poland_delivery_pln = PolandDeliveryService.calculate(weight_kg)
+        belarus_delivery_pln = BelarusDeliveryService.calculate(weight_kg)
+
+        delivery_price_byn = (poland_delivery_pln * pln_rate_with_buffer).round(2)
+        delivery_to_belarus_price_byn = (belarus_delivery_pln * pln_rate_with_buffer).round(2)
+
+        {
+          delivery_price_byn: delivery_price_byn,
+          delivery_to_belarus_price_byn: delivery_to_belarus_price_byn,
+          total_delivery_price_byn: (delivery_price_byn + delivery_to_belarus_price_byn).round(2)
         }
       end
     end

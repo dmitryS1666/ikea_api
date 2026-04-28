@@ -1085,14 +1085,19 @@ paths:
                   example: "375291234567"
                 delivery_type:
                   type: string
-                  enum: [pickup, courier]
+                  enum: [pickup, europost_pickup, courier, ikeya_delivery]
+                  description: "pickup — deprecated alias, backend нормализует его в europost_pickup."
+                  examples:
+                    europost_pickup: { value: "europost_pickup" }
+                    courier: { value: "courier" }
+                    ikeya_delivery: { value: "ikeya_delivery" }
                 payment_method:
                   type: string
                   enum: [card, installment, qr, erip, oplati]
                   description: "card (карта онлайн), installment (рассрочка), qr (QR-код), erip (ЕРИП), oplati (Оплати)"
                 pickup_point_id:
                   type: integer
-                  description: "ID ПВЗ (обязательно для delivery_type=pickup)"
+                  description: "ID ПВЗ (обязательно для delivery_type=europost_pickup; legacy pickup также поддержан и нормализуется)"
                 a1_verification_id:
                   type: string
                   description: "ID верификации A1 (обязательно при изменении паспорта, может быть получено из профиля)"
@@ -1107,6 +1112,21 @@ paths:
                       type: string
                     apartment:
                       type: string
+                    is_private_house:
+                      type: boolean
+                      example: true
+                    entrance:
+                      type: string
+                      nullable: true
+                    floor:
+                      type: string
+                      nullable: true
+                    has_elevator:
+                      type: boolean
+                      nullable: true
+                    intercom:
+                      type: string
+                      nullable: true
                 passport:
                   type: object
                   properties:
@@ -1276,39 +1296,49 @@ paths:
 
   /api/v1/delivery/europost_offices:
     get:
-      summary: Получить список отделений Европочты напрямую из API
+      summary: Получить список отделений Европочты
       tags:
         - Delivery
+      parameters:
+        - name: cart_id
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: При передаче cart_id возвращаются только подходящие ПВЗ по ВГХ корзины с ценой и ETA.
       responses:
         '200':
           description: Список отделений Европочты
           content:
             application/json:
+              examples:
+                cart_filtered:
+                  summary: ПВЗ с ETA/storage/prices
+                  value:
+                    offices:
+                      - id: 10
+                        provider: europost
+                        external_id: "12345"
+                        city: "Минск"
+                        address: "пр-т Пушкина, д. 28"
+                        working_hours: "Пн-Вс 10:00-21:00"
+                        lat: 53.9123
+                        lng: 27.4567
+                        available_for_cart: true
+                        delivery_date: "2026-05-12"
+                        storage_until: "2026-05-26"
+                        delivery_price_byn: "8.00"
+                        delivery_to_belarus_price_byn: "80.00"
+                        total_delivery_price_byn: "88.00"
               schema:
                 type: object
                 properties:
                   offices:
                     type: array
                     items:
-                      $ref: '#/components/schemas/EuropostOffice'
-
-  /api/v1/delivery/autolight_offices:
-    get:
-      summary: Получить список отделений Автолайтэкспресс напрямую из API
-      tags:
-        - Delivery
-      responses:
-        '200':
-          description: Список отделений Автолайтэкспресс
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  offices:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/AutolightOffice'
+                      oneOf:
+                        - $ref: '#/components/schemas/EuropostOffice'
+                        - $ref: '#/components/schemas/EuropostOfficeForCart'
 
   /api/v1/delivery/calculate:
     post:
@@ -1325,7 +1355,13 @@ paths:
                   type: string
                 delivery_type:
                   type: string
-                  enum: [pickup, courier]
+                  enum: [pickup, europost_pickup, courier, ikeya_delivery]
+                  description: "pickup — deprecated alias, backend нормализует его в europost_pickup."
+                  examples:
+                    pickup_alias: { value: "pickup" }
+                    europost_pickup: { value: "europost_pickup" }
+                    courier: { value: "courier" }
+                    ikeya_delivery: { value: "ikeya_delivery" }
                 pickup_point_id:
                   type: integer
                 items:
@@ -1576,6 +1612,173 @@ paths:
                   added_skus: { type: array, items: { type: string } }
                   missing_skus: { type: array, items: { type: string } }
                   has_missing: { type: boolean }
+
+  /api/v1/account/delivery_addresses:
+    get:
+      summary: Список адресов доставки пользователя
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Список адресов
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserDeliveryAddress'
+    post:
+      summary: Создать адрес доставки
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserDeliveryAddressInput'
+      responses:
+        '201':
+          description: Адрес создан
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/UserDeliveryAddress'
+        '422':
+          description: Ошибка валидации
+
+  /api/v1/account/delivery_addresses/{id}:
+    patch:
+      summary: Обновить адрес доставки
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserDeliveryAddressInput'
+      responses:
+        '200':
+          description: Адрес обновлен
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/UserDeliveryAddress'
+        '404':
+          description: Адрес не найден
+        '422':
+          description: Ошибка валидации
+    delete:
+      summary: Удалить адрес доставки
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Адрес удален
+        '404':
+          description: Адрес не найден
+
+  /api/v1/account/pickup_points:
+    get:
+      summary: Список сохраненных ПВЗ пользователя
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Список ПВЗ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserPickupPoint'
+    post:
+      summary: Сохранить ПВЗ пользователя
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPickupPointInput'
+      responses:
+        '201':
+          description: ПВЗ сохранен
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/UserPickupPoint'
+        '200':
+          description: ПВЗ уже был сохранен, данные обновлены
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/UserPickupPoint'
+        '422':
+          description: Ошибка валидации
+
+  /api/v1/account/pickup_points/{id}:
+    delete:
+      summary: Удалить сохраненный ПВЗ
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: ПВЗ удален
+        '404':
+          description: ПВЗ не найден
 
   /api/v1/account/profile:
     get:
@@ -2702,6 +2905,85 @@ components:
           $ref: '#/components/schemas/PassportData'
         a1_verification_id: { type: string }
 
+    UserDeliveryAddress:
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string, example: "user_delivery_address" }
+        attributes:
+          type: object
+          properties:
+            id: { type: integer }
+            city: { type: string }
+            street: { type: string }
+            house: { type: string }
+            building: { type: string, nullable: true }
+            apartment: { type: string, nullable: true }
+            entrance: { type: string, nullable: true }
+            floor: { type: string, nullable: true }
+            has_elevator: { type: boolean, nullable: true }
+            intercom: { type: string, nullable: true }
+            is_private_house: { type: boolean }
+            lat: { type: number, nullable: true }
+            lng: { type: number, nullable: true }
+            comment: { type: string, nullable: true }
+            formatted_address: { type: string }
+            created_at: { type: string, format: date-time }
+            updated_at: { type: string, format: date-time }
+
+    UserDeliveryAddressInput:
+      type: object
+      required: [city, street, house]
+      properties:
+        city: { type: string }
+        street: { type: string }
+        house: { type: string }
+        building: { type: string }
+        apartment: { type: string }
+        entrance: { type: string }
+        floor: { type: string }
+        has_elevator: { type: boolean }
+        intercom: { type: string }
+        is_private_house: { type: boolean }
+        lat: { type: number }
+        lng: { type: number }
+        comment: { type: string }
+
+    UserPickupPoint:
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string, example: "user_pickup_point" }
+        attributes:
+          type: object
+          properties:
+            id: { type: integer }
+            pickup_point_id: { type: integer, nullable: true }
+            provider: { type: string, enum: [europost] }
+            external_id: { type: string }
+            city: { type: string, nullable: true }
+            address: { type: string, nullable: true }
+            working_hours: { type: string, nullable: true }
+            lat: { type: number, nullable: true }
+            lng: { type: number, nullable: true }
+            raw_payload: { type: object }
+            created_at: { type: string, format: date-time }
+            updated_at: { type: string, format: date-time }
+
+    UserPickupPointInput:
+      type: object
+      required: [provider, external_id]
+      properties:
+        pickup_point_id: { type: integer, nullable: true }
+        provider: { type: string, enum: [europost] }
+        external_id: { type: string }
+        city: { type: string }
+        address: { type: string }
+        working_hours: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+        raw_payload: { type: object }
+
     PassportData:
       type: object
       properties:
@@ -3575,7 +3857,7 @@ components:
       type: object
       properties:
         id: { type: integer }
-        provider: { type: string, enum: [ikea, europost, autolight] }
+        provider: { type: string, enum: [ikea, europost] }
         name: { type: string }
         city: { type: string }
         address: { type: string }
@@ -3598,18 +3880,23 @@ components:
         lon: { type: string }
         provider: { type: string, example: "europost" }
 
-    AutolightOffice:
+    EuropostOfficeForCart:
       type: object
       properties:
-        external_id: { type: string, example: "1234" }
-        name: { type: string, example: "CityPost01" }
-        city: { type: string, example: "Минск г." }
-        address: { type: string, example: "CityPost01, г.Минск, ул.Л.Беды 46" }
-        phone: { type: string, example: "+375291234567" }
-        working_hours: { type: string, example: "пн-вс 07:00 - 23:00" }
-        lat: { type: string, example: "53.9428" }
-        lon: { type: string, example: "27.5987" }
-        provider: { type: string, example: "autolight" }
+        id: { type: integer }
+        provider: { type: string, example: "europost" }
+        external_id: { type: string, example: "12345" }
+        city: { type: string, example: "Минск" }
+        address: { type: string, example: "пр-т Пушкина, д. 28" }
+        working_hours: { type: string, example: "Пн-Вс 10:00-21:00" }
+        lat: { type: number, example: 53.9123 }
+        lng: { type: number, example: 27.4567 }
+        available_for_cart: { type: boolean }
+        delivery_date: { type: string, format: date }
+        storage_until: { type: string, format: date, nullable: true }
+        delivery_price_byn: { type: string, example: "8.00" }
+        delivery_to_belarus_price_byn: { type: string, example: "80.00" }
+        total_delivery_price_byn: { type: string, example: "88.00" }
 
     FavoriteResponse:
       type: object

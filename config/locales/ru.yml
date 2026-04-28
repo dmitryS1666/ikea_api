@@ -482,7 +482,6 @@ ru:
         providers:
           ikea: "IKEA"
           europost: "Европочта"
-          autolight: "Автолайт"
         priority: "Приоритет"
         active: "Активен"
         updated_at: "Обновлено"

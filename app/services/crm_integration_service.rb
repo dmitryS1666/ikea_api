@@ -329,11 +329,14 @@ class CrmIntegrationService
       }
     end
 
-    delivery_enum_id = case order.delivery_type.to_s.downcase
+    normalized_delivery_type = DeliveryTypeNormalizer.normalize(order.delivery_type)
+
+    delivery_enum_id = case normalized_delivery_type
     when 'belpost'   then 831829
     when 'evropost'  then 831831
-    when 'autolight' then 831833
+    when 'europost_pickup' then 831831
     when 'courier'   then 831835
+    when 'ikeya_delivery' then 831835
     else nil
     end
 

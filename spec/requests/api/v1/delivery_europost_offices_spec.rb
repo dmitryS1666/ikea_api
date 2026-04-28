@@ -1,0 +1,70 @@
+require "rails_helper"
+
+RSpec.describe "Delivery Europost offices", type: :request do
+  describe "GET /api/v1/delivery/europost_offices" do
+    before do
+      allow(ExchangeRate).to receive(:fetch_or_create).and_return(double(rate_per_unit: 3.0))
+      allow(PriceCalculationService).to receive(:exchange_rate_buffer).and_return(1.0)
+    end
+
+    it "keeps old behavior without cart_id" do
+      allow(EuropostApiService).to receive(:offices_out).and_return(
+        [{ "WarehouseId" => "123", "WarehouseName" => "EP-1", "Address7Name" => "Минск", "Latitude" => "53.9", "Longitude" => "27.5" }]
+      )
+
+      get "/api/v1/delivery/europost_offices"
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["offices"]).to be_an(Array)
+      expect(body["offices"].first["provider"]).to eq("europost")
+      expect(body["offices"].first).to have_key("external_id")
+    end
+
+    it "filters out non-eligible pickup points when cart_id is provided" do
+      cart = create(:cart)
+      product = create(:product, sku: "SKU-EP-1", quantity: 10, weight: 10.0, package_volume: 0.02, package_dimensions: "20 x 30 x 40 cm", dimensions: "20 x 30 x 40 cm", full_attributes: {})
+      create(:cart_item, cart: cart, product_sku: product.sku, quantity: 2) # total weight 20, volume 0.04
+
+      create(:pickup_point, provider: "europost", max_weight_kg: 9.9, max_volume_m3: 0.019, city: "Минск", address: "A")
+      eligible = create(:pickup_point, provider: "europost", max_weight_kg: 50.0, max_volume_m3: 1.0, city: "Минск", address: "B")
+
+      get "/api/v1/delivery/europost_offices", params: { cart_id: cart.id }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      ids = body["offices"].map { |o| o["id"] }
+      expect(ids).to contain_exactly(eligible.id)
+      expect(body["offices"].first["available_for_cart"]).to be(true)
+    end
+
+    it "keeps pickup point without limits as available" do
+      cart = create(:cart)
+      product = create(:product, sku: "SKU-EP-2", quantity: 10, weight: 3.0, package_volume: 0.01, package_dimensions: "10 x 20 x 30 cm", dimensions: "10 x 20 x 30 cm", full_attributes: {})
+      create(:cart_item, cart: cart, product_sku: product.sku, quantity: 2)
+
+      point_without_limits = create(:pickup_point, provider: "europost", max_weight_kg: nil, max_volume_m3: nil)
+
+      get "/api/v1/delivery/europost_offices", params: { cart_id: cart.id }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      ids = body["offices"].map { |o| o["id"] }
+      expect(ids).to include(point_without_limits.id)
+    end
+
+    it "returns empty offices when cart is not eligible for europost VGH" do
+      cart = create(:cart)
+      product = create(:product, sku: "SKU-EP-3", quantity: 10, weight: nil, package_volume: nil, package_dimensions: nil, dimensions: nil, full_attributes: {})
+      create(:cart_item, cart: cart, product_sku: product.sku, quantity: 1)
+
+      create(:pickup_point, provider: "europost", max_weight_kg: 50.0, max_volume_m3: 1.0)
+
+      get "/api/v1/delivery/europost_offices", params: { cart_id: cart.id }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["offices"]).to eq([])
+    end
+  end
+end

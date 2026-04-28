@@ -14,6 +14,8 @@ class User < ApplicationRecord
   scope :active, -> { where(is_active: true) }
 
   has_many :orders, dependent: :nullify
+  has_many :user_delivery_addresses, dependent: :destroy
+  has_many :user_pickup_points, dependent: :destroy
   has_many :reviews, dependent: :nullify
   has_many :return_requests, dependent: :destroy
   has_one :cart, dependent: :destroy

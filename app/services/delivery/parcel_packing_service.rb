@@ -1,0 +1,186 @@
+class Delivery
+  class ParcelPackingService
+    # TODO: tune with real provider limits from business.
+    DEFAULT_MAX_WEIGHT_KG = 30.0
+    DEFAULT_MAX_VOLUME_M3 = 0.25
+    DEFAULT_MAX_DIMENSION_CM = 120.0
+
+    def self.call(cart)
+      parcels = build_parcels(cart)
+      totals = parcel_totals(parcels)
+
+      first_ineligible = parcels.find { |parcel| !parcel[:eligible_for_europost] }
+
+      {
+        total_weight_kg: totals[:total_weight_kg],
+        total_volume_m3: totals[:total_volume_m3],
+        max_dimension_cm: totals[:max_dimension_cm],
+        parcels: parcels,
+        eligible_for_europost: first_ineligible.nil?,
+        ineligible_reason: first_ineligible&.dig(:ineligible_reason)
+      }
+    end
+
+    def self.europost_limits
+      {
+        max_weight_kg: CalculatorSetting.get("europost_max_weight_kg") || DEFAULT_MAX_WEIGHT_KG,
+        max_volume_m3: CalculatorSetting.get("europost_max_volume_m3") || DEFAULT_MAX_VOLUME_M3,
+        max_dimension_cm: CalculatorSetting.get("europost_max_dimension_cm") || DEFAULT_MAX_DIMENSION_CM,
+        side_dimensions_cm: normalize_side_limits(CalculatorSetting.get("europost_max_side_dimensions_cm"))
+      }
+    end
+
+    def self.evaluate_parcel(parcel)
+      limits = europost_limits
+
+      return ineligible(parcel, "missing_product") if parcel[:sku].blank?
+      return ineligible(parcel, "missing_weight") if parcel[:weight_kg].to_f <= 0
+      return ineligible(parcel, "missing_dimensions") if [parcel[:width_cm], parcel[:height_cm], parcel[:depth_cm]].any? { |x| x.to_f <= 0 }
+      return ineligible(parcel, "missing_volume") if parcel[:volume_m3].to_f <= 0
+
+      return ineligible(parcel, "max_weight_exceeded") if parcel[:weight_kg].to_f > limits[:max_weight_kg].to_f
+      return ineligible(parcel, "max_volume_exceeded") if parcel[:volume_m3].to_f > limits[:max_volume_m3].to_f
+
+      max_dim = [parcel[:width_cm], parcel[:height_cm], parcel[:depth_cm]].map(&:to_f).max
+      return ineligible(parcel, "max_dimension_exceeded") if max_dim > limits[:max_dimension_cm].to_f
+
+      if limits[:side_dimensions_cm].present?
+        parcel_sides = [parcel[:width_cm], parcel[:height_cm], parcel[:depth_cm]].map(&:to_f).sort
+        side_limits = limits[:side_dimensions_cm].sort
+        exceeds = parcel_sides.each_with_index.any? { |side, idx| side > side_limits[idx].to_f }
+        return ineligible(parcel, "side_limits_exceeded") if exceeds
+      end
+
+      eligible(parcel)
+    end
+
+    def self.build_parcels(cart)
+      items = cart_items(cart)
+
+      items.flat_map do |item|
+        quantity = item.quantity.to_i
+        next [] if quantity <= 0
+
+        product = item.product
+        sku = product&.sku || item.try(:product_sku)
+        product_id = product&.id
+        metrics = parcel_metrics(product)
+
+        quantity.times.map do
+          parcel = {
+            product_id: product_id,
+            sku: sku,
+            quantity: 1,
+            weight_kg: metrics[:weight_kg],
+            width_cm: metrics[:width_cm],
+            height_cm: metrics[:height_cm],
+            depth_cm: metrics[:depth_cm],
+            volume_m3: metrics[:volume_m3]
+          }
+
+          evaluate_parcel(parcel)
+        end
+      end
+    end
+
+    def self.cart_items(cart)
+      source = cart.cart_items
+      return source.includes(:product) if source.respond_to?(:includes)
+
+      Array(source)
+    end
+
+    def self.parcel_metrics(product)
+      return { weight_kg: nil, width_cm: nil, height_cm: nil, depth_cm: nil, volume_m3: nil } unless product
+
+      weight = product.weight.presence || product.net_weight
+      sides = extract_sides(product)
+      width, height, depth = sides
+
+      volume = product.package_volume.to_f
+      volume = (width.to_f * height.to_f * depth.to_f / 1_000_000.0).round(6) if volume <= 0 && [width, height, depth].all?(&:present?)
+
+      {
+        weight_kg: weight&.to_f,
+        width_cm: width&.to_f,
+        height_cm: height&.to_f,
+        depth_cm: depth&.to_f,
+        volume_m3: (volume if volume.positive?)
+      }
+    end
+
+    def self.extract_sides(product)
+      candidates = []
+      candidates += extract_numbers(product.package_dimensions)
+      candidates += extract_numbers(product.dimensions)
+      candidates += extract_numbers_from_nested(product.full_attributes)
+
+      numbers = candidates.compact.select { |v| v.to_f.positive? }.map(&:to_f)
+      numbers = numbers.sort.reverse.first(3)
+      return [nil, nil, nil] if numbers.size < 3
+
+      [numbers[0], numbers[1], numbers[2]]
+    end
+
+    def self.extract_numbers_from_nested(value)
+      case value
+      when Hash
+        value.values.flat_map { |nested| extract_numbers_from_nested(nested) }
+      when Array
+        value.flat_map { |nested| extract_numbers_from_nested(nested) }
+      when String
+        extract_numbers(value)
+      else
+        []
+      end
+    end
+
+    def self.extract_numbers(text)
+      str = text.to_s
+      return [] if str.blank?
+
+      str.scan(/(\d+(?:[.,]\d+)?)\s*(cm|см|mm|мм|m|м)?/i).map do |number, unit|
+        value = number.to_s.tr(",", ".").to_f
+        next if value <= 0
+        convert_to_cm(value, unit)
+      end.compact
+    end
+
+    def self.convert_to_cm(value, unit)
+      case unit.to_s.downcase
+      when "mm", "мм" then value / 10.0
+      when "m", "м" then value * 100.0
+      else value
+      end
+    end
+
+    def self.parcel_totals(parcels)
+      {
+        total_weight_kg: parcels.sum { |p| p[:weight_kg].to_f }.round(3),
+        total_volume_m3: parcels.sum { |p| p[:volume_m3].to_f }.round(6),
+        max_dimension_cm: parcels.flat_map { |p| [p[:width_cm], p[:height_cm], p[:depth_cm]].compact }.map(&:to_f).max.to_f.round(2)
+      }
+    end
+
+    def self.eligible(parcel)
+      parcel.merge(eligible_for_europost: true, ineligible_reason: nil)
+    end
+
+    def self.ineligible(parcel, reason)
+      parcel.merge(eligible_for_europost: false, ineligible_reason: reason)
+    end
+
+    def self.normalize_side_limits(raw)
+      case raw
+      when Array
+        values = raw.map(&:to_f).select(&:positive?)
+        values.size == 3 ? values : nil
+      when String
+        values = raw.split(/[xх,; ]+/i).map(&:to_f).select(&:positive?)
+        values.size == 3 ? values : nil
+      else
+        nil
+      end
+    end
+  end
+end

@@ -26,8 +26,10 @@ module Api
           :delivery_type,
           :payment_method,
           :pickup_point_id,
+          :delivery_address_id,
           :a1_verification_id,
           services: [],
+          pickup_point: {},
           address: {},
           passport: {}
         )

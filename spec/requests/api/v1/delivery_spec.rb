@@ -22,7 +22,12 @@ RSpec.describe 'Delivery API', type: :request do
         type: :object,
         properties: {
           cart_token: { type: :string, example: 'guest_token_123' },
-          delivery_type: { type: :string, example: 'pickup' },
+          delivery_type: {
+            type: :string,
+            enum: %w[pickup europost_pickup courier ikeya_delivery],
+            example: 'courier',
+            description: 'pickup — deprecated alias и нормализуется в europost_pickup'
+          },
           pickup_point_id: { type: :integer, example: 1 }
         }
       }

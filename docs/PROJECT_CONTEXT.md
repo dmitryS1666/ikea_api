@@ -35,7 +35,6 @@ This project is a Ruby on Rails API for a service that parses IKEA products and 
 
 ## Delivery Integrations (Planned/In Progress)
 - **Europost (Европочта)**
-- **Autolight (Автолайт)**
 - Tracking via `track_number` in `orders` table.
 
 ## Structure

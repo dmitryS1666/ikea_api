@@ -1,5 +1,5 @@
 class PickupPoint < ApplicationRecord
-  PROVIDERS = %w[ikea europost autolight].freeze
+  PROVIDERS = %w[ikea europost].freeze
 
   validates :provider, presence: true, inclusion: { in: PROVIDERS }
   validates :name, presence: true
