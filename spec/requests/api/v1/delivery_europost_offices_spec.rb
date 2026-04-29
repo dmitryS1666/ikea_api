@@ -23,8 +23,13 @@ RSpec.describe "Delivery Europost offices", type: :request do
 
     it "filters out non-eligible pickup points when cart_id is provided" do
       cart = create(:cart)
-      product = create(:product, sku: "SKU-EP-1", quantity: 10, weight: 10.0, package_volume: 0.02, package_dimensions: "20 x 30 x 40 cm", dimensions: "20 x 30 x 40 cm", full_attributes: {})
-      create(:cart_item, cart: cart, product_sku: product.sku, quantity: 2) # total weight 20, volume 0.04
+      # `package_volume` is stored in liters.
+      # We want the "bad" pickup point (max_volume_m3 = 0.019) to fail by volume (not by weight),
+      # therefore:
+      # - weight < max_weight_kg (9.9) => e.g. 9.0
+      # - volume_m3 = package_volume_liters / 1000 > 0.019 => e.g. 20.0 liters => 0.02 m³
+      product = create(:product, sku: "SKU-EP-1", quantity: 10, weight: 9.0, package_volume: 20.0, package_dimensions: "20 x 30 x 40 cm", dimensions: "20 x 30 x 40 cm", full_attributes: {})
+      create(:cart_item, cart: cart, product_sku: product.sku, quantity: 2) # 2 parcels
 
       create(:pickup_point, provider: "europost", max_weight_kg: 9.9, max_volume_m3: 0.019, city: "Минск", address: "A")
       eligible = create(:pickup_point, provider: "europost", max_weight_kg: 50.0, max_volume_m3: 1.0, city: "Минск", address: "B")

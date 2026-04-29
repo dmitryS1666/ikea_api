@@ -13,6 +13,9 @@ RSpec.describe Delivery::ParcelPackingService do
     allow(CalculatorSetting).to receive(:get).with("europost_max_volume_m3").and_return(0.25)
     allow(CalculatorSetting).to receive(:get).with("europost_max_dimension_cm").and_return(120.0)
     allow(CalculatorSetting).to receive(:get).with("europost_max_side_dimensions_cm").and_return(nil)
+    # Product has after_commit hooks that enqueue filter reindex jobs.
+    # Disable queue side-effects in this unit-level service spec.
+    allow(ReindexProductFiltersJob).to receive(:perform_later)
   end
 
   it "one product passes" do
@@ -37,7 +40,9 @@ RSpec.describe Delivery::ParcelPackingService do
   end
 
   it "one product fails by volume" do
-    product = create(:product, weight: 5, package_volume: 0.4, package_dimensions: "20 x 30 x 40 cm", dimensions: nil, full_attributes: {})
+    # `package_volume` is stored in liters.
+    # `europost_max_volume_m3` in this spec is 0.25, so we need volume_m3 > 0.25 => liters > 250.
+    product = create(:product, weight: 5, package_volume: 300.0, package_dimensions: "20 x 30 x 40 cm", dimensions: nil, full_attributes: {})
     add_item(product, quantity: 1)
 
     result = described_class.call(cart)

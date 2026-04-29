@@ -38,7 +38,8 @@ RSpec.describe DeliveryOptionsService do
       result = described_class.call(cart)
 
       expect(result[:cart_vgh][:weight_kg]).to eq(20.0)
-      expect(result[:cart_vgh][:volume_m3]).to eq(0.04)
+      # product.package_volume is stored in liters => divide by 1000 to get m³
+      expect(result[:cart_vgh][:volume_m3]).to eq(0.00004)
       expect(result[:cart_vgh][:max_dimension_cm]).to eq(40.0)
       expect(result[:cart_vgh][:eligible_for_europost]).to be(true)
       expect(result[:cart_vgh][:ineligible_reason]).to be_nil
@@ -87,7 +88,8 @@ RSpec.describe DeliveryOptionsService do
       result = described_class.call(cart)
 
       expect(result[:cart_vgh][:weight_kg]).to eq(14.0)
-      expect(result[:cart_vgh][:volume_m3]).to eq(0.06)
+      # product.package_volume is stored in liters => divide by 1000 to get m³
+      expect(result[:cart_vgh][:volume_m3]).to eq(0.00006)
       expect(result[:cart_vgh][:max_dimension_cm]).to eq(30.0)
     end
 

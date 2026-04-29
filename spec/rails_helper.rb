@@ -34,6 +34,38 @@ rescue ActiveRecord::PendingMigrationError => e
   abort e.to_s.strip
 end
 RSpec.configure do |config|
+  config.before(:each) do
+    # Default AmoCRM stubs for specs that create/update models with CRM callbacks.
+    # Specific examples can override these with their own stub_request declarations.
+    stub_request(:get, %r{\Ahttps://.*\.amocrm\.ru/api/v4/contacts})
+      .to_return(
+        status: 200,
+        body: { _embedded: { contacts: [] } }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
+
+    stub_request(:post, %r{\Ahttps://.*\.amocrm\.ru/api/v4/contacts})
+      .to_return(
+        status: 200,
+        body: { _embedded: { contacts: [{ id: 123 }] } }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
+
+    stub_request(:post, %r{\Ahttps://.*\.amocrm\.ru/api/v4/leads(/\d+/notes)?\z})
+      .to_return(
+        status: 200,
+        body: { _embedded: { leads: [{ id: 789 }] } }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
+
+    stub_request(:patch, %r{\Ahttps://.*\.amocrm\.ru/api/v4/leads/\d+})
+      .to_return(
+        status: 200,
+        body: { _embedded: { leads: [{ id: 789 }] } }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
+  end
+
   # Remove this line if you're not using ActiveRecord or ActiveRecord fixtures
   config.fixture_paths = [
     Rails.root.join('spec/fixtures')

@@ -97,15 +97,19 @@ class Delivery
       sides = extract_sides(product)
       width, height, depth = sides
 
-      volume = product.package_volume.to_f
-      volume = (width.to_f * height.to_f * depth.to_f / 1_000_000.0).round(6) if volume <= 0 && [width, height, depth].all?(&:present?)
+      # Business meaning:
+      # - `products.package_volume` is stored in liters (see PlDetailsFetcher + admin UI label "л")
+      # - VGH constraints are expressed in m³ (`*_max_volume_m3`)
+      volume_m3 = (product.package_volume.to_f / 1000.0) if product.package_volume.present?
+      volume_m3 = nil if volume_m3.to_f <= 0
+      volume_m3 = (width.to_f * height.to_f * depth.to_f / 1_000_000.0).round(6) if volume_m3.blank? && [width, height, depth].all?(&:present?)
 
       {
         weight_kg: weight&.to_f,
         width_cm: width&.to_f,
         height_cm: height&.to_f,
         depth_cm: depth&.to_f,
-        volume_m3: (volume if volume.positive?)
+        volume_m3: volume_m3
       }
     end
 
