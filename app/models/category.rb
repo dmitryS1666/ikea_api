@@ -331,6 +331,8 @@ class Category < ApplicationRecord
   def working_filter_value_count(parameter, value_id)
     product_filter_values
       .where(parameter: parameter.to_s, value_id: value_id.to_s)
+      .joins(:product)
+      .merge(Product.with_available_stock)
       .distinct
       .count(:product_id)
   end
