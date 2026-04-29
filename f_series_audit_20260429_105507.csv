@@ -1,0 +1,1179 @@
+ikea_id,category_name,products_count,issue,duplicates_count,has_series_prefix,extra_value
+700428,Столешницы из шпона под заказ,18,missing_f_series_filter,,,
+40693,Душевые кабины и души,3,dirty_or_duplicates_in_values,0,true,2
+40693,Душевые кабины и души,3,missing_indexed_products,,,1
+28433,Континентальные кровати,19,missing_f_series_filter,,,
+41069,Беспроводные зарядные устройства,5,dirty_or_duplicates_in_values,0,true,1
+41069,Беспроводные зарядные устройства,5,missing_indexed_products,,,4
+20619,Миски,27,dirty_or_duplicates_in_values,0,true,9
+20619,Миски,27,missing_indexed_products,,,15
+18751,Подвесные светильники,67,dirty_or_duplicates_in_values,0,true,5
+18751,Подвесные светильники,67,missing_indexed_products,,,61
+10810,Тумбы под телевизор,35,dirty_or_duplicates_in_values,0,true,17
+10810,Тумбы под телевизор,35,missing_indexed_products,,,8
+24711,Органайзеры для учебы,7,missing_f_series_filter,,,
+16295,Сумки и тележки для покупок,13,dirty_or_duplicates_in_values,0,true,2
+16295,Сумки и тележки для покупок,13,missing_indexed_products,,,11
+700493,Тумбы с раковиной ENHET,2,missing_f_series_filter,,,
+34204,Ковры для балкона и террасы,9,missing_f_series_filter,,,
+20676,Настенное хранение на кухне,86,missing_f_series_filter,,,
+700171,Лотки для столовых приборов,13,missing_f_series_filter,,,
+45815,Детские обеденные стулья,7,missing_f_series_filter,,,
+18768,Детские столы,12,missing_f_series_filter,,,
+700418,Фасады для кухни белые VALLSTENA,28,missing_f_series_filter,,,
+700390,Фасады ENKÖPING,33,missing_f_series_filter,,,
+700395,Фасады AXSTAD,0,missing_f_series_filter,,,
+700368,Фасады STENSUND,32,missing_f_series_filter,,,
+700777,Фасады TERRSJÖ с акцентом,2,missing_f_series_filter,,,
+700359,Фасады VOXTORP,141,missing_f_series_filter,,,
+46475,Фартуки из кварца,0,missing_f_series_filter,,,
+36812,Системы умного освещения,54,dirty_or_duplicates_in_values,0,true,2
+36812,Системы умного освещения,54,missing_indexed_products,,,51
+24261,Кухонные краны и мойки,35,missing_f_series_filter,,,
+14319,Все товары OMAR,4,missing_f_series_filter,,,
+20542,Подушки на кресла,18,dirty_or_duplicates_in_values,0,true,1
+20542,Подушки на кресла,18,missing_indexed_products,,,17
+50382,Аксессуары для кухни METOD,97,dirty_or_duplicates_in_values,0,true,11
+50382,Аксессуары для кухни METOD,97,missing_indexed_products,,,73
+46477,Керамические фартуки,0,missing_f_series_filter,,,
+12151,Каркасы BESTÅ,80,missing_f_series_filter,,,
+700179,Настольные интерьерные светильники,7,missing_f_series_filter,,,
+43633,Гардеробная система,0,missing_f_series_filter,,,
+700520,Крупные искусственные растения в горшках,5,missing_f_series_filter,,,
+12152,Дверцы и фасады ящиков BESTÅ,83,missing_f_series_filter,,,
+20541,Скатерти и настольные дорожки,10,missing_f_series_filter,,,
+11705,Детали IVAR,27,missing_f_series_filter,,,
+700718,"Смесители, краны для кухни и ванной комнаты",18,dirty_or_duplicates_in_values,0,true,3
+700718,"Смесители, краны для кухни и ванной комнаты",18,missing_indexed_products,,,13
+18692,Детское постельное белье,20,dirty_or_duplicates_in_values,0,true,4
+18692,Детское постельное белье,20,missing_indexed_products,,,8
+18860,Посуда для сервировки,145,dirty_or_duplicates_in_values,0,true,14
+18860,Посуда для сервировки,145,missing_indexed_products,,,43
+36815,Комплекты умного освещения,1,missing_f_series_filter,,,
+700616,Настенные садовые светильники,4,missing_f_series_filter,,,
+700615,Напольные садовые светильники,2,missing_f_series_filter,,,
+45782,Детские стульчики для кормления,11,missing_f_series_filter,,,
+18890,Наволочки,25,missing_f_series_filter,,,
+43636,Угловые шкафы,15,dirty_or_duplicates_in_values,0,true,1
+43636,Угловые шкафы,15,missing_indexed_products,,,13
+10717,"Придиванные, приставные столики",63,dirty_or_duplicates_in_values,1,true,13
+10717,"Придиванные, приставные столики",63,missing_indexed_products,,,43
+36813,Умные лампочки,11,missing_f_series_filter,,,
+33508,Потолочные вытяжки,2,missing_f_series_filter,,,
+700778,Уход за растениями,4,missing_f_series_filter,,,
+25220,Стулья для кухни,78,dirty_or_duplicates_in_values,0,true,15
+25220,Стулья для кухни,78,missing_indexed_products,,,33
+14318,Комбинации OMAR,2,missing_f_series_filter,,,
+18740,Мягкие игрушки и талисманы для детей,50,missing_f_series_filter,,,
+40206,Распашные двери без петель PAX,64,dirty_or_duplicates_in_values,0,true,3
+40206,Распашные двери без петель PAX,64,missing_indexed_products,,,54
+22659,Табуреты,28,dirty_or_duplicates_in_values,0,true,3
+22659,Табуреты,28,missing_indexed_products,,,25
+20530,Одеяла из полиэстера,25,missing_f_series_filter,,,
+20528,Пледы,44,missing_f_series_filter,,,
+20534,Подушки из полиэстера,7,missing_f_series_filter,,,
+700479,Шкафчики HEMNES,1,missing_f_series_filter,,,
+55008,Столы для работы стоя и сидя,2,missing_f_series_filter,,,
+39516,"Чехлы, покрытия на диваны GRÖNLID",0,missing_f_series_filter,,,
+23609,Высокие шкафы-пеналы METOD,613,missing_f_series_filter,,,
+55024,Витрины BESTÅ,11,missing_f_series_filter,,,
+10573,"Товары, принадлежности для офиса",58,dirty_or_duplicates_in_values,0,true,7
+10573,"Товары, принадлежности для офиса",58,missing_indexed_products,,,42
+19106,Каркасы для навесных дверей PAX,69,missing_f_series_filter,,,
+50007,Решения ENHET,0,missing_f_series_filter,,,
+55397,Игровые аксессуары для геймеров,17,dirty_or_duplicates_in_values,0,true,2
+55397,Игровые аксессуары для геймеров,17,missing_indexed_products,,,9
+18708,Детские комоды,2,missing_f_series_filter,,,
+20484,Игровые палатки и домики для детей,4,missing_f_series_filter,,,
+700619,Уличные гирлянды,11,missing_f_series_filter,,,
+57542,Светодиодные ленты,2,missing_f_series_filter,,,
+20823,Встраиваемые холодильники и морозильники,10,missing_f_series_filter,,,
+700487,Дверцы и фасады ENHET,4,missing_f_series_filter,,,
+23613,Дверцы и фасады METOD,808,missing_f_series_filter,,,
+48981,Аксессуары для кухни KNOXHULT,12,dirty_or_duplicates_in_values,0,true,3
+48981,Аксессуары для кухни KNOXHULT,12,missing_indexed_products,,,2
+54173,Конференц-столы,0,missing_f_series_filter,,,
+700528,"Подушка для поясницы, поддержка спины",2,missing_f_series_filter,,,
+700398,Фасады ASKERSUND,27,missing_f_series_filter,,,
+700787,Внутренние органайзеры LASTARE,16,missing_f_series_filter,,,
+700776,Акцентные дверцы и фасады ящиков METOD,43,missing_f_series_filter,,,
+700714,"Чехлы, покрытия на диваны SALTSJÖBADEN",16,missing_f_series_filter,,,
+19110,Открытые шкафы без дверей PAX,35,missing_f_series_filter,,,
+46458,Кварцевые столешницы на заказ,0,missing_f_series_filter,,,
+57298,Комплекты столиков,8,missing_f_series_filter,,,
+700775,Компактное хранение утвари,1,missing_f_series_filter,,,
+46460,Керамические столешницы на заказ,0,missing_f_series_filter,,,
+19115,Раздвижные двери PAX,107,missing_f_series_filter,,,
+37895,Модульные системы шкафов PLATSA,0,missing_f_series_filter,,,
+700478,Зеркальные шкафы HEMNES,4,missing_f_series_filter,,,
+10459,Крючки для одежды,16,dirty_or_duplicates_in_values,0,true,2
+10459,Крючки для одежды,16,missing_indexed_products,,,14
+700515,Фасады для кухни под грецкий орех TISTORP,25,missing_f_series_filter,,,
+19113,Наполнение для гардеробной PAX,273,missing_f_series_filter,,,
+46400,Подушки для садовых стульев,42,missing_f_series_filter,,,
+10655,Ткани и швейная фурнитура,18,dirty_or_duplicates_in_values,0,true,1
+10655,Ткани и швейная фурнитура,18,missing_indexed_products,,,17
+20543,Круглые коврики,5,missing_f_series_filter,,,
+45781,Детские кроватки,9,dirty_or_duplicates_in_values,0,true,4
+45781,Детские кроватки,9,missing_indexed_products,,,4
+700421,Столешницы из композитного стекла на заказ,0,missing_f_series_filter,,,
+700423,Фартуки из композитного стекла,0,missing_f_series_filter,,,
+700382,Фасады для кухни антрацит HEJSTA,12,missing_f_series_filter,,,
+10698,Придверные коврики,23,missing_f_series_filter,,,
+20562,Салфетки бумажные,5,missing_f_series_filter,,,
+37900,Стеновые панели и аксессуары,53,missing_indexed_products,,,2
+47394,Система BOAXEL,77,missing_f_series_filter,,,
+49138,Зеркала в ванную комнату с подсветкой,4,missing_f_series_filter,,,
+700716,Элементы системы LÅDMARKARE,6,missing_f_series_filter,,,
+700521,Средние искусственные растения в горшках,24,missing_f_series_filter,,,
+700527,Декоративные растения,10,missing_f_series_filter,,,
+st002,Книжные шкафы и стеллажи,531,dirty_or_duplicates_in_values,1,true,23
+st002,Книжные шкафы и стеллажи,531,missing_indexed_products,,,276
+10656,Диспенсеры для мыла и мыльницы,20,dirty_or_duplicates_in_values,0,true,3
+10656,Диспенсеры для мыла и мыльницы,20,missing_indexed_products,,,11
+46052,Системы хранения,2366,dirty_or_duplicates_in_values,0,true,12
+46052,Системы хранения,2366,missing_indexed_products,,,2162
+20524,Банные полотенца,23,dirty_or_duplicates_in_values,0,true,2
+20524,Банные полотенца,23,missing_indexed_products,,,9
+700607,Фасады для кухни темно-коричневые STENSTA,9,missing_f_series_filter,,,
+24337,Шкафы с дверьми PAX,449,missing_f_series_filter,,,
+18863,Тарелки десертные,34,dirty_or_duplicates_in_values,0,true,14
+18863,Тарелки десертные,34,missing_indexed_products,,,10
+46082,Термосумки,3,missing_f_series_filter,,,
+37897,Комбинации для хранения PLATSA,3,missing_f_series_filter,,,
+10984,"Чехлы, покрытия на диваны KLIPPAN",3,missing_f_series_filter,,,
+49763,"Ручки мебельные, фурнитура СМОСТАД",13,missing_f_series_filter,,,
+18864,Салатницы,43,dirty_or_duplicates_in_values,0,true,13
+18864,Салатницы,43,missing_indexed_products,,,15
+18865,Столовые приборы,46,dirty_or_duplicates_in_values,0,true,4
+18865,Столовые приборы,46,missing_indexed_products,,,36
+bc002,Товары для новорожденных,126,dirty_or_duplicates_in_values,0,true,17
+bc002,Товары для новорожденных,126,missing_indexed_products,,,68
+47068,Конференц-кресла,39,dirty_or_duplicates_in_values,0,true,1
+47068,Конференц-кресла,39,missing_indexed_products,,,10
+16044,Посуда и аксессуары для чая и кофе,72,dirty_or_duplicates_in_values,0,true,11
+16044,Посуда и аксессуары для чая и кофе,72,missing_indexed_products,,,52
+54994,"Чехлы, покрытия на диваны PÄRUP",0,missing_f_series_filter,,,
+18871,Стеклянная кувшины и графины,21,dirty_or_duplicates_in_values,0,true,5
+18871,Стеклянная кувшины и графины,21,missing_indexed_products,,,15
+10776,Вазы,60,dirty_or_duplicates_in_values,0,true,4
+10776,Вазы,60,missing_indexed_products,,,55
+47069,Письменные столы для офиса,5,missing_f_series_filter,,,
+47386,"Скамейки для дачи, сада и балкона",4,missing_f_series_filter,,,
+10783,Ароматические свечи,4,missing_indexed_products,,,4
+20723,Раковины и умывальники для ванной,24,missing_f_series_filter,,,
+700594,"Чехлы, покрытия на диваны EKHOLMA",8,missing_f_series_filter,,,
+18866,Наборы столовых приборов,38,dirty_or_duplicates_in_values,0,true,3
+18866,Наборы столовых приборов,38,missing_indexed_products,,,30
+48943,Стаканы и держатели для зубных щеток,7,dirty_or_duplicates_in_values,0,true,2
+48943,Стаканы и держатели для зубных щеток,7,missing_indexed_products,,,3
+45731,Комплектующие JONAXEL,12,missing_f_series_filter,,,
+18869,Стаканы,34,dirty_or_duplicates_in_values,0,true,5
+18869,Стаканы,34,missing_indexed_products,,,25
+18904,Внутренние подушки,5,missing_f_series_filter,,,
+700609,Подсветка для гардероба PLATSA,9,dirty_or_duplicates_in_values,0,true,1
+700609,Подсветка для гардероба PLATSA,9,missing_indexed_products,,,7
+16257,Безопасность детей,7,dirty_or_duplicates_in_values,0,true,1
+16257,Безопасность детей,7,missing_indexed_products,,,6
+50387,Посудомоечные машины METOD,12,dirty_or_duplicates_in_values,0,true,1
+50387,Посудомоечные машины METOD,12,missing_indexed_products,,,9
+16213,Корзины и сумки хозяйственные,38,dirty_or_duplicates_in_values,0,true,9
+16213,Корзины и сумки хозяйственные,38,missing_indexed_products,,,30
+18870,"Бокалы, фужеры для вина и шампанского",20,dirty_or_duplicates_in_values,0,true,3
+18870,"Бокалы, фужеры для вина и шампанского",20,missing_indexed_products,,,10
+20929,Пуфы и подставки для ног из ротанга,5,dirty_or_duplicates_in_values,0,true,2
+20929,Пуфы и подставки для ног из ротанга,5,missing_indexed_products,,,2
+50376,Столешницы для кухни ENHET,11,dirty_or_duplicates_in_values,0,true,2
+50376,Столешницы для кухни ENHET,11,missing_indexed_products,,,8
+700717,Комбинации LÅDMARKARE,0,missing_f_series_filter,,,
+li002,Подвесные лампы,284,dirty_or_duplicates_in_values,0,true,10
+li002,Подвесные лампы,284,missing_indexed_products,,,236
+18908,Шторы и карнизы для ванной комнаты,11,missing_f_series_filter,,,
+16283,Подсветка в шкаф,20,dirty_or_duplicates_in_values,0,true,1
+16283,Подсветка в шкаф,20,missing_indexed_products,,,18
+21827,Обеденные столы на 6 персон,13,dirty_or_duplicates_in_values,0,true,8
+21827,Обеденные столы на 6 персон,13,missing_indexed_products,,,4
+18695,Детские одеяла,6,dirty_or_duplicates_in_values,0,true,2
+18695,Детские одеяла,6,missing_indexed_products,,,3
+10699,Противоскользящие коврики под ковролин,5,missing_f_series_filter,,,
+19064,Изголовья кроватей,4,dirty_or_duplicates_in_values,0,true,3
+10701,Рулонные шторы,62,missing_f_series_filter,,,
+49149,Праздничные украшения и декор,14,dirty_or_duplicates_in_values,0,true,2
+49149,Праздничные украшения и декор,14,missing_indexed_products,,,12
+31785,Ножки для диванов и кресел,9,dirty_or_duplicates_in_values,0,true,5
+31785,Ножки для диванов и кресел,9,missing_indexed_products,,,3
+19144,Стулья для кафе и ресторанов,5,dirty_or_duplicates_in_values,0,true,1
+19144,Стулья для кафе и ресторанов,5,missing_indexed_products,,,4
+39570,Товары для собак,16,missing_f_series_filter,,,
+700424,Наборы столов и кресел для конференций,6,dirty_or_duplicates_in_values,0,true,1
+700424,Наборы столов и кресел для конференций,6,missing_indexed_products,,,3
+59247,Скамейки для спальни,5,dirty_or_duplicates_in_values,0,true,2
+59247,Скамейки для спальни,5,missing_indexed_products,,,4
+20494,Подставки для горшков,15,dirty_or_duplicates_in_values,0,true,1
+20494,Подставки для горшков,15,missing_indexed_products,,,15
+48925,Шкафы и стеллажи для прачечной,3,missing_f_series_filter,,,
+49768,"Болты, винты, шурупы и крепления",3,dirty_or_duplicates_in_values,0,true,1
+49768,"Болты, винты, шурупы и крепления",3,missing_indexed_products,,,1
+54943,Гирлянды светодиодные новогодние,2,dirty_or_duplicates_in_values,0,true,1
+54943,Гирлянды светодиодные новогодние,2,missing_indexed_products,,,1
+20499,Зеркала макияжные с увеличением,4,dirty_or_duplicates_in_values,0,true,1
+20499,Зеркала макияжные с увеличением,4,missing_indexed_products,,,4
+20609,Товары и аксессуары для уборки,22,dirty_or_duplicates_in_values,0,true,4
+20609,Товары и аксессуары для уборки,22,missing_indexed_products,,,5
+49079,Стеллажи для гардероба,0,missing_f_series_filter,,,
+10769,Декоративные вазы и миски,65,dirty_or_duplicates_in_values,0,true,4
+10769,Декоративные вазы и миски,65,missing_indexed_products,,,60
+18777,Декоративные подушки и одеяла для детей,10,dirty_or_duplicates_in_values,0,true,1
+18777,Декоративные подушки и одеяла для детей,10,missing_indexed_products,,,10
+49081,Очистители воздуха и фильтры,14,missing_f_series_filter,,,
+20500,Зеркальные шкафы в ванную комнату,17,missing_f_series_filter,,,
+700544,Модули летней кухни,15,dirty_or_duplicates_in_values,0,true,2
+700544,Модули летней кухни,15,missing_indexed_products,,,1
+10557,Магнитные и пробковые доски на стену,7,missing_f_series_filter,,,
+18872,"Соломинки, штопоры и аксессуары для вина",7,dirty_or_duplicates_in_values,0,true,2
+18872,"Соломинки, штопоры и аксессуары для вина",7,missing_indexed_products,,,6
+10451,Комоды для спальни,113,dirty_or_duplicates_in_values,4,true,15
+10451,Комоды для спальни,113,missing_indexed_products,,,12
+10452,Аксессуары для хранения одежды,108,dirty_or_duplicates_in_values,0,true,22
+10452,Аксессуары для хранения одежды,108,missing_indexed_products,,,77
+10455,Стеллажи и вешалки для одежды,29,dirty_or_duplicates_in_values,0,true,7
+10455,Стеллажи и вешалки для одежды,29,missing_indexed_products,,,16
+10458,"Коробки, органайзеры для хранения обуви",0,missing_f_series_filter,,,
+49157,Рождественские свечи и подсвечники,1,missing_f_series_filter,,,
+18893,Система рельсовых карнизов,7,dirty_or_duplicates_in_values,0,true,1
+49232,Праздничные угощения,0,dirty_or_duplicates_in_values,0,true,1
+41687,Распашные двери без петель PLATSA,9,missing_f_series_filter,,,
+55006,Комбинации для хранения на кухне ENHET,1,missing_f_series_filter,,,
+10555,Аксессуары для ванной комнаты,76,dirty_or_duplicates_in_values,0,true,9
+10555,Аксессуары для ванной комнаты,76,missing_indexed_products,,,41
+16215,"Мусорные ведра, баки и корзины",23,dirty_or_duplicates_in_values,0,true,6
+16215,"Мусорные ведра, баки и корзины",23,missing_indexed_products,,,18
+55015,Модульные полки,4,missing_indexed_products,,,4
+55022,"Тумбы, комбинации под ТВ RTV BESTÅ",57,dirty_or_duplicates_in_values,0,true,1
+55022,"Тумбы, комбинации под ТВ RTV BESTÅ",57,missing_indexed_products,,,54
+20602,Сушилки для белья,6,dirty_or_duplicates_in_values,0,true,1
+20602,Сушилки для белья,6,missing_indexed_products,,,4
+10784,Подсвечники и канделябры для свечей,35,missing_f_series_filter,,,
+11845,Ножки и опоры для столов,12,dirty_or_duplicates_in_values,0,true,2
+11845,Ножки и опоры для столов,12,missing_indexed_products,,,11
+48992,Кухонные комбинации ENHET,2,missing_f_series_filter,,,
+55031,Напольные шкафы BESTÅ,51,missing_f_series_filter,,,
+25218,Чехлы на стулья,0,missing_f_series_filter,,,
+10475,Шкафы и комоды RTV,89,dirty_or_duplicates_in_values,0,true,17
+10475,Шкафы и комоды RTV,89,missing_indexed_products,,,13
+55990,Аксессуары TROTTEN,3,missing_f_series_filter,,,
+55998,"Аксессуары, принадлежности для гриля, барбекю",17,dirty_or_duplicates_in_values,0,true,1
+55998,"Аксессуары, принадлежности для гриля, барбекю",17,missing_indexed_products,,,2
+20498,Зеркала для ванной,10,dirty_or_duplicates_in_values,0,true,1
+20498,Зеркала для ванной,10,missing_indexed_products,,,10
+st004,Комоды и тумбы,151,dirty_or_duplicates_in_values,4,true,24
+st004,Комоды и тумбы,151,missing_indexed_products,,,24
+16201,Корзины для хранения вещей,28,dirty_or_duplicates_in_values,0,true,4
+16201,Корзины для хранения вещей,28,missing_indexed_products,,,24
+st003,Шкафы-витрины,147,dirty_or_duplicates_in_values,6,true,19
+st003,Шкафы-витрины,147,missing_indexed_products,,,36
+42924,Для пикника и отдыха на природе,63,dirty_or_duplicates_in_values,0,true,6
+42924,Для пикника и отдыха на природе,63,missing_indexed_products,,,54
+10788,"Фоторамки, рисунки и изображения",36,dirty_or_duplicates_in_values,0,true,4
+10788,"Фоторамки, рисунки и изображения",36,missing_indexed_products,,,7
+15946,Кухонные ножи,34,dirty_or_duplicates_in_values,0,true,6
+15946,Кухонные ножи,34,missing_indexed_products,,,22
+20537,"Прихватки, рукавицы для духовки",8,dirty_or_duplicates_in_values,0,true,2
+20537,"Прихватки, рукавицы для духовки",8,missing_indexed_products,,,5
+57654,Пуфы и подставок для ног из полиуретана,11,dirty_or_duplicates_in_values,0,true,8
+57654,Пуфы и подставок для ног из полиуретана,11,missing_indexed_products,,,4
+10789,Фоторамки-коллаж,5,dirty_or_duplicates_in_values,0,true,1
+10789,Фоторамки-коллаж,5,missing_indexed_products,,,3
+20539,Коврики и подставки на стол,26,dirty_or_duplicates_in_values,0,true,4
+20539,Коврики и подставки на стол,26,missing_indexed_products,,,20
+20522,Полотенца для гостей,0,missing_f_series_filter,,,
+10670,Трехместные диваны,76,dirty_or_duplicates_in_values,0,true,17
+10670,Трехместные диваны,76,missing_indexed_products,,,32
+47747,Обеденные столы на 8 персон,4,dirty_or_duplicates_in_values,0,true,5
+47747,Обеденные столы на 8 персон,4,missing_indexed_products,,,2
+59285,Шкафы EKET,77,missing_f_series_filter,,,
+10996,Подушки для кресел POÄNG,15,missing_f_series_filter,,,
+59251,Подставки и крышки для посуды,4,missing_f_series_filter,,,
+700332,Комбинации JOSTEIN,33,missing_f_series_filter,,,
+700354,Фасады для кухни антрацит UPPLÖV,30,missing_f_series_filter,,,
+47441,Органайзеры для сумок,4,missing_f_series_filter,,,
+15952,Винные полки-стеллажи для бутылок,4,dirty_or_duplicates_in_values,0,true,2
+15952,Винные полки-стеллажи для бутылок,4,missing_indexed_products,,,3
+16214,Сумки хозяйственные,8,dirty_or_duplicates_in_values,0,true,2
+16214,Сумки хозяйственные,8,missing_indexed_products,,,6
+700356,Фасады для кухни нержавеющая сталь VÅRSTA,12,missing_f_series_filter,,,
+20812,Кухонные плиты,15,dirty_or_duplicates_in_values,0,true,2
+20812,Кухонные плиты,15,missing_indexed_products,,,12
+20611,"Табуреты-стремянки, лестницы",8,dirty_or_duplicates_in_values,0,true,1
+20611,"Табуреты-стремянки, лестницы",8,missing_indexed_products,,,6
+ka003,Кухонные системы и модули,5879,dirty_or_duplicates_in_values,0,true,20
+ka003,Кухонные системы и модули,5879,missing_indexed_products,,,5724
+47990,Другие чехлы,25,dirty_or_duplicates_in_values,0,true,4
+47990,Другие чехлы,25,missing_indexed_products,,,5
+23607,Напольные шкафы METOD,1729,missing_f_series_filter,,,
+700393,Фасады для кухни кремовые BODBYN,74,missing_f_series_filter,,,
+23608,Навесные шкафы для кухни METOD,927,dirty_or_duplicates_in_values,0,true,2
+23608,Навесные шкафы для кухни METOD,927,missing_indexed_products,,,920
+20858,Тележки для ванной на колесиках,8,dirty_or_duplicates_in_values,0,true,1
+20858,Тележки для ванной на колесиках,8,missing_indexed_products,,,7
+700367,Фасады для кухни светло-зеленые STENSUND,0,missing_f_series_filter,,,
+20621,Аксессуары для чая,12,dirty_or_duplicates_in_values,0,true,3
+20621,Аксессуары для чая,12,missing_indexed_products,,,11
+700523,Растения в горшках,45,missing_f_series_filter,,,
+20622,Аксессуары для кофе,10,missing_indexed_products,,,10
+700513,Кровати,404,dirty_or_duplicates_in_values,0,true,6
+700513,Кровати,404,missing_indexed_products,,,216
+20928,Пуфы и подставки для ног из кожи и кожзама,7,dirty_or_duplicates_in_values,0,true,5
+20928,Пуфы и подставки для ног из кожи и кожзама,7,missing_indexed_products,,,2
+14350,Наборы для шитья,2,dirty_or_duplicates_in_values,0,true,1
+14350,Наборы для шитья,2,missing_indexed_products,,,1
+54989,Тумбы под раковину без раковины,8,missing_f_series_filter,,,
+19059,"Ящики, контейнеры под кровать",20,dirty_or_duplicates_in_values,0,true,7
+19059,"Ящики, контейнеры под кровать",20,missing_indexed_products,,,10
+10550,Ящики и корзины для хранения,89,dirty_or_duplicates_in_values,0,true,21
+10550,Ящики и корзины для хранения,89,missing_indexed_products,,,55
+700450,Мебель для ванных комнат,423,missing_f_series_filter,,,
+20864,Барные стулья,15,dirty_or_duplicates_in_values,0,true,4
+20864,Барные стулья,15,missing_indexed_products,,,8
+46193,Bluetooth-колонки,28,dirty_or_duplicates_in_values,0,true,1
+46193,Bluetooth-колонки,28,missing_indexed_products,,,20
+700440,Система хранения для гаража,19,dirty_or_duplicates_in_values,0,true,9
+700440,Система хранения для гаража,19,missing_indexed_products,,,17
+15947,Разделочные доски,23,missing_indexed_products,,,23
+54992,Комплекты мебели для спальни,32,dirty_or_duplicates_in_values,0,true,10
+54992,Комплекты мебели для спальни,32,missing_indexed_products,,,7
+12153,Шкаф для ТВ RTV BESTÅ,101,missing_f_series_filter,,,
+10664,Чехлы на диваны и кресла,306,dirty_or_duplicates_in_values,0,true,20
+10664,Чехлы на диваны и кресла,306,missing_indexed_products,,,27
+55029,Навесные шкафы BESTÅ,76,missing_f_series_filter,,,
+55010,Освещение в ванной комнате,13,missing_f_series_filter,,,
+16045,Кружки и чашки,36,dirty_or_duplicates_in_values,0,true,9
+16045,Кружки и чашки,36,missing_indexed_products,,,26
+20643,Формы и противни для выпечки,9,missing_indexed_products,,,9
+59240,Подвесные кашпо,3,missing_f_series_filter,,,
+16047,"Блюда, тарелки и масленки для сервировки",14,dirty_or_duplicates_in_values,0,true,3
+16047,"Блюда, тарелки и масленки для сервировки",14,missing_indexed_products,,,10
+56472,"Умные воздухоочистители для дома, аксессуары",11,missing_f_series_filter,,,
+56516,Комплекты геймерских столов и стульев,7,missing_f_series_filter,,,
+16200,"Полки, стеллажи для кладовой",7,missing_f_series_filter,,,
+39266,Светодиодные свечи,5,dirty_or_duplicates_in_values,0,true,1
+39266,Светодиодные свечи,5,missing_indexed_products,,,5
+57280,Чехлы для изголовья кроватей,16,missing_f_series_filter,,,
+700176,"Чехлы, покрытия на диваны JÄTTEBO",30,missing_f_series_filter,,,
+700463,Навесные шкафы HAVBÄCK,8,missing_f_series_filter,,,
+17894,Садовые зонты и основания,21,dirty_or_duplicates_in_values,0,true,1
+17894,Садовые зонты и основания,21,missing_indexed_products,,,20
+17895,Экраны и летняя защита,4,dirty_or_duplicates_in_values,0,true,2
+17895,Экраны и летняя защита,4,missing_indexed_products,,,1
+20825,Посудомоечные машины,11,dirty_or_duplicates_in_values,0,true,1
+20825,Посудомоечные машины,11,missing_indexed_products,,,8
+50011,Раковины и краны ENHET,5,dirty_or_duplicates_in_values,0,true,1
+50011,Раковины и краны ENHET,5,missing_indexed_products,,,4
+700469,Тумбы под умывальник без раковины ÄNGSJÖN,21,missing_f_series_filter,,,
+10385,Шкафы для документов и папок,65,dirty_or_duplicates_in_values,0,true,5
+10385,Шкафы для документов и папок,65,missing_indexed_products,,,16
+31787,Садовые горшки и растения,51,dirty_or_duplicates_in_values,0,true,4
+31787,Садовые горшки и растения,51,missing_indexed_products,,,50
+700480,Тумбы под умывальник без раковины HEMNES,3,missing_f_series_filter,,,
+23614,Накладные панели и планки METOD,170,missing_f_series_filter,,,
+20826,Стиральные и сушильные машины,4,dirty_or_duplicates_in_values,0,true,1
+20826,Стиральные и сушильные машины,4,missing_indexed_products,,,1
+20859,Табуреты и скамьи для ванной,12,dirty_or_duplicates_in_values,0,true,3
+20859,Табуреты и скамьи для ванной,12,missing_indexed_products,,,8
+22664,Сковороды-гриль,3,dirty_or_duplicates_in_values,0,true,3
+22664,Сковороды-гриль,3,missing_indexed_products,,,1
+20857,Матрасы для диванов-кроватей,6,dirty_or_duplicates_in_values,0,true,1
+20857,Матрасы для диванов-кроватей,6,missing_indexed_products,,,4
+25209,Трековое освещение и софиты,6,dirty_or_duplicates_in_values,0,true,3
+25209,Трековое освещение и софиты,6,missing_indexed_products,,,3
+700486,Навесные шкафы ENHET,1,missing_f_series_filter,,,
+57536,Подушки на диваны и кресла,20,dirty_or_duplicates_in_values,0,true,5
+57536,Подушки на диваны и кресла,20,missing_indexed_products,,,12
+16285,Односпальные кровати,32,dirty_or_duplicates_in_values,0,true,6
+16285,Односпальные кровати,32,missing_indexed_products,,,13
+53249,Наборы рабочих столов и кресел,18,dirty_or_duplicates_in_values,0,true,4
+53249,Наборы рабочих столов и кресел,18,missing_indexed_products,,,12
+700539,Акустические товары MITTZON,7,missing_f_series_filter,,,
+58412,Попурри,5,missing_indexed_products,,,5
+700558,Коробки и крышки для контейнеров TROFAST,23,missing_f_series_filter,,,
+59245,Скамьи для кухни,2,missing_f_series_filter,,,
+33546,Ламинированные столешницы для кухни,29,missing_f_series_filter,,,
+59244,Круглые обеденные столы,7,dirty_or_duplicates_in_values,0,true,5
+59244,Круглые обеденные столы,7,missing_indexed_products,,,3
+700564,Аксессуары для RELATERA,3,missing_f_series_filter,,,
+21957,"Полы, настилы для балконов и террас",8,missing_f_series_filter,,,
+59248,Скамейка с ящиком для хранения,8,dirty_or_duplicates_in_values,0,true,6
+59248,Скамейка с ящиком для хранения,8,missing_indexed_products,,,4
+34006,Комплектующие сиденья обеденных стульев,10,missing_f_series_filter,,,
+20862,Барные столы,4,dirty_or_duplicates_in_values,0,true,3
+20862,Барные столы,4,missing_indexed_products,,,2
+31781,Наборы столовой посуды,4,dirty_or_duplicates_in_values,0,true,4
+31781,Наборы столовой посуды,4,missing_indexed_products,,,2
+48989,Аккумуляторы для кухни SUNNERSTA,1,missing_f_series_filter,,,
+59308,Умные лампы,4,dirty_or_duplicates_in_values,0,true,1
+59308,Умные лампы,4,missing_indexed_products,,,3
+34205,Чехлы для садовой мебели и зонтов,10,dirty_or_duplicates_in_values,0,true,2
+34205,Чехлы для садовой мебели и зонтов,10,missing_indexed_products,,,2
+24822,Ножки для кровати,3,missing_f_series_filter,,,
+21963,Шезлонги и гамаки для дачи,11,dirty_or_duplicates_in_values,0,true,3
+21963,Шезлонги и гамаки для дачи,11,missing_indexed_products,,,3
+24262,Аксессуары для кухонных моек,11,dirty_or_duplicates_in_values,0,true,2
+24262,Аксессуары для кухонных моек,11,missing_indexed_products,,,8
+42246,Все товары BROR,11,missing_f_series_filter,,,
+46077,"Акустические панели, экраны",3,missing_f_series_filter,,,
+41685,Гардеробы с раздвижными дверьми PLATSA,2,missing_f_series_filter,,,
+42926,"Попурри, свечи и ароматические саше",9,missing_indexed_products,,,9
+47396,Комбинации BOAXEL,37,missing_f_series_filter,,,
+47395,Все товары BOAXEL,40,missing_f_series_filter,,,
+22665,Скоровородки-сотейники,7,dirty_or_duplicates_in_values,0,true,4
+22665,Скоровородки-сотейники,7,missing_indexed_products,,,4
+700192,Кофейные столики для сада и балкона,10,dirty_or_duplicates_in_values,0,true,3
+700192,Кофейные столики для сада и балкона,10,missing_indexed_products,,,7
+46083,Эргономичные подушки,6,missing_f_series_filter,,,
+33498,"Половники, венчики, кухонные ложки",25,dirty_or_duplicates_in_values,0,true,6
+33498,"Половники, венчики, кухонные ложки",25,missing_indexed_products,,,18
+47427,Офисные шкафы и комоды IDÅSEN,7,missing_f_series_filter,,,
+20659,"Кронштейны, крепления для полок",11,missing_f_series_filter,,,
+24331,"Садовые беседки, шатры и москитные сетки",5,missing_f_series_filter,,,
+49156,Светодиодные украшения стола,13,dirty_or_duplicates_in_values,0,true,2
+49156,Светодиодные украшения стола,13,missing_indexed_products,,,11
+49143,Дверцы и ящики SMÅSTAD,22,missing_f_series_filter,,,
+700175,Портативная бытовая техника,6,dirty_or_duplicates_in_values,0,true,2
+700175,Портативная бытовая техника,6,missing_indexed_products,,,1
+700632,Мягкие игрушки для детей и новорожденных,6,dirty_or_duplicates_in_values,0,true,2
+700632,Мягкие игрушки для детей и новорожденных,6,missing_indexed_products,,,2
+49968,Аксессуары для бытовой техники,10,dirty_or_duplicates_in_values,0,true,1
+49968,Аксессуары для бытовой техники,10,missing_indexed_products,,,10
+50380,Микроволновые СВЧ печи ENHET,1,missing_f_series_filter,,,
+700535,Техника для кухни ÖNNERUP,6,dirty_or_duplicates_in_values,0,true,2
+50385,Вытяжки METOD,27,dirty_or_duplicates_in_values,0,true,6
+50385,Вытяжки METOD,27,missing_indexed_products,,,24
+50002,"Освещение, подсветка для кухни METOD",5,missing_f_series_filter,,,
+50383,Духовые шкафы METOD,15,dirty_or_duplicates_in_values,0,true,7
+50383,Духовые шкафы METOD,15,missing_indexed_products,,,8
+24715,Детские стулья,9,missing_f_series_filter,,,
+24828,Пружинные матрасы,32,missing_f_series_filter,,,
+49318,"Кухонные элементы, модули KNOXHULT",37,missing_f_series_filter,,,
+48983,Стеновые панели KNOXHULT,1,missing_f_series_filter,,,
+700633,Детские интерактивные игрушки,14,dirty_or_duplicates_in_values,0,true,3
+700633,Детские интерактивные игрушки,14,missing_indexed_products,,,4
+55004,Аксессуары для стирки,4,dirty_or_duplicates_in_values,0,true,1
+55004,Аксессуары для стирки,4,missing_indexed_products,,,1
+24830,Подставки и столики для ноутбуков,14,dirty_or_duplicates_in_values,0,true,3
+24830,Подставки и столики для ноутбуков,14,missing_indexed_products,,,11
+700194,"Тряпки, щетки и губки",12,dirty_or_duplicates_in_values,0,true,4
+700194,"Тряпки, щетки и губки",12,missing_indexed_products,,,6
+55014,Полки со скрытым креплением,3,missing_f_series_filter,,,
+700219,Шторы блэкаут,28,missing_f_series_filter,,,
+50375,Духовые шкафы ENHET,2,dirty_or_duplicates_in_values,0,true,5
+16298,Ручки мебельные,74,missing_f_series_filter,,,
+24859,Большие зеркала,26,dirty_or_duplicates_in_values,0,true,1
+24859,Большие зеркала,26,missing_indexed_products,,,26
+25223,Подушки на стул,10,dirty_or_duplicates_in_values,0,true,2
+25223,Подушки на стул,10,missing_indexed_products,,,3
+24860,Круглые зеркала,16,dirty_or_duplicates_in_values,0,true,1
+24860,Круглые зеркала,16,missing_indexed_products,,,16
+50010,Столешницы ENHET,22,missing_f_series_filter,,,
+50381,Стиральные машины ENHET,2,missing_f_series_filter,,,
+55032,Ножки мебельные BESTÅ,8,missing_f_series_filter,,,
+700195,Диспенсеры для моющего средства,4,dirty_or_duplicates_in_values,0,true,2
+700195,Диспенсеры для моющего средства,4,missing_indexed_products,,,3
+24861,Декоративные зеркала,12,dirty_or_duplicates_in_values,0,true,1
+24861,Декоративные зеркала,12,missing_indexed_products,,,12
+700336,Перегородки для стола,5,missing_indexed_products,,,4
+700401,Аксессуары для кухни ÄSPINGE,7,dirty_or_duplicates_in_values,0,true,2
+24887,Садовые принадлежности и инструменты,21,dirty_or_duplicates_in_values,0,true,1
+24887,Садовые принадлежности и инструменты,21,missing_indexed_products,,,18
+700214,Настенное освещение для ванной,9,missing_f_series_filter,,,
+700427,Ламинированные столешницы под заказ,39,missing_f_series_filter,,,
+700467,Зеркальные шкафы ÄNGSJÖN,1,missing_f_series_filter,,,
+25222,Складные стулья,11,dirty_or_duplicates_in_values,0,true,1
+25222,Складные стулья,11,missing_indexed_products,,,8
+31772,"Наборы детской посуды, нагрудники",12,dirty_or_duplicates_in_values,0,true,1
+31772,"Наборы детской посуды, нагрудники",12,missing_indexed_products,,,8
+700472,Раковины TÄNNFORSEN,0,missing_f_series_filter,,,
+700224,Римские шторы,5,missing_f_series_filter,,,
+700476,Тумбы с раковиной TÄNNFORSEN,50,missing_f_series_filter,,,
+700349,"Садовая кухня и угольный гриль, барбекю",37,dirty_or_duplicates_in_values,0,true,4
+700349,"Садовая кухня и угольный гриль, барбекю",37,missing_indexed_products,,,3
+33507,Настенные вытяжки,12,dirty_or_duplicates_in_values,0,true,6
+33507,Настенные вытяжки,12,missing_indexed_products,,,9
+700339,Аксессуары для ванной и товары для спа,20,dirty_or_duplicates_in_values,0,true,1
+700339,Аксессуары для ванной и товары для спа,20,missing_indexed_products,,,10
+40691,"Смесители, краны для душа",3,dirty_or_duplicates_in_values,0,true,1
+40691,"Смесители, краны для душа",3,missing_indexed_products,,,3
+25206,Пристенные откидные столы,1,missing_f_series_filter,,,
+700484,Зеркальные шкафы ENHET,6,missing_f_series_filter,,,
+36814,Аксессуары для умного дома,12,dirty_or_duplicates_in_values,0,true,1
+36814,Аксессуары для умного дома,12,missing_indexed_products,,,10
+700422,Шкафы со скошенным углом,0,missing_f_series_filter,,,
+48987,Аксессуары для кухни SUNNERSTA,12,dirty_or_duplicates_in_values,0,true,2
+48987,Аксессуары для кухни SUNNERSTA,12,missing_indexed_products,,,1
+38190,"Чехлы, покрытия на диваны VIMLE",76,missing_f_series_filter,,,
+48988,Бытовая техника для кухни SUNNERSTA,5,dirty_or_duplicates_in_values,0,true,2
+700491,Комплекты мебели для ванной комнаты ENHET,19,missing_f_series_filter,,,
+36209,Кухонный стол и 2 стула,58,dirty_or_duplicates_in_values,0,true,11
+36209,Кухонный стол и 2 стула,58,missing_indexed_products,,,5
+700530,"Чехлы, покрытия на диваны LILLEHEM",9,missing_f_series_filter,,,
+700403,Техника для кухни ÄSPINGE,5,dirty_or_duplicates_in_values,0,true,2
+45816,Детские табуретки и скамейки,15,dirty_or_duplicates_in_values,0,true,2
+45816,Детские табуретки и скамейки,15,missing_indexed_products,,,10
+10663,Диваны-кровати,131,dirty_or_duplicates_in_values,0,true,14
+10663,Диваны-кровати,131,missing_indexed_products,,,39
+700426,Наконечники и фурнитура для карнизов,23,dirty_or_duplicates_in_values,0,true,2
+700426,Наконечники и фурнитура для карнизов,23,missing_indexed_products,,,19
+700494,Шкафы для ванной комнаты NYSJÖN,6,missing_f_series_filter,,,
+700555,"Чехлы, покрытия на диваны ROCKSJÖN",9,missing_f_series_filter,,,
+700173,Лотки для столовых приборов в ящик 40см,4,dirty_or_duplicates_in_values,0,true,1
+700531,Фасады для кухни светло-серые HAVSTORP,4,missing_f_series_filter,,,
+700593,Фасады для кухни серо-зеленые NICKEBO,4,missing_f_series_filter,,,
+24255,Кухонное наполнение,64,dirty_or_duplicates_in_values,0,true,4
+24255,Кухонное наполнение,64,missing_indexed_products,,,6
+700608,Фасады для кухни серо-зеленые AXSTAD,0,missing_f_series_filter,,,
+700525,Вьющиеся и ампельные растения,4,missing_f_series_filter,,,
+700174,Лотки для столовых приборов в ящик 80см,2,missing_f_series_filter,,,
+700610,Контейнеры для хранения продуктов,25,missing_f_series_filter,,,
+700560,Стеллажи для хранения игрушек с ящиками,5,dirty_or_duplicates_in_values,0,true,1
+700560,Стеллажи для хранения игрушек с ящиками,5,missing_indexed_products,,,4
+700635,Фасады для кухни черные BODBYN,5,missing_f_series_filter,,,
+700617,Настольные лампы для улицы,10,dirty_or_duplicates_in_values,0,true,1
+700617,Настольные лампы для улицы,10,missing_indexed_products,,,9
+10680,Комплекты постельного белья,116,missing_f_series_filter,,,
+tl004,Текстиль для спальни,449,missing_f_series_filter,,,
+700674,Фурнитура и ручки для кухонных шкафов,17,dirty_or_duplicates_in_values,0,true,1
+700674,Фурнитура и ручки для кухонных шкафов,17,missing_indexed_products,,,16
+16244,Барные стулья и табуреты,19,dirty_or_duplicates_in_values,0,true,5
+16244,Барные стулья и табуреты,19,missing_indexed_products,,,10
+700618,Светильники подвесные для улицы,11,missing_f_series_filter,,,
+20527,Покрывала,33,missing_f_series_filter,,,
+700629,2-местные диваны-кровати,24,dirty_or_duplicates_in_values,0,true,3
+700629,2-местные диваны-кровати,24,missing_indexed_products,,,7
+700698,Шкафы под мойку METOD,1,missing_f_series_filter,,,
+14885,Комплекты шкафов RTV,54,dirty_or_duplicates_in_values,0,true,14
+14885,Комплекты шкафов RTV,54,missing_indexed_products,,,5
+54991,Утяжеленные одеяла,0,missing_f_series_filter,,,
+10653,Ковры,157,dirty_or_duplicates_in_values,0,true,5
+10653,Ковры,157,missing_indexed_products,,,152
+20536,Подушка ортопедическая с эффектом памяти,3,missing_f_series_filter,,,
+700631,Диваны-кровати с козеткой раскладные,11,dirty_or_duplicates_in_values,0,true,4
+700631,Диваны-кровати с козеткой раскладные,11,missing_indexed_products,,,4
+10692,Ковры большие и средние,71,missing_f_series_filter,,,
+10689,Ковровые дорожки,30,missing_f_series_filter,,,
+700671,"Внутренние выдвижные ящики, корзины для кухни",16,missing_f_series_filter,,,
+700713,"Чехлы, покрытия на диваны MANNARP",6,missing_f_series_filter,,,
+15928,Жаропрочная посуда для духовки,20,dirty_or_duplicates_in_values,0,true,6
+15928,Жаропрочная посуда для духовки,20,missing_indexed_products,,,15
+20645,Формы для выпечки,25,dirty_or_duplicates_in_values,0,true,5
+20645,Формы для выпечки,25,missing_indexed_products,,,22
+14349,Ткани,16,missing_f_series_filter,,,
+18902,Декоративные подушки,14,missing_f_series_filter,,,
+18903,Декоративные наволочки,115,missing_f_series_filter,,,
+18868,Стеклянная посуда и кувшины,82,dirty_or_duplicates_in_values,0,true,9
+18868,Стеклянная посуда и кувшины,82,missing_indexed_products,,,55
+50388,Холодильники и морозильные камеры METOD,18,dirty_or_duplicates_in_values,0,true,2
+50388,Холодильники и морозильные камеры METOD,18,missing_indexed_products,,,12
+20523,Большие полотенца,22,dirty_or_duplicates_in_values,0,true,2
+20523,Большие полотенца,22,missing_indexed_products,,,8
+20519,Коврики для ванной комнаты,23,missing_f_series_filter,,,
+42925,Одежда и аксессуары,12,dirty_or_duplicates_in_values,0,true,1
+42925,Одежда и аксессуары,12,missing_indexed_products,,,8
+59250,Стулья для туалетного столика,10,dirty_or_duplicates_in_values,0,true,2
+59250,Стулья для туалетного столика,10,missing_indexed_products,,,9
+22275,"Чехлы, покрытия на диваны SÖDERHAMN",27,missing_f_series_filter,,,
+39519,"Чехлы, покрытия на диваны HOLMSUND",3,missing_f_series_filter,,,
+700442,"Чехлы, покрытия на диваны HYLTARP",25,missing_f_series_filter,,,
+fu003,Диваны нераскладные,427,dirty_or_duplicates_in_values,0,true,20
+fu003,Диваны нераскладные,427,missing_indexed_products,,,71
+47388,Диваны с шезлонгом,79,dirty_or_duplicates_in_values,0,true,13
+47388,Диваны с шезлонгом,79,missing_indexed_products,,,19
+10668,Двухместные диваны,52,dirty_or_duplicates_in_values,0,true,16
+10668,Двухместные диваны,52,missing_indexed_products,,,17
+10671,Угловые раскладные диваны,47,dirty_or_duplicates_in_values,0,true,3
+10671,Угловые раскладные диваны,47,missing_indexed_products,,,38
+50390,Стиральные машины и сушилки METOD,1,missing_f_series_filter,,,
+700221,Плотные шторы,29,missing_f_series_filter,,,
+10700,Шторы и гардины,90,dirty_or_duplicates_in_values,0,true,3
+10700,Шторы и гардины,90,missing_indexed_products,,,86
+700225,Плиссированные шторы,17,missing_f_series_filter,,,
+55018,Электрические шторы,0,missing_f_series_filter,,,
+10731,Торшеры и напольные светильники,42,dirty_or_duplicates_in_values,0,true,4
+10731,Торшеры и напольные светильники,42,missing_indexed_products,,,33
+700220,Тюль,35,dirty_or_duplicates_in_values,0,true,2
+700220,Тюль,35,missing_indexed_products,,,32
+10732,Настольные лампы,59,dirty_or_duplicates_in_values,0,true,5
+10732,Настольные лампы,59,missing_indexed_products,,,53
+10804,Абажуры,35,missing_f_series_filter,,,
+10786,Будильники,7,missing_f_series_filter,,,
+10759,Часы,15,missing_f_series_filter,,,
+33501,"Лейки, пульверизаторы и разбрызгиватели",9,missing_f_series_filter,,,
+10782,Свечи без запаха,24,missing_f_series_filter,,,
+700519,Искусственные растения на стену,3,missing_f_series_filter,,,
+46080,Экраны - перегородки,7,dirty_or_duplicates_in_values,0,true,5
+46080,Экраны - перегородки,7,missing_indexed_products,,,3
+700522,Искусственные подвесные растения,3,missing_f_series_filter,,,
+49139,Зеркала напольные,5,dirty_or_duplicates_in_values,0,true,1
+49139,Зеркала напольные,5,missing_indexed_products,,,5
+18623,Комбинации столов,136,dirty_or_duplicates_in_values,0,true,2
+18623,Комбинации столов,136,missing_indexed_products,,,83
+47426,Столы IDÅSEN,4,missing_f_series_filter,,,
+700538,Система MITTZON,133,missing_f_series_filter,,,
+55991,Столешницы и основания TROTTEN,11,missing_f_series_filter,,,
+55992,Контейнеры и ящики для хранения TROTTEN,10,missing_f_series_filter,,,
+700542,Письменные столы MITTZON,75,missing_f_series_filter,,,
+20652,Офисные стулья и кресла,67,dirty_or_duplicates_in_values,0,true,3
+20652,Офисные стулья и кресла,67,missing_indexed_products,,,66
+10659,Декоративные подушки и наволочки,141,dirty_or_duplicates_in_values,0,true,2
+10659,Декоративные подушки и наволочки,141,missing_indexed_products,,,140
+20653,Стулья для письменного стола,49,dirty_or_duplicates_in_values,0,true,2
+20653,Стулья для письменного стола,49,missing_indexed_products,,,48
+20654,Офисные кресла,30,dirty_or_duplicates_in_values,0,true,1
+20654,Офисные кресла,30,missing_indexed_products,,,29
+30436,Кастрюли с ручкой,36,dirty_or_duplicates_in_values,0,true,3
+30436,Кастрюли с ручкой,36,missing_indexed_products,,,34
+15927,"Крышки, подставки для кастрюль",16,dirty_or_duplicates_in_values,0,true,3
+15927,"Крышки, подставки для кастрюль",16,missing_indexed_products,,,11
+15934,Ножи и разделочные доски,60,dirty_or_duplicates_in_values,0,true,6
+15934,Ножи и разделочные доски,60,missing_indexed_products,,,48
+15949,Совки для сыпучих продуктов,6,missing_indexed_products,,,6
+18849,Точилки для ножей,6,missing_indexed_products,,,6
+20636,"Посуда, формы для выпечки и запекания",42,dirty_or_duplicates_in_values,0,true,9
+20636,"Посуда, формы для выпечки и запекания",42,missing_indexed_products,,,37
+700586,Наборы контейнеров для еды и ланч-боксы,16,missing_indexed_products,,,16
+20667,Дуршлаги и сита,14,dirty_or_duplicates_in_values,0,true,5
+20667,Дуршлаги и сита,14,missing_indexed_products,,,4
+700611,"Зип пакеты для хранения продуктов, аксессуары",16,missing_indexed_products,,,16
+700517,Искусственные венки и гирлянды,2,missing_f_series_filter,,,
+15938,Принадлежности для мытья посуды,48,dirty_or_duplicates_in_values,0,true,9
+15938,Принадлежности для мытья посуды,48,missing_indexed_products,,,28
+700573,Фасады для кухни темно-зеленые HAVSTORP,0,missing_f_series_filter,,,
+700196,Сушилки и подставки для посуды,23,dirty_or_duplicates_in_values,0,true,5
+700196,Сушилки и подставки для посуды,23,missing_indexed_products,,,13
+18867,Сервировочные столовые приборы,9,dirty_or_duplicates_in_values,0,true,2
+18867,Сервировочные столовые приборы,9,missing_indexed_products,,,6
+27821,Сумки через плечо и рюкзаки,0,missing_f_series_filter,,,
+700634,Фасады для кухни серо-коричневые VOXTORP,4,missing_f_series_filter,,,
+18861,Тарелки,37,dirty_or_duplicates_in_values,0,true,13
+18861,Тарелки,37,missing_indexed_products,,,8
+18851,Кухонные салфетки и салфетницы,35,dirty_or_duplicates_in_values,0,true,3
+18851,Кухонные салфетки и салфетницы,35,missing_indexed_products,,,30
+kt003,Посуда,123,dirty_or_duplicates_in_values,0,true,15
+kt003,Посуда,123,missing_indexed_products,,,71
+kt001,Кухонная посуда для приготовления,983,dirty_or_duplicates_in_values,0,true,62
+kt001,Кухонная посуда для приготовления,983,missing_indexed_products,,,664
+18862,Тарелки глубокие,27,dirty_or_duplicates_in_values,0,true,11
+18862,Тарелки глубокие,27,missing_indexed_products,,,8
+st006,"Крючки, полки и настенные органайзеры",160,dirty_or_duplicates_in_values,0,true,18
+st006,"Крючки, полки и настенные органайзеры",160,missing_indexed_products,,,88
+20538,Столовый текстиль,50,dirty_or_duplicates_in_values,0,true,4
+20538,Столовый текстиль,50,missing_indexed_products,,,41
+16293,Наборы инструментов,8,dirty_or_duplicates_in_values,0,true,1
+16293,Наборы инструментов,8,missing_indexed_products,,,1
+sp001,Безопасность дома,13,dirty_or_duplicates_in_values,0,true,1
+sp001,Безопасность дома,13,missing_indexed_products,,,12
+42948,Масла и средства по уходу для столешниц и посуды,10,missing_f_series_filter,,,
+16195,Кабели и аксессуары,9,dirty_or_duplicates_in_values,0,true,1
+16195,Кабели и аксессуары,9,missing_indexed_products,,,9
+31773,Детские одеяла и подушки,0,missing_f_series_filter,,,
+18699,Ковры и шторы для детской комнаты,2,dirty_or_duplicates_in_values,0,true,2
+18700,Детские полотценца и аксессуары,6,dirty_or_duplicates_in_values,0,true,1
+18700,Детские полотценца и аксессуары,6,missing_indexed_products,,,4
+45925,Аксессуары для пеленания,10,dirty_or_duplicates_in_values,0,true,1
+45925,Аксессуары для пеленания,10,missing_indexed_products,,,7
+700559,Рамы и полки TROFAST,17,missing_f_series_filter,,,
+20477,"Органайзеры, кофры для хранения детской одежды и обуви",6,dirty_or_duplicates_in_values,0,true,3
+20477,"Органайзеры, кофры для хранения детской одежды и обуви",6,missing_indexed_products,,,5
+49142,Комбинации для хранения SMÅSTAD,76,missing_f_series_filter,,,
+49144,Внутреннее оснащение для SMÅSTAD,14,missing_f_series_filter,,,
+49145,Каркасы SMÅSTAD,5,missing_f_series_filter,,,
+45855,Матрасы для детской кроватки,7,dirty_or_duplicates_in_values,0,true,1
+45855,Матрасы для детской кроватки,7,missing_indexed_products,,,6
+25227,Канцелярские товары,1,missing_f_series_filter,,,
+10397,Стеллажи для хранения,10,missing_f_series_filter,,,
+18736,Подвижные игры для детей,18,dirty_or_duplicates_in_values,0,true,1
+18736,Подвижные игры для детей,18,missing_indexed_products,,,17
+19049,"Кровати-мезонин, кровати-чердаки для детей",5,missing_f_series_filter,,,
+20651,Письменный стол для школьника,60,dirty_or_duplicates_in_values,2,true,11
+20651,Письменный стол для школьника,60,missing_indexed_products,,,29
+42921,Настольные и карточные игры для детей,2,missing_f_series_filter,,,
+18737,Сюжетно-ролевые детские игрушки,29,dirty_or_duplicates_in_values,0,true,3
+18737,Сюжетно-ролевые детские игрушки,29,missing_indexed_products,,,17
+58411,Ароматические саше для шкафов и стеллажей,1,missing_f_series_filter,,,
+18738,Деревянные игрушки для детей,20,dirty_or_duplicates_in_values,0,true,4
+18738,Деревянные игрушки для детей,20,missing_indexed_products,,,4
+18767,Детская уличная и садовая мебель,56,dirty_or_duplicates_in_values,0,true,7
+18767,Детская уличная и садовая мебель,56,missing_indexed_products,,,27
+700563,"Столешницы, основания и опоры столов RELATERA",4,missing_f_series_filter,,,
+700292,Кухонные шкафы,26,dirty_or_duplicates_in_values,0,true,3
+700292,Кухонные шкафы,26,missing_indexed_products,,,15
+16284,Двуспальные кровати,93,dirty_or_duplicates_in_values,0,true,12
+16284,Двуспальные кровати,93,missing_indexed_products,,,30
+24826,Матрасы,4,missing_f_series_filter,,,
+24827,Реечные днища для кроватей,19,missing_f_series_filter,,,
+17887,"Зонты, беседки и перголы",29,dirty_or_duplicates_in_values,0,true,2
+17887,"Зонты, беседки и перголы",29,missing_indexed_products,,,25
+21959,"Диваны для дачи, сада и балкона",65,dirty_or_duplicates_in_values,0,true,7
+21959,"Диваны для дачи, сада и балкона",65,missing_indexed_products,,,2
+21960,Стулья и табуреты для балкона и террасы,26,dirty_or_duplicates_in_values,0,true,5
+21960,Стулья и табуреты для балкона и террасы,26,missing_indexed_products,,,1
+10471,"Кухонные острова, тележки и бары",24,dirty_or_duplicates_in_values,0,true,4
+10471,"Кухонные острова, тележки и бары",24,missing_indexed_products,,,20
+od003,Уличная садовая и балконная мебель,292,dirty_or_duplicates_in_values,0,true,14
+od003,Уличная садовая и балконная мебель,292,missing_indexed_products,,,47
+45783,Пеленальные столики и комоды,14,dirty_or_duplicates_in_values,0,true,5
+45783,Пеленальные столики и комоды,14,missing_indexed_products,,,6
+24898,Грили-барбекю,1,dirty_or_duplicates_in_values,0,true,2
+700543,"Кухни летние, уличные для дачи, сада, балкона",4,missing_f_series_filter,,,
+ba003,"Товары для стирки, сушки и глажки белья",32,dirty_or_duplicates_in_values,0,true,6
+ba003,"Товары для стирки, сушки и глажки белья",32,missing_indexed_products,,,21
+40843,Аксессуары для телефонов и планшетов,29,dirty_or_duplicates_in_values,0,true,3
+40843,Аксессуары для телефонов и планшетов,29,missing_indexed_products,,,25
+34203,Садовые аксессуары,129,dirty_or_duplicates_in_values,0,true,9
+34203,Садовые аксессуары,129,missing_indexed_products,,,108
+30565,Столешницы в ванную комнату,16,missing_f_series_filter,,,
+20615,Полки и аксессуары для ванной комнаты,32,dirty_or_duplicates_in_values,0,true,8
+20615,Полки и аксессуары для ванной комнаты,32,missing_indexed_products,,,18
+700465,Тумбы с раковиной HAVBÄCK,53,missing_f_series_filter,,,
+700468,Навесные шкафы ÄNGSJÖN,10,missing_f_series_filter,,,
+47081,Контейнеры для хранения,49,dirty_or_duplicates_in_values,0,true,4
+47081,Контейнеры для хранения,49,missing_indexed_products,,,17
+49158,Искусственные растения рождественские,0,missing_f_series_filter,,,
+700470,Тумбы с раковиной ÄNGSJÖN,99,missing_f_series_filter,,,
+700474,Навесные шкафы TÄNNFORSEN,6,missing_f_series_filter,,,
+700477,Раковины HEMNES,0,missing_f_series_filter,,,
+700475,Тумбы умывальник без раковины TÄNNFORSEN,8,missing_f_series_filter,,,
+700481,Тумбы с раковиной HEMNES,7,missing_f_series_filter,,,
+23615,Ножки и основания для кухни METOD,48,dirty_or_duplicates_in_values,0,true,2
+23615,Ножки и основания для кухни METOD,48,missing_indexed_products,,,47
+700485,Аксессуары ENHET,11,missing_f_series_filter,,,
+25205,Кровати с ящиками,146,dirty_or_duplicates_in_values,0,true,9
+25205,Кровати с ящиками,146,missing_indexed_products,,,7
+700488,Фурнитура для мебели в ванной комнате ENHET,23,missing_f_series_filter,,,
+700490,Комплекты мебели для прачечной ENHET,0,missing_f_series_filter,,,
+20808,Навесные шкафы в ванную комнату,17,missing_f_series_filter,,,
+700402,"Раковины, мойки, краны и смесители ÄSPINGE",1,dirty_or_duplicates_in_values,0,true,1
+40690,Душевые кабины и аксессуары для душа,37,dirty_or_duplicates_in_values,0,true,4
+40690,Душевые кабины и аксессуары для душа,37,missing_indexed_products,,,29
+20479,"Контейнеры, ящики и корзины для игрушек",34,dirty_or_duplicates_in_values,0,true,8
+20479,"Контейнеры, ящики и корзины для игрушек",34,missing_indexed_products,,,24
+47358,"Душевые кабины, экраны и шторки для ванны",2,missing_f_series_filter,,,
+10565,Коробки для обуви и одежды,39,dirty_or_duplicates_in_values,0,true,8
+10565,Коробки для обуви и одежды,39,missing_indexed_products,,,24
+16233,Мусорники для ванной,15,dirty_or_duplicates_in_values,0,true,1
+16233,Мусорники для ванной,15,missing_indexed_products,,,14
+49150,Новогодние светильники,41,dirty_or_duplicates_in_values,0,true,2
+49150,Новогодние светильники,41,missing_indexed_products,,,40
+49153,"Новогодняя, рождественская посуда",29,dirty_or_duplicates_in_values,0,true,6
+49153,"Новогодняя, рождественская посуда",29,missing_indexed_products,,,16
+49233,"Рождественские, новогодние подарки",0,missing_f_series_filter,,,
+49151,Новогодние растения и горшки,1,missing_f_series_filter,,,
+40842,"Колонки, динамики и аксессуары для аудиотехники",28,dirty_or_duplicates_in_values,0,true,1
+40842,"Колонки, динамики и аксессуары для аудиотехники",28,missing_indexed_products,,,20
+40845,"Кабели, зарядные устройства и адаптеры",40,dirty_or_duplicates_in_values,0,true,2
+40845,"Кабели, зарядные устройства и адаптеры",40,missing_indexed_products,,,39
+40844,USB-зарядные устройства,20,missing_f_series_filter,,,
+46194,Динамики Wi-Fi,0,missing_f_series_filter,,,
+41070,"Батарейки, аккумуляторы и зарядные устройства",9,missing_f_series_filter,,,
+20620,Термосы и термокружки,4,missing_f_series_filter,,,
+20927,"Мягкие пуфы, табуреты и подставки для ног",60,dirty_or_duplicates_in_values,0,true,10
+20927,"Мягкие пуфы, табуреты и подставки для ног",60,missing_indexed_products,,,39
+bm002,Наматрасники и чехлы для матрасов,96,dirty_or_duplicates_in_values,0,true,2
+bm002,Наматрасники и чехлы для матрасов,96,missing_indexed_products,,,95
+55002,Игровая мебель для геймеров,43,dirty_or_duplicates_in_values,0,true,2
+55002,Игровая мебель для геймеров,43,missing_indexed_products,,,35
+20926,"Пуфы, табуреты и подставки для ног",83,dirty_or_duplicates_in_values,0,true,12
+20926,"Пуфы, табуреты и подставки для ног",83,missing_indexed_products,,,47
+21829,Раскладные и раздвижные столы,34,dirty_or_duplicates_in_values,0,true,9
+21829,Раскладные и раздвижные столы,34,missing_indexed_products,,,6
+10687,Мягкие кресла,114,dirty_or_duplicates_in_values,0,true,12
+10687,Мягкие кресла,114,missing_indexed_products,,,24
+49972,"Чехлы, покрытия на диваны VRETSTORP",5,missing_f_series_filter,,,
+700676,Стулья,43,dirty_or_duplicates_in_values,0,true,30
+700676,Стулья,43,missing_indexed_products,,,24
+25221,Мягкие стулья,42,dirty_or_duplicates_in_values,0,true,8
+25221,Мягкие стулья,42,missing_indexed_products,,,14
+36212,"Обеденная группа, стол и 4 стула",186,dirty_or_duplicates_in_values,0,true,15
+36212,"Обеденная группа, стол и 4 стула",186,missing_indexed_products,,,32
+36213,"Обеденная группа, стол и 6 стула",27,dirty_or_duplicates_in_values,0,true,9
+36213,"Обеденная группа, стол и 6 стула",27,missing_indexed_products,,,6
+bc004,Детские кресла,33,dirty_or_duplicates_in_values,0,true,7
+bc004,Детские кресла,33,missing_indexed_products,,,18
+700319,Скамья в прихожую для обуви,28,dirty_or_duplicates_in_values,0,true,10
+700319,Скамья в прихожую для обуви,28,missing_indexed_products,,,17
+19141,Мебель для кафе и ресторанов,7,dirty_or_duplicates_in_values,0,true,3
+19141,Мебель для кафе и ресторанов,7,missing_indexed_products,,,4
+700417,Мебель для столовой,470,dirty_or_duplicates_in_values,3,true,34
+700417,Мебель для столовой,470,missing_indexed_products,,,105
+700358,Фасады для кухни под дуб VOXTORP,4,missing_f_series_filter,,,
+700360,Фасады для кухни глянцевые белые VOXTORP,4,missing_f_series_filter,,,
+700361,Фасады для кухни матовые белые VOXTORP,4,missing_f_series_filter,,,
+700362,Фасады для кухни темно-серые VOXTORP,4,missing_f_series_filter,,,
+700389,Фасады для кухни белые под дерево ENKÖPING,5,missing_f_series_filter,,,
+10716,Журнальные столики,61,dirty_or_duplicates_in_values,0,true,6
+10716,Журнальные столики,61,missing_indexed_products,,,42
+700696,Фасады для кухни шпон дуба SINARP,4,missing_f_series_filter,,,
+700697,Фасады для кухни синие LERHYTTAN,0,missing_f_series_filter,,,
+48978,Готовые модульные кухни KNOXHULT,43,missing_f_series_filter,,,
+48982,Бытовая техника KNOXHULT,37,dirty_or_duplicates_in_values,0,true,8
+48982,Бытовая техника KNOXHULT,37,missing_indexed_products,,,25
+50377,Вытяжки ENHET,22,dirty_or_duplicates_in_values,0,true,6
+50377,Вытяжки ENHET,22,missing_indexed_products,,,19
+50379,Холодильники и морозильные камеры ENHET,6,dirty_or_duplicates_in_values,0,true,2
+50379,Холодильники и морозильные камеры ENHET,6,missing_indexed_products,,,2
+33516,Духовые шкафы с функцией СВЧ,0,dirty_or_duplicates_in_values,0,true,2
+700371,Фасады для кухни светло-серые RINGHULT,4,missing_f_series_filter,,,
+700670,Фасады для кухни темно-серо-зеленые KALLARP,0,missing_f_series_filter,,,
+22957,Мини-кухни,47,dirty_or_duplicates_in_values,0,true,7
+22957,Мини-кухни,47,missing_indexed_products,,,8
+700383,Фасады для кухни белые HEJSTA,1,missing_f_series_filter,,,
+700537,Аксессуары для кухни ÖNNERUP,24,dirty_or_duplicates_in_values,0,true,4
+700537,Аксессуары для кухни ÖNNERUP,24,missing_indexed_products,,,3
+20481,Вешалка и полки детские,12,dirty_or_duplicates_in_values,0,true,4
+20481,Вешалка и полки детские,12,missing_indexed_products,,,5
+20601,Корзины для белья,15,dirty_or_duplicates_in_values,0,true,4
+20601,Корзины для белья,15,missing_indexed_products,,,11
+10551,Органайзеры для документов и бумаг,129,dirty_or_duplicates_in_values,0,true,11
+10551,Органайзеры для документов и бумаг,129,missing_indexed_products,,,53
+16274,Плечики и вешалки для одежды,43,dirty_or_duplicates_in_values,0,true,7
+16274,Плечики и вешалки для одежды,43,missing_indexed_products,,,33
+12158,Фурнитура и направляющие BESTÅ,29,dirty_or_duplicates_in_values,0,true,3
+12158,Фурнитура и направляющие BESTÅ,29,missing_indexed_products,,,27
+20087,Корпуса раздвижных дверей PAX,41,missing_f_series_filter,,,
+55033,Подсветка для мебели BESTÅ,12,dirty_or_duplicates_in_values,0,true,1
+55033,Подсветка для мебели BESTÅ,12,missing_indexed_products,,,10
+55012,Шкафы модульные,24,missing_indexed_products,,,24
+11465,Модульные стойки,214,dirty_or_duplicates_in_values,0,true,13
+11465,Модульные стойки,214,missing_indexed_products,,,171
+fu005,Тележки для кухни и ванной,19,dirty_or_duplicates_in_values,0,true,5
+fu005,Тележки для кухни и ванной,19,missing_indexed_products,,,14
+43634,Шкафы открытые,13,dirty_or_duplicates_in_values,0,true,3
+43635,Шкафы с раздвижными дверями,5,dirty_or_duplicates_in_values,0,true,4
+43635,Шкафы с раздвижными дверями,5,missing_indexed_products,,,1
+47084,Офисные шкафы,25,dirty_or_duplicates_in_values,0,true,1
+47084,Офисные шкафы,25,missing_indexed_products,,,8
+48006,Шкафы с зеркалом,3,dirty_or_duplicates_in_values,0,true,3
+48007,Шкафы в прихожую,12,dirty_or_duplicates_in_values,1,true,6
+48007,Шкафы в прихожую,12,missing_indexed_products,,,2
+18735,Товары для рисования и рукоделия,40,dirty_or_duplicates_in_values,0,true,2
+18735,Товары для рисования и рукоделия,40,missing_indexed_products,,,11
+45924,Детские ванночки для купания,5,missing_f_series_filter,,,
+10382,Книжные полки,78,dirty_or_duplicates_in_values,1,true,12
+10382,Книжные полки,78,missing_indexed_products,,,8
+24858,Зеркала подвесные,44,dirty_or_duplicates_in_values,0,true,1
+24858,Зеркала подвесные,44,missing_indexed_products,,,44
+10410,Витрины и торговые прилавки для магазинов,49,dirty_or_duplicates_in_values,4,true,10
+10410,Витрины и торговые прилавки для магазинов,49,missing_indexed_products,,,16
+pp004,Уличные горшки и кашпо,140,dirty_or_duplicates_in_values,0,true,3
+pp004,Уличные горшки и кашпо,140,missing_indexed_products,,,129
+24714,Детские столы,25,dirty_or_duplicates_in_values,0,true,2
+24714,Детские столы,25,missing_indexed_products,,,23
+10760,Свечи и подсвечники,80,dirty_or_duplicates_in_values,0,true,6
+10760,Свечи и подсвечники,80,missing_indexed_products,,,79
+24831,Открытки,0,missing_f_series_filter,,,
+16307,Аксессуары для свечей,0,missing_f_series_filter,,,
+47424,Система IDÅSEN,20,missing_indexed_products,,,19
+47425,Столешницы и подстолья IDÅSEN,4,missing_f_series_filter,,,
+pp003,Растения и цветы,154,dirty_or_duplicates_in_values,0,true,4
+pp003,Растения и цветы,154,missing_indexed_products,,,82
+10797,"Ящики, контейнеры и корзины для хранения",47,dirty_or_duplicates_in_values,0,true,4
+10797,"Ящики, контейнеры и корзины для хранения",47,missing_indexed_products,,,25
+20544,Овечьи и коровьи шкуры,5,missing_f_series_filter,,,
+700350,Шезлонги для отдыха,137,dirty_or_duplicates_in_values,0,true,11
+700350,Шезлонги для отдыха,137,missing_indexed_products,,,13
+16280,Интегрированное освещение,35,dirty_or_duplicates_in_values,0,true,1
+16280,Интегрированное освещение,35,missing_indexed_products,,,33
+20514,Светодиодные лампы,43,missing_f_series_filter,,,
+10736,Потолочное освещение для ванной,26,missing_f_series_filter,,,
+700178,Декоративные абажуры,0,missing_f_series_filter,,,
+20504,Настенные светильники и бра,23,dirty_or_duplicates_in_values,0,true,4
+20504,Настенные светильники и бра,23,missing_indexed_products,,,19
+17897,Уличное и садовое освещение,43,missing_f_series_filter,,,
+10757,Настенные украшения,193,dirty_or_duplicates_in_values,0,true,8
+10757,Настенные украшения,193,missing_indexed_products,,,87
+20720,Тумбы для ванной комнаты с умывальником,14,missing_f_series_filter,,,
+700495,Тумбы с раковиной NYSJÖN,1,missing_f_series_filter,,,
+20606,Контейнеры с крышками,43,missing_indexed_products,,,43
+20490,Зеркала,89,dirty_or_duplicates_in_values,0,true,1
+20490,Зеркала,89,missing_indexed_products,,,89
+21961,Подушки для садовой мебели,65,dirty_or_duplicates_in_values,0,true,6
+21961,Подушки для садовой мебели,65,missing_indexed_products,,,46
+10409,Духовые шкафы,109,dirty_or_duplicates_in_values,6,true,15
+10409,Духовые шкафы,109,missing_indexed_products,,,34
+21958,Система хранения на балконе и в саду,29,dirty_or_duplicates_in_values,0,true,3
+21958,Система хранения на балконе и в саду,29,missing_indexed_products,,,22
+10454,"Шкафы, вешалки и полки для прихожей",29,dirty_or_duplicates_in_values,0,true,4
+10454,"Шкафы, вешалки и полки для прихожей",29,missing_indexed_products,,,23
+16202,"Картонные, декоративные коробки",111,dirty_or_duplicates_in_values,0,true,9
+16202,"Картонные, декоративные коробки",111,missing_indexed_products,,,42
+23610,Шкафы для встраиваемой техники METOD,1179,missing_f_series_filter,,,
+20660,Полки навесные без ножки,68,dirty_or_duplicates_in_values,0,true,5
+20660,Полки навесные без ножки,68,missing_indexed_products,,,50
+21962,"Стулья для дачи, сада и балкона",19,dirty_or_duplicates_in_values,0,true,6
+21962,"Стулья для дачи, сада и балкона",19,missing_indexed_products,,,7
+48944,Туалетные ершики и держатели для бумаги,21,dirty_or_duplicates_in_values,0,true,7
+48944,Туалетные ершики и держатели для бумаги,21,missing_indexed_products,,,11
+49117,Полки и ящики для кухни METOD,225,dirty_or_duplicates_in_values,0,true,6
+49117,Полки и ящики для кухни METOD,225,missing_indexed_products,,,184
+43631,Отдельностоящие шкафы,23,dirty_or_duplicates_in_values,0,true,11
+43631,Отдельностоящие шкафы,23,missing_indexed_products,,,6
+49118,Органайзеры для кухни METOD,19,dirty_or_duplicates_in_values,0,true,2
+49118,Органайзеры для кухни METOD,19,missing_indexed_products,,,13
+43632,Встроенные шкафы,110,missing_f_series_filter,,,
+700404,Мини-кухни готовые ÄSPINGE,2,missing_f_series_filter,,,
+700374,Фасады для кухни черные LERHYTTAN,5,missing_f_series_filter,,,
+49155,Новогодние украшения,0,missing_f_series_filter,,,
+700630,3-местные диваны-кровати,32,dirty_or_duplicates_in_values,0,true,7
+700630,3-местные диваны-кровати,32,missing_indexed_products,,,13
+19053,Шкафы,165,dirty_or_duplicates_in_values,1,true,19
+19053,Шкафы,165,missing_indexed_products,,,102
+59246,Скамейки,13,dirty_or_duplicates_in_values,0,true,5
+59246,Скамейки,13,missing_indexed_products,,,8
+20502,"Настольные лампы, торшеры, ночники",28,dirty_or_duplicates_in_values,0,true,6
+20502,"Настольные лампы, торшеры, ночники",28,missing_indexed_products,,,18
+700293,Фасады для кухни,67,missing_f_series_filter,,,
+20656,Прикроватные тумбы и шкафы,49,dirty_or_duplicates_in_values,1,true,19
+20656,Прикроватные тумбы и шкафы,49,missing_indexed_products,,,21
+20677,Настенные органайзеры для кухни,70,dirty_or_duplicates_in_values,0,true,9
+20677,Настенные органайзеры для кухни,70,missing_indexed_products,,,13
+20719,Шкафы и пеналы для ванных комнат,25,missing_f_series_filter,,,
+20804,Стеллажи и пеналы для ванных комнат,29,dirty_or_duplicates_in_values,0,true,3
+20804,Стеллажи и пеналы для ванных комнат,29,missing_indexed_products,,,21
+700711,Фасады для кухни темно-зеленые ASPUDDEN,4,missing_f_series_filter,,,
+49159,"Цветы, венки и гирлянды к рождеству",0,missing_f_series_filter,,,
+48005,Шкафы распашные,8,dirty_or_duplicates_in_values,0,true,10
+48005,Шкафы распашные,8,missing_indexed_products,,,2
+57297,Обеденные столы на 2 персоны,16,dirty_or_duplicates_in_values,0,true,9
+57297,Обеденные столы на 2 персоны,16,missing_indexed_products,,,5
+59286,"Ножки, направляющие и аксессуары EKET",23,dirty_or_duplicates_in_values,0,true,6
+59286,"Ножки, направляющие и аксессуары EKET",23,missing_indexed_products,,,14
+700355,Фасады для кухни темно-бежевые UPPLÖV,4,missing_f_series_filter,,,
+700366,Фасады для кухни белые фасады STENSUND,5,missing_f_series_filter,,,
+700399,Фасады для кухни под ясень ASKERSUND,4,missing_f_series_filter,,,
+700534,Мини-кухни готовые ÖNNERUP,2,missing_f_series_filter,,,
+20631,Вок-сковороды,3,dirty_or_duplicates_in_values,0,true,3
+20631,Вок-сковороды,3,missing_indexed_products,,,1
+15950,"Банки, емкости для продуктов",30,dirty_or_duplicates_in_values,0,true,4
+15950,"Банки, емкости для продуктов",30,missing_indexed_products,,,20
+33547,Аксессуары для столешниц кухни,3,dirty_or_duplicates_in_values,0,true,1
+33547,Аксессуары для столешниц кухни,3,missing_indexed_products,,,2
+50009,Аксессуары для кухни ENHET,18,dirty_or_duplicates_in_values,0,true,3
+50009,Аксессуары для кухни ENHET,18,missing_indexed_products,,,8
+15951,Баночки и контейнеры для специй,29,dirty_or_duplicates_in_values,0,true,4
+15951,Баночки и контейнеры для специй,29,missing_indexed_products,,,25
+22669,Скороварки,1,missing_f_series_filter,,,
+33500,Формы для мороженого и льда,2,dirty_or_duplicates_in_values,0,true,1
+33500,Формы для мороженого и льда,2,missing_indexed_products,,,1
+700386,Фасады для кухни коричнево-бежевые HAVSTORP,60,missing_f_series_filter,,,
+20724,Смесители и краны для умывальников,15,dirty_or_duplicates_in_values,0,true,2
+20724,Смесители и краны для умывальников,15,missing_indexed_products,,,11
+700353,Наборы для пикника,24,dirty_or_duplicates_in_values,0,true,4
+700353,Наборы для пикника,24,missing_indexed_products,,,17
+31786,Модульные диваны,216,dirty_or_duplicates_in_values,0,true,6
+31786,Модульные диваны,216,missing_indexed_products,,,4
+700699,Аксессуары для ванной без сверления,16,dirty_or_duplicates_in_values,0,true,4
+700699,Аксессуары для ванной без сверления,16,missing_indexed_products,,,11
+37898,Аксессуары PLATSA,20,missing_f_series_filter,,,
+48986,Мини-кухни SUNNERSTA,2,missing_f_series_filter,,,
+700372,Фасады для кухни антрацит NICKEBO,62,missing_f_series_filter,,,
+tl001/732a2e12-3551-11ec-9b4d-c96fbc416494,Пуховые одеяла,0,missing_f_series_filter,,,
+10482,"Смесители, краны для кухни",9,dirty_or_duplicates_in_values,0,true,1
+10482,"Смесители, краны для кухни",9,missing_indexed_products,,,8
+700388,Фасады для кухни бамбук FRÖJERED,8,missing_f_series_filter,,,
+tl003,Текстиль для ванной,146,dirty_or_duplicates_in_values,0,true,4
+tl003,Текстиль для ванной,146,missing_indexed_products,,,78
+700365,Фасады для кухни белые VEDDINGE,29,missing_f_series_filter,,,
+18775,Балдахины и аксессуары для детских кроватей,9,dirty_or_duplicates_in_values,0,true,1
+18775,Балдахины и аксессуары для детских кроватей,9,missing_indexed_products,,,7
+700370,Фасады для кухни белые RINGHULT,58,missing_f_series_filter,,,
+47070,"Геймерские, комптьютерные столы",11,missing_f_series_filter,,,
+55993,Столы и столики TROTTEN,18,dirty_or_duplicates_in_values,0,true,1
+55993,Столы и столики TROTTEN,18,missing_indexed_products,,,18
+700562,Детский письменный стол RELATERA,9,missing_f_series_filter,,,
+11844,Столешницы для офисных столов,18,missing_indexed_products,,,18
+700673,Кухонные ящики MAXIMERA,26,missing_f_series_filter,,,
+46457,Столешницы для кухни - шпон дуба,16,missing_f_series_filter,,,
+700369,Фасады для кухни коричневые SINARP,50,missing_f_series_filter,,,
+700514,Фасады для кухни под дуб FORSBACKA,33,missing_f_series_filter,,,
+700710,Фасады для кухни светло-серые ASPUDDEN,57,missing_f_series_filter,,,
+53253,"Комплектующие для кухонных моек, раковин",4,missing_f_series_filter,,,
+700177,Декоративные светильники и фонари,17,dirty_or_duplicates_in_values,0,true,1
+700177,Декоративные светильники и фонари,17,missing_indexed_products,,,17
+20608,Гладильные доски,4,missing_f_series_filter,,,
+49160,Новогодние кашпо и вазы,1,missing_f_series_filter,,,
+10778,Горшки и кашпо для цветов,107,dirty_or_duplicates_in_values,0,true,2
+10778,Горшки и кашпо для цветов,107,missing_indexed_products,,,97
+20495,Горшки для растений самополивающиеся,6,missing_f_series_filter,,,
+19112,Двери с петлями PAX,60,dirty_or_duplicates_in_values,0,true,4
+19112,Двери с петлями PAX,60,missing_indexed_products,,,43
+55997,Двери-купе для шкафов,8,missing_f_series_filter,,,
+55985,Раздвижные двери SKYTTA,59,missing_f_series_filter,,,
+700524,Крупные комнатные растения,13,missing_f_series_filter,,,
+700529,Защитные чехлы для подушек,2,missing_f_series_filter,,,
+39267,Ковры ручной работы,26,missing_f_series_filter,,,
+20821,Фильтры и аксессуары для вытяжки,10,missing_f_series_filter,,,
+18852,Фартуки для кухни,6,dirty_or_duplicates_in_values,0,true,1
+18852,Фартуки для кухни,6,missing_indexed_products,,,5
+700628,Пленки для окон и аксессуары,3,missing_f_series_filter,,,
+16296,Кресла складные,7,dirty_or_duplicates_in_values,0,true,1
+16296,Кресла складные,7,missing_indexed_products,,,3
+20907,Кресла и стулья из ротанга,15,dirty_or_duplicates_in_values,0,true,1
+20907,Кресла и стулья из ротанга,15,missing_indexed_products,,,12
+10696,Кресла из натуральной кожи и кожзама,7,dirty_or_duplicates_in_values,0,true,2
+10696,Кресла из натуральной кожи и кожзама,7,missing_indexed_products,,,4
+48979,Раковины и смесители KNOXHULT,2,dirty_or_duplicates_in_values,0,true,1
+48979,Раковины и смесители KNOXHULT,2,missing_indexed_products,,,1
+41686,Фасады и ящики PLATSA,8,missing_f_series_filter,,,
+20634,Горшки для цветов,22,dirty_or_duplicates_in_values,0,true,6
+20634,Горшки для цветов,22,missing_indexed_products,,,12
+59284,Комбинации шкафов EKET,93,missing_f_series_filter,,,
+700373,Фасады для кухни светло-серые LERHYTTAN,69,missing_f_series_filter,,,
+18892,Карнизы для штор,19,dirty_or_duplicates_in_values,0,true,1
+18892,Карнизы для штор,19,missing_indexed_products,,,19
+45732,Комбинации JONAXEL,9,missing_f_series_filter,,,
+18891,Карнизы и аксессуары,49,dirty_or_duplicates_in_values,0,true,2
+18891,Карнизы и аксессуары,49,missing_indexed_products,,,38
+10803,Основания и патроны для настольных ламп,48,dirty_or_duplicates_in_values,0,true,1
+10803,Основания и патроны для настольных ламп,48,missing_indexed_products,,,48
+16255,Дорожные подушки для путешествий,5,dirty_or_duplicates_in_values,0,true,1
+16255,Дорожные подушки для путешествий,5,missing_indexed_products,,,3
+11704,Комбинации IVAR,43,missing_f_series_filter,,,
+42247,Комбинации BROR,23,missing_f_series_filter,,,
+700557,Комбинация для хранения TROFAST,186,missing_f_series_filter,,,
+55026,Комоды BESTÅ,126,missing_f_series_filter,,,
+24259,Контейнеры для раздельного сбора мусора,19,dirty_or_duplicates_in_values,0,true,2
+24259,Контейнеры для раздельного сбора мусора,19,missing_indexed_products,,,3
+47067,"Игровые, компьютерные стулья и кресла",16,dirty_or_duplicates_in_values,0,true,1
+47067,"Игровые, компьютерные стулья и кресла",16,missing_indexed_products,,,15
+48940,"Ящики, органайзеры, корзины для ванной комнаты",9,dirty_or_duplicates_in_values,0,true,5
+48940,"Ящики, органайзеры, корзины для ванной комнаты",9,missing_indexed_products,,,4
+10412,Буфеты и серванты,35,dirty_or_duplicates_in_values,3,true,14
+10412,Буфеты и серванты,35,missing_indexed_products,,,4
+24264,Столешницы и подстолья для кухни,101,dirty_or_duplicates_in_values,0,true,1
+24264,Столешницы и подстолья для кухни,101,missing_indexed_products,,,100
+16282,Подсветка для кухни,15,dirty_or_duplicates_in_values,0,true,1
+16282,Подсветка для кухни,15,missing_indexed_products,,,13
+20815,Микроволновые СВЧ печи METOD,6,dirty_or_duplicates_in_values,0,true,9
+20815,Микроволновые СВЧ печи METOD,6,missing_indexed_products,,,3
+700352,"Бутылки для воды, термокружки и термосы",6,missing_indexed_products,,,6
+700512,Переносные лампы,9,missing_f_series_filter,,,
+20491,Фонарики для свечей для дома,12,dirty_or_duplicates_in_values,0,true,1
+20491,Фонарики для свечей для дома,12,missing_indexed_products,,,11
+20492,Искусственные растения и цветы,70,dirty_or_duplicates_in_values,0,true,2
+20492,Искусственные растения и цветы,70,missing_indexed_products,,,1
+20516,Светодиодная подсветка с датчиком движения,40,dirty_or_duplicates_in_values,0,true,3
+20516,Светодиодная подсветка с датчиком движения,40,missing_indexed_products,,,36
+54942,Уличные фонарики,3,missing_f_series_filter,,,
+700180,Интерьерные гирлянды,16,missing_f_series_filter,,,
+16246,Скамейки и консоли,1,missing_f_series_filter,,,
+18894,Карнизы для штор и аксессуары,3,missing_f_series_filter,,,
+20824,Отдельностоящие холодильники,6,dirty_or_duplicates_in_values,0,true,2
+20824,Отдельностоящие холодильники,6,missing_indexed_products,,,2
+45848,Односпальные кровати для детей,17,dirty_or_duplicates_in_values,0,true,1
+45848,Односпальные кровати для детей,17,missing_indexed_products,,,11
+19048,Двухъярусные кровати для детей,4,missing_f_series_filter,,,
+19039,Кровати-мезонин и двухъярусные кровати,9,missing_f_series_filter,,,
+45847,Раздвижные кровати с регулируемой длиной,8,dirty_or_duplicates_in_values,0,true,4
+45847,Раздвижные кровати с регулируемой длиной,8,missing_indexed_products,,,4
+18724,Детские матрасы,11,dirty_or_duplicates_in_values,0,true,1
+18724,Детские матрасы,11,missing_indexed_products,,,10
+24823,"Беспружинные матрасы, пена/латекс",11,missing_f_series_filter,,,
+18714,Посуда и детские столовые приборы,12,dirty_or_duplicates_in_values,0,true,1
+18714,Посуда и детские столовые приборы,12,missing_indexed_products,,,10
+15935,Миски для смешивания и взбивания,12,dirty_or_duplicates_in_values,0,true,4
+15935,Миски для смешивания и взбивания,12,missing_indexed_products,,,10
+16292,"Инструменты, наборы и аксессуары для сборки мебели",10,dirty_or_duplicates_in_values,0,true,1
+16292,"Инструменты, наборы и аксессуары для сборки мебели",10,missing_indexed_products,,,2
+37896,Каркасы PLATSA,6,missing_f_series_filter,,,
+48995,"Ножки, опоры и основания для кухни ENHET",3,missing_f_series_filter,,,
+49229,Шведский рождественский ужин,0,dirty_or_duplicates_in_values,0,true,1
+50008,"Освещение, подсветка для кухни ENHET",6,dirty_or_duplicates_in_values,0,true,1
+50008,"Освещение, подсветка для кухни ENHET",6,missing_indexed_products,,,4
+700588,Органайзеры для холодильника,9,missing_f_series_filter,,,
+49015,Аксессуары для кухни ENHET,4,missing_f_series_filter,,,
+55987,Панели раздвижных дверей SKYTTA,4,missing_f_series_filter,,,
+18773,Детские светильники и ночники,20,missing_f_series_filter,,,
+700482,"Освещение, подсветка ENHET",2,missing_f_series_filter,,,
+15908,Панели для стенок БЕСТО,8,missing_f_series_filter,,,
+700413,Декоративные светодиодные лампы,18,missing_f_series_filter,,,
+42242,Подсветка гардеробов PAX,9,dirty_or_duplicates_in_values,0,true,1
+42242,Подсветка гардеробов PAX,9,missing_indexed_products,,,7
+46473,Ламинированные стеновые панели,15,missing_f_series_filter,,,
+24825,Основания для матрасов,10,missing_f_series_filter,,,
+20630,Сковороды,32,dirty_or_duplicates_in_values,0,true,7
+20630,Сковороды,32,missing_indexed_products,,,17
+20505,Настенные светильники,8,dirty_or_duplicates_in_values,0,true,5
+10787,Плакаты и постеры,39,dirty_or_duplicates_in_values,0,true,1
+10787,Плакаты и постеры,39,missing_indexed_products,,,38
+20813,Индукционные варочные панели,13,dirty_or_duplicates_in_values,0,true,2
+20813,Индукционные варочные панели,13,missing_indexed_products,,,10
+20814,Газовые варочные панели,0,dirty_or_duplicates_in_values,0,true,1
+20535,Пуховые подушки,6,missing_f_series_filter,,,
+10978,"Чехлы, покрытия на диваны EKTORP",21,missing_f_series_filter,,,
+18705,"Чехлы, покрытия на диваны KIVIK",20,missing_f_series_filter,,,
+20678,Полки для кухни,33,dirty_or_duplicates_in_values,0,true,2
+20678,Полки для кухни,33,missing_indexed_products,,,29
+16305,Полки для картин и фотографий,19,missing_f_series_filter,,,
+39569,Товары для кошек,7,missing_indexed_products,,,7
+700540,Перегородки для стола MITTZON,7,missing_f_series_filter,,,
+18746,Рамки для фотографий и рисунков,98,dirty_or_duplicates_in_values,0,true,6
+18746,Рамки для фотографий и рисунков,98,missing_indexed_products,,,22
+20521,Полотенца для лица,20,dirty_or_duplicates_in_values,0,true,2
+20521,Полотенца для лица,20,missing_indexed_products,,,6
+20525,Полотенца для рук,22,dirty_or_duplicates_in_values,0,true,2
+20525,Полотенца для рук,22,missing_indexed_products,,,8
+46081,Стеллажи с корзинами,0,missing_f_series_filter,,,
+40692,Душевые гарнитуры и системы,2,dirty_or_duplicates_in_values,0,true,1
+40692,Душевые гарнитуры и системы,2,missing_indexed_products,,,2
+41068,"Подставки, держатели для телефонов/планшетов",11,dirty_or_duplicates_in_values,0,true,2
+41068,"Подставки, держатели для телефонов/планшетов",11,missing_indexed_products,,,8
+21826,Обеденные столы на 4 персоны,55,dirty_or_duplicates_in_values,0,true,14
+21826,Обеденные столы на 4 персоны,55,missing_indexed_products,,,13
+21828,Обеденные столы на 10 человек,2,missing_f_series_filter,,,
+700541,Конференц-столы MITTZON,44,missing_f_series_filter,,,
+21965,"Столы для дачи, сада и балкона",30,dirty_or_duplicates_in_values,0,true,7
+21965,"Столы для дачи, сада и балкона",30,missing_indexed_products,,,7
+700337,Конференц-столы TROTTEN,0,missing_f_series_filter,,,
+36816,Потолочные светодиодные панели,3,missing_f_series_filter,,,
+20496,"Засушенные цветы, растения и попурри",5,missing_indexed_products,,,5
+42245,Система BROR,34,missing_f_series_filter,,,
+700462,Зеркальные шкафы HAVBÄCK,1,missing_f_series_filter,,,
+48993,Кухонные шкафы ENHET,11,missing_f_series_filter,,,
+10456,Обувницы и комоды для обуви,21,dirty_or_duplicates_in_values,0,true,3
+10456,Обувницы и комоды для обуви,21,missing_indexed_products,,,19
+700492,Тумбы умывальник без раковины ENHET,4,missing_f_series_filter,,,
+700464,Тумбы под умывальник без раковины HAVBÄCK,13,missing_f_series_filter,,,
+700473,Зеркальные шкафы TÄNNFORSEN,7,missing_f_series_filter,,,
+20721,Тумбы под раковину,3,dirty_or_duplicates_in_values,0,true,1
+20721,Тумбы под раковину,3,missing_indexed_products,,,2
+18707,Детские шкафы и гардеробы,2,dirty_or_duplicates_in_values,0,true,3
+700516,Искусственные цветы (срезанные),26,missing_f_series_filter,,,
+700518,Искусственные букеты,10,dirty_or_duplicates_in_values,0,true,1
+700518,Искусственные букеты,10,missing_indexed_products,,,1
+700672,Кухонные ящики KNIVSHULT,46,missing_f_series_filter,,,
+16048,Сервировочные столики-этажерки и подносы,35,dirty_or_duplicates_in_values,0,true,2
+16048,Сервировочные столики-этажерки и подносы,35,missing_indexed_products,,,32
+18850,Кухонный текстиль,25,dirty_or_duplicates_in_values,0,true,3
+18850,Кухонный текстиль,25,missing_indexed_products,,,16
+49152,Рождественский текстиль,12,dirty_or_duplicates_in_values,0,true,1
+49152,Рождественский текстиль,12,missing_indexed_products,,,11
+20657,Туалетные столики,12,dirty_or_duplicates_in_values,0,true,8
+20657,Туалетные столики,12,missing_indexed_products,,,5
+700466,Раковины HAVBÄCK,0,missing_f_series_filter,,,
+700471,Раковины ÄNGSJÖN,0,missing_f_series_filter,,,
+20618,Вешалки для одежды,19,dirty_or_duplicates_in_values,0,true,1
+20618,Вешалки для одежды,19,missing_indexed_products,,,15
+700333,Все товары JOSTEIN,19,missing_f_series_filter,,,
+55988,Все товары SKYTTA,29,missing_f_series_filter,,,
+20820,Встраиваемые вытяжки,3,missing_f_series_filter,,,
+700599,Жалюзи,38,missing_f_series_filter,,,
+24260,Петли со встроенным амортизатором для кухни,9,missing_f_series_filter,,,
+59249,Комплекты мебели для балкона,30,dirty_or_duplicates_in_values,0,true,5
+59249,Комплекты мебели для балкона,30,missing_indexed_products,,,5
+10785,Настенные и настольные часы,8,missing_f_series_filter,,,
+700411,Комплекты мебели для прихожей,2,dirty_or_duplicates_in_values,0,true,2
+24263,Раковины и мойки для кухни,22,missing_f_series_filter,,,
+47361,"Обеденная группа, стол и 8 стула",3,dirty_or_duplicates_in_values,0,true,1
+47361,"Обеденная группа, стол и 8 стула",3,missing_indexed_products,,,1
+50378,Посудомоечные машины ENHET,7,dirty_or_duplicates_in_values,0,true,1
+50378,Посудомоечные машины ENHET,7,missing_indexed_products,,,6
+59307,Люстры,2,dirty_or_duplicates_in_values,0,true,1
+59307,Люстры,2,missing_indexed_products,,,1
