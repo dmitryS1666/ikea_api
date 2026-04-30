@@ -525,6 +525,9 @@ class Product < ApplicationRecord
       "czerwonobrązowy" => "красно-коричневый",
       "czerwonobrazowy" => "красно-коричневый",
       "jasnozielony" => "светло-зеленый",
+      "ciemnozielony" => "темно-зеленый",
+      "ciemnozielononiebieski" => "темно-зелено-синий",
+      "ciemnoszary" => "темно-серый",
       "średnioszary" => "средне-серый",
       "srednioszary" => "средне-серый"
     }
