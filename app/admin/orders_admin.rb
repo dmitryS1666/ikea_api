@@ -74,6 +74,20 @@ Trestle.resource(:orders) do
 
       static_field :delivery_type, label: "Тип доставки"
       static_field :payment_method, label: "Способ оплаты"
+
+      if order.payment_url.present?
+        static_field :payment_url, label: "Ссылка на оплату (WebPay)" do
+          admin_link_to(order.payment_url, order.payment_url, target: "_blank", rel: "noopener")
+        end
+      end
+
+      if order.payment_link_token.present?
+        static_field :payment_link_token, label: "Токен ссылки оплаты"
+      end
+
+      if order.payment_expires_at.present?
+        static_field :payment_expires_at, label: "Ссылка действует до"
+      end
       
       if order.address_json.present?
         static_field :address, label: "Адрес" do

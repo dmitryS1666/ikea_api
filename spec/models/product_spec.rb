@@ -46,6 +46,25 @@ RSpec.describe Product, type: :model do
         hash_including(pln_rate: 3.5, buffer: 0, weight_kg: product.weight.to_f, delivery_pln: product.delivery_cost.to_f)
       )
     end
+
+    it "normalizes Polish color labels and armrest phrase to Russian" do
+      product.variants_payload = [
+        {
+          "type" => "color",
+          "data" => [
+            {
+              "color" => "z szerokimi podlokietnikami hillared antracyt",
+              "item" => { "sku" => "s11111111", "price" => "100.0", "small_desc_name" => "z szerokimi podlokietnikami hillared antracyt" }
+            }
+          ]
+        }
+      ].to_json
+
+      out = product.normalized_variants_for_api
+      color = out.first.dig(:data, 0, :color)
+
+      expect(color).to eq("с широкими подлокотниками hillared антрацит")
+    end
   end
 
   describe "#normalized_variant_skus" do

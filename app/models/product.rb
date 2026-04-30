@@ -487,6 +487,11 @@ class Product < ApplicationRecord
     text = raw.to_s.strip
     return nil if text.blank?
 
+    phrase_map = {
+      "z szerokimi podlokietnikami" => "с широкими подлокотниками",
+      "s szerokimi podlokietnikami" => "с широкими подлокотниками"
+    }
+
     words_map = {
       "biały" => "белый",
       "bialy" => "белый",
@@ -510,6 +515,8 @@ class Product < ApplicationRecord
       "pomaranczowy" => "оранжевый",
       "fioletowy" => "фиолетовый",
       "kremowy" => "кремовый",
+      "antracyt" => "антрацит",
+      "grafitowy" => "графитовый",
       "jasno" => "светло",
       "ciemno" => "темно",
       "średnio" => "средне",
@@ -536,6 +543,7 @@ class Product < ApplicationRecord
     }
     pl_fold.each { |src, dst| normalized.gsub!(src, dst) }
     normalized = normalized.gsub(/[\/\-]/, " ")
+    phrase_map.each { |src, dst| normalized.gsub!(src, dst) }
     translated = normalized.split(/\s+/).map { |w| words_map[w] || w }.join(" ")
     translated.gsub(/\s+/, " ").strip.presence || text
   end
