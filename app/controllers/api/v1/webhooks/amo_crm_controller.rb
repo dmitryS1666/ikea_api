@@ -69,6 +69,16 @@ module Api
               merge_lead_custom_fields!(order, lead_data, update_params)
 
               if update_params.any?
+                order.status_changed_at = parse_amo_timestamp(lead_data[:updated_at] || lead_data["updated_at"])
+                order.status_change_source = "amo_webhook"
+                order.status_change_raw_payload =
+                  if lead_data.is_a?(ActionController::Parameters)
+                    lead_data.to_unsafe_h
+                  elsif lead_data.is_a?(Hash)
+                    lead_data
+                  else
+                    {}
+                  end
                 if order.update(update_params)
                   Rails.logger.info "[AmoCRM Webhook] Order #{order.id} updated: #{update_params.keys.join(', ')}"
                 else
@@ -124,6 +134,17 @@ module Api
           end
         rescue StandardError => e
           Rails.logger.error "[AmoCRM Webhook] custom fields parse error for order #{order.id}: #{e.message}"
+        end
+
+        def parse_amo_timestamp(value)
+          return nil if value.blank?
+
+          # Amo webhooks often pass unix timestamp.
+          return Time.zone.at(value.to_i) if value.to_s.match?(/\A\d+\z/)
+
+          Time.zone.parse(value.to_s)
+        rescue StandardError
+          nil
         end
 
         def handle_contacts_webhook(contacts_params)

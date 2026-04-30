@@ -16,4 +16,13 @@ FactoryBot.define do
     quantity { 1 }
     price { 100.0 }
   end
+
+  factory :order_status_event do
+    order
+    from_status { nil }
+    to_status { "created" }
+    changed_at { Time.current }
+    source { "system" }
+    raw_payload { {} }
+  end
 end

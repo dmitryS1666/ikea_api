@@ -2,6 +2,9 @@ class Order < ApplicationRecord
   belongs_to :user
   belongs_to :promo_code, optional: true
   has_many :order_items, dependent: :destroy
+  has_many :order_status_events, dependent: :destroy
+
+  attr_accessor :status_changed_at, :status_change_source, :status_change_raw_payload
 
   # Electronic receipts (PDF) can be attached locally.
   # CRM integration is skipped, so receipts can be uploaded by admin and shown to user.
@@ -35,6 +38,8 @@ class Order < ApplicationRecord
 
   after_update :notify_status_change, if: :saved_change_to_status?
   after_save :enqueue_tracking_update, if: :saved_change_to_track_number?
+  after_create_commit :record_initial_status_event
+  after_update_commit :record_status_change_event, if: :saved_change_to_status?
   after_create_commit :sync_with_crm
 
   def purchased?
@@ -47,6 +52,43 @@ class Order < ApplicationRecord
 
   def customer_name
     user&.full_name || full_name.presence || "—"
+  end
+
+  def status_timeline
+    sequence = %w[
+      created
+      processing
+      confirmed
+      paid
+      purchased
+      received_poland
+      preparing_for_shipment
+      export_eu
+      customs_poland
+      on_border
+      customs_belarus
+      shipped
+      arrived_pvz
+      handed_to_courier
+      completed
+      cancelled
+    ]
+
+    event_times = order_status_events.ordered.each_with_object({}) do |event, memo|
+      memo[event.to_status.to_s] = event.changed_at
+    end
+    event_times["created"] ||= created_at
+
+    sequence.map do |code|
+      at = event_times[code]
+      {
+        code: code,
+        title: I18n.t("activerecord.attributes.order.statuses.#{code}", default: code.humanize),
+        at: at&.iso8601,
+        is_current: status.to_s == code,
+        is_completed: at.present?
+      }
+    end
   end
 
   private
@@ -62,6 +104,35 @@ class Order < ApplicationRecord
 
   def notify_status_change
     OrderNotificationService.call(self, status_changed: true)
+  end
+
+  def record_initial_status_event
+    order_status_events.create!(
+      from_status: nil,
+      to_status: status.to_s,
+      changed_at: created_at || Time.current,
+      source: "system"
+    )
+  end
+
+  def record_status_change_event
+    from_status, to_status = saved_change_to_status
+    return if to_status.blank?
+
+    changed_at = status_changed_at.presence || Time.current
+    source = status_change_source.presence || "system"
+
+    order_status_events.create!(
+      from_status: from_status.to_s.presence,
+      to_status: to_status.to_s,
+      changed_at: changed_at,
+      source: source,
+      raw_payload: status_change_raw_payload.is_a?(Hash) ? status_change_raw_payload : {}
+    )
+  ensure
+    self.status_changed_at = nil
+    self.status_change_source = nil
+    self.status_change_raw_payload = nil
   end
 
   def set_purchased_at
