@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "Checkout delivery types", type: :request do
+  include ActiveJob::TestHelper
+
   let(:user) { create(:user) }
   let(:token) { JwtService.encode(user_id: user.id) }
   let(:headers) { { "Authorization" => "Bearer #{token}" } }
@@ -24,8 +26,10 @@ RSpec.describe "Checkout delivery types", type: :request do
     create(:pickup_point, provider: "europost", max_weight_kg: 100.0, max_volume_m3: 1.0, active: true)
     allow(ExchangeRate).to receive(:fetch_or_create).and_return(double(rate_per_unit: 3.2))
     allow(CrmIntegrationService).to receive(:sync_order).and_return({ success: true })
-    allow(OrderNotificationService).to receive(:call)
     allow(WebpayPaymentLinkService).to receive(:issue_link!)
+    allow(TelegramService).to receive(:send_message)
+    ActiveJob::Base.queue_adapter = :test
+    clear_enqueued_jobs
   end
 
   def checkout(payload)
@@ -172,5 +176,66 @@ RSpec.describe "Checkout delivery types", type: :request do
     expect(response).to have_http_status(:ok)
     body = JSON.parse(response.body)
     expect(body.dig("data", "attributes", "address")).to be_present
+  end
+
+  it "enqueues client and admin sendpulse emails after successful order create" do
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with("SENDPULSE_ADMIN_NOTIFY_EMAIL").and_return("manager@example.com")
+    pp = PickupPoint.where(provider: "europost").first
+
+    expect do
+      checkout(
+        full_name: "User",
+        phone: "375291112233",
+        delivery_type: "europost_pickup",
+        payment_method: "card",
+        pickup_point_id: pp.id
+      )
+    end.to change { enqueued_jobs.count { |job| job[:job] == SendpulseEmailJob } }.by(2)
+  end
+
+  it "enqueues only client sendpulse email when admin email is not set" do
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with("SENDPULSE_ADMIN_NOTIFY_EMAIL").and_return(nil)
+    pp = PickupPoint.where(provider: "europost").first
+
+    expect do
+      checkout(
+        full_name: "User",
+        phone: "375291112233",
+        delivery_type: "europost_pickup",
+        payment_method: "card",
+        pickup_point_id: pp.id
+      )
+    end.to change { enqueued_jobs.count { |job| job[:job] == SendpulseEmailJob } }.by(1)
+  end
+
+  it "does not enqueue sendpulse notifications for unsuccessful order creation" do
+    expect do
+      checkout(
+        full_name: "User",
+        phone: "375291112233",
+        delivery_type: "courier",
+        payment_method: "card"
+      )
+    end.not_to change { enqueued_jobs.count { |job| job[:job] == SendpulseEmailJob } }
+  end
+
+  it "does not enqueue duplicate order-created notifications on regular order update" do
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with("SENDPULSE_ADMIN_NOTIFY_EMAIL").and_return("manager@example.com")
+    pp = PickupPoint.where(provider: "europost").first
+    checkout(
+      full_name: "User",
+      phone: "375291112233",
+      delivery_type: "europost_pickup",
+      payment_method: "card",
+      pickup_point_id: pp.id
+    )
+    clear_enqueued_jobs
+
+    expect do
+      Order.last.update!(phone: "375299998877")
+    end.not_to change { enqueued_jobs.count { |job| job[:job] == SendpulseEmailJob } }
   end
 end

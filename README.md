@@ -139,6 +139,16 @@ MONGODB_URI=mongodb://localhost:27017/ikea
 
 # JWT
 JWT_SECRET=your_jwt_secret_here
+
+# SendPulse (transactional email only)
+SENDPULSE_API_KEY=
+SENDPULSE_API_BASE_URL=https://api.sendpulse.com
+SENDPULSE_FROM_EMAIL=
+SENDPULSE_FROM_NAME=IKEA
+SENDPULSE_ADMIN_NOTIFY_EMAIL=
+SENDPULSE_ORDER_CREATED_TEMPLATE_ID=
+SENDPULSE_ORDER_STATUS_TEMPLATE_ID=
+SENDPULSE_PASSWORD_RESET_TEMPLATE_ID=
 ```
 
 Генерация JWT_SECRET:
@@ -167,6 +177,14 @@ rails server
 | `REDIS_URL` | URL подключения к Redis | Нет |
 | `MONGODB_URI` | URI подключения к MongoDB | Нет |
 | `JWT_SECRET` | Секретный ключ для JWT | Да |
+| `SENDPULSE_API_KEY` | API key для SendPulse (backend only) | Нет |
+| `SENDPULSE_API_BASE_URL` | Базовый URL SendPulse API | Нет |
+| `SENDPULSE_FROM_EMAIL` | Подтвержденный отправитель SendPulse | Нет |
+| `SENDPULSE_FROM_NAME` | Имя отправителя SendPulse | Нет |
+| `SENDPULSE_ADMIN_NOTIFY_EMAIL` | Email менеджера для уведомлений о новых заказах | Нет |
+| `SENDPULSE_ORDER_CREATED_TEMPLATE_ID` | Template ID для письма о создании заказа | Нет |
+| `SENDPULSE_ORDER_STATUS_TEMPLATE_ID` | Template ID для письма о смене статуса | Нет |
+| `SENDPULSE_PASSWORD_RESET_TEMPLATE_ID` | Template ID для reset password | Нет |
 
 ### База данных
 
