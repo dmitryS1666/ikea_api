@@ -43,5 +43,26 @@ RSpec.describe Products::IncludedProductsBootstrapService do
 
       expect(Products::ExtendedAttributesFetchService).not_to have_received(:fetch_for_product)
     end
+
+    it "extracts articles from mixed included_products payload formats" do
+      parent.update!(
+        included_products: [
+          { "itemNoGlobal" => "12345678" },
+          { "item" => { "sku" => "s87654321" } },
+          "{\"sku\":\"s23456789\"}",
+          "{:itemNo=>\"34567890\"}"
+        ]
+      )
+
+      allow(Products::ExtendedAttributesFetchService).to receive(:fetch_for_product).and_return({ updated: false })
+      allow(ImageDownloader).to receive(:sync_product_images)
+
+      described_class.ensure!(parent)
+
+      expect(Product.find_by(item_no: "12345678")).to be_present
+      expect(Product.find_by(item_no: "87654321")).to be_present
+      expect(Product.find_by(item_no: "23456789")).to be_present
+      expect(Product.find_by(item_no: "34567890")).to be_present
+    end
   end
 end

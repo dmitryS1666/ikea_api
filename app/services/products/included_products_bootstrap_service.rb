@@ -22,13 +22,49 @@ module Products
     attr_reader :parent
 
     def articles
-      Array(parent.included_products).filter_map { |entry| normalize_article(entry) }.uniq
+      Array(parent.included_products).flat_map { |entry| normalize_articles(entry) }.uniq
     end
 
-    def normalize_article(entry)
-      token = entry.is_a?(Hash) ? (entry["sku"] || entry[:sku] || entry["item_no"] || entry[:item_no]) : entry
-      s = token.to_s.gsub(/\D/, "")
-      s if s.match?(/\A\d{8}\z/)
+    def normalize_articles(entry)
+      extract_tokens(entry).filter_map { |token| normalize_article_token(token) }.uniq
+    end
+
+    def extract_tokens(entry)
+      return [] if entry.blank?
+
+      if entry.is_a?(Hash)
+        nested = entry["item"] || entry[:item]
+        return [
+          entry["sku"], entry[:sku],
+          entry["item_no"], entry[:item_no],
+          entry["itemNo"], entry[:itemNo],
+          entry["itemNoGlobal"], entry[:itemNoGlobal],
+          entry["articleNumber"], entry[:articleNumber],
+          entry["id"], entry[:id],
+          entry["value"], entry[:value],
+          nested
+        ].compact
+      end
+
+      [entry]
+    end
+
+    def normalize_article_token(token)
+      return nil if token.blank?
+
+      if token.is_a?(Hash)
+        return normalize_articles(token).first
+      end
+
+      s = token.to_s.strip
+      return nil if s.blank?
+
+      compact = s.gsub(/[^0-9a-z]/i, "").downcase
+      return compact if compact.match?(/\A\d{8}\z/)
+      return compact.delete_prefix("s") if compact.match?(/\As\d{8}\z/)
+
+      embedded = s.match(/(^|[^0-9])(\d{8})([^0-9]|$)/)
+      embedded&.[](2)
     end
 
     def ensure_article!(article)
