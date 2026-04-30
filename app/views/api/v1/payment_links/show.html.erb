@@ -6,16 +6,17 @@
   </head>
   <body>
     <p>Перенаправляем на безопасную страницу оплаты WEBPAY...</p>
+    <p>Если переход не начался автоматически, нажмите кнопку ниже.</p>
     <form id="webpay-form" action="<%= form.action %>" method="post">
       <% form.fields.each do |name, value| %>
         <input type="hidden" name="<%= name %>" value="<%= value %>" />
       <% end %>
-      <noscript>
-        <button type="submit">Перейти к оплате</button>
-      </noscript>
+      <button type="submit">Перейти к оплате</button>
     </form>
     <script>
-      document.getElementById('webpay-form')?.submit();
+      document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('webpay-form')?.submit();
+      });
     </script>
   </body>
 </html>
