@@ -9,7 +9,14 @@ module Api
         return render_expired if order.payment_expires_at.blank? || order.payment_expires_at < Time.current
 
         form = WebpayPaymentLinkService.build_form(order: order)
-        render template: 'api/v1/payment_links/show', locals: { form: form }, layout: false
+        html = render_to_string(
+          template: 'api/v1/payment_links/show',
+          formats: [:html],
+          locals: { form: form },
+          layout: false
+        )
+
+        render html: html.html_safe, content_type: 'text/html'
       end
 
       private
