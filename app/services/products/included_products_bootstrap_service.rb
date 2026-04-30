@@ -36,7 +36,10 @@ module Products
 
       existing = Products::ListingSkuResolver.find_product(article) ||
         Product.find_by(item_no: article)
-      return if existing
+      if existing
+        enrich_product!(existing)
+        return
+      end
 
       listing_sku = "s#{article}"
       url = "https://www.ikea.com/pl/pl/p/-#{article}/"
@@ -54,22 +57,54 @@ module Products
         quantity: 0
       )
 
+      enrich_product!(child)
+    rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
+      Rails.logger.warn "IncludedProductsBootstrapService: article=#{article} parent=#{parent.sku}: #{e.message}"
+    rescue StandardError => e
+      Rails.logger.error "IncludedProductsBootstrapService: article=#{article} parent=#{parent.sku}: #{e.class} #{e.message}"
+    end
+
+    def enrich_product!(product)
+      return unless incomplete_product?(product)
+
       Products::ExtendedAttributesFetchService.fetch_for_product(
-        child,
+        product,
         results_jsonl_row: nil,
         force_ai_translation: false,
         fallback_pl_when_lt_missing: true,
         strip_listing_relations: true
       )
 
-      child.reload
-      if Array(child.images).compact.reject(&:blank?).any?
-        ImageDownloader.sync_product_images(child)
-      end
-    rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
-      Rails.logger.warn "IncludedProductsBootstrapService: article=#{article} parent=#{parent.sku}: #{e.message}"
-    rescue StandardError => e
-      Rails.logger.error "IncludedProductsBootstrapService: article=#{article} parent=#{parent.sku}: #{e.class} #{e.message}"
+      product.reload
+      return unless Array(product.images).compact.reject(&:blank?).any?
+
+      ImageDownloader.sync_product_images(product)
+    end
+
+    def incomplete_product?(product)
+      return true if product.price.blank? || product.price.to_f <= 0
+      return true if product.weight.blank? && product.dimensions.blank?
+      return true if product.materials.blank? && poor_full_attributes?(product)
+      return true if product.content.to_s.strip.blank? && product.short_description.to_s.strip.blank?
+      return true if placeholder_name?(product)
+
+      false
+    end
+
+    def poor_full_attributes?(product)
+      fa = product.full_attributes
+      return true unless fa.is_a?(Hash)
+
+      fa = fa.deep_stringify_keys
+      detailed = fa["detailed_info"]
+      return false if detailed.is_a?(Hash) && detailed.any?
+
+      skip = %w[measurements_modal product_details_modal measurements_modal_extracted_at product_details_modal_extracted_at]
+      fa.except(*skip).blank?
+    end
+
+    def placeholder_name?(product)
+      product.name.to_s.match?(/\AIKEA\s+(s?)\d{8}\z/i)
     end
   end
 end
