@@ -9,17 +9,39 @@ module Api
         return render_expired if order.payment_expires_at.blank? || order.payment_expires_at < Time.current
 
         form = WebpayPaymentLinkService.build_form(order: order)
-        html = render_to_string(
-          template: 'api/v1/payment_links/show',
-          formats: [:html],
-          locals: { form: form },
-          layout: false
-        )
-
-        render html: html.html_safe, content_type: 'text/html'
+        render body: build_payment_page_html(form), content_type: 'text/html'
       end
 
       private
+
+      def build_payment_page_html(form)
+        fields_html = form.fields.map do |name, value|
+          %(<input type="hidden" name="#{ERB::Util.html_escape(name)}" value="#{ERB::Util.html_escape(value)}" />)
+        end.join("\n")
+
+        <<~HTML
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="UTF-8" />
+              <title>Open Webpay</title>
+            </head>
+            <body>
+              <p>Перенаправляем на безопасную страницу оплаты WEBPAY...</p>
+              <p>Если переход не начался автоматически, нажмите кнопку ниже.</p>
+              <form id="webpay-form" action="#{ERB::Util.html_escape(form.action)}" method="post">
+                #{fields_html}
+                <button type="submit">Перейти к оплате</button>
+              </form>
+              <script>
+                document.addEventListener('DOMContentLoaded', function () {
+                  document.getElementById('webpay-form')?.submit();
+                });
+              </script>
+            </body>
+          </html>
+        HTML
+      end
 
       def order
         @order ||= Order.find_by(id: params[:id])
