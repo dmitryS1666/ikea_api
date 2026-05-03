@@ -1119,7 +1119,22 @@
       input.value = "";
     }
 
+    flushBodyBlockEditorsToState() {
+      if (!this.blockList || !Array.isArray(this.blocks)) return;
+      this.blockList.querySelectorAll(".content-article-block-content").forEach(el => {
+        const idx = parseInt(el.dataset.blockIndex, 10);
+        if (Number.isNaN(idx) || idx < 0 || idx >= this.blocks.length) return;
+        const ed = window.tinymce && typeof tinymce.get === "function" ? tinymce.get(el.id) : null;
+        if (ed) {
+          this.blocks[idx].content = ed.getContent();
+        } else if (el.value !== undefined) {
+          this.blocks[idx].content = el.value;
+        }
+      });
+    }
+
     serializeBlocks() {
+      this.flushBodyBlockEditorsToState();
       return this.blocks.map((block, index) => ({
         type: block.type,
         content: block.content,
@@ -1143,7 +1158,8 @@
 
     destroy() {
       if (this._submitHandler && this._boundForm) {
-        this._boundForm.removeEventListener("submit", this._submitHandler);
+        this._boundForm.removeEventListener("submit", this._submitHandler, true);
+        this._boundForm.removeEventListener("turbo:submit-start", this._submitHandler);
       }
       if (this._documentClickHandler) {
         document.removeEventListener("click", this._documentClickHandler);
@@ -1170,11 +1186,14 @@
 
       this._boundForm = form;
       this._submitHandler = () => {
+        this.flushBodyBlockEditorsToState();
         this.pullSignedIdsFromForm();
         this.syncHiddenField();
       };
 
-      form.addEventListener("submit", this._submitHandler);
+      // capture: true — до других обработчиков (в т.ч. Turbo), чтобы скрытое JSON-поле уже содержало актуальный HTML
+      form.addEventListener("submit", this._submitHandler, true);
+      form.addEventListener("turbo:submit-start", this._submitHandler);
     }
 
     blobRedirectUrl(image) {
