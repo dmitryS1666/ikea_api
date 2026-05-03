@@ -78,6 +78,8 @@ class TelegramService
         'fix_missing_images' => 'Докачка отсутствующих картинок',
         'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
         'recover_missing_images' => 'Восполнение ссылок на картинки',
+        'recover_missing_weights' => 'Восполнение веса товаров',
+        'recover_missing_packaging_dimensions' => 'Восполнение размеров упаковки',
         'recover_broken_product_images' => 'Восстановление битых картинок',
         'refresh_category_lt' => 'Актуализация категории (список SKU с LT)',
         'pl_prices_stock' => 'Цены и остатки (PL, все SKU)'

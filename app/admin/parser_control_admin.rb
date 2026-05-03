@@ -111,6 +111,13 @@ Trestle.resource :parser_control, model: ParserControl do
             payload[:category_ikea_id] = params[:recover_category_ikea_id].to_s.strip.presence
           end
 
+          if task_type == "recover_missing_packaging_dimensions"
+            payload[:only_missing_packaging_dimensions] = params[:only_missing_packaging_dimensions].to_s != "0"
+            payload[:packaging_recover_sku] = params[:packaging_recover_sku].to_s.strip.presence
+            payload[:packaging_recover_skus] = params[:packaging_recover_skus].to_s.strip.presence
+            payload[:category_ikea_id] = params[:packaging_recover_category_ikea_id].to_s.strip.presence
+          end
+
           # Обработка дополнительных данных (SKUs и т.д.)
           if task_type == "extended_attributes_by_skus" || task_type == "import_products_by_skus" || task_type == "recover_broken_product_images" || task_type == "update_all_product_images" || task_type == "update_product_variants"
             payload[:skus] = extra_data
@@ -169,6 +176,15 @@ Trestle.resource :parser_control, model: ParserControl do
                     only_missing_weight: payload[:only_missing_weight],
                     sku: payload[:sku],
                     skus: payload[:skus],
+                    category_ikea_id: payload[:category_ikea_id]
+                  )
+                elsif task_type == "recover_missing_packaging_dimensions"
+                  job_class.perform_later(
+                    limit: limit,
+                    task_id: task.id,
+                    only_missing_packaging_dimensions: payload[:only_missing_packaging_dimensions],
+                    packaging_recover_sku: payload[:packaging_recover_sku],
+                    packaging_recover_skus: payload[:packaging_recover_skus],
                     category_ikea_id: payload[:category_ikea_id]
                   )
                 elsif %w[extended_attrs_import extended_attributes_by_skus import_products_by_skus fix_missing_images update_all_product_images update_product_variants].include?(task_type)
@@ -596,6 +612,8 @@ Trestle.resource :parser_control, model: ParserControl do
         UpdateProductVariantsJob
       when 'recover_missing_weights'
         RecoverMissingWeightsJob
+      when 'recover_missing_packaging_dimensions'
+        RecoverMissingPackagingDimensionsJob
       when 'refresh_category_lt'
         RefreshCategoryFromLtJob
       when 'refresh_product_lt'
@@ -639,6 +657,7 @@ Trestle.resource :parser_control, model: ParserControl do
         'update_all_product_images' => 'Полное обновление всех картинок (WebP + Resumable)',
         'update_product_variants' => 'Актуализация вариантов (цвета/размеры)',
         'recover_missing_weights' => 'Восполнение недостающего веса (2 потока + прокси)',
+        'recover_missing_packaging_dimensions' => 'Восполнение размеров упаковки (PL+LT, measurements_modal)',
         'refresh_category_lt' => 'Актуализация категории (список с LT, PL-поля)',
         'refresh_product_lt' => 'Актуализация одного товара по SKU (LT/PL)',
         'pl_prices_stock' => 'Обновление цен и остатков (PL) для всех SKU'
