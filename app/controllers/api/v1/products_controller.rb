@@ -25,9 +25,20 @@ module Api
       end
       
       def show
+        resolved = Products::ListingSkuResolver.find_product(params[:sku])
+        scope =
+          Product.includes(
+            :seo_meta,
+            :category_products,
+            category: :category_related_product_list,
+            categories: :category_related_product_list
+          )
         product =
-          Products::ListingSkuResolver.find_product(params[:sku]) ||
-          Product.includes(:seo_meta, :category, :category_products).find_by!(sku: params[:sku])
+          if resolved
+            scope.find(resolved.id)
+          else
+            scope.find_by!(sku: params[:sku])
+          end
         
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
         render json: ProductSerializer.new(product, {

@@ -26,6 +26,12 @@ class Category < ApplicationRecord
   has_one :seo_meta, as: :seoable, class_name: "SeoMetum", dependent: :destroy
   accepts_nested_attributes_for :seo_meta, allow_destroy: true, update_only: true
 
+  has_one :category_related_product_list,
+          foreign_key: :category_id,
+          primary_key: :ikea_id,
+          dependent: :destroy,
+          inverse_of: :category
+
   serialize :parent_ids, coder: JSON
 
   before_save :cache_slug, if: -> { name_changed? || translated_name_changed? || cached_slug.blank? }

@@ -82,7 +82,12 @@ class PlDetailsFetcher
         title = panel.at_css(".pipf-recommendation-panel__header")&.text.to_s.downcase
         title.include?("produkty pokrewne") ||
           title.include?("related products") ||
-          title.include?("похожие товары")
+          title.include?("похожие товары") ||
+          title.include?("razem") || # często kupowane razem / z tym produktem
+          title.include?("kupowane") ||
+          title.include?("kupują") ||
+          title.include?("often bought") ||
+          title.include?("frequently bought")
       end
   
     panels.flat_map do |panel|
@@ -105,6 +110,45 @@ class PlDetailsFetcher
         .map { |s| s.gsub(/[^0-9a-z]/i, "") }
         .select { |s| s.match?(/\A\d{8}\z/i) || s.match?(/\As\d{8}\z/i) }
     end.uniq
+  end
+
+  # Список SKU «аксессуары» + панели «с этим покупают» / related с одной PIP-страницы PL.
+  # Не зависит от RelatedProductsCollection::ENABLED (используется при сборе category_related_product_lists).
+  def self.related_skus_bundle_for_product_url(url, scope_sku: nil)
+    new(scope_sku: scope_sku).related_skus_bundle_for_product_url(url)
+  end
+
+  def related_skus_bundle_for_product_url(url)
+    full_url = url.to_s.start_with?("http") ? url : "https://www.ikea.com#{url}"
+    html = fetch_with_proxy(full_url)
+    return [] if html.blank?
+
+    doc = Nokogiri::HTML(html)
+    skus = merge_related_product_skus_from_document(doc)
+
+    use_headless =
+      self.class.headless_browser_executable_available? &&
+      (accessories_modal_clickable?(doc) || skus.empty?)
+
+    if use_headless
+      head = fetch_modal_with_headless_browser(full_url)
+      extra = Array(head[:related_products])
+      skus = (skus + extra).map(&:to_s).uniq
+    end
+
+    skus
+      .map(&:to_s)
+      .map { |s| s.gsub(/[^0-9a-z]/i, "") }
+      .select { |s| s.match?(/\A\d{8}\z/i) || s.match?(/\As\d{8}\z/i) }
+      .uniq
+  end
+
+  def merge_related_product_skus_from_document(doc)
+    return [] unless doc
+
+    a = extract_related_products_from_accessories_modal(doc)
+    r = extract_related_products_from_recommendation_panel(doc)
+    (Array(a) + Array(r)).map(&:to_s).uniq
   end
 
   # Минимальный разбор страницы товара PL: цена в PLN (злотые), наличие, canonical URL.
@@ -989,15 +1033,10 @@ class PlDetailsFetcher
 
       result[:included_products] = included_skus if included_skus.present?
       accessories_related = extract_related_products_from_accessories_modal(modal_doc)
+      recommendation_related = extract_related_products_from_recommendation_panel(modal_doc)
+      related = (Array(accessories_related) + Array(recommendation_related)).map(&:to_s).uniq
 
-      related =
-        if accessories_opened && accessories_related.any?
-          accessories_related
-        else
-          extract_related_products_from_recommendation_panel(modal_doc)
-        end
-      
-      result[:related_products] = related.uniq if related.any?
+      result[:related_products] = related if related.any?
 
       Rails.logger.info "PlDetailsFetcher.fetch_modal_with_headless_browser: Extracted - materials: #{result[:materials].present?}, care: #{result[:care_instructions].present?}, safety: #{result[:safety_info].present?}, good_to_know: #{result[:good_to_know].present?}, included_products: #{included_skus&.length || 0}, related_products: #{Array(result[:related_products]).length}"
       
@@ -1075,15 +1114,10 @@ class PlDetailsFetcher
       Rails.logger.debug "PlDetailsFetcher.extract_related_products: skipped (RelatedProductsCollection::ENABLED is false)"
       return []
     end
-  
-    related = extract_related_products_from_accessories_modal(doc)
-  
-    if related.empty?
-      related = extract_related_products_from_recommendation_panel(doc)
-    end
-  
+
+    related = merge_related_product_skus_from_document(doc)
     Rails.logger.info "PlDetailsFetcher.extract_related_products: Extracted #{related.length} related products"
-    related.uniq
+    related
   end
 
   def extract_related_products_from_accessories_modal(doc)
@@ -1143,6 +1177,20 @@ class PlDetailsFetcher
   rescue => e
     Rails.logger.debug "PlDetailsFetcher.try_open_accessories_modal!: #{e.message}"
     false
+  end
+
+  # В SSR есть кнопка открытия модалки аксессуаров — без headless блок в DOM пустой.
+  def accessories_modal_clickable?(doc)
+    return false unless doc
+
+    doc.css("button").any? do |btn|
+      txt = btn.text.to_s.downcase
+      cls = btn["class"].to_s
+      txt.include?("pokaż wszystkie akcesoria") ||
+        txt.include?("akcesoria") ||
+        txt.include?("accessories") ||
+        cls.include?("pipf-accessories-grid__add-accessories-button")
+    end
   end
 
   # На PIPF кнопка строки списка с заголовком «Elementy w zestawie» (и аналоги) — без SSR-модалки состава.

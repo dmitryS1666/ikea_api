@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_04_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_04_130001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -171,6 +171,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_04_120000) do
     t.index ["category_id"], name: "index_category_products_on_category_id"
     t.index ["product_id", "category_id"], name: "index_category_products_unique", unique: true
     t.index ["product_id"], name: "index_category_products_on_product_id"
+  end
+
+  create_table "category_related_product_lists", force: :cascade do |t|
+    t.string "category_id", null: false
+    t.jsonb "related_products", default: [], null: false
+    t.string "anchor_first_sku"
+    t.string "anchor_last_sku"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category_id"], name: "index_category_related_product_lists_on_category_id", unique: true
   end
 
   create_table "content_article_categories", force: :cascade do |t|
@@ -894,6 +904,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_04_120000) do
   add_foreign_key "carts", "promo_codes"
   add_foreign_key "carts", "users"
   add_foreign_key "category_products", "products"
+  add_foreign_key "category_related_product_lists", "categories", primary_key: "ikea_id"
   add_foreign_key "favorite_items", "favorites"
   add_foreign_key "favorites", "users"
   add_foreign_key "home_banners", "categories", primary_key: "ikea_id", on_delete: :nullify

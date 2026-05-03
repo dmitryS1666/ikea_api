@@ -119,7 +119,13 @@ class ProductSerializer
   end
 
   attribute :related_products do |product|
-    raw = product.related_products
+    category_skus = CategoryRelatedProductList.skus_for_product(product)
+    raw =
+      if category_skus.any?
+        category_skus
+      else
+        product.related_products
+      end
     items = if raw.is_a?(Array)
               raw
             elsif raw.is_a?(String) && raw.present?

@@ -11,7 +11,8 @@
 #      иначе полная карточка с PL без обязательного OpenAI (fallback_pl_when_lt_missing). Цена/qty с PL.
 #      included_products — только из модалки «Elementy w zestawie» на PL; отсутствующие позиции набора
 #      догружаются IncludedProductsBootstrapService (без variants/related, без привязки к категории).
-#      related_products — см. RelatedProductsCollection::ENABLED и process_related.
+#      related_products в API — см. CategoryRelatedProductList (сбор с 1-го и последнего SKU листинга);
+#      per-product related_products в БД — см. RelatedProductsCollection::ENABLED и process_related.
 #      Затем IkeaLvProductVariantsService (force: true) — варианты с PIP PL.
 #      Затем ImageDownloader.sync_product_images (после вариантов и ensure) — локальные WebP + зеркало в public/images.
 #   5) Опционально: lt_jsonl_path в payload — строки JSONL по SKU (и алиасам) для приоритета LT;
@@ -108,6 +109,12 @@ class RefreshCategoryFromLtJob < ApplicationJob
         all_pl_products.concat(products_data)
         offset += page_size
         break if products_data.length < page_size
+      end
+
+      begin
+        Products::CategoryRelatedProductsHarvestService.call(category: category, listing_rows: all_pl_products)
+      rescue StandardError => e
+        Rails.logger.error "RefreshCategoryFromLtJob: category related harvest failed ikea_id=#{category.ikea_id}: #{e.message}"
       end
 
       # 2. Обрабатываем каждый продукт
@@ -217,7 +224,7 @@ class RefreshCategoryFromLtJob < ApplicationJob
       product.reload
       Products::IncludedProductsBootstrapService.ensure!(product)
 
-      related_in_base, related_missing = collect_related_skus_for(product)
+      related_in_base, related_missing = collect_related_skus_for(product, category: category)
       persist_missing_related_skus!(product, related_missing)
       if mutex
         mutex.synchronize do
@@ -588,20 +595,22 @@ class RefreshCategoryFromLtJob < ApplicationJob
       .reject { |sku| parent_aliases.include?(sku) }
   end
 
-  def collect_related_skus_for(parent)
+  def collect_related_skus_for(parent, category: nil)
     products = [parent]
     variant_skus_for(parent).each do |vs|
       p = Products::ListingSkuResolver.find_product(vs) || Product.find_by(sku: vs)
       products << p if p
     end
 
+    list_category_ids = [parent.category_id, category&.ikea_id].compact.map(&:to_s).uniq
+    category_related = list_category_ids.flat_map { |cid| CategoryRelatedProductList.skus_array_for_category_id(cid) }.uniq
+
     normalized_articles =
-      products
-      .flat_map do |p|
+      (category_related + products.flat_map do |p|
         Array(p.related_products) +
           Array(p.included_products) +
           Array(p.set_items)
-      end
+      end)
       .map(&:to_s)
       .map { |s| s.gsub(/\D/, "") }
       .select { |s| s.match?(/\A\d{8}\z/) }

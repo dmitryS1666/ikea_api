@@ -407,7 +407,7 @@ class Products::ExtendedAttributesFetchService
     reconcile_pl_scoped_product_images!(product, pl_details, attributes)
 
     attributes[:set_items] = pl_details[:set_items] if pl_details[:set_items].present? && attributes[:set_items].blank?
-    if Products::RelatedProductsCollection::ENABLED && pl_details[:related_products].present?
+    if Products::RelatedProductsCollection::ENABLED && pl_details[:related_products].present? && !skip_per_product_related_from_pl?(product)
       merged_rp = (parse_json_array(attributes[:related_products]) + Array(pl_details[:related_products]).map(&:to_s)).compact.uniq
       attributes[:related_products] = merged_rp if merged_rp.any?
     end
@@ -548,7 +548,7 @@ class Products::ExtendedAttributesFetchService
     end
 
     attributes[:set_items] = pl_details[:set_items] if pl_details[:set_items]
-    if Products::RelatedProductsCollection::ENABLED && pl_details[:related_products].present?
+    if Products::RelatedProductsCollection::ENABLED && pl_details[:related_products].present? && !skip_per_product_related_from_pl?(product)
       merged_rp = (parse_json_array(attributes[:related_products]) + Array(pl_details[:related_products]).map(&:to_s)).compact.uniq
       attributes[:related_products] = merged_rp if merged_rp.any?
     end
@@ -661,6 +661,12 @@ class Products::ExtendedAttributesFetchService
       k = "#{f}_ru".to_sym
       attributes[k] = attributes[f] if attributes[k].blank?
     end
+  end
+
+  def skip_per_product_related_from_pl?(product)
+    return false unless product&.category_id.present?
+
+    CategoryRelatedProductList.skus_array_for_category_id(product.category_id).any?
   end
 
   def pl_modal_fields_complete?(details)
