@@ -6,16 +6,259 @@ class CheckoutService
   ].freeze
 
   def self.call(user:, params:)
+    if truthy_draft?(params)
+      create_draft(user: user, params: params)
+    else
+      complete_checkout(user: user, params: params)
+    end
+  end
+
+  def self.update_draft(user:, order_id:, params:)
+    order = user.orders.find_by(id: order_id, checkout_draft: true)
+    return { error: 'Черновик заказа не найден', code: 'draft_not_found' } unless order
+
+    pricing = CartPricingService.call_from_order(order: order.reload)
+    unless pricing[:meta][:can_checkout]
+      return { error: pricing[:meta][:min_order_error] }
+    end
+
+    cart = CartPricingService.order_as_cart(order)
+
+    normalized_delivery_type = nil
+    if params[:delivery_type].present?
+      normalized_delivery_type = DeliveryTypeNormalizer.normalize(params[:delivery_type])
+      unless SUPPORTED_DELIVERY_TYPES.include?(normalized_delivery_type)
+        return { error: "Неподдерживаемый тип доставки", delivery_type: params[:delivery_type], normalized_delivery_type: normalized_delivery_type }
+      end
+
+      delivery_options = DeliveryOptionsService.call(cart)
+      selected_method = delivery_options[:methods].find { |m| m[:code] == normalized_delivery_type }
+      if selected_method.nil? || !selected_method[:available]
+        return {
+          error: "Выбранный тип доставки недоступен для заказа",
+          delivery_type: params[:delivery_type],
+          normalized_delivery_type: normalized_delivery_type,
+          reason: selected_method&.dig(:reason),
+          available_methods: delivery_options[:methods]
+        }
+      end
+
+      delivery_context = resolve_delivery_context(user: user, params: params, delivery_type: normalized_delivery_type)
+      return delivery_context if delivery_context[:error]
+
+      eta = DeliveryEtaService.call(
+        order_date: Date.current,
+        with_storage: normalized_delivery_type == DeliveryTypeNormalizer::EUROPOST_PICKUP
+      )
+      prices = delivery_prices_for(weight_kg: pricing[:totals][:total_weight_kg], delivery_type: normalized_delivery_type)
+      total_amount = pricing[:totals][:total_byn].to_f - pricing[:totals][:delivery_total_byn].to_f + prices[:total_delivery_price_byn]
+
+      delivery_snapshot = build_delivery_snapshot(
+        normalized_delivery_type: normalized_delivery_type,
+        eta: eta,
+        prices: prices,
+        pickup_point_snapshot: delivery_context[:pickup_point_snapshot],
+        address_snapshot: delivery_context[:address_snapshot]
+      )
+
+      passport_input = params[:passport].is_a?(Hash) ? params[:passport] : (params[:passport].to_unsafe_h rescue nil)
+
+      address_snapshot = (params[:address] || {}).merge(
+        pickup_point_id: params[:pickup_point_id].present? ? params[:pickup_point_id].to_i : nil,
+        services: params[:services],
+        passport_provided: passport_input.present?,
+        weight_kg: pricing[:totals][:total_weight_kg],
+        pln_total: pricing[:totals][:total_pln],
+        delivery_eta: {
+          delivery_date: eta[:delivery_date],
+          storage_until: eta[:storage_until]
+        },
+        delivery: delivery_snapshot,
+        checkout_draft: true
+      )
+
+      order.assign_attributes(
+        total_amount: total_amount.round(2),
+        delivery_price: prices[:total_delivery_price_byn],
+        discount_amount: pricing[:totals][:discount_total_byn],
+        delivery_type: normalized_delivery_type,
+        weight: pricing[:totals][:total_weight_kg],
+        address_json: address_snapshot,
+        full_name: params[:full_name].presence || order.full_name,
+        phone: params[:phone].presence || order.phone,
+        payment_method: params[:payment_method].presence || order.payment_method
+      )
+    else
+      patch_optional_fields(order, params)
+    end
+
+    if order.save
+      { success: true, order: order.reload }
+    else
+      { error: order.errors.full_messages.join(', ') }
+    end
+  end
+
+  def self.finalize(user:, order_id:, params:)
+    order = user.orders.find_by(id: order_id, checkout_draft: true)
+    return { error: 'Черновик заказа не найден', code: 'draft_not_found' } unless order
+
+    merged = merge_params_for_finalize(order, params)
+    merged_params = ActiveSupport::HashWithIndifferentAccess.new(merged)
+
+    passport_result = verify_passport!(user: user, params: merged_params)
+    return passport_result if passport_result[:error]
+
+    verification_id = passport_result[:verification_id]
+    passport_changed = passport_result[:passport_changed]
+    passport_input = passport_result[:passport_input]
+
+    pricing = CartPricingService.call_from_order(order: order.reload)
+    unless pricing[:meta][:can_checkout]
+      return { error: pricing[:meta][:min_order_error] }
+    end
+
+    pricing[:items].each do |item|
+      product = Product.find_by(sku: item[:sku])
+      if product && product.quantity.to_i <= 0
+        return { error: "Товара #{product.name} нет в наличии" }
+      end
+    end
+
+    cart = CartPricingService.order_as_cart(order)
+
+    normalized_delivery_type = DeliveryTypeNormalizer.normalize(merged[:delivery_type])
+    unless SUPPORTED_DELIVERY_TYPES.include?(normalized_delivery_type)
+      return { error: "Неподдерживаемый тип доставки", delivery_type: merged[:delivery_type], normalized_delivery_type: normalized_delivery_type }
+    end
+
+    delivery_options = DeliveryOptionsService.call(cart)
+    selected_method = delivery_options[:methods].find { |m| m[:code] == normalized_delivery_type }
+    if selected_method.nil? || !selected_method[:available]
+      return {
+        error: "Выбранный тип доставки недоступен для текущего заказа",
+        delivery_type: merged[:delivery_type],
+        normalized_delivery_type: normalized_delivery_type,
+        reason: selected_method&.dig(:reason),
+        available_methods: delivery_options[:methods]
+      }
+    end
+
+    delivery_context = resolve_delivery_context(user: user, params: merged_params, delivery_type: normalized_delivery_type)
+    return delivery_context if delivery_context[:error]
+
+    eta = DeliveryEtaService.call(
+      order_date: Date.current,
+      with_storage: normalized_delivery_type == DeliveryTypeNormalizer::EUROPOST_PICKUP
+    )
+    prices = delivery_prices_for(weight_kg: pricing[:totals][:total_weight_kg], delivery_type: normalized_delivery_type)
+    total_amount = pricing[:totals][:total_byn].to_f - pricing[:totals][:delivery_total_byn].to_f + prices[:total_delivery_price_byn]
+
+    delivery_snapshot = build_delivery_snapshot(
+      normalized_delivery_type: normalized_delivery_type,
+      eta: eta,
+      prices: prices,
+      pickup_point_snapshot: delivery_context[:pickup_point_snapshot],
+      address_snapshot: delivery_context[:address_snapshot]
+    )
+
+    raw_addr = merged[:address]
+    addr_src =
+      case raw_addr
+      when Hash then raw_addr
+      else
+        raw_addr.respond_to?(:to_unsafe_h) ? raw_addr.to_unsafe_h : {}
+      end
+    address_snapshot = addr_src.merge(
+      pickup_point_id: merged[:pickup_point_id].present? ? merged[:pickup_point_id].to_i : nil,
+      services: merged[:services],
+      passport_provided: passport_input.present?,
+      weight_kg: pricing[:totals][:total_weight_kg],
+      pln_total: pricing[:totals][:total_pln],
+      delivery_eta: {
+        delivery_date: eta[:delivery_date],
+        storage_until: eta[:storage_until]
+      },
+      delivery: delivery_snapshot
+    )
+
+    Order.transaction do
+      order.assign_attributes(
+        checkout_draft: false,
+        total_amount: total_amount.round(2),
+        delivery_price: prices[:total_delivery_price_byn],
+        discount_amount: pricing[:totals][:discount_total_byn],
+        full_name: merged[:full_name],
+        phone: merged[:phone],
+        delivery_type: normalized_delivery_type,
+        weight: pricing[:totals][:total_weight_kg],
+        payment_method: merged[:payment_method],
+        address_json: address_snapshot
+      )
+
+      unless order.save
+        raise ActiveRecord::Rollback
+      end
+
+      if passport_changed && passport_input
+        UserPassportService.write!(user: user, passport_hash: passport_input)
+        user.update!(passport_verified_at: Time.current, a1_verification_id: verification_id)
+      end
+    end
+
+    if order.reload.persisted? && !order.checkout_draft
+      WebpayPaymentLinkService.issue_link!(order)
+      OrderNotificationService.call(order)
+      { success: true, order: order }
+    else
+      { error: order.errors.full_messages.join(', ') || 'Не удалось завершить оформление' }
+    end
+  end
+
+  def self.cancel_draft(user:, order_id:)
+    order = user.orders.find_by(id: order_id, checkout_draft: true)
+    return { error: 'Черновик заказа не найден', code: 'draft_not_found' } unless order
+
+    Order.transaction do
+      cart = user.cart || user.create_cart
+      order.order_items.each do |item|
+        product = Product.with_available_stock.find_by(sku: item.product_sku)
+        next unless product
+
+        ci = cart.cart_items.find_or_initialize_by(product_sku: item.product_sku)
+        ci.quantity = (ci.quantity || 0) + item.quantity
+        ci.save!
+      end
+      cart.update!(promo_code: order.promo_code) if order.promo_code_id.present?
+      order.update!(status: :cancelled, checkout_draft: false)
+    end
+
+    { success: true }
+  end
+
+  def self.find_draft(user:)
+    user.orders.find_by(checkout_draft: true)
+  end
+
+  def self.complete_checkout(user:, params:)
+    if user.orders.exists?(checkout_draft: true)
+      draft = user.orders.find_by(checkout_draft: true)
+      return {
+        error: 'Сначала завершите или отмените оформление заказа в корзине',
+        code: 'checkout_draft_exists',
+        draft_order_id: draft&.id
+      }
+    end
+
     cart = user.cart
     return { error: 'Корзина не найдена' } unless cart
     return { error: 'Корзина пуста' } if cart.cart_items.blank?
 
-    # Passport validation skipped for brevity, same as original
     passport_input = params[:passport].is_a?(Hash) ? params[:passport] : (params[:passport].to_unsafe_h rescue nil)
     if passport_input.present?
       number = passport_input['passport_number'] || passport_input[:passport_number] || passport_input['number'] || passport_input[:number]
       series = passport_input['series'] || passport_input[:series]
-      
+
       full_number = if series.present? && number.present? && !number.to_s.match?(/[a-zA-Z\u0400-\u04FF]/)
                       "#{series}#{number}"
                     else
@@ -28,13 +271,11 @@ class CheckoutService
     end
     current_passport = user.passport_data
     passport_changed = passport_input.present? && !UserPassportService.same?(passport_input, current_passport)
-    
+
     verification_id = nil
     if passport_changed
-      # Skip verification if a1_verification_id matches and user is already verified with that ID
-      # or if the user is verified and didn't change anything (but passport_changed was true due to formatting)
-      skip_verification = user.passport_verified? && 
-                          params[:a1_verification_id].present? && 
+      skip_verification = user.passport_verified? &&
+                          params[:a1_verification_id].present? &&
                           params[:a1_verification_id].to_s == user.a1_verification_id.to_s
 
       if skip_verification
@@ -42,9 +283,9 @@ class CheckoutService
       else
         last4 = params[:a1_verification_last4] || params[:verification_code]
         verification = VerificationCode.valid_code(user.phone.to_s.gsub(/\D/, ''), last4).first
-        
+
         if verification.nil?
-          return { 
+          return {
             error: 'Требуется подтверждение паспорта через звонок',
             code: 'passport_verification_required',
             passport_data: user.passport_data,
@@ -56,14 +297,12 @@ class CheckoutService
       end
     end
 
-    # Пересчет и проверка с использованием динамических правил
     pricing = CartPricingService.call(cart: cart)
-    
+
     unless pricing[:meta][:can_checkout]
       return { error: pricing[:meta][:min_order_error] }
     end
 
-    # Проверка наличия (заглушка)
     pricing[:items].each do |item|
       product = Product.find_by(sku: item[:sku])
       if product && product.quantity.to_i <= 0
@@ -98,19 +337,13 @@ class CheckoutService
     prices = delivery_prices_for(weight_kg: pricing[:totals][:total_weight_kg], delivery_type: normalized_delivery_type)
     total_amount = pricing[:totals][:total_byn].to_f - pricing[:totals][:delivery_total_byn].to_f + prices[:total_delivery_price_byn]
 
-    delivery_snapshot = {
-      type: normalized_delivery_type,
-      provider: normalized_delivery_type == DeliveryTypeNormalizer::EUROPOST_PICKUP ? "europost" : nil,
-      delivery_date: eta[:delivery_date],
-      storage_until: eta[:storage_until],
-      prices: {
-        delivery_price_byn: format_price(prices[:delivery_price_byn]),
-        delivery_to_belarus_price_byn: format_price(prices[:delivery_to_belarus_price_byn]),
-        total_delivery_price_byn: format_price(prices[:total_delivery_price_byn])
-      },
-      pickup_point: delivery_context[:pickup_point_snapshot],
-      address: delivery_context[:address_snapshot]
-    }
+    delivery_snapshot = build_delivery_snapshot(
+      normalized_delivery_type: normalized_delivery_type,
+      eta: eta,
+      prices: prices,
+      pickup_point_snapshot: delivery_context[:pickup_point_snapshot],
+      address_snapshot: delivery_context[:address_snapshot]
+    )
 
     address_snapshot = (params[:address] || {}).merge(
       pickup_point_id: params[:pickup_point_id].present? ? params[:pickup_point_id].to_i : nil,
@@ -125,13 +358,13 @@ class CheckoutService
       delivery: delivery_snapshot
     )
 
-    # Создание заказа
     order = nil
-    
+
     Order.transaction do
       order = Order.new(
         user: user,
         status: :created,
+        checkout_draft: false,
         total_amount: total_amount.round(2),
         delivery_price: prices[:total_delivery_price_byn],
         discount_amount: pricing[:totals][:discount_total_byn],
@@ -145,15 +378,14 @@ class CheckoutService
       )
 
       if order.save
-        # Перенос товаров
         cart.cart_items.each do |cart_item|
           price_snapshot = pricing[:items].find { |i| i[:sku] == cart_item.product_sku }
-          
+
           OrderItem.create!(
             order: order,
             product_sku: cart_item.product_sku,
             quantity: cart_item.quantity,
-            price: price_snapshot[:unit_price_byn] # Фиксируем финальную цену (включая наценку K)
+            price: price_snapshot[:unit_price_byn]
           )
         end
 
@@ -175,6 +407,91 @@ class CheckoutService
       { success: true, order: order }
     else
       { error: order&.errors&.full_messages&.join(', ') || 'Ошибка создания заказа' }
+    end
+  end
+
+  def self.create_draft(user:, params:)
+    existing = user.orders.find_by(checkout_draft: true)
+    return { success: true, order: existing, existing_draft: true } if existing
+
+    cart = user.cart
+    return { error: 'Корзина не найдена' } unless cart
+    return { error: 'Корзина пуста' } if cart.cart_items.blank?
+
+    pricing = CartPricingService.call(cart: cart)
+
+    unless pricing[:meta][:can_checkout]
+      return { error: pricing[:meta][:min_order_error] }
+    end
+
+    pricing[:items].each do |item|
+      product = Product.find_by(sku: item[:sku])
+      if product && product.quantity.to_i <= 0
+        return { error: "Товара #{product.name} нет в наличии" }
+      end
+    end
+
+    total_amount = pricing[:totals][:total_byn].to_f
+    delivery_price = pricing[:totals][:delivery_total_byn].to_f
+
+    passport_input = params[:passport].is_a?(Hash) ? params[:passport] : (params[:passport].to_unsafe_h rescue nil)
+
+    address_snapshot = (params[:address] || {}).merge(
+      pickup_point_id: params[:pickup_point_id].present? ? params[:pickup_point_id].to_i : nil,
+      services: params[:services],
+      passport_provided: passport_input.present?,
+      weight_kg: pricing[:totals][:total_weight_kg],
+      pln_total: pricing[:totals][:total_pln],
+      checkout_draft: true
+    )
+
+    order = nil
+
+    Order.transaction do
+      order = Order.new(
+        user: user,
+        status: :created,
+        checkout_draft: true,
+        total_amount: total_amount.round(2),
+        delivery_price: delivery_price.round(2),
+        discount_amount: pricing[:totals][:discount_total_byn],
+        promo_code: cart.promo_code,
+        full_name: params[:full_name],
+        phone: params[:phone],
+        delivery_type: draft_initial_delivery_type(params),
+        weight: pricing[:totals][:total_weight_kg],
+        payment_method: params[:payment_method],
+        address_json: address_snapshot
+      )
+
+      if order.save
+        cart.cart_items.each do |cart_item|
+          price_snapshot = pricing[:items].find { |i| i[:sku] == cart_item.product_sku }
+
+          OrderItem.create!(
+            order: order,
+            product_sku: cart_item.product_sku,
+            quantity: cart_item.quantity,
+            price: price_snapshot[:unit_price_byn]
+          )
+        end
+
+        cart.cart_items.destroy_all
+        cart.update!(promo_code: nil)
+      else
+        raise ActiveRecord::Rollback
+      end
+    end
+
+    if order&.persisted?
+      if order.delivery_type.present?
+        update_result = update_draft(user: user, order_id: order.id, params: params)
+        return update_result unless update_result[:success]
+        order = update_result[:order]
+      end
+      { success: true, order: order }
+    else
+      { error: order&.errors&.full_messages&.join(', ') || 'Ошибка создания черновика заказа' }
     end
   end
 
@@ -259,4 +576,127 @@ class CheckoutService
   def self.format_price(value)
     format("%.2f", value.to_f)
   end
+
+  def self.truthy_draft?(params)
+    v = params[:draft]
+    v == true || v.to_s == 'true' || v == 1 || v.to_s == '1'
+  end
+
+  def self.build_delivery_snapshot(normalized_delivery_type:, eta:, prices:, pickup_point_snapshot:, address_snapshot:)
+    {
+      type: normalized_delivery_type,
+      provider: normalized_delivery_type == DeliveryTypeNormalizer::EUROPOST_PICKUP ? "europost" : nil,
+      delivery_date: eta[:delivery_date],
+      storage_until: eta[:storage_until],
+      prices: {
+        delivery_price_byn: format_price(prices[:delivery_price_byn]),
+        delivery_to_belarus_price_byn: format_price(prices[:delivery_to_belarus_price_byn]),
+        total_delivery_price_byn: format_price(prices[:total_delivery_price_byn])
+      },
+      pickup_point: pickup_point_snapshot,
+      address: address_snapshot
+    }
+  end
+
+  def self.patch_optional_fields(order, params)
+    order.full_name = params[:full_name].presence || order.full_name
+    order.phone = params[:phone].presence || order.phone
+    order.payment_method = params[:payment_method].presence || order.payment_method
+
+    if params[:address].present?
+      addr = params[:address].respond_to?(:to_unsafe_h) ? params[:address].to_unsafe_h : params[:address]
+      base = order.address_json.is_a?(Hash) ? order.address_json.stringify_keys : {}
+      order.address_json = base.merge(addr.stringify_keys).merge("checkout_draft" => true)
+    end
+  end
+
+  def self.merge_params_for_finalize(order, params)
+    p =
+      if params.respond_to?(:to_unsafe_h)
+        params.to_unsafe_h
+      elsif params.is_a?(Hash)
+        params
+      else
+        {}
+      end
+    h = p.is_a?(Hash) ? p.stringify_keys : {}
+    aj = order.address_json.is_a?(Hash) ? order.address_json.stringify_keys : {}
+    {
+      full_name: h["full_name"].presence || order.full_name,
+      phone: h["phone"].presence || order.phone,
+      delivery_type: h["delivery_type"].presence || order.delivery_type,
+      payment_method: h["payment_method"].presence || order.payment_method,
+      pickup_point_id: h["pickup_point_id"].presence || aj["pickup_point_id"],
+      delivery_address_id: h["delivery_address_id"].presence,
+      a1_verification_id: h["a1_verification_id"],
+      a1_verification_last4: h["a1_verification_last4"],
+      verification_code: h["verification_code"],
+      services: h["services"],
+      pickup_point: h["pickup_point"],
+      address: h["address"],
+      passport: h["passport"]
+    }
+  end
+
+  def self.draft_initial_delivery_type(params)
+    return nil unless params[:delivery_type].present?
+
+    normalized = DeliveryTypeNormalizer.normalize(params[:delivery_type])
+    SUPPORTED_DELIVERY_TYPES.include?(normalized) ? normalized : nil
+  end
+
+  def self.verify_passport!(user:, params:)
+    raw_passport = params[:passport]
+    passport_input =
+      if raw_passport.is_a?(Hash)
+        raw_passport
+      elsif raw_passport.respond_to?(:to_unsafe_h)
+        raw_passport.to_unsafe_h
+      end
+    if passport_input.present?
+      number = passport_input['passport_number'] || passport_input[:passport_number] || passport_input['number'] || passport_input[:number]
+      series = passport_input['series'] || passport_input[:series]
+
+      full_number = if series.present? && number.present? && !number.to_s.match?(/[a-zA-Z\u0400-\u04FF]/)
+                      "#{series}#{number}"
+                    else
+                      number
+                    end
+
+      if full_number.present? && !PassportNumberValidator.valid?(full_number)
+        return { error: 'Номер паспорта должен быть в формате: 2 буквы и 7 цифр (например, MP1234567)', code: 'invalid_passport_number' }
+      end
+    end
+
+    current_passport = user.passport_data
+    passport_changed = passport_input.present? && !UserPassportService.same?(passport_input, current_passport)
+
+    verification_id = nil
+    if passport_changed
+      skip_verification = user.passport_verified? &&
+                          params[:a1_verification_id].present? &&
+                          params[:a1_verification_id].to_s == user.a1_verification_id.to_s
+
+      if skip_verification
+        verification_id = user.a1_verification_id
+      else
+        last4 = params[:a1_verification_last4] || params[:verification_code]
+        verification = VerificationCode.valid_code(user.phone.to_s.gsub(/\D/, ''), last4).first
+
+        if verification.nil?
+          return {
+            error: 'Требуется подтверждение паспорта через звонок',
+            code: 'passport_verification_required',
+            passport_data: user.passport_data,
+            a1_verification_id: user.a1_verification_id
+          }
+        end
+        verification_id = verification.id
+        verification.destroy!
+      end
+    end
+
+    { verification_id: verification_id, passport_changed: passport_changed, passport_input: passport_input }
+  end
+
 end

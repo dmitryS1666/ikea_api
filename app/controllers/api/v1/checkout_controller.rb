@@ -2,25 +2,103 @@ module Api
   module V1
     class CheckoutController < ApplicationController
       before_action :authenticate_user
+      before_action :set_draft_order, only: [:update, :finalize, :destroy]
 
       def create
         result = CheckoutService.call(user: current_user, params: checkout_params)
-        
+
         if result[:success]
-          render json: { 
-            message: 'Заказ успешно оформлен', 
-            order_id: result[:order].id,
-            order: OrderSerializer.new(result[:order]).serializable_hash[:data][:attributes]
-          }, status: :created
+          status = result[:existing_draft] ? :ok : :created
+          render json: success_payload(result), status: status
         else
-          render json: result.except(:success), status: :unprocessable_entity
+          render_error(result)
+        end
+      end
+
+      def draft
+        order = CheckoutService.find_draft(user: current_user)
+        if order
+          render json: OrderSerializer.new(order, include: [:order_items]).serializable_hash, status: :ok
+        else
+          render json: { error: 'Активный черновик заказа не найден' }, status: :not_found
+        end
+      end
+
+      def update
+        result = CheckoutService.update_draft(user: current_user, order_id: @draft_order.id, params: checkout_params)
+
+        if result[:success]
+          render json: OrderSerializer.new(result[:order], include: [:order_items]).serializable_hash, status: :ok
+        else
+          render_error(result)
+        end
+      end
+
+      def finalize
+        result = CheckoutService.finalize(user: current_user, order_id: @draft_order.id, params: checkout_params)
+
+        if result[:success]
+          render json: success_payload(result), status: :created
+        else
+          render_error(result)
+        end
+      end
+
+      def destroy
+        result = CheckoutService.cancel_draft(user: current_user, order_id: @draft_order.id)
+
+        if result[:success]
+          head :no_content
+        else
+          render_error(result)
         end
       end
 
       private
 
+      def set_draft_order
+        @draft_order = current_user.orders.find_by(id: params[:id], checkout_draft: true)
+        return if @draft_order
+
+        render json: { error: 'Черновик заказа не найден', code: 'draft_not_found' }, status: :not_found
+        throw :abort
+      end
+
+      def success_payload(result)
+        order = result[:order]
+        message =
+          if result[:existing_draft]
+            'У вас уже есть черновик заказа'
+          elsif order.checkout_draft
+            'Черновик заказа создан'
+          else
+            'Заказ успешно оформлен'
+          end
+
+        {
+          message: message,
+          order_id: order.id,
+          order: OrderSerializer.new(order).serializable_hash[:data][:attributes]
+        }
+      end
+
+      def render_error(result)
+        body = result.except(:success)
+        status =
+          case result[:code]
+          when 'checkout_draft_exists'
+            :conflict
+          when 'draft_not_found'
+            :not_found
+          else
+            :unprocessable_entity
+          end
+        render json: body, status: status
+      end
+
       def checkout_params
         params.permit(
+          :draft,
           :full_name,
           :phone,
           :delivery_type,
@@ -28,6 +106,8 @@ module Api
           :pickup_point_id,
           :delivery_address_id,
           :a1_verification_id,
+          :a1_verification_last4,
+          :verification_code,
           services: [],
           pickup_point: {},
           address: {},

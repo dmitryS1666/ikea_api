@@ -40,13 +40,16 @@ class Order < ApplicationRecord
   after_save :enqueue_tracking_update, if: :saved_change_to_track_number?
   after_create_commit :record_initial_status_event
   after_update_commit :record_status_change_event, if: :saved_change_to_status?
-  after_create_commit :sync_with_crm
+  after_create_commit :sync_with_crm, if: :persist_non_draft_for_crm?
+  after_update_commit :sync_with_crm_after_draft_finalized
 
   def purchased?
     status.in?(PURCHASED_STATUSES)
   end
 
   def payment_expired?
+    return false if checkout_draft
+
     created? && payment_expires_at.present? && Time.current > payment_expires_at
   end
 
@@ -94,6 +97,8 @@ class Order < ApplicationRecord
   private
 
   def set_payment_expiration
+    return if checkout_draft
+
     self.payment_expires_at = 30.minutes.from_now
     # self.payment_url = "https://payment-gateway.com/pay/#{SecureRandom.hex(10)}"
   end
@@ -146,6 +151,17 @@ class Order < ApplicationRecord
   end
 
   def sync_with_crm
+    CrmSyncJob.perform_later('Order', id)
+  end
+
+  def persist_non_draft_for_crm?
+    !checkout_draft
+  end
+
+  def sync_with_crm_after_draft_finalized
+    change = saved_changes['checkout_draft']
+    return unless change&.first == true && change&.last == false
+
     CrmSyncJob.perform_later('Order', id)
   end
 end

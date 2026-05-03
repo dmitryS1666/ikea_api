@@ -1,9 +1,10 @@
 class OrderSerializer
   include FastJsonapi::ObjectSerializer
 
-  attributes :id, :status, :total_amount, :delivery_price, :delivery_type, 
+  attributes :id, :status, :total_amount, :delivery_price, :delivery_type,
              :payment_method, :full_name, :phone, :track_number, :created_at,
-             :payment_expires_at, :payment_url, :webpay_transaction_id, :webpay_paid_at
+             :payment_expires_at, :payment_url, :webpay_transaction_id, :webpay_paid_at,
+             :checkout_draft
 
   attribute :payment_expired do |order|
     order.payment_expired?

@@ -143,6 +143,8 @@ class WebpayPaymentCompletionService
       order.reload
       if order.paid?
         outcome = order.webpay_transaction_id.to_s == tid ? :already_paid : :already_paid_other
+      elsif order.checkout_draft?
+        outcome = :invalid_state
       elsif !order.created?
         outcome = :invalid_state
       elsif Order.where.not(id: order.id).exists?(webpay_transaction_id: tid)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_28_150000) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_03_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -419,6 +419,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_28_150000) do
     t.index ["product_sku"], name: "index_order_items_on_product_sku"
   end
 
+  create_table "order_status_events", force: :cascade do |t|
+    t.bigint "order_id", null: false
+    t.string "from_status"
+    t.string "to_status", null: false
+    t.datetime "changed_at", null: false
+    t.string "source", default: "system", null: false
+    t.jsonb "raw_payload", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["order_id", "changed_at"], name: "index_order_status_events_on_order_id_and_changed_at"
+    t.index ["order_id"], name: "index_order_status_events_on_order_id"
+    t.index ["to_status"], name: "index_order_status_events_on_to_status"
+  end
+
   create_table "orders", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "crm_external_id"
@@ -446,10 +460,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_28_150000) do
     t.text "cancellation_reason"
     t.string "webpay_transaction_id"
     t.datetime "webpay_paid_at"
+    t.boolean "checkout_draft", default: false, null: false
     t.index ["crm_external_id"], name: "index_orders_on_crm_external_id"
     t.index ["payment_link_token"], name: "index_orders_on_payment_link_token", unique: true
     t.index ["promo_code_id"], name: "index_orders_on_promo_code_id"
     t.index ["status"], name: "index_orders_on_status"
+    t.index ["user_id", "checkout_draft"], name: "index_orders_on_user_id_where_checkout_draft", where: "(checkout_draft = true)"
     t.index ["user_id"], name: "index_orders_on_user_id"
     t.index ["webpay_transaction_id"], name: "index_orders_on_webpay_transaction_id", unique: true, where: "(webpay_transaction_id IS NOT NULL)"
   end
@@ -884,6 +900,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_28_150000) do
   add_foreign_key "homepage_product_block_items", "products", primary_key: "sku"
   add_foreign_key "homepage_product_block_rules", "homepage_product_blocks"
   add_foreign_key "order_items", "orders"
+  add_foreign_key "order_status_events", "orders"
   add_foreign_key "orders", "promo_codes"
   add_foreign_key "orders", "users"
   add_foreign_key "product_filter_values", "categories", primary_key: "ikea_id"

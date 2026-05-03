@@ -160,7 +160,11 @@ Rails.application.routes.draw do
       # Reviews Export (API version)
       get 'reviews/export(.:format)', to: 'reviews_exports#index'
       
-      # Checkout
+      # Checkout (draft flow: GET draft → PATCH → POST finalize; legacy: POST без draft)
+      get 'checkout/draft', to: 'checkout#draft'
+      patch 'checkout/:id', to: 'checkout#update'
+      post 'checkout/:id/finalize', to: 'checkout#finalize'
+      delete 'checkout/:id', to: 'checkout#destroy'
       post 'checkout', to: 'checkout#create'
 
       resources :payment_links, only: [:show]

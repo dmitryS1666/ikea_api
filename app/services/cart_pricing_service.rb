@@ -1,4 +1,18 @@
 class CartPricingService
+  def self.order_as_cart(order)
+    cart = Cart.new(user: order.user, promo_code: order.promo_code)
+    order.order_items.each do |oi|
+      ci = cart.cart_items.build(product_sku: oi.product_sku, quantity: oi.quantity)
+      # Unpersisted cart_items do not get products via includes(); pricing would see zero PLN.
+      ci.product = Product.includes(:category_products).find_by(sku: oi.product_sku)
+    end
+    cart
+  end
+
+  def self.call_from_order(order:)
+    call(cart: order_as_cart(order))
+  end
+
   def self.call(cart:)
     promo = cart.promo_code
     promo_valid = promo&.active_now?
@@ -20,7 +34,18 @@ class CartPricingService
     cart_products = cart.cart_items.map(&:product).compact
     promo_applicability = get_promo_applicability(cart_products, promos)
 
-    items = cart.cart_items.includes(product: :category_products).map do |item|
+    # includes() breaks product association for unpersisted cart_items (e.g. CartPricingService.order_as_cart).
+    items_relation =
+      if cart.cart_items.all?(&:persisted?)
+        cart.cart_items.includes(product: :category_products)
+      else
+        cart.cart_items.each do |item|
+          item.product ||= Product.includes(:category_products).find_by(sku: item.product_sku) if item.product_sku.present?
+        end
+        cart.cart_items
+      end
+
+    items = items_relation.map do |item|
       product_pln = item.product&.price || 0
       weight = item.product&.weight || 0
       quantity = item.quantity
