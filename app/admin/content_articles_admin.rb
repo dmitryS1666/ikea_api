@@ -62,8 +62,10 @@ Trestle.resource(:content_articles, model: ContentArticle) do
       copy.slug = nil # Будет сгенерирован автоматически из заголовка
       copy.status = :draft
       copy.published_at = nil
-      copy.active = false
-      
+      # Черновик не попадает в API без status: published; active: true избегает ситуации,
+      # когда после публикации статья не видна на сайте (см. ContentArticle.visible).
+      copy.active = true
+
       if copy.save
         # Копируем SEO-мета
         if original.seo_meta

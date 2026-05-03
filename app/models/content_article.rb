@@ -10,6 +10,17 @@ class ContentArticle < ApplicationRecord
       label: "Текст + широкая картинка",
       slider_enabled: false,
       button_enabled: false,
+      omit_slider_placeholder: true,
+      image_slots: [
+        { name: "hero_image", label: "Широкое изображение" }
+      ]
+    },
+    {
+      id: "text_button_wide_image",
+      label: "Текст, кнопка, широкая картинка",
+      slider_enabled: false,
+      button_enabled: true,
+      omit_slider_placeholder: true,
       image_slots: [
         { name: "hero_image", label: "Широкое изображение" }
       ]
@@ -462,6 +473,9 @@ class ContentArticle < ApplicationRecord
   end
 
   def validate_body_block_products
+    # На черновике не блокируем сохранение: на тесте/при переносе в SKU могут не совпадать с каталогом.
+    return unless published?
+
     skus = body_block_product_skus
     return if skus.empty?
 

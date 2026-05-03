@@ -3,6 +3,17 @@
   { name: "#{(ctg.translated_name.presence || ctg.name)} (#{ctg.ikea_id})", ikea_id: ctg.ikea_id }
 end %>
 
+<% if article.errors[:body_blocks].present? %>
+  <div class="alert alert-danger mb-3" role="alert">
+    <strong>Ошибка в блоках контента</strong>
+    <ul class="mb-0 mt-2">
+      <% article.errors[:body_blocks].each do |message| %>
+        <li><%= message %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
 <%= hidden_field_tag "content_article[body_blocks_json]",
       article.body_blocks_json,
       class: "content-article-body-blocks-json" %>

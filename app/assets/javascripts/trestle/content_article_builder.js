@@ -214,10 +214,13 @@
         const categoriesSettings = this.buildCategoriesGridSettings(block, index);
         blockWrapper.appendChild(categoriesSettings);
       } else {
-        const sliderNote = document.createElement("p");
-        sliderNote.className = "block-slider-note";
-        sliderNote.textContent = "Этот блок не отображает слайдер или сетку товаров/категорий.";
-        blockWrapper.appendChild(sliderNote);
+        const tmpl = this.templates.find(t => t.id === block.type);
+        if (!tmpl || !tmpl.omit_slider_placeholder) {
+          const sliderNote = document.createElement("p");
+          sliderNote.className = "block-slider-note";
+          sliderNote.textContent = "Этот блок не отображает слайдер или сетку товаров/категорий.";
+          blockWrapper.appendChild(sliderNote);
+        }
       }
 
       return blockWrapper;
