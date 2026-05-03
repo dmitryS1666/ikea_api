@@ -1,7 +1,10 @@
 class OrderSerializer
   include FastJsonapi::ObjectSerializer
 
-  attributes :id, :status, :total_amount, :delivery_price, :delivery_type,
+  # В ЛК не светим числовой id: JSON:API resource id = public_uid (6–8 цифр).
+  set_id :public_uid
+
+  attributes :public_uid, :status, :total_amount, :delivery_price, :delivery_type,
              :payment_method, :full_name, :phone, :track_number, :created_at,
              :payment_expires_at, :payment_url, :webpay_transaction_id, :webpay_paid_at,
              :checkout_draft

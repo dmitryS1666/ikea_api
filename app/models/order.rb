@@ -33,6 +33,11 @@ class Order < ApplicationRecord
 
   scope :purchased, -> { where(status: PURCHASED_STATUSES) }
 
+  PUBLIC_UID_FORMAT = /\A\d{6,8}\z/.freeze
+
+  validates :public_uid, presence: true, uniqueness: true, format: { with: PUBLIC_UID_FORMAT }
+
+  before_validation :ensure_public_uid, on: :create
   before_save :set_purchased_at
   before_create :set_payment_expiration
 
@@ -45,6 +50,30 @@ class Order < ApplicationRecord
 
   def purchased?
     status.in?(PURCHASED_STATUSES)
+  end
+
+  # ЛК: в URL можно передавать public_uid (6–8 цифр) или числовой id (как раньше).
+  def self.find_for_account!(user, id_or_uid)
+    s = id_or_uid.to_s.strip
+    order =
+      if s.match?(PUBLIC_UID_FORMAT)
+        user.orders.find_by(public_uid: s) || user.orders.find_by(id: s)
+      else
+        user.orders.find_by(id: s)
+      end
+    order || raise(ActiveRecord::RecordNotFound, "Couldn't find Order")
+  end
+
+  def self.generate_unique_public_uid
+    loop do
+      uid = random_public_uid_digit_string
+      break uid unless exists?(public_uid: uid)
+    end
+  end
+
+  def self.random_public_uid_digit_string
+    n = rand(6..8)
+    rand((10**(n - 1))..((10**n) - 1)).to_s
   end
 
   def payment_expired?
@@ -95,6 +124,10 @@ class Order < ApplicationRecord
   end
 
   private
+
+  def ensure_public_uid
+    self.public_uid = self.class.generate_unique_public_uid if public_uid.blank?
+  end
 
   def set_payment_expiration
     return if checkout_draft

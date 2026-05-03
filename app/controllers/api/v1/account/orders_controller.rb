@@ -19,14 +19,14 @@ module Api
         end
 
         def show
-          order = current_user.orders.find(params[:id])
+          order = Order.find_for_account!(current_user, params[:id])
           render json: OrderSerializer.new(order, include: [:order_items])
         end
 
         # POST /api/v1/account/orders/:id/confirm_webpay
         # JSON: { "transaction_id": "<wsb_tid из return URL WebPay>" } — если серверный notify недоступен.
         def confirm_webpay
-          order = current_user.orders.find(params[:id])
+          order = Order.find_for_account!(current_user, params[:id])
           tid = params.permit(:transaction_id)[:transaction_id].presence
           unless tid.present?
             render json: { error: 'Укажите transaction_id' }, status: :unprocessable_entity
@@ -69,7 +69,7 @@ module Api
         end
 
         def reorder
-          order = current_user.orders.find(params[:id])
+          order = Order.find_for_account!(current_user, params[:id])
           cart = current_user.cart || current_user.create_cart
 
           added_items = []

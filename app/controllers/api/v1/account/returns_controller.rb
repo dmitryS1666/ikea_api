@@ -18,7 +18,7 @@ module Api
         # POST /api/v1/account/returns
         # Content-Type: multipart/form-data is supported for attachments[]
         def create
-          order = current_user.orders.find(params.require(:order_id))
+          order = Order.find_for_account!(current_user, params.require(:order_id))
           req = current_user.return_requests.create!(
             order: order,
             reason: params.require(:reason),

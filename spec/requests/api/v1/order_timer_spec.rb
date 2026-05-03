@@ -5,7 +5,7 @@ RSpec.describe 'Order Payment Timer', type: :request do
   let(:token) { JwtService.encode(user_id: user.id) }
   let(:headers) { { 'Authorization' => "Bearer #{token}" } }
   let!(:cart) { create(:cart, user: user) }
-  let!(:product) { create(:product, sku: 'SKU123', quantity: 10, price: 100) }
+  let!(:product) { create(:product, sku: "SKU123", quantity: 10, price: 100) }
   let!(:cart_item) { create(:cart_item, cart: cart, product_sku: product.sku, quantity: 1) }
 
   before do
@@ -22,7 +22,7 @@ RSpec.describe 'Order Payment Timer', type: :request do
       {
         full_name: 'Test User',
         phone: '375291234567',
-        delivery_type: 'courier',
+        delivery_type: 'ikeya_delivery',
         payment_method: 'card',
         address: { city: 'Minsk', street: 'Main' }
       }
@@ -53,9 +53,20 @@ RSpec.describe 'Order Payment Timer', type: :request do
       json = JSON.parse(response.body)
       attributes = json['data']['attributes']
 
+      expect(json['data']['id']).to eq(order.public_uid)
+      expect(attributes).not_to have_key('id')
+      expect(attributes['public_uid']).to eq(order.public_uid)
       expect(attributes).to have_key('payment_expires_at')
       expect(attributes).to have_key('payment_expired')
       expect(attributes['payment_expired']).to be false
+    end
+
+    it 'resolves the same order by public_uid in the path' do
+      get "/api/v1/account/orders/#{order.public_uid}", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      json = JSON.parse(response.body)
+      expect(json['data']['id']).to eq(order.public_uid)
     end
 
     it 'marks order as expired when time passes' do
