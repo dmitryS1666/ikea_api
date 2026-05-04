@@ -9,19 +9,26 @@ Trestle.resource(:orders) do
     column :status, align: :center do |order|
       if order.status
         status_text = I18n.t("activerecord.attributes.order.statuses.#{order.status}")
-        case order.status.to_sym
-        when :completed
-          status_tag(status_text, :success)
-        when :cancelled
-          status_tag(status_text, :danger)
-        when :created
-          status_tag(status_text, :info)
-        when :processing, :confirmed, :paid, :purchased
-          status_tag(status_text, :primary)
-        when :shipped, :arrived_pvz, :handed_to_courier, :handed_to_courier_ikeya
-          status_tag(status_text, :info)
+        main_tag =
+          case order.status.to_sym
+          when :completed
+            status_tag(status_text, :success)
+          when :cancelled
+            status_tag(status_text, :danger)
+          when :created
+            status_tag(status_text, :info)
+          when :processing, :confirmed, :paid, :purchased
+            status_tag(status_text, :primary)
+          when :shipped, :arrived_pvz, :handed_to_courier, :handed_to_courier_ikeya
+            status_tag(status_text, :info)
+          else
+            status_tag(status_text, :warning)
+          end
+
+        if order.checkout_draft
+          safe_join([main_tag, tag.br, status_tag("Черновик", :warning)])
         else
-          status_tag(status_text, :warning)
+          main_tag
         end
       else
         status_tag("Неизвестно", :secondary)
@@ -40,13 +47,20 @@ Trestle.resource(:orders) do
           static_field :status, label: "Текущий статус" do
             if order.status
               status_text = I18n.t("activerecord.attributes.order.statuses.#{order.status}")
-              case order.status.to_sym
-              when :completed then status_tag(status_text, :success)
-              when :cancelled then status_tag(status_text, :danger)
-              when :created then status_tag(status_text, :info)
-              when :processing, :confirmed, :paid, :purchased then status_tag(status_text, :primary)
-              when :shipped, :arrived_pvz, :handed_to_courier, :handed_to_courier_ikeya then status_tag(status_text, :info)
-              else status_tag(status_text, :warning)
+              main_tag =
+                case order.status.to_sym
+                when :completed then status_tag(status_text, :success)
+                when :cancelled then status_tag(status_text, :danger)
+                when :created then status_tag(status_text, :info)
+                when :processing, :confirmed, :paid, :purchased then status_tag(status_text, :primary)
+                when :shipped, :arrived_pvz, :handed_to_courier, :handed_to_courier_ikeya then status_tag(status_text, :info)
+                else status_tag(status_text, :warning)
+                end
+
+              if order.checkout_draft
+                safe_join([main_tag, tag.br, status_tag("Черновик", :warning)])
+              else
+                main_tag
               end
             else
               status_tag("Неизвестно", :secondary)
