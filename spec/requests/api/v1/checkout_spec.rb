@@ -19,12 +19,12 @@ RSpec.describe 'api/v1/checkout', type: :request do
             description: 'pickup — deprecated alias и нормализуется в europost_pickup'
           },
           payment_method: { type: :string, example: 'card' },
-          pickup_point_id: { type: :integer, example: 10 },
+          pickup_point_id: { type: :string, example: "70130010", description: "WarehouseId Европочты" },
           delivery_address_id: { type: :integer, example: 12 },
           pickup_point: {
             type: :object,
             properties: {
-              id: { type: :integer, example: 10 },
+              id: { type: :string, example: "70130010" },
               external_id: { type: :string, example: '12345' },
               address: { type: :string, example: 'пр-т Пушкина, д. 28' },
               working_hours: { type: :string, example: 'Пн-Вс 10:00-21:00' }

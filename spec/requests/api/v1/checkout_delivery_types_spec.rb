@@ -23,7 +23,20 @@ RSpec.describe "Checkout delivery types", type: :request do
 
   before do
     create(:cart_item, cart: cart, product_sku: product.sku, quantity: 1)
-    create(:pickup_point, provider: "europost", max_weight_kg: 100.0, max_volume_m3: 1.0, active: true)
+    allow(EuropostApiService).to receive(:offices_out).and_return(
+      [
+        {
+          "WarehouseId" => "70130010",
+          "WarehouseName" => "Отделение №1",
+          "Address7Name" => "Минск",
+          "Address5Name" => "Минск",
+          "Address4Name" => "Монтажников",
+          "Address3Name" => "2",
+          "Info1" => "Режим работы: 09:00 - 21:00",
+          "WarehouseWeightLimit" => "50"
+        }
+      ]
+    )
     allow(ExchangeRate).to receive(:fetch_or_create).and_return(double(rate_per_unit: 3.2))
     allow(CrmIntegrationService).to receive(:sync_order).and_return({ success: true })
     allow(WebpayPaymentLinkService).to receive(:issue_link!)
@@ -37,13 +50,12 @@ RSpec.describe "Checkout delivery types", type: :request do
   end
 
   it "creates order with normalized type for legacy pickup" do
-    pp = PickupPoint.where(provider: "europost").first
     checkout(
       full_name: "User",
       phone: "375291112233",
       delivery_type: "pickup",
       payment_method: "card",
-      pickup_point_id: pp.id
+      pickup_point_id: "70130010"
     )
 
     expect(response).to have_http_status(:created)
@@ -52,17 +64,31 @@ RSpec.describe "Checkout delivery types", type: :request do
   end
 
   it "creates order with europost_pickup" do
-    pp = PickupPoint.where(provider: "europost").first
     checkout(
       full_name: "User",
       phone: "375291112233",
       delivery_type: "europost_pickup",
       payment_method: "card",
-      pickup_point_id: pp.id
+      pickup_point_id: "70130010"
     )
 
     expect(response).to have_http_status(:created)
     expect(Order.last.delivery_type).to eq("europost_pickup")
+  end
+
+  it "creates order with europost API warehouse id without local pickup point" do
+    checkout(
+      full_name: "User",
+      phone: "375291112233",
+      delivery_type: "europost_pickup",
+      payment_method: "card",
+      pickup_point_id: "70130010"
+    )
+
+    expect(response).to have_http_status(:created)
+    pickup_snapshot = Order.last.address_json.dig("delivery", "pickup_point")
+    expect(pickup_snapshot["external_id"]).to eq("70130010")
+    expect(pickup_snapshot["address"]).to eq("Минск, Монтажников, 2")
   end
 
   it "creates order with courier and delivery_address_id" do
@@ -110,13 +136,12 @@ RSpec.describe "Checkout delivery types", type: :request do
   end
 
   it "saves delivery snapshot in address_json" do
-    pp = PickupPoint.where(provider: "europost").first
     checkout(
       full_name: "User",
       phone: "375291112233",
       delivery_type: "europost_pickup",
       payment_method: "card",
-      pickup_point_id: pp.id
+      pickup_point_id: "70130010"
     )
 
     order = Order.last
@@ -127,7 +152,7 @@ RSpec.describe "Checkout delivery types", type: :request do
     expect(order.address_json["delivery"]["address"]).to be_nil
     expect(order.address_json["delivery"]["prices"]).to be_present
     # legacy keys used by existing API consumers are preserved
-    expect(order.address_json["pickup_point_id"]).to eq(pp.id)
+    expect(order.address_json["pickup_point_id"]).to eq(70130010)
     expect(order.address_json).to have_key("weight_kg")
     expect(order.address_json).to have_key("pln_total")
   end
@@ -181,7 +206,6 @@ RSpec.describe "Checkout delivery types", type: :request do
   it "enqueues client and admin sendpulse emails after successful order create" do
     allow(ENV).to receive(:[]).and_call_original
     allow(ENV).to receive(:[]).with("SENDPULSE_ADMIN_NOTIFY_EMAIL").and_return("manager@example.com")
-    pp = PickupPoint.where(provider: "europost").first
 
     expect do
       checkout(
@@ -189,7 +213,7 @@ RSpec.describe "Checkout delivery types", type: :request do
         phone: "375291112233",
         delivery_type: "europost_pickup",
         payment_method: "card",
-        pickup_point_id: pp.id
+        pickup_point_id: "70130010"
       )
     end.to change { enqueued_jobs.count { |job| job[:job] == SendpulseEmailJob } }.by(2)
   end
@@ -197,7 +221,6 @@ RSpec.describe "Checkout delivery types", type: :request do
   it "enqueues only client sendpulse email when admin email is not set" do
     allow(ENV).to receive(:[]).and_call_original
     allow(ENV).to receive(:[]).with("SENDPULSE_ADMIN_NOTIFY_EMAIL").and_return(nil)
-    pp = PickupPoint.where(provider: "europost").first
 
     expect do
       checkout(
@@ -205,7 +228,7 @@ RSpec.describe "Checkout delivery types", type: :request do
         phone: "375291112233",
         delivery_type: "europost_pickup",
         payment_method: "card",
-        pickup_point_id: pp.id
+        pickup_point_id: "70130010"
       )
     end.to change { enqueued_jobs.count { |job| job[:job] == SendpulseEmailJob } }.by(1)
   end
@@ -224,13 +247,12 @@ RSpec.describe "Checkout delivery types", type: :request do
   it "does not enqueue duplicate order-created notifications on regular order update" do
     allow(ENV).to receive(:[]).and_call_original
     allow(ENV).to receive(:[]).with("SENDPULSE_ADMIN_NOTIFY_EMAIL").and_return("manager@example.com")
-    pp = PickupPoint.where(provider: "europost").first
     checkout(
       full_name: "User",
       phone: "375291112233",
       delivery_type: "europost_pickup",
       payment_method: "card",
-      pickup_point_id: pp.id
+      pickup_point_id: "70130010"
     )
     clear_enqueued_jobs
 

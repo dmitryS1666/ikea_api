@@ -19,7 +19,7 @@
 
 | delivery_type | Название | Когда доступен | Что передавать |
 |---|---|---|---|
-| `europost_pickup` | ПВЗ Европочты | Когда корзина проходит ВГХ-проверку и есть подходящие `PickupPoint` | В `checkout`: `pickup_point_id` или `pickup_point` payload |
+| `europost_pickup` | ПВЗ Европочты | Когда корзина проходит ВГХ-проверку и есть подходящие офисы из API Европочты | В `checkout`: `pickup_point_id` (`WarehouseId`) или `pickup_point` payload |
 | `courier` | Курьер | Когда корзина проходит ВГХ-проверку | В `checkout`: `delivery_address_id` или `address` payload |
 | `ikeya_delivery` | Доставка IKEYA | Когда корзина **не** проходит ВГХ-проверку (как fallback) | В `checkout`: `delivery_address_id` или `address` payload |
 | `pickup` | Legacy alias | Поддерживается для backward compatibility | Нормализуется backend в `europost_pickup` |
@@ -170,9 +170,10 @@
 
 Поведение:
 - без `cart_id`: legacy-режим, данные напрямую из `EuropostApiService.offices_out`.
-- с `cart_id`: фильтр по локальным `PickupPoint(provider=europost)` с ВГХ-проверкой для каждой parcel.
+- с `cart_id`: данные берутся напрямую из `EuropostApiService.offices_out` и фильтруются по ВГХ корзины/лимитам отделения.
 
 В cart-aware ответе каждый ПВЗ содержит:
+- `id` / `external_id` — `WarehouseId` Европочты, его можно передавать как `pickup_point_id` в checkout.
 - `available_for_cart`
 - `delivery_date`
 - `storage_until`

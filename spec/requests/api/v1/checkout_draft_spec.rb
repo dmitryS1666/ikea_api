@@ -21,7 +21,9 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
 
   before do
     create(:cart_item, cart: cart, product_sku: product.sku, quantity: 1)
-    create(:pickup_point, provider: "europost", max_weight_kg: 100.0, max_volume_m3: 1.0, active: true)
+    allow(EuropostApiService).to receive(:offices_out).and_return(
+      [{ "WarehouseId" => "70130010", "WarehouseWeightLimit" => "50" }]
+    )
     allow(ExchangeRate).to receive(:fetch_or_create).and_return(double(rate_per_unit: 3.2))
     allow(CrmIntegrationService).to receive(:sync_order).and_return({ success: true })
     allow(WebpayPaymentLinkService).to receive(:issue_link!).and_call_original
@@ -30,8 +32,6 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
   end
 
   it "creates draft, updates delivery, finalizes with Webpay link and clears checkout_draft" do
-    pp = PickupPoint.where(provider: "europost").first
-
     post "/api/v1/checkout", params: { draft: true }, headers: headers
     expect(response).to have_http_status(:created)
     order = Order.last
@@ -40,7 +40,7 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
 
     patch "/api/v1/checkout/#{order.id}", params: {
       delivery_type: "europost_pickup",
-      pickup_point_id: pp.id,
+      pickup_point_id: "70130010",
       full_name: "User",
       phone: "375291112233",
       payment_method: "card"
@@ -52,7 +52,7 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
       phone: "375291112233",
       delivery_type: "europost_pickup",
       payment_method: "card",
-      pickup_point_id: pp.id
+      pickup_point_id: "70130010"
     }, headers: headers
 
     expect(response).to have_http_status(:created)
@@ -66,13 +66,12 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     post "/api/v1/checkout", params: { draft: true }, headers: headers
     expect(response).to have_http_status(:created)
 
-    pp = PickupPoint.where(provider: "europost").first
     post "/api/v1/checkout", params: {
       full_name: "User",
       phone: "375291112233",
       delivery_type: "europost_pickup",
       payment_method: "card",
-      pickup_point_id: pp.id
+      pickup_point_id: "70130010"
     }, headers: headers
 
     expect(response).to have_http_status(:conflict)

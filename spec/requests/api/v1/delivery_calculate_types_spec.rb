@@ -28,6 +28,9 @@ RSpec.describe "Delivery calculate types", type: :request do
 
   before do
     create(:cart_item, cart: cart, product_sku: product.sku, quantity: 2)
+    allow(EuropostApiService).to receive(:offices_out).and_return(
+      [{ "WarehouseId" => "70130010", "WarehouseWeightLimit" => "50" }]
+    )
     allow(ExchangeRate).to receive(:fetch_or_create).and_return(double(rate_per_unit: 3.2))
     allow(PriceCalculationService).to receive(:exchange_rate_buffer).and_return(1.0)
   end

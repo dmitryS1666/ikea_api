@@ -31,31 +31,37 @@ RSpec.describe "Delivery Europost offices", type: :request do
       product = create(:product, sku: "SKU-EP-1", quantity: 10, weight: 9.0, package_volume: 20.0, package_dimensions: "20 x 30 x 40 cm", dimensions: "20 x 30 x 40 cm", full_attributes: {})
       create(:cart_item, cart: cart, product_sku: product.sku, quantity: 2) # 2 parcels
 
-      create(:pickup_point, provider: "europost", max_weight_kg: 9.9, max_volume_m3: 0.019, city: "Минск", address: "A")
-      eligible = create(:pickup_point, provider: "europost", max_weight_kg: 50.0, max_volume_m3: 1.0, city: "Минск", address: "B")
+      allow(EuropostApiService).to receive(:offices_out).and_return(
+        [
+          { "WarehouseId" => "bad", "WarehouseName" => "EP bad", "Address7Name" => "Минск", "WarehouseWeightLimit" => "8" },
+          { "WarehouseId" => "ok", "WarehouseName" => "EP ok", "Address7Name" => "Минск", "WarehouseWeightLimit" => "50" }
+        ]
+      )
 
       get "/api/v1/delivery/europost_offices", params: { cart_id: cart.id }
 
       expect(response).to have_http_status(:ok)
       body = JSON.parse(response.body)
       ids = body["offices"].map { |o| o["id"] }
-      expect(ids).to contain_exactly(eligible.id)
+      expect(ids).to contain_exactly("ok")
       expect(body["offices"].first["available_for_cart"]).to be(true)
     end
 
-    it "keeps pickup point without limits as available" do
+    it "keeps api office without weight limit as available" do
       cart = create(:cart)
       product = create(:product, sku: "SKU-EP-2", quantity: 10, weight: 3.0, package_volume: 0.01, package_dimensions: "10 x 20 x 30 cm", dimensions: "10 x 20 x 30 cm", full_attributes: {})
       create(:cart_item, cart: cart, product_sku: product.sku, quantity: 2)
 
-      point_without_limits = create(:pickup_point, provider: "europost", max_weight_kg: nil, max_volume_m3: nil)
+      allow(EuropostApiService).to receive(:offices_out).and_return(
+        [{ "WarehouseId" => "no-limit", "WarehouseName" => "EP no limit", "Address7Name" => "Минск" }]
+      )
 
       get "/api/v1/delivery/europost_offices", params: { cart_id: cart.id }
 
       expect(response).to have_http_status(:ok)
       body = JSON.parse(response.body)
       ids = body["offices"].map { |o| o["id"] }
-      expect(ids).to include(point_without_limits.id)
+      expect(ids).to include("no-limit")
     end
 
     it "returns empty offices when cart is not eligible for europost VGH" do
@@ -63,7 +69,9 @@ RSpec.describe "Delivery Europost offices", type: :request do
       product = create(:product, sku: "SKU-EP-3", quantity: 10, weight: nil, package_volume: nil, package_dimensions: nil, dimensions: nil, full_attributes: {})
       create(:cart_item, cart: cart, product_sku: product.sku, quantity: 1)
 
-      create(:pickup_point, provider: "europost", max_weight_kg: 50.0, max_volume_m3: 1.0)
+      allow(EuropostApiService).to receive(:offices_out).and_return(
+        [{ "WarehouseId" => "ok", "WarehouseName" => "EP ok", "Address7Name" => "Минск", "WarehouseWeightLimit" => "50" }]
+      )
 
       get "/api/v1/delivery/europost_offices", params: { cart_id: cart.id }
 

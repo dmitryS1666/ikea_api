@@ -74,8 +74,7 @@ module Api
 
         rules = CartRulesService.call(subtotal_new_byn: subtotal_byn)
 
-        pp = params[:pickup_point_id].present? ? PickupPoint.find_by(id: params[:pickup_point_id]) : nil
-        pp_eval = pp ? pickup_point_eligibility(pp, weight_kg, 0) : nil
+        pp_eval = pickup_point_evaluation(params[:pickup_point_id], options[:parcels], weight_kg)
 
         render json: {
           basis: {
@@ -135,23 +134,30 @@ module Api
 
         offices = EuropostApiService.offices_out
         render json: {
-          offices: offices.map { |o|
-            {
-              external_id: o['WarehouseId'],
-              name: o['WarehouseName'],
-              city: o['Address7Name'],
-              address: europost_address(o),
-              phone: nil,
-              working_hours: europost_working_hours(o),
-              lat: o['Latitude'],
-              lon: o['Longitude'],
-              provider: 'europost'
-            }
-          }
+          offices: offices.map { |office| europost_office_payload(office) }
         }
       end
 
       private
+
+      def europost_office_payload(office)
+        external_id = office["WarehouseId"].to_s
+
+        {
+          id: external_id,
+          external_id: external_id,
+          name: office["WarehouseName"],
+          city: office["Address7Name"],
+          address: europost_address(office),
+          phone: nil,
+          working_hours: europost_working_hours(office),
+          lat: office["Latitude"],
+          lon: office["Longitude"],
+          lng: office["Longitude"],
+          provider: "europost",
+          max_weight_kg: DeliveryOptionsService.europost_office_weight_limit_kg(office)
+        }
+      end
 
       def europost_address(office)
         [office['Address5Name'], office['Address4Name'], office['Address3Name']]
@@ -211,15 +217,16 @@ module Api
         end
       end
 
-      def pickup_point_eligibility(pp, weight_kg, volume_m3)
-        eligibility = DeliveryOptionsService.pickup_point_eligibility(
-          pp: pp,
-          weight_kg: weight_kg,
-          volume_m3: volume_m3
-        )
-        payload = pickup_point_payload(pp)
-        payload[:eligible] = eligibility[:eligible]
-        payload[:reasons] = eligibility[:reasons]
+      def pickup_point_evaluation(pickup_point_id, parcels, weight_kg)
+        return nil if pickup_point_id.blank?
+
+        office = DeliveryOptionsService.europost_offices.find { |o| o["WarehouseId"].to_s == pickup_point_id.to_s }
+        return nil unless office
+
+        eligible = DeliveryOptionsService.europost_office_supports_parcels?(office: office, parcels: parcels)
+        payload = europost_office_payload(office)
+        payload[:eligible] = eligible
+        payload[:reasons] = eligible ? [] : ["max_weight_exceeded"]
         payload
       end
 
@@ -276,28 +283,20 @@ module Api
         eta = DeliveryEtaService.call(order_date: Date.current, with_storage: true)
         pricing = delivery_pricing_for_weight(cart_vgh[:weight_kg].to_f)
 
-        points = PickupPoint.active.where(provider: "europost").ordered
-        offices = points.filter_map do |point|
+        api_offices = DeliveryOptionsService.europost_offices
+        offices = api_offices.filter_map do |office|
           available_for_cart = cart_vgh[:eligible_for_europost] &&
-                               DeliveryOptionsService.pickup_point_supports_parcels?(pp: point, parcels: parcels)
+                               DeliveryOptionsService.europost_office_supports_parcels?(office: office, parcels: parcels)
           next unless available_for_cart
 
-          {
-            id: point.id,
-            provider: "europost",
-            external_id: point.id.to_s,
-            city: point.city,
-            address: point.address,
-            working_hours: point.working_hours,
-            lat: point.lat&.to_f,
-            lng: point.lon&.to_f,
+          europost_office_payload(office).merge(
             available_for_cart: true,
             delivery_date: eta[:delivery_date],
             storage_until: eta[:storage_until],
             delivery_price_byn: sprintf("%.2f", pricing[:delivery_price_byn]),
             delivery_to_belarus_price_byn: sprintf("%.2f", pricing[:delivery_to_belarus_price_byn]),
             total_delivery_price_byn: sprintf("%.2f", pricing[:total_delivery_price_byn])
-          }
+          )
         end
 
         render json: { offices: offices }

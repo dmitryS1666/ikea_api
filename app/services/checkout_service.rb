@@ -499,19 +499,16 @@ class CheckoutService
     case delivery_type
     when DeliveryTypeNormalizer::EUROPOST_PICKUP
       pickup_payload = params[:pickup_point].respond_to?(:to_unsafe_h) ? params[:pickup_point].to_unsafe_h : params[:pickup_point]
-      pickup_point = params[:pickup_point_id].present? ? PickupPoint.find_by(id: params[:pickup_point_id], provider: "europost", active: true) : nil
+      europost_office = params[:pickup_point_id].present? ? find_europost_office(params[:pickup_point_id]) : nil
 
-      pickup_snapshot = if pickup_point
-        {
-          id: pickup_point.id,
-          external_id: pickup_point.id.to_s,
-          address: pickup_point.address,
-          working_hours: pickup_point.working_hours
-        }
+      pickup_snapshot = if europost_office
+        europost_pickup_snapshot(europost_office)
       elsif pickup_payload.present?
         {
           id: pickup_payload["id"] || pickup_payload[:id],
           external_id: pickup_payload["external_id"] || pickup_payload[:external_id],
+          name: pickup_payload["name"] || pickup_payload[:name],
+          city: pickup_payload["city"] || pickup_payload[:city],
           address: pickup_payload["address"] || pickup_payload[:address],
           working_hours: pickup_payload["working_hours"] || pickup_payload[:working_hours]
         }.compact
@@ -549,6 +546,43 @@ class CheckoutService
     else
       { error: "Неподдерживаемый тип доставки" }
     end
+  end
+
+  def self.find_europost_office(pickup_point_id)
+    external_id = pickup_point_id.to_s
+    EuropostApiService.offices_out.find { |office| office["WarehouseId"].to_s == external_id }
+  rescue StandardError => e
+    Rails.logger.error("[EUROPOST] checkout office lookup failed #{e.class}: #{e.message}")
+    nil
+  end
+
+  def self.europost_pickup_snapshot(office)
+    external_id = office["WarehouseId"].to_s
+
+    {
+      id: external_id,
+      external_id: external_id,
+      name: office["WarehouseName"],
+      city: office["Address7Name"],
+      address: europost_office_address(office),
+      working_hours: europost_office_working_hours(office)
+    }.compact
+  end
+
+  def self.europost_office_address(office)
+    [office["Address5Name"], office["Address4Name"], office["Address3Name"]]
+      .map { |value| value.to_s.strip }
+      .reject(&:blank?)
+      .join(", ")
+      .presence
+  end
+
+  def self.europost_office_working_hours(office)
+    info_texts = [office["Info1"], office["Info2"], office["Info3"]]
+      .map { |value| value.to_s.strip }
+      .reject(&:blank?)
+
+    info_texts.find { |text| text.match?(/режим\s*работы|hours|time/i) } || info_texts.first
   end
 
   def self.delivery_prices_for(weight_kg:, delivery_type:)

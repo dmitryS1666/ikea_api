@@ -1,30 +1,16 @@
 require "rails_helper"
 
 RSpec.describe DeliveryOptionsService do
-  describe ".pickup_point_eligibility" do
-    it "returns eligible for fitting weight and volume" do
-      point = create(:pickup_point, max_weight_kg: 40, max_volume_m3: 0.5)
-
-      result = described_class.pickup_point_eligibility(pp: point, weight_kg: 25, volume_m3: 0.2)
-
-      expect(result).to eq(eligible: true, reasons: [])
-    end
-
-    it "returns ineligible with both reasons when limits exceeded" do
-      point = create(:pickup_point, max_weight_kg: 20, max_volume_m3: 0.1)
-
-      result = described_class.pickup_point_eligibility(pp: point, weight_kg: 25, volume_m3: 0.2)
-
-      expect(result[:eligible]).to be(false)
-      expect(result[:reasons]).to contain_exactly("max_weight_exceeded", "max_volume_exceeded")
-    end
-  end
-
   describe ".call" do
     let(:cart) { create(:cart) }
 
+    before do
+      allow(EuropostApiService).to receive(:offices_out).and_return(
+        [{ "WarehouseId" => "70130010", "WarehouseWeightLimit" => "50" }]
+      )
+    end
+
     it "enables europost_pickup and courier when cart passes VGH" do
-      create(:pickup_point, provider: "europost", max_weight_kg: 50, max_volume_m3: 1.0, active: true)
       product = create(
         :product,
         weight: 10.0,
@@ -51,7 +37,6 @@ RSpec.describe DeliveryOptionsService do
     end
 
     it "enables only ikeya_delivery when product VGH is incomplete" do
-      create(:pickup_point, provider: "europost", max_weight_kg: 50, max_volume_m3: 1.0, active: true)
       product = create(
         :product,
         weight: nil,
@@ -74,7 +59,6 @@ RSpec.describe DeliveryOptionsService do
     end
 
     it "counts quantity in cart totals" do
-      create(:pickup_point, provider: "europost", max_weight_kg: 200, max_volume_m3: 2.0, active: true)
       product = create(
         :product,
         weight: 3.5,
@@ -104,7 +88,6 @@ RSpec.describe DeliveryOptionsService do
           ineligible_reason: nil
         }
       )
-      create(:pickup_point, provider: "europost", max_weight_kg: 50, max_volume_m3: 1.0, active: true)
 
       result = described_class.call(cart)
       methods = result[:methods].index_by { |m| m[:code] }
@@ -125,7 +108,6 @@ RSpec.describe DeliveryOptionsService do
           ineligible_reason: "max_weight_exceeded"
         }
       )
-      create(:pickup_point, provider: "europost", max_weight_kg: 50, max_volume_m3: 1.0, active: true)
 
       result = described_class.call(cart)
       methods = result[:methods].index_by { |m| m[:code] }
@@ -133,6 +115,24 @@ RSpec.describe DeliveryOptionsService do
       expect(methods["europost_pickup"][:available]).to be(false)
       expect(methods["courier"][:available]).to be(false)
       expect(methods["ikeya_delivery"][:available]).to be(true)
+    end
+
+    it "does not require local europost pickup points" do
+      product = create(
+        :product,
+        weight: 1.0,
+        package_volume: 1.0,
+        package_dimensions: "10 x 10 x 10 cm",
+        dimensions: nil,
+        full_attributes: {}
+      )
+      create(:cart_item, cart: cart, product_sku: product.sku, quantity: 1)
+
+      result = described_class.call(cart)
+
+      expect(PickupPoint.where(provider: "europost")).to be_empty
+      expect(result[:cart_vgh][:eligible_for_europost]).to be(true)
+      expect(result[:methods].find { |m| m[:code] == "europost_pickup" }[:available]).to be(true)
     end
   end
 end

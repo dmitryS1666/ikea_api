@@ -28,29 +28,13 @@ class DeliveryOptionsService
     }
   end
 
-  def self.pickup_point_eligibility(pp:, weight_kg:, volume_m3:)
-    eligible = true
-    reasons = []
-
-    if pp.max_weight_kg.present? && weight_kg.to_f > pp.max_weight_kg.to_f
-      eligible = false
-      reasons << "max_weight_exceeded"
-    end
-    if pp.max_volume_m3.present? && volume_m3.to_f > pp.max_volume_m3.to_f
-      eligible = false
-      reasons << "max_volume_exceeded"
-    end
-
-    { eligible: eligible, reasons: reasons }
-  end
-
   def self.europost_cart_eligibility(parcel_result:)
     return { eligible: false, reason: normalize_ineligible_reason(parcel_result[:ineligible_reason]) } unless parcel_result[:eligible_for_europost]
 
-    points = PickupPoint.active.where(provider: "europost")
-    return { eligible: false, reason: "europost_pickup_points_unavailable" } if points.empty?
+    offices = europost_offices
+    return { eligible: false, reason: "europost_pickup_points_unavailable" } if offices.empty?
 
-    eligible = points.any? { |pp| pickup_point_supports_parcels?(pp: pp, parcels: parcel_result[:parcels]) }
+    eligible = offices.any? { |office| europost_office_supports_parcels?(office: office, parcels: parcel_result[:parcels]) }
 
     eligible ? { eligible: true, reason: nil } : { eligible: false, reason: "europost_pickup_points_constraints_failed" }
   end
@@ -61,14 +45,25 @@ class DeliveryOptionsService
     reason || "missing_vgh_data"
   end
 
-  def self.pickup_point_supports_parcels?(pp:, parcels:)
-    Array(parcels).all? do |parcel|
-      pickup_point_eligibility(
-        pp: pp,
-        weight_kg: parcel[:weight_kg],
-        volume_m3: parcel[:volume_m3]
-      )[:eligible]
-    end
+  def self.europost_office_supports_parcels?(office:, parcels:)
+    weight_limit = europost_office_weight_limit_kg(office)
+    return true if weight_limit.blank?
+
+    Array(parcels).all? { |parcel| parcel[:weight_kg].to_f <= weight_limit.to_f }
+  end
+
+  def self.europost_office_weight_limit_kg(office)
+    return nil unless office.is_a?(Hash)
+
+    value = office["WarehouseWeightLimit"] || office[:WarehouseWeightLimit] || office["max_weight_kg"] || office[:max_weight_kg]
+    value.to_f.positive? ? value.to_f : nil
+  end
+
+  def self.europost_offices
+    EuropostApiService.offices_out
+  rescue StandardError => e
+    Rails.logger.error("[EUROPOST] offices availability failed #{e.class}: #{e.message}")
+    []
   end
 
   def self.delivery_methods(europost_eligibility)

@@ -28,7 +28,7 @@ RSpec.describe 'Delivery API', type: :request do
             example: 'courier',
             description: 'pickup — deprecated alias и нормализуется в europost_pickup'
           },
-          pickup_point_id: { type: :integer, example: 1 }
+          pickup_point_id: { type: :string, example: "70130010", description: "WarehouseId Европочты" }
         }
       }
 
