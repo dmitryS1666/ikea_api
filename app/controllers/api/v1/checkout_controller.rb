@@ -8,8 +8,7 @@ module Api
         result = CheckoutService.call(user: current_user, params: checkout_params)
 
         if result[:success]
-          status = result[:existing_draft] ? :ok : :created
-          render json: success_payload(result), status: status
+          render json: success_payload(result), status: :created
         else
           render_error(result)
         end
@@ -66,14 +65,7 @@ module Api
 
       def success_payload(result)
         order = result[:order]
-        message =
-          if result[:existing_draft]
-            'У вас уже есть черновик заказа'
-          elsif order.checkout_draft
-            'Черновик заказа создан'
-          else
-            'Заказ успешно оформлен'
-          end
+        message = order.checkout_draft ? 'Черновик заказа создан' : 'Заказ успешно оформлен'
 
         {
           message: message,

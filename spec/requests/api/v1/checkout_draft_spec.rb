@@ -80,16 +80,19 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(json["code"]).to eq("checkout_draft_exists")
   end
 
-  it "returns existing draft with 200 when posting draft twice" do
+  it "replaces old draft and creates a new one when posting draft twice" do
     post "/api/v1/checkout", params: { draft: true }, headers: headers
     expect(response).to have_http_status(:created)
     first_id = Order.last.id
 
     user.create_cart if user.cart.nil?
+    create(:cart_item, cart: user.cart, product_sku: product.sku, quantity: 2)
     post "/api/v1/checkout", params: { draft: true }, headers: headers
-    expect(response).to have_http_status(:ok)
+    expect(response).to have_http_status(:created)
     json = JSON.parse(response.body)
-    expect(json["order_id"]).to eq(first_id)
-    expect(json["message"]).to include("уже есть черновик")
+    expect(json["order_id"]).not_to eq(first_id)
+    expect(json["message"]).to eq("Черновик заказа создан")
+    expect(Order.where(id: first_id)).to be_empty
+    expect(Order.find(json["order_id"]).checkout_draft).to be true
   end
 end

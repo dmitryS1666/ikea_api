@@ -411,9 +411,6 @@ class CheckoutService
   end
 
   def self.create_draft(user:, params:)
-    existing = user.orders.find_by(checkout_draft: true)
-    return { success: true, order: existing, existing_draft: true } if existing
-
     cart = user.cart
     return { error: 'Корзина не найдена' } unless cart
     return { error: 'Корзина пуста' } if cart.cart_items.blank?
@@ -446,8 +443,11 @@ class CheckoutService
     )
 
     order = nil
+    existing = user.orders.find_by(checkout_draft: true)
 
     Order.transaction do
+      existing&.destroy!
+
       order = Order.new(
         user: user,
         status: :created,
