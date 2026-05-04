@@ -25,11 +25,12 @@ class Order < ApplicationRecord
     shipped: 83329522,         # ПЕРЕДАНО В ЕВРОПОЧТА (Передано в доставку)
     arrived_pvz: 83329526,     # Прибыло в отделение (Прибыло в отделение)
     handed_to_courier: 83329530, # Выдано курьеру (Выдано курьеру)
+    handed_to_courier_ikeya: 85543826, # Выдано курьеру IKEYA
     completed: 142,            # Успешно реализовано (Доставлено)
     cancelled: 143             # Закрыто и не реализовано (Отменен)
   }
 
-  PURCHASED_STATUSES = %w[arrived_pvz handed_to_courier completed].freeze
+  PURCHASED_STATUSES = %w[arrived_pvz handed_to_courier handed_to_courier_ikeya completed].freeze
 
   scope :purchased, -> { where(status: PURCHASED_STATUSES) }
 
@@ -102,6 +103,7 @@ class Order < ApplicationRecord
       shipped
       arrived_pvz
       handed_to_courier
+      handed_to_courier_ikeya
       completed
       cancelled
     ]

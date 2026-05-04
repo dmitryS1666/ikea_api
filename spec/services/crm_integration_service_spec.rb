@@ -109,5 +109,37 @@ RSpec.describe CrmIntegrationService do
       result = described_class.sync_order(order)
       expect(result[:success]).to be_falsey
     end
+
+    it 'sends order number as public_uid and formatted items list' do
+      product = create(
+        :product,
+        sku: 'SKU123',
+        name_ru: 'Мягкая развивающая книжка, Занятые строители, синяя',
+        cached_slug: 'soft-activity-book-busy-builders-sebra-play-blue'
+      )
+      order_item.update!(product: product, price: 71.26, quantity: 1)
+
+      leads_request = stub_request(:post, "#{base_url}/api/v4/leads")
+        .to_return(status: 200, body: { _embedded: { leads: [{ id: 789 }] } }.to_json, headers: { 'Content-Type' => 'application/json' })
+      stub_request(:post, "#{base_url}/api/v4/leads/789/notes")
+        .to_return(status: 200, body: {}.to_json)
+
+      result = described_class.sync_order(order)
+
+      expect(result[:success]).to be_truthy
+      expect(leads_request).to have_been_requested
+
+      expect(WebMock).to have_requested(:post, "#{base_url}/api/v4/leads").with do |request|
+        lead_payload = JSON.parse(request.body).first
+        order_number_field = lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 578801 }
+        items_field = lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 578789 }
+        items_text = items_field.dig('values', 0, 'value')
+
+        lead_payload['name'] == order.public_uid &&
+          order_number_field.dig('values', 0, 'value') == order.public_uid &&
+          items_text.include?("1. Мягкая развивающая книжка, Занятые строители, синяя (SKU123) x1 ----- 71.26 PLN") &&
+          items_text.include?("https://test.ikeay.by/products/soft-activity-book-busy-builders-sebra-play-blue")
+      end
+    end
   end
 end

@@ -18,7 +18,7 @@ Trestle.resource(:orders) do
           status_tag(status_text, :info)
         when :processing, :confirmed, :paid, :purchased
           status_tag(status_text, :primary)
-        when :shipped, :arrived_pvz, :handed_to_courier
+        when :shipped, :arrived_pvz, :handed_to_courier, :handed_to_courier_ikeya
           status_tag(status_text, :info)
         else
           status_tag(status_text, :warning)
@@ -45,7 +45,7 @@ Trestle.resource(:orders) do
               when :cancelled then status_tag(status_text, :danger)
               when :created then status_tag(status_text, :info)
               when :processing, :confirmed, :paid, :purchased then status_tag(status_text, :primary)
-              when :shipped, :arrived_pvz, :handed_to_courier then status_tag(status_text, :info)
+              when :shipped, :arrived_pvz, :handed_to_courier, :handed_to_courier_ikeya then status_tag(status_text, :info)
               else status_tag(status_text, :warning)
               end
             else

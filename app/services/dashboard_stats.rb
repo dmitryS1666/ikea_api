@@ -84,7 +84,7 @@ class DashboardStats
     total = Order.where(created_at: 30.days.ago..Time.current).count
     return 0 if total.zero?
     processed = Order.where(created_at: 30.days.ago..Time.current)
-                     .where(status: [:processing, :confirmed, :paid, :purchased, :received_poland, :export_eu, :customs_poland, :on_border, :customs_belarus, :shipped, :arrived_pvz, :handed_to_courier, :completed])
+                    .where(status: [:processing, :confirmed, :paid, :purchased, :received_poland, :export_eu, :customs_poland, :on_border, :customs_belarus, :shipped, :arrived_pvz, :handed_to_courier, :handed_to_courier_ikeya, :completed])
                      .count
     (processed.to_f / total * 100).round(1)
   end

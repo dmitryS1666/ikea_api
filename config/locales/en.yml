@@ -29,36 +29,6 @@
 
 en:
   hello: "Hello world"
-  activerecord:
-    attributes:
-      order:
-        status: "Статус"
-        statuses:
-          created: "Новый"
-          processing: "В работе"
-          confirmed: "Подтвержден"
-          paid: "Оплачен"
-          purchased: "Выкуплен"
-          received_poland: "Получен на склад"
-          export_eu: "Экспорт из ЕС"
-          customs_poland: "Экспорт из ЕС"
-          on_border: "На границе"
-          customs_belarus: "Прибыл на таможню"
-          shipped: "Передано в доставку"
-          arrived_pvz: "Прибыло в отделение"
-          handed_to_courier: "Выдано курьеру"
-        completed: "Доставлено"
-        cancelled: "Отменен"
-      content_article:
-        content_type: "Тип контента"
-        content_types:
-          tips_ideas: "Советы и идеи"
-          news: "Новости"
-        status: "Статус"
-        statuses:
-          draft: "Черновик"
-          published: "Опубликовано"
-          archived: "В архиве"
   admin:
     format:
       blank: "—"
@@ -219,6 +189,16 @@ en:
         one: "Пользователь"
         other: "Пользователи"
     attributes:
+      content_article:
+        content_type: "Content type"
+        content_types:
+          tips_ideas: "Tips & ideas"
+          news: "News"
+        status: "Status"
+        statuses:
+          draft: "Draft"
+          published: "Published"
+          archived: "Archived"
       home_banner:
         section: "Секция"
         variant: "Размер"
@@ -230,3 +210,23 @@ en:
         image: "Изображение"
         created_at: "Создан"
         updated_at: "Обновлен"
+      order:
+        status: "Status"
+        statuses:
+          created: "New"
+          processing: "Awaiting payment"
+          confirmed: "Confirmed"
+          paid: "Placed"
+          purchased: "Purchased"
+          received_poland: "Received at Poland warehouse"
+          preparing_for_shipment: "Preparing order"
+          export_eu: "Export from EU"
+          customs_poland: "Poland customs"
+          on_border: "At border"
+          customs_belarus: "Belarus customs"
+          shipped: "Handed to carrier"
+          arrived_pvz: "Delivered to pickup point"
+          handed_to_courier: "Handed to courier"
+          handed_to_courier_ikeya: "Handed to IKEYA courier"
+          completed: "Delivered"
+          cancelled: "Cancelled"

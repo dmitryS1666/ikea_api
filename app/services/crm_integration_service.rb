@@ -288,10 +288,11 @@ class CrmIntegrationService
 
     return { success: false, error: "Could not create or find contact" } unless contact_id
 
-    items_text = order.order_items.map { |oi| "#{oi.product_sku} x #{oi.quantity}" }.join("\n")
+    items_text = format_order_items_for_amo(order)
+    order_number = order.public_uid.presence || order.id.to_s
 
     lead_payload = {
-      name: order.id.to_s,
+      name: order_number,
       price: order.total_amount.to_i,
       status_id: Order.statuses[order.status],
       pipeline_id: 10700202,
@@ -306,7 +307,7 @@ class CrmIntegrationService
         },
         {
           field_id: contact_field_id('ORDER_NUMBER'),
-          values: [{ value: order.id.to_s }]
+          values: [{ value: order_number }]
         },
         {
           field_id: contact_field_id('ORDER_DATE'),
@@ -431,13 +432,44 @@ class CrmIntegrationService
   end
 
   def self.sync_order_items(lead_id, order)
-    items_text = order.order_items.map { |oi| "#{oi.product_sku} x #{oi.quantity}" }.join("\n")
+    items_text = format_order_items_for_amo(order)
     note_payload = {
       entity_id: lead_id,
       note_type: 'common',
       params: { text: "Состав заказа:\n#{items_text}" }
     }
     post_with_log("#{base_url}/api/v4/leads/#{lead_id}/notes", body: [note_payload].to_json, headers: headers)
+  end
+
+  def self.format_order_items_for_amo(order)
+    return "" if order.order_items.blank?
+
+    rows = order.order_items.each_with_index.map do |order_item, index|
+      title = order_item.product&.name_ru.presence || order_item.product&.name.presence || "Товар"
+      sku = order_item.product_sku.to_s
+      quantity = order_item.quantity.to_i
+      unit_price = format("%.2f", order_item.price.to_f)
+
+      line = "#{index + 1}. #{title} (#{sku}) x#{quantity} ----- #{unit_price} PLN"
+      product_url = amo_product_url(order_item)
+      product_url.present? ? "#{line}\n#{product_url}" : line
+    end
+
+    rows.join("\n-----------------------------------\n")
+  end
+
+  def self.amo_product_url(order_item)
+    product = order_item.product
+    return nil unless product
+
+    host = ENV["HOST_URL"].to_s.strip
+    host = "https://test.ikeay.by" if host.blank?
+    host = host.sub(%r{/\z}, "")
+
+    slug = product.slug.to_s.strip
+    return "#{host}/products/#{slug}" if slug.present?
+
+    product.url.presence
   end
 
   def self.contact_field_id(code)

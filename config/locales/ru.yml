@@ -1,35 +1,4 @@
 ru:
-  activerecord:
-    attributes:
-      order:
-        status: "Статус"
-        statuses:
-          created: "Новый"
-          processing: "В работе"
-          confirmed: "Подтвержден"
-          paid: "Оплачен"
-          purchased: "Выкуплен"
-          received_poland: "Получен на склад"
-          preparing_for_shipment: "Подготовка к отправке"
-          export_eu: "Экспорт из ЕС"
-          customs_poland: "Экспорт из ЕС"
-          on_border: "На границе"
-          customs_belarus: "Прибыл на таможню"
-          shipped: "Передано в доставку"
-          arrived_pvz: "Прибыло в отделение"
-          handed_to_courier: "Выдано курьеру"
-          completed: "Доставлено"
-          cancelled: "Отменен"
-      content_article:
-        content_type: "Тип контента"
-        content_types:
-          tips_ideas: "Советы и идеи"
-          news: "Новости"
-        status: "Статус"
-        statuses:
-          draft: "Черновик"
-          published: "Опубликовано"
-          archived: "В архиве"
   date:
     formats:
       default: "%d.%m.%Y"
@@ -359,20 +328,21 @@ ru:
         customer_name: "Покупатель"
         status: "Статус"
         statuses:
-          created: "Новый"
-          processing: "В работе"
+          created: "В обработке"
+          processing: "Ждет оплаты"
           confirmed: "Подтвержден"
-          paid: "Оплачен"
+          paid: "Оформлен"
           purchased: "Выкуплен"
-          received_poland: "Получен на склад"
-          preparing_for_shipment: "Подготовка к отправке"
+          received_poland: "Получен на склад Польша"
+          preparing_for_shipment: "Подготовка и сборка заказа"
           export_eu: "Экспорт из ЕС"
-          customs_poland: "Экспорт из ЕС"
+          customs_poland: "Таможня Польша"
           on_border: "На границе"
-          customs_belarus: "Прибыл на таможню"
+          customs_belarus: "Таможня Беларусь"
           shipped: "Передано в доставку"
-          arrived_pvz: "Прибыло в отделение"
+          arrived_pvz: "Доставлено в ПВЗ"
           handed_to_courier: "Выдано курьеру"
+          handed_to_courier_ikeya: "Выдано курьеру IKEYA"
           completed: "Доставлено"
           cancelled: "Отменен"
         total_amount: "Сумма"
@@ -407,7 +377,14 @@ ru:
       content_article:
         title: "Заголовок"
         content_type: "Тип"
+        content_types:
+          tips_ideas: "Советы и идеи"
+          news: "Новости"
         status: "Статус"
+        statuses:
+          draft: "Черновик"
+          published: "Опубликовано"
+          archived: "В архиве"
         published_at: "Дата публикации"
         rubric: "Рубрика"
         slug: "Slug (ЧПУ)"
