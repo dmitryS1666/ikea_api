@@ -93,7 +93,7 @@ class Delivery
     def self.parcel_metrics(product)
       return { weight_kg: nil, width_cm: nil, height_cm: nil, depth_cm: nil, volume_m3: nil } unless product
 
-      weight = product.weight.presence || product.net_weight
+      weight = safe_product_weight_kg(product)
       sides = extract_sides(product)
       width, height, depth = sides
 
@@ -114,16 +114,110 @@ class Delivery
     end
 
     def self.extract_sides(product)
-      candidates = []
-      candidates += extract_numbers(product.package_dimensions)
-      candidates += extract_numbers(product.dimensions)
-      candidates += extract_numbers_from_nested(product.full_attributes)
+      [
+        extract_numbers(product.package_dimensions),
+        extract_sides_from_customer_payload(product),
+        extract_numbers(product.dimensions)
+      ].each do |candidates|
+        numbers = normalize_sides(candidates)
+        return numbers if numbers.present?
+      end
 
-      numbers = candidates.compact.select { |v| v.to_f.positive? }.map(&:to_f)
-      numbers = numbers.sort.reverse.first(3)
-      return [nil, nil, nil] if numbers.size < 3
+      [nil, nil, nil]
+    end
 
-      [numbers[0], numbers[1], numbers[2]]
+    def self.safe_product_weight_kg(product)
+      weight = (product.weight.presence || product.net_weight)&.to_f
+      extracted_weight = extract_weight_from_customer_payload(product)
+
+      return extracted_weight if weight.to_f <= 0 && extracted_weight.present?
+
+      # Same data issue as in ProductSerializer: some imports stored grams as kg
+      # (e.g. 330 instead of 0.33), which blocks Europost for small goods.
+      if weight.to_f > 100 && extracted_weight.present? && extracted_weight < 100 && weight / extracted_weight > 10
+        return extracted_weight
+      end
+
+      weight
+    end
+
+    def self.extract_weight_from_customer_payload(product)
+      return nil unless defined?(Products::WeightExtractor)
+
+      Products::WeightExtractor.extract_kg(customer_full_attributes_payload(product))
+    end
+
+    def self.extract_sides_from_customer_payload(product)
+      size = customer_full_attributes_payload(product)["size"]
+      return [] unless size.is_a?(Hash)
+
+      extract_sides_from_packaging_details(size) ||
+        extract_sides_from_packages(size) ||
+        extract_sides_from_size_block(size)
+    end
+
+    def self.customer_full_attributes_payload(product)
+      return {} unless defined?(ProductSerializer)
+
+      ProductSerializer.customer_full_attributes_payload(product)
+    rescue StandardError
+      {}
+    end
+
+    def self.extract_sides_from_packaging_details(size)
+      Array(size.dig("packaging", "details")).each do |detail|
+        next unless detail.is_a?(Hash)
+
+        sides = [
+          detail["width"],
+          detail["height"],
+          detail["length"] || detail["depth"]
+        ].flat_map { |value| extract_numbers(value) }
+
+        normalized = normalize_sides(sides)
+        return normalized if normalized.present?
+      end
+
+      nil
+    end
+
+    def self.extract_sides_from_packages(size)
+      Array(size["packages"]).each do |package|
+        measurements = Array(package["measurements"])
+        by_name = measurements.each_with_object({}) do |row, memo|
+          next unless row.is_a?(Hash)
+
+          memo[row["name"].to_s.downcase] = row["measure"]
+        end
+
+        sides = [
+          by_name["ширина"],
+          by_name["высота"],
+          by_name["длина"] || by_name["глубина"]
+        ].flat_map { |value| extract_numbers(value) }
+
+        normalized = normalize_sides(sides)
+        return normalized if normalized.present?
+      end
+
+      nil
+    end
+
+    def self.extract_sides_from_size_block(size)
+      sides = [
+        size["Ширина"] || size["width"],
+        size["Высота"] || size["height"],
+        size["Длина"] || size["Глубина"] || size["length"] || size["depth"]
+      ].flat_map { |value| extract_numbers(value) }
+
+      normalize_sides(sides)
+    end
+
+    def self.normalize_sides(values)
+      numbers = Array(values).compact.select { |v| v.to_f.positive? }.map(&:to_f)
+      return nil if numbers.size < 3
+
+      numbers.sort.reverse.first(3)
     end
 
     def self.extract_numbers_from_nested(value)

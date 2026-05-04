@@ -71,6 +71,68 @@ RSpec.describe Delivery::ParcelPackingService do
     expect(result[:total_weight_kg]).to eq(15.0)
   end
 
+  it "recovers small package weight when imported weight is grams stored as kg" do
+    product = create(
+      :product,
+      weight: 330,
+      package_volume: nil,
+      package_dimensions: "10 x 2 x 20 cm",
+      dimensions: nil,
+      full_attributes: {
+        "measurements_modal" => {
+          "packages" => [
+            {
+              "measurements" => [
+                { "name" => "Вес", "measure" => "0.33 кг" },
+                { "name" => "Упаковка(-и)", "measure" => "1" }
+              ]
+            }
+          ]
+        }
+      }
+    )
+    add_item(product, quantity: 1)
+
+    result = described_class.call(cart)
+
+    expect(result[:eligible_for_europost]).to be(true)
+    expect(result[:total_weight_kg]).to eq(0.33)
+  end
+
+  it "uses structured package dimensions instead of arbitrary numbers from full attributes" do
+    product = create(
+      :product,
+      weight: 1,
+      package_volume: nil,
+      package_dimensions: nil,
+      dimensions: nil,
+      full_attributes: {
+        "measurements_modal" => {
+          "packages" => [
+            {
+              "name" => "Small box",
+              "article_number" => { "value" => "805.415.94" },
+              "measurements" => [
+                { "name" => "Ширина", "measure" => "10 см" },
+                { "name" => "Высота", "measure" => "2 см" },
+                { "name" => "Длина", "measure" => "20 см" },
+                { "name" => "Вес", "measure" => "1 кг" },
+                { "name" => "Упаковка(-и)", "measure" => "1" }
+              ]
+            }
+          ]
+        }
+      }
+    )
+    add_item(product, quantity: 1)
+
+    result = described_class.call(cart)
+
+    expect(result[:eligible_for_europost]).to be(true)
+    expect(result[:max_dimension_cm]).to eq(20.0)
+    expect(result[:total_volume_m3]).to eq(0.0004)
+  end
+
   it "fails when product has no weight" do
     product = create(:product, weight: nil, net_weight: nil, package_volume: 0.02, package_dimensions: "20 x 30 x 40 cm", dimensions: nil, full_attributes: {})
     add_item(product, quantity: 1)
