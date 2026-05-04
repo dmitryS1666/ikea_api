@@ -448,7 +448,7 @@ class CrmIntegrationService
       title = order_item.product&.name_ru.presence || order_item.product&.name.presence || "Товар"
       sku = order_item.product_sku.to_s
       quantity = order_item.quantity.to_i
-      unit_price = format("%.2f", order_item.price.to_f)
+      unit_price = Kernel.format("%.2f", order_item.price.to_f)
 
       line = "#{index + 1}. #{title} (#{sku}) x#{quantity} ----- #{unit_price} PLN"
       product_url = amo_product_url(order_item)
