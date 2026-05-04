@@ -93,6 +93,7 @@ class ContentArticle < ApplicationRecord
   before_validation :normalize_slug
   before_validation :normalize_array_fields
   before_validation :normalize_body_blocks
+  before_validation :activate_when_published
 
   after_save :sync_linked_products
   after_save :sync_linked_categories
@@ -281,6 +282,7 @@ class ContentArticle < ApplicationRecord
   
     body_blocks.map do |block|
       block_data = decorate_block(block, include_preview: true)
+      block_data["html"] = block_data["content"].to_s
   
       button_id = block_data["button_category_id"]
       slider_id = block_data["slider_category_id"]
@@ -292,6 +294,15 @@ class ContentArticle < ApplicationRecord
   
       # ✅ гарантируем тип массива (на случай старых записей)
       block_data["slider_product_skus"] = Array.wrap(block_data["slider_product_skus"]).map(&:to_s)
+
+      if block_data["type"] == "products_grid"
+        grid_products = block_data["slider_product_skus"].filter_map do |sku|
+          products_map[sku.to_s]
+        end
+        block_data["grid_products"] = serialized_product_teasers(grid_products, product_serializer_params)
+      else
+        block_data["grid_products"] = []
+      end
   
       block_data
     end
@@ -354,6 +365,10 @@ class ContentArticle < ApplicationRecord
       normalize_block(block, index)
     end
     self.body_blocks = normalized_blocks
+  end
+
+  def activate_when_published
+    self.active = true if published?
   end
 
   def normalize_block(raw_block, index)
@@ -445,6 +460,16 @@ class ContentArticle < ApplicationRecord
       "ikea_id" => category.ikea_id,
       "name" => category.name
     }
+  end
+
+  def serialized_product_teasers(products, product_serializer_params)
+    products = Array.wrap(products).compact
+    return [] if products.empty?
+
+    ProductTeaserSerializer
+      .new(products, params: product_serializer_params || {})
+      .serializable_hash[:data]
+      .map { |item| item[:attributes].merge(id: item[:id], type: item[:type]) }
   end
 
   def normalize_array_value(value)

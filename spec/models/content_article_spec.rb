@@ -63,6 +63,16 @@ RSpec.describe ContentArticle, type: :model do
     end
   end
 
+  describe "publication visibility" do
+    it "keeps published articles active so Published status appears on the site" do
+      article = build(:content_article, status: :published, active: false)
+
+      article.valid?
+
+      expect(article.active).to eq(true)
+    end
+  end
+
   describe "body block uploads" do
     it "attaches referenced block images" do
       template = ContentArticle::BODY_BLOCK_TEMPLATES.first
@@ -110,6 +120,26 @@ RSpec.describe ContentArticle, type: :model do
       expect(serialized_blocks.first["images"].first["url"]).to include("/rails/active_storage/blobs")
       expect(serialized_blocks.first["button_category"]["ikea_id"]).to eq(category.ikea_id)
       expect(serialized_blocks.first["button_category"]["name"]).to eq(category.name)
+    end
+
+    it "exposes admin HTML and product grid payloads for frontend rendering" do
+      product = create(:product, sku: "GRID-SKU", name: "Grid product")
+      article = create(:content_article, body_blocks: [
+        {
+          "type" => "products_grid",
+          "content" => "<h2>Подборка</h2>",
+          "slider_product_skus" => [product.sku]
+        }
+      ])
+
+      serialized = ContentArticleSerializer.new(article, params: {
+        body_block_products_map: { product.sku => product },
+        product_serializer_params: { favorite_skus: [] }
+      }).serializable_hash
+      block = serialized[:data][:attributes][:body_blocks].first
+
+      expect(block["html"]).to eq("<h2>Подборка</h2>")
+      expect(block["grid_products"].first[:sku]).to eq(product.sku)
     end
   end
 end
