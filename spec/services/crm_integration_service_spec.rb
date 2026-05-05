@@ -138,7 +138,7 @@ RSpec.describe CrmIntegrationService do
         lead_payload['name'] == order.public_uid &&
           order_number_field.dig('values', 0, 'value') == order.public_uid &&
           items_text.include?("1. Мягкая развивающая книжка, Занятые строители, синяя (SKU123) x1 ----- 71.26 PLN") &&
-          items_text.include?("https://test.ikeay.by/products/soft-activity-book-busy-builders-sebra-play-blue")
+          items_text.include?(product.url)
       end
     end
   end

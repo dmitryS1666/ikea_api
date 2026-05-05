@@ -184,6 +184,7 @@ class CheckoutService
 
     Order.transaction do
       order.assign_attributes(
+        status: :processing,
         checkout_draft: false,
         total_amount: total_amount.round(2),
         delivery_price: prices[:total_delivery_price_byn],
@@ -363,7 +364,7 @@ class CheckoutService
     Order.transaction do
       order = Order.new(
         user: user,
-        status: :created,
+        status: :processing,
         checkout_draft: false,
         total_amount: total_amount.round(2),
         delivery_price: prices[:total_delivery_price_byn],

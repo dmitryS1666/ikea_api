@@ -58,6 +58,7 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(response).to have_http_status(:created)
     order.reload
     expect(order.checkout_draft).to be false
+    expect(order.status).to eq("processing")
     expect(order.payment_url).to be_present
     expect(WebpayPaymentLinkService).to have_received(:issue_link!).once
   end

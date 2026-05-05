@@ -462,14 +462,17 @@ class CrmIntegrationService
     product = order_item.product
     return nil unless product
 
+    raw_url = product.url.to_s.strip
+    return nil if raw_url.blank?
+
     host = ENV["HOST_URL"].to_s.strip
     host = "https://test.ikeay.by" if host.blank?
     host = host.sub(%r{/\z}, "")
 
-    slug = product.slug.to_s.strip
-    return "#{host}/products/#{slug}" if slug.present?
+    return raw_url if raw_url.match?(/\Ahttps?:\/\//i)
 
-    product.url.presence
+    path = raw_url.start_with?("/") ? raw_url : "/#{raw_url}"
+    "#{host}#{path}"
   end
 
   def self.contact_field_id(code)

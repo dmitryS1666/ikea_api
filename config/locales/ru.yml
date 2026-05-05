@@ -329,7 +329,7 @@ ru:
         status: "Статус"
         statuses:
           created: "В обработке"
-          processing: "Ждет оплаты"
+          processing: "Ожидает оплаты"
           confirmed: "Подтвержден"
           paid: "Оформлен"
           purchased: "Выкуплен"
