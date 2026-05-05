@@ -149,6 +149,9 @@ module CartResponseFormatter
 
   def format_totals(totals)
     {
+      items_total_byn: format_byn(totals[:items_total_byn]),
+      delivery_total_byn: format_byn(totals[:delivery_total_byn]),
+      total_byn: format_byn(totals[:total_byn]),
       subtotal_old_byn: format_byn(totals[:subtotal_old_byn]),
       subtotal_new_byn: format_byn(totals[:subtotal_new_byn]),
       discount_total_byn: format_byn(totals[:discount_total_byn]),
