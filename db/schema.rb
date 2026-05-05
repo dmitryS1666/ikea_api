@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_04_194000) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_05_135500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -502,6 +502,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_04_194000) do
     t.index ["status"], name: "index_parser_tasks_on_status"
     t.index ["task_type", "status"], name: "index_parser_tasks_on_task_type_and_status"
     t.index ["task_type"], name: "index_parser_tasks_on_task_type"
+  end
+
+  create_table "phone_auth_settings", force: :cascade do |t|
+    t.boolean "asterisk_enabled", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "phone_verification_requests", force: :cascade do |t|
