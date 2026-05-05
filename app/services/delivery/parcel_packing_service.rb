@@ -85,7 +85,11 @@ class Delivery
 
     def self.cart_items(cart)
       source = cart.cart_items
-      return source.includes(:product) if source.respond_to?(:includes)
+      # For virtual carts (e.g. CartPricingService.order_as_cart), cart_items are
+      # in-memory and not persisted; calling includes() would re-query DB and drop them.
+      if source.respond_to?(:all?) && source.all?(&:persisted?) && source.respond_to?(:includes)
+        return source.includes(:product)
+      end
 
       Array(source)
     end
