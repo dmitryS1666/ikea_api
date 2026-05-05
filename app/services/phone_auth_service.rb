@@ -26,9 +26,14 @@ class PhoneAuthService
     # Удаляем старые коды
     VerificationCode.where(phone: phone).destroy_all
 
-    caller_info = AsteriskCallAuthService.get_caller_info
-    code = caller_info[:code]
-    from_number = caller_info[:number]
+    if PhoneAuthSetting.asterisk_enabled?
+      caller_info = AsteriskCallAuthService.get_caller_info
+      code = caller_info[:code]
+      from_number = caller_info[:number]
+    else
+      code = PhoneAuthSetting::STATIC_TEST_CODE
+      from_number = nil
+    end
 
     request.update!(code: code)
 
@@ -39,9 +44,15 @@ class PhoneAuthService
     )
 
     begin
+      unless PhoneAuthSetting.asterisk_enabled?
+        Rails.logger.warn "\n[ASTERISK DISABLED] Skipped call for #{phone}. Static verification code: #{code}\n"
+        request.update!(status: 'success')
+        return { success: true, message: 'Код подтверждения отправлен.' }
+      end
+
       # Интеграция с asterisk.by
       result = AsteriskCallAuthService.initiate_call(to_phone: phone, from_number: from_number)
-      
+
       if result[:success]
         Rails.logger.info "\n[ASTERISK CALL] Initiated call to #{phone}. Verification code: #{code}\n"
         request.update!(status: 'success')
