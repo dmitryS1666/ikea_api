@@ -79,5 +79,21 @@ RSpec.describe "Delivery Europost offices", type: :request do
       body = JSON.parse(response.body)
       expect(body["offices"]).to eq([])
     end
+
+    it "filters offices by cart_token context as well" do
+      cart = create(:cart)
+      product = create(:product, sku: "SKU-EP-4", quantity: 10, weight: 5, package_volume: 0.02, package_dimensions: "20 x 30 x 140 cm", dimensions: "20 x 30 x 140 cm", full_attributes: {})
+      create(:cart_item, cart: cart, product_sku: product.sku, quantity: 1)
+
+      allow(EuropostApiService).to receive(:offices_out).and_return(
+        [{ "WarehouseId" => "ok", "WarehouseName" => "EP ok", "Address7Name" => "Минск", "WarehouseWeightLimit" => "50" }]
+      )
+
+      get "/api/v1/delivery/europost_offices", params: { cart_token: cart.guest_token }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["offices"]).to eq([])
+    end
   end
 end

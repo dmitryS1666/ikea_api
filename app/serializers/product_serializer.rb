@@ -371,6 +371,11 @@ class ProductSerializer
     "maksymalna szerokosc" => "Макс ширина",
     "max width" => "Макс ширина",
 
+    "szerokość po lewej" => "Ширина слева",
+    "szerokosc po lewej" => "Ширина слева",
+    "szerokość po prawej" => "Ширина справа",
+    "szerokosc po prawej" => "Ширина справа",
+
     "waga wypełnienia" => "Вес наполнителя",
     "waga wypelnienia" => "Вес наполнителя",
     "filling weight" => "Вес наполнителя",

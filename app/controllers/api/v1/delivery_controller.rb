@@ -129,7 +129,11 @@ module Api
 
       def europost_offices
         if params[:cart_id].present?
-          return render_filtered_europost_offices_for_cart
+          return render_filtered_europost_offices_for_cart_id
+        end
+
+        if europost_offices_cart_context?
+          return render_filtered_europost_offices_for_request_context
         end
 
         offices = EuropostApiService.offices_out
@@ -270,13 +274,22 @@ module Api
         Struct.new(:cart_items).new(virtual_items)
       end
 
-      def render_filtered_europost_offices_for_cart
+      def render_filtered_europost_offices_for_cart_id
         cart = Cart.find_by(id: params[:cart_id])
         unless cart
           render json: { error: "Корзина не найдена" }, status: :unprocessable_entity
           return
         end
 
+        render_filtered_europost_offices_for_cart(cart)
+      end
+
+      def render_filtered_europost_offices_for_request_context
+        cart = cart_for_delivery_options
+        render_filtered_europost_offices_for_cart(cart)
+      end
+
+      def render_filtered_europost_offices_for_cart(cart)
         options = DeliveryOptionsService.call(cart)
         cart_vgh = options[:cart_vgh]
         parcels = options[:parcels]
@@ -300,6 +313,10 @@ module Api
         end
 
         render json: { offices: offices }
+      end
+
+      def europost_offices_cart_context?
+        params[:cart_token].present? || params[:items].present?
       end
 
       def delivery_pricing_for_weight(weight_kg)

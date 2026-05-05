@@ -43,7 +43,12 @@ class CheckoutService
         }
       end
 
-      delivery_context = resolve_delivery_context(user: user, params: params, delivery_type: normalized_delivery_type)
+      delivery_context = resolve_delivery_context(
+        user: user,
+        params: params,
+        delivery_type: normalized_delivery_type,
+        delivery_options: delivery_options
+      )
       return delivery_context if delivery_context[:error]
 
       eta = DeliveryEtaService.call(
@@ -144,7 +149,12 @@ class CheckoutService
       }
     end
 
-    delivery_context = resolve_delivery_context(user: user, params: merged_params, delivery_type: normalized_delivery_type)
+    delivery_context = resolve_delivery_context(
+      user: user,
+      params: merged_params,
+      delivery_type: normalized_delivery_type,
+      delivery_options: delivery_options
+    )
     return delivery_context if delivery_context[:error]
 
     eta = DeliveryEtaService.call(
@@ -328,7 +338,12 @@ class CheckoutService
       }
     end
 
-    delivery_context = resolve_delivery_context(user: user, params: params, delivery_type: normalized_delivery_type)
+    delivery_context = resolve_delivery_context(
+      user: user,
+      params: params,
+      delivery_type: normalized_delivery_type,
+      delivery_options: delivery_options
+    )
     return delivery_context if delivery_context[:error]
 
     eta = DeliveryEtaService.call(
@@ -496,13 +511,27 @@ class CheckoutService
     end
   end
 
-  def self.resolve_delivery_context(user:, params:, delivery_type:)
+  def self.resolve_delivery_context(user:, params:, delivery_type:, delivery_options: nil)
     case delivery_type
     when DeliveryTypeNormalizer::EUROPOST_PICKUP
       pickup_payload = params[:pickup_point].respond_to?(:to_unsafe_h) ? params[:pickup_point].to_unsafe_h : params[:pickup_point]
       europost_office = params[:pickup_point_id].present? ? find_europost_office(params[:pickup_point_id]) : nil
 
+      if delivery_options.present?
+        cart_vgh = delivery_options[:cart_vgh] || {}
+        unless cart_vgh[:eligible_for_europost]
+          return { error: "Европочта недоступна для текущих ВГХ корзины" }
+        end
+      end
+
       pickup_snapshot = if europost_office
+        if delivery_options.present?
+          parcels = Array(delivery_options[:parcels])
+          unless DeliveryOptionsService.europost_office_supports_parcels?(office: europost_office, parcels: parcels)
+            return { error: "Выбранный ПВЗ Европочты недоступен для текущих ВГХ корзины" }
+          end
+        end
+
         europost_pickup_snapshot(europost_office)
       elsif pickup_payload.present?
         {
