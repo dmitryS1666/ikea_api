@@ -505,7 +505,7 @@ class CheckoutService
         return update_result unless update_result[:success]
         order = update_result[:order]
       end
-      { success: true, order: order }
+      { success: true, order: order, delivery_options: draft_delivery_options_for(order) }
     else
       { error: order&.errors&.full_messages&.join(', ') || 'Ошибка создания черновика заказа' }
     end
@@ -644,6 +644,14 @@ class CheckoutService
   def self.truthy_draft?(params)
     v = params[:draft]
     v == true || v.to_s == 'true' || v == 1 || v.to_s == '1'
+  end
+
+  def self.draft_delivery_options_for(order)
+    cart_like = CartPricingService.order_as_cart(order)
+    DeliveryOptionsService.call(cart_like)
+  rescue StandardError => e
+    Rails.logger.error("CheckoutService: failed to build draft delivery options for order=#{order&.id}: #{e.class} #{e.message}")
+    nil
   end
 
   def self.build_delivery_snapshot(normalized_delivery_type:, eta:, prices:, pickup_point_snapshot:, address_snapshot:)

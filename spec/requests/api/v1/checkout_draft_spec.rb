@@ -63,6 +63,20 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(WebpayPaymentLinkService).to have_received(:issue_link!).once
   end
 
+  it "returns delivery options based on draft order VGH" do
+    product.update!(package_dimensions: "20 x 30 x 140 cm")
+
+    post "/api/v1/checkout", params: { draft: true }, headers: headers
+    expect(response).to have_http_status(:created)
+
+    body = JSON.parse(response.body)
+    expect(body["delivery_options"]).to be_present
+    methods = body.dig("delivery_options", "methods") || []
+    europost = methods.find { |m| m["code"] == "europost_pickup" }
+    expect(europost).to be_present
+    expect(europost["available"]).to eq(false)
+  end
+
   it "returns 409 when legacy checkout is attempted while draft exists" do
     post "/api/v1/checkout", params: { draft: true }, headers: headers
     expect(response).to have_http_status(:created)

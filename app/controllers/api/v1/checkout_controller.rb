@@ -67,11 +67,17 @@ module Api
         order = result[:order]
         message = order.checkout_draft ? 'Черновик заказа создан' : 'Заказ успешно оформлен'
 
-        {
+        payload = {
           message: message,
           order_id: order.id,
           order: OrderSerializer.new(order).serializable_hash[:data][:attributes]
         }
+
+        if order.checkout_draft && result[:delivery_options].present?
+          payload[:delivery_options] = result[:delivery_options]
+        end
+
+        payload
       end
 
       def render_error(result)
