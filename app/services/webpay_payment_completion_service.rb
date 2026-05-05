@@ -138,6 +138,7 @@ class WebpayPaymentCompletionService
     return :invalid_transaction if tid.blank?
 
     outcome = :noop
+    sync_crm = false
     Order.transaction do
       order.lock!
       order.reload
@@ -156,8 +157,10 @@ class WebpayPaymentCompletionService
           webpay_paid_at: Time.current
         )
         outcome = :paid
+        sync_crm = true
       end
     end
+    CrmSyncJob.perform_later('Order', order.id) if sync_crm
     outcome
   rescue ActiveRecord::RecordNotUnique
     :transaction_used

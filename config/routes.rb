@@ -188,6 +188,7 @@ Rails.application.routes.draw do
 
   # System & Feeds
   get '/up', to: 'health#check'
+  get '/payment/success', to: 'payment#success'
   get '/feeds/google.xml', to: 'feeds#google'
   get '/feeds/yandex.yml', to: 'feeds#yandex'
   get '/sitemap.xml', to: 'sitemaps#show'

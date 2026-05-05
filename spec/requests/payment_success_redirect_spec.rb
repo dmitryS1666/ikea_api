@@ -1,0 +1,47 @@
+require 'rails_helper'
+
+RSpec.describe 'GET /payment/success', type: :request do
+  around do |example|
+    old_value = ENV['WEBPAY_SUCCESS_REDIRECT_URL']
+    ENV['WEBPAY_SUCCESS_REDIRECT_URL'] = redirect_target
+    example.run
+  ensure
+    ENV['WEBPAY_SUCCESS_REDIRECT_URL'] = old_value
+  end
+
+  let(:redirect_target) { '/account/orders' }
+  let(:completion_result) { :paid }
+
+  before do
+    allow(WebpayPaymentCompletionService).to receive(:complete_for_order_with_transaction!)
+      .and_return(completion_result)
+  end
+
+  it 'redirects to orders page and preserves webpay params' do
+    get '/payment/success', params: { wsb_order_num: '12345', wsb_tid: 'abc' }
+
+    expect(response).to have_http_status(:found)
+    expect(response).to redirect_to('/account/orders?wsb_order_num=12345&wsb_tid=abc')
+  end
+
+  it 'confirms webpay payment when required params are present' do
+    order = create(:order, payment_order_number: 'ORDER-42', status: :created, payment_method: 'card')
+
+    get '/payment/success', params: { wsb_order_num: 'ORDER-42', wsb_tid: 'TID-1' }
+
+    expect(WebpayPaymentCompletionService).to have_received(:complete_for_order_with_transaction!).with(
+      order: order,
+      transaction_id: 'TID-1'
+    )
+  end
+
+  context 'when redirect target already has query params' do
+    let(:redirect_target) { '/account/orders?tab=active' }
+
+    it 'appends webpay params with ampersand' do
+      get '/payment/success', params: { wsb_tid: 'abc' }
+
+      expect(response).to redirect_to('/account/orders?tab=active&wsb_tid=abc')
+    end
+  end
+end

@@ -5,6 +5,7 @@ RSpec.describe 'POST /api/v1/webhooks/webpay', type: :request do
 
   before do
     allow(WebpayGetTransactionService).to receive(:billing_configured?).and_return(false)
+    allow(CrmSyncJob).to receive(:perform_later)
   end
 
   def notify_params(attrs)
@@ -39,6 +40,7 @@ RSpec.describe 'POST /api/v1/webhooks/webpay', type: :request do
     expect(order).to be_paid
     expect(order.webpay_transaction_id).to eq('858578101')
     expect(order.webpay_paid_at).to be_present
+    expect(CrmSyncJob).to have_received(:perform_later).with('Order', order.id).once
   end
 
   it 'returns forbidden on bad signature' do
@@ -90,5 +92,6 @@ RSpec.describe 'POST /api/v1/webhooks/webpay', type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(order.reload.webpay_transaction_id).to eq('858578103')
+    expect(CrmSyncJob).to have_received(:perform_later).with('Order', order.id).once
   end
 end
