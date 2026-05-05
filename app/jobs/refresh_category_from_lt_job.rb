@@ -184,7 +184,8 @@ class RefreshCategoryFromLtJob < ApplicationJob
         product,
         results_jsonl_row: row,
         force_ai_translation: false,
-        fallback_pl_when_lt_missing: true
+        fallback_pl_when_lt_missing: true,
+        skip_document_download: true
       )
       
       if mutex
@@ -442,7 +443,8 @@ class RefreshCategoryFromLtJob < ApplicationJob
       ext = Products::ExtendedAttributesFetchService.fetch_for_product(
         other,
         force_ai_translation: false,
-        fallback_pl_when_lt_missing: true
+        fallback_pl_when_lt_missing: true,
+        skip_document_download: true
       )
 
       if ext[:updated]

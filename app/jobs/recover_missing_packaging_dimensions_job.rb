@@ -77,7 +77,8 @@ class RecoverMissingPackagingDimensionsJob < ApplicationJob
           result =
             Products::ExtendedAttributesFetchService.fetch_for_product(
               product,
-              fallback_pl_when_lt_missing: true
+              fallback_pl_when_lt_missing: true,
+              skip_document_download: true
             )
 
           if result[:skipped_missing_lt]

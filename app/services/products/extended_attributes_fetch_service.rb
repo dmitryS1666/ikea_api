@@ -18,17 +18,19 @@ class Products::ExtendedAttributesFetchService
   # Любая витрина IKEA (pl, lt/ru, …) — один и тот же каталог фото; при смене scoped-галереи вычищаем все, иначе LT+PL копятся в кашу.
   REMOTE_IKEA_PRODUCT_GALLERY_URL = %r{\Ahttps?://www\.ikea\.com/[^/]+/[^/]+/images/products}i.freeze
 
-  def self.fetch_for_product(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false)
+  def self.fetch_for_product(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false)
     new.fetch(
       product,
       results_jsonl_row: results_jsonl_row,
       force_ai_translation: force_ai_translation,
       fallback_pl_when_lt_missing: fallback_pl_when_lt_missing,
-      strip_listing_relations: strip_listing_relations
+      strip_listing_relations: strip_listing_relations,
+      skip_document_download: skip_document_download
     )
   end
 
-  def fetch(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false)
+  def fetch(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false)
+    @skip_document_download = skip_document_download
     pl_url = pl_product_url(product)
     return { updated: false } if pl_url.blank?
 
@@ -728,8 +730,12 @@ class Products::ExtendedAttributesFetchService
       url = doc.is_a?(Hash) ? (doc[:url] || doc["url"] || doc["Link"] || doc["href"]) : doc.to_s
       title = doc.is_a?(Hash) ? (doc[:title] || doc["title"] || doc["Tytuł"] || doc["Tytul"] || doc[:name] || doc["name"]) : nil
       next if url.blank?
-      local_url = DocumentDownloader.download(url, product_sku: sku)
-      { "title" => title, "url" => url, "local_url" => local_url }.compact
+      if @skip_document_download
+        { "title" => title, "url" => url }.compact
+      else
+        local_url = DocumentDownloader.download(url, product_sku: sku)
+        { "title" => title, "url" => url, "local_url" => local_url }.compact
+      end
     end
   end
 
