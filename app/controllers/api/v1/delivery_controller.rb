@@ -132,6 +132,10 @@ module Api
           return render_filtered_europost_offices_for_cart_id
         end
 
+        if params[:order_id].present?
+          return render_filtered_europost_offices_for_order_id
+        end
+
         if europost_offices_cart_context?
           return render_filtered_europost_offices_for_request_context
         end
@@ -287,6 +291,17 @@ module Api
       def render_filtered_europost_offices_for_request_context
         cart = cart_for_delivery_options
         render_filtered_europost_offices_for_cart(cart)
+      end
+
+      def render_filtered_europost_offices_for_order_id
+        order = Order.find_by(id: params[:order_id], checkout_draft: true)
+        unless order
+          render json: { error: "Черновик заказа не найден" }, status: :unprocessable_entity
+          return
+        end
+
+        cart_like = CartPricingService.order_as_cart(order)
+        render_filtered_europost_offices_for_cart(cart_like)
       end
 
       def render_filtered_europost_offices_for_cart(cart)

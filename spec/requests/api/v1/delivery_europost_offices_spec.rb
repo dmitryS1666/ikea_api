@@ -95,5 +95,32 @@ RSpec.describe "Delivery Europost offices", type: :request do
       body = JSON.parse(response.body)
       expect(body["offices"]).to eq([])
     end
+
+    it "filters offices by checkout draft order_id context" do
+      user = create(:user)
+      order = create(:order, user: user, checkout_draft: true)
+      product = create(:product, sku: "SKU-EP-5", quantity: 10, weight: 10, package_volume: 0.02, package_dimensions: "20 x 30 x 140 cm", dimensions: "20 x 30 x 140 cm", full_attributes: {})
+      create(:order_item, order: order, product_sku: product.sku, quantity: 1, price: 100.0)
+
+      allow(EuropostApiService).to receive(:offices_out).and_return(
+        [{ "WarehouseId" => "ok", "WarehouseName" => "EP ok", "Address7Name" => "Минск", "WarehouseWeightLimit" => "50" }]
+      )
+
+      get "/api/v1/delivery/europost_offices", params: { order_id: order.id }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["offices"]).to eq([])
+    end
+
+    it "returns 422 when order_id points to non-draft order" do
+      order = create(:order, checkout_draft: false)
+
+      get "/api/v1/delivery/europost_offices", params: { order_id: order.id }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      body = JSON.parse(response.body)
+      expect(body["error"]).to match(/Черновик заказа не найден/)
+    end
   end
 end
