@@ -18,19 +18,21 @@ class Products::ExtendedAttributesFetchService
   # Любая витрина IKEA (pl, lt/ru, …) — один и тот же каталог фото; при смене scoped-галереи вычищаем все, иначе LT+PL копятся в кашу.
   REMOTE_IKEA_PRODUCT_GALLERY_URL = %r{\Ahttps?://www\.ikea\.com/[^/]+/[^/]+/images/products}i.freeze
 
-  def self.fetch_for_product(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false)
+  def self.fetch_for_product(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false, skip_image_reconciliation: false)
     new.fetch(
       product,
       results_jsonl_row: results_jsonl_row,
       force_ai_translation: force_ai_translation,
       fallback_pl_when_lt_missing: fallback_pl_when_lt_missing,
       strip_listing_relations: strip_listing_relations,
-      skip_document_download: skip_document_download
+      skip_document_download: skip_document_download,
+      skip_image_reconciliation: skip_image_reconciliation
     )
   end
 
-  def fetch(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false)
+  def fetch(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false, skip_image_reconciliation: false)
     @skip_document_download = skip_document_download
+    @skip_image_reconciliation = skip_image_reconciliation
     pl_url = pl_product_url(product)
     return { updated: false } if pl_url.blank?
 
@@ -208,6 +210,7 @@ class Products::ExtendedAttributesFetchService
 
   # Scoped-список с PL (PlDetailsFetcher + scope_sku) — единственный источник удалённых URL; сбрасываем local_images чтобы перекачать под новый набор.
   def reconcile_pl_scoped_product_images!(product, pl_details, attributes)
+    return if @skip_image_reconciliation
     return unless pl_details.key?(:images) && pl_details[:images].is_a?(Array)
   
     pl_images =

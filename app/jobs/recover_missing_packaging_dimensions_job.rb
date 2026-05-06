@@ -2,6 +2,7 @@
 
 # Повторный парсинг карточки PL (+ LT при наличии URL) через ExtendedAttributesFetchService,
 # чтобы в full_attributes попал measurements_modal и в API — packages / packaging с габаритами.
+# Галерею с PL не сверяем (skip_image_reconciliation), чтобы задача не меняла images/local_images.
 class RecoverMissingPackagingDimensionsJob < ApplicationJob
   queue_as :parser
 
@@ -78,7 +79,8 @@ class RecoverMissingPackagingDimensionsJob < ApplicationJob
             Products::ExtendedAttributesFetchService.fetch_for_product(
               product,
               fallback_pl_when_lt_missing: true,
-              skip_document_download: true
+              skip_document_download: true,
+              skip_image_reconciliation: true
             )
 
           if result[:skipped_missing_lt]
