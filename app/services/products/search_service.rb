@@ -21,7 +21,7 @@ module Products
 
     def initial_scope
       if @category&.ikea_id.present?
-        Product.catalog_category_scope(@category.ikea_id)
+        Product.where(category_id: @category.ikea_id).active.with_available_stock
       else
         Product.active
       end
