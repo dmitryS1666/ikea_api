@@ -691,6 +691,7 @@ class ProductSerializer
   
     note = measurements_modal["package_count_note"].presence
     note ||= "Упаковок: #{measurements_modal["number_of_packages"]}" if measurements_modal["number_of_packages"].present?
+    note = normalize_package_count_note(note)
   
     details =
       extract_packages_from_measurements_modal(measurements_modal).filter_map do |pkg|
@@ -701,6 +702,17 @@ class ProductSerializer
       "desc" => note,
       "details" => details
     }
+  end
+
+  def self.normalize_package_count_note(note)
+    s = note.to_s.gsub(/\u00A0/, " ").gsub(/\s+/, " ").strip
+    return nil if s.blank?
+
+    if (m = s.match(/\ATen produkt składa się z (\d+) paczek\.?\z/i))
+      return "Этот товар состоит из #{m[1]} упаковок."
+    end
+
+    s
   end
 
   def self.package_row_to_api_detail(pkg)
