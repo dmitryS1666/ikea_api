@@ -27,10 +27,10 @@ module Products
       "f-pattern" => ["Wzór", "Wzory", "Узор", "Узоры"],
       "f-shape" => ["Kształt", "Ksztalt", "Форма"],
       "f-brand" => ["Marka", "Producent", "Бренд", "Марка", "Производитель"],
-      "f-size" => ["Rozmiar", "Wymiar", "Wymiary", "Wysokość wraz z uchwytem", "Wysokość pod meblem", "Obciążenie półki", "Размер", "Габарит", "Габариты", "Размеры"],
+      "f-size" => ["Rozmiar", "Wymiar", "Wymiary", "Wysokość wraz z uchwytem", "Wysokość pod meblem", "Wysokość z poduchami oparcia", "Szerokość siedziska strona lewa", "Obciążenie półki", "Размер", "Габарит", "Габариты", "Размеры"],
       "f-length" => ["Długość", "Dlugosc", "Длина"],
-      "f-width" => ["Szerokość", "Ширина"],
-      "f-height" => ["Wysokość", "Wysokość wraz z uchwytem", "Wysokość pod meblem", "Высота"],
+      "f-width" => ["Szerokość", "Szerokość siedziska strona lewa", "Ширина"],
+      "f-height" => ["Wysokość", "Wysokość wraz z uchwytem", "Wysokość pod meblem", "Wysokość z poduchami oparcia", "Высота"],
       "f-depth" => ["Głębokość", "Глубина"],
       "f-number-of-doors" => ["Liczba drzwi", "Количество дверей"],
       "f-number-of-drawers" => ["Liczba szuflad", "Количество ящиков"],
@@ -39,8 +39,8 @@ module Products
     }.freeze
 
     MEASUREMENT_KEYS = {
-      width: ["Szerokość", "Ширина"],
-      height: ["Wysokość", "Wysokość wraz z uchwytem", "Wysokość pod meblem", "Высота"],
+      width: ["Szerokość", "Szerokość siedziska strona lewa", "Ширина"],
+      height: ["Wysokość", "Wysokość wraz z uchwytem", "Wysokość pod meblem", "Wysokość z poduchami oparcia", "Высота"],
       depth: ["Głębokość", "Глубина"],
       length: ["Długość", "Dlugosc", "Длина"],
       diameter: ["Średnica", "Srednica", "Диаметр"],

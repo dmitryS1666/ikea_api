@@ -2466,6 +2466,12 @@ class PlDetailsFetcher
     s = s.gsub(":", "").strip
   
     case s.downcase
+    when /\aten produkt składa się z \d+ paczek\.?\z/
+      "Этот товар состоит из упаковок."
+    when "wysokość z poduchami oparcia"
+      "Высота с подушками спинки"
+    when "szerokość siedziska strona lewa"
+      "Ширина сиденья, левая сторона"
     when "szerokość", "szerokosc", "width"
       "Ширина"
     when "wysokość", "wysokosc", "height"
