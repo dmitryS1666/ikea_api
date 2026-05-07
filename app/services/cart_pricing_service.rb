@@ -25,6 +25,7 @@ class CartPricingService
 
     items_goods_pln = 0.0
     discount_total_pln = 0.0
+    discount_total_byn = 0.0
     total_weight = 0.0
     total_items_cost_eur = 0.0
     logistics_pln = 0.0
@@ -46,35 +47,51 @@ class CartPricingService
       end
 
     items = items_relation.map do |item|
-      product_pln = item.product&.price || 0
+      product_pln = item.product&.price.to_f || 0
       weight = item.product&.weight || 0
       quantity = item.quantity
       delivery_unit_pln = item.product&.delivery_cost.to_f
       line_weight = weight * quantity
       total_weight += line_weight
 
-      # Расчет наценки K для конкретного товара
-      markup_k = PriceCalculationService.compute_k(product_pln)
-      
-      # Используем предосчитанную применимость промокода
+      line_breakdown = PriceCalculationService.line_breakdown_pln(
+        unit_price_zl: product_pln,
+        quantity: quantity,
+        weight_kg: line_weight,
+        delivery_unit_pln: delivery_unit_pln
+      )
+      line_total_pln_before_discount = line_breakdown[:total_pln]
+      line_total_byn_before_discount = (line_total_pln_before_discount * pln_rate_with_buffer).round(2)
+      unit_price_byn_before_discount = quantity.positive? ? (line_total_byn_before_discount / quantity).round(2) : 0.0
+
+      # Используем предосчитанную применимость промокода.
+      # Промо применяется к финальной BYN-цене, которую видит пользователь.
       promo_applied = promo_valid && promo_applicability[item.product_sku]&.any?
-      unit_discount_pln = promo_applied ? calculate_unit_discount_pln(promo, product_pln, pln_rate, buffer) : 0
-      unit_discount_pln = [unit_discount_pln, product_pln].min
+      unit_discount_byn = promo_applied ? calculate_unit_discount_byn(promo, unit_price_byn_before_discount, pln_rate, buffer) : 0.0
+      unit_discount_byn = [unit_discount_byn, unit_price_byn_before_discount].min.round(2)
+      line_discount_byn = (unit_discount_byn * quantity).round(2)
+      line_discount_pln = if pln_rate_with_buffer.positive?
+                            (line_discount_byn / pln_rate_with_buffer).round(2)
+                          else
+                            0.0
+                          end
+
+      unit_discount_pln = quantity.positive? ? (line_discount_pln / quantity).round(2) : 0.0
       discount_total_pln += unit_discount_pln * quantity
-      
-      unit_price_after_promo_pln = [product_pln - unit_discount_pln, 0].max
-      unit_price_with_markup_pln = unit_price_after_promo_pln * (1 + markup_k)
-      
-      line_goods_pln = unit_price_with_markup_pln * quantity
-      line_delivery_pln = delivery_unit_pln * quantity
-      line_wc_pln = BelarusDeliveryService.calculate(line_weight)
-      line_total_pln = line_goods_pln + line_delivery_pln + line_wc_pln
+      discount_total_byn += line_discount_byn
 
-      items_goods_pln += line_goods_pln
-      logistics_pln += line_delivery_pln + line_wc_pln
-
-      line_total_byn = (line_total_pln * pln_rate_with_buffer).round(2)
+      line_total_byn = [line_total_byn_before_discount - line_discount_byn, 0.0].max.round(2)
+      line_total_pln = if pln_rate_with_buffer.positive?
+                         (line_total_byn / pln_rate_with_buffer).round(2)
+                       else
+                         0.0
+                       end
       unit_price_byn = quantity.positive? ? (line_total_byn / quantity).round(2) : 0.0
+
+      items_goods_pln += line_breakdown[:goods_pln]
+      logistics_pln += line_breakdown[:delivery_pln] + line_breakdown[:wc_by_pln]
+
+      markup_k = line_breakdown[:markup_k]
 
       # Расчет пошлины для отдельной позиции (line total) для информации
       item_cost_eur = (product_pln * pln_rate / eur_rate).round(2) if eur_rate.positive?
@@ -88,9 +105,12 @@ class CartPricingService
         quantity: quantity,
         unit_price_pln: product_pln,
         unit_price_byn: unit_price_byn,
+        unit_price_byn_before_discount: unit_price_byn_before_discount,
+        unit_discount_byn: unit_discount_byn,
         unit_discount_pln: unit_discount_pln,
         line_total_pln: line_total_pln.round(2),
         line_total_byn: line_total_byn,
+        pricing_mode: line_breakdown[:mode].to_s,
         promo_applied: promo_applied,
         promo_code: promo_applied ? promo.code : nil,
         weight: weight,
@@ -122,7 +142,7 @@ class CartPricingService
         total_pln: total_pln.round(2),
         delivery_total_byn: delivery_total_byn,
         total_byn: total_byn,
-        discount_total_byn: (discount_total_pln * (1 + 0.10) * pln_rate_with_buffer).round(2), # Примерный дисконт в BYN
+        discount_total_byn: discount_total_byn.round(2),
         total_weight_kg: total_weight.to_f,
         customs_total_byn: cart_customs[:total_byn],
         customs_duty_byn: cart_customs[:duty_byn],
@@ -142,19 +162,18 @@ class CartPricingService
     }
   end
 
-  def self.calculate_unit_discount_pln(promo, price_pln, pln_rate = nil, buffer = nil)
-    return 0 unless promo && price_pln.positive?
+  def self.calculate_unit_discount_byn(promo, unit_price_byn, pln_rate = nil, buffer = nil)
+    return 0 unless promo && unit_price_byn.to_f.positive?
 
     case promo.discount_type
     when 'percent'
-      (price_pln * promo.discount_value / 100).round(2)
+      (unit_price_byn.to_f * promo.discount_value / 100.0).round(2)
     when 'fixed_pln'
-      [promo.discount_value, price_pln].min
-    when 'fixed_byn'
       pln_rate ||= ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 1
       buffer ||= PriceCalculationService.exchange_rate_buffer
-      discount_pln = promo.discount_value / (pln_rate * buffer)
-      [discount_pln, price_pln].min.round(2)
+      [promo.discount_value.to_f * pln_rate * buffer, unit_price_byn.to_f].min.round(2)
+    when 'fixed_byn'
+      [promo.discount_value.to_f, unit_price_byn.to_f].min.round(2)
     else
       0
     end

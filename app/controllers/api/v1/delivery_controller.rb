@@ -196,7 +196,7 @@ module Api
           skus = items.map { |i| i[:sku] || i['sku'] }.compact
           products = Product.with_available_stock.where(sku: skus).index_by(&:sku)
           
-          # Согласованно с CartPricingService: товары с K + delivery_cost + WC_BY по весу строки
+          # Согласованно с CartPricingService: единая формула цены из PriceCalculationService
           total_pln = 0.0
           total_weight = 0.0
           
@@ -209,11 +209,13 @@ module Api
             pln_price = p.price.to_f
             w = p.weight.to_f
             line_weight = w * qty
-            markup_k = PriceCalculationService.compute_k(pln_price)
-            line_goods = pln_price * (1 + markup_k) * qty
-            line_delivery = p.delivery_cost.to_f * qty
-            line_wc = BelarusDeliveryService.calculate(line_weight)
-            total_pln += line_goods + line_delivery + line_wc
+            line_total_pln = PriceCalculationService.line_total_pln(
+              unit_price_zl: pln_price,
+              quantity: qty,
+              weight_kg: line_weight,
+              delivery_unit_pln: p.delivery_cost.to_f
+            )
+            total_pln += line_total_pln
             total_weight += line_weight
           end
           

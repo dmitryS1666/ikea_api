@@ -79,7 +79,7 @@ RSpec.describe CalculatorSetting, type: :model do
     it 'создает все настройки по умолчанию' do
       CalculatorSetting.initialize_defaults
       
-      expect(CalculatorSetting.get('margin_multiplier')).to eq(1.1)
+      expect(CalculatorSetting.get('exchange_rate_buffer')).to eq(1.05)
       expect(CalculatorSetting.get('poland_delivery_rates')).to be_a(Hash)
       expect(CalculatorSetting.get('belarus_delivery_rates')).to be_a(Hash)
       expect(CalculatorSetting.get('customs_free_cost_limit')).to eq(200.0)

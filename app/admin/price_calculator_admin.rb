@@ -18,9 +18,11 @@ Trestle.resource(:price_calculator, model: PriceCalculator) do
       today = Date.today
       
       @params_info = {
-        target_profit: CalculatorSetting.get('target_profit_pln') || PriceCalculationService::TARGET_PROFIT_PLN_DEFAULT,
-        markup_subtrahend: PriceCalculationService.markup_formula_subtrahend,
-        min_markup: CalculatorSetting.get('min_markup') || 0.10,
+        cheap_threshold_pln: PriceCalculationService.cheap_threshold_pln,
+        cheap_multiplier: PriceCalculationService::CHEAP_MULTIPLIER,
+        min_markup: PriceCalculationService::MIN_MARKUP,
+        target_profit: PriceCalculationService::TARGET_PROFIT_PLN,
+        markup_subtrahend: PriceCalculationService::MARKUP_SUBTRAHEND,
         buffer: CalculatorSetting.get('exchange_rate_buffer') || 1.05
       }
 

@@ -1,51 +1,97 @@
-# Сервис для расчета итоговой цены товара (PLN → BYN с наценкой K и логистикой)
+# Сервис для расчета итоговой цены товара (PLN → BYN по новой политике cheap/k)
 class PriceCalculationService
-  TARGET_PROFIT_PLN_DEFAULT = 87.0
-  MARKUP_SUBTRAHEND_DEFAULT = 0.187
+  TARGET_PROFIT_PLN = 87.0
+  MARKUP_SUBTRAHEND = 0.187
+  MIN_MARKUP = 0.10
+  CHEAP_MULTIPLIER = 1.3
+  PRICE_CHEAP_THRESHOLD_PLN_DEFAULT = 150.0
 
-  # Вычитаемое в формуле K = target_profit / P_pl − subtrahend (публично для админки / калькулятора)
-  def self.markup_formula_subtrahend
-    s = CalculatorSetting.get('markup_subtrahend')
-    return s if s
-
-    # legacy: в БД могло быть markup_offset = −0.187
-    off = CalculatorSetting.get('markup_offset')
-    return -off.to_f if off
-
-    MARKUP_SUBTRAHEND_DEFAULT
-  end
-
-  # K = max(min_markup, target_profit / P_pl − subtrahend), минимум 10%
   def self.compute_k(price_zl)
-    return min_markup if price_zl.to_f <= 0
+    return MIN_MARKUP if price_zl.to_f <= 0
 
-    target_profit = CalculatorSetting.get('target_profit_pln') || TARGET_PROFIT_PLN_DEFAULT
-    subtrahend = markup_formula_subtrahend
-    k = (target_profit / price_zl.to_f) - subtrahend
-    [k, min_markup].max
+    k = (TARGET_PROFIT_PLN / price_zl.to_f) - MARKUP_SUBTRAHEND
+    [k, MIN_MARKUP].max
   end
 
-  def self.min_markup
-    CalculatorSetting.get('min_markup') || 0.10
+  def self.cheap_threshold_pln
+    raw = ENV.fetch("PRICE_CHEAP_THRESHOLD_PLN", PRICE_CHEAP_THRESHOLD_PLN_DEFAULT.to_s)
+    threshold = raw.to_f
+    threshold.positive? ? threshold : PRICE_CHEAP_THRESHOLD_PLN_DEFAULT
+  rescue StandardError
+    PRICE_CHEAP_THRESHOLD_PLN_DEFAULT
+  end
+
+  def self.pricing_mode_for(price_zl)
+    price_zl.to_f <= cheap_threshold_pln ? :cheap : :k
   end
 
   def self.exchange_rate_buffer
     CalculatorSetting.get('exchange_rate_buffer') || 1.05
   end
 
-  # Полная сумма в PLN по регламенту: P_pl×(1+K) + доставка_PLN + WC_BY(вес)
-  def self.retail_total_pln(product_price_zl, weight_kg, delivery_pln)
-    p = product_price_zl.to_f
-    return 0.0 if p <= 0
+  # Полная сумма в PLN для строки корзины/товара по новой формуле.
+  # mode выбирается по цене единицы товара (PLN).
+  def self.line_total_pln(unit_price_zl:, quantity:, weight_kg:, delivery_unit_pln:)
+    qty = quantity.to_i
+    return 0.0 if qty <= 0
 
-    k = compute_k(p)
-    wc = BelarusDeliveryService.calculate(weight_kg)
-    (p * (1 + k) + delivery_pln.to_f + wc).round(2)
+    breakdown = line_breakdown_pln(
+      unit_price_zl: unit_price_zl,
+      quantity: qty,
+      weight_kg: weight_kg,
+      delivery_unit_pln: delivery_unit_pln
+    )
+
+    breakdown[:total_pln].round(2)
+  end
+
+  def self.line_breakdown_pln(unit_price_zl:, quantity:, weight_kg:, delivery_unit_pln:)
+    unit_price = unit_price_zl.to_f
+    qty = quantity.to_i
+    return empty_line_breakdown if unit_price <= 0 || qty <= 0
+
+    goods_pln = unit_price * qty
+    delivery_pln = delivery_unit_pln.to_f * qty
+    wc_by_pln = BelarusDeliveryService.calculate(weight_kg.to_f)
+
+    mode = pricing_mode_for(unit_price)
+    if mode == :cheap
+      base_pln = goods_pln + delivery_pln + wc_by_pln
+      total_pln = base_pln * CHEAP_MULTIPLIER
+      markup_k = 0.0
+    else
+      markup_k = compute_k(unit_price)
+      goods_with_markup_pln = goods_pln * (1 + markup_k)
+      total_pln = goods_with_markup_pln + delivery_pln + wc_by_pln
+      base_pln = nil
+    end
+
+    {
+      mode: mode,
+      markup_k: markup_k,
+      goods_pln: goods_pln.round(2),
+      delivery_pln: delivery_pln.round(2),
+      wc_by_pln: wc_by_pln.round(2),
+      base_pln: base_pln&.round(2),
+      total_pln: total_pln.round(2)
+    }
+  end
+
+  def self.empty_line_breakdown
+    {
+      mode: :cheap,
+      markup_k: 0.0,
+      goods_pln: 0.0,
+      delivery_pln: 0.0,
+      wc_by_pln: 0.0,
+      base_pln: 0.0,
+      total_pln: 0.0
+    }
   end
 
   # Итоговая цена в BYN для карточки / выгрузок: полный PLN-стек → курс НБ × буфер
-  # @param weight_kg [Float, nil] если nil или 0 — WC_BY=0 (обратная совместимость для фильтров и т.п.)
-  # @param delivery_pln [Float, nil] если nil — доставка в PLN не добавляется (только товар+K+WC)
+  # @param weight_kg [Float, nil] если nil или 0 — WC_BY=0
+  # @param delivery_pln [Float, nil] если nil — доставка в PLN не добавляется
   def self.product_price_byn(product_price_zl, weight_kg: nil, delivery_pln: nil, pln_rate: nil, buffer: nil, date: nil)
     product_price_zl = product_price_zl.to_f
     return 0.0 if product_price_zl <= 0
@@ -53,7 +99,12 @@ class PriceCalculationService
     wt = weight_kg.nil? ? 0.0 : weight_kg.to_f
     del = delivery_pln.nil? ? 0.0 : delivery_pln.to_f
 
-    total_pln = retail_total_pln(product_price_zl, wt, del)
+    total_pln = line_total_pln(
+      unit_price_zl: product_price_zl,
+      quantity: 1,
+      weight_kg: wt,
+      delivery_unit_pln: del
+    )
 
     date ||= Date.today
     pln_rate ||= ExchangeRate.fetch_or_create('PLN', date)&.rate_per_unit || 0
@@ -62,7 +113,7 @@ class PriceCalculationService
     (total_pln * pln_rate * buffer).round(2)
   end
 
-  # Расчет итоговой цены товара
+  # Расчет итоговой цены товара для админ-калькулятора
   # @param product_price_zl [Float] Цена товара в злотых
   # @param weight_kg [Float] Вес товара в килограммах
   # @param use_gls_pickup [Boolean] Использовать пункт отбора GLS
@@ -77,31 +128,39 @@ class PriceCalculationService
     
     return { error: 'Не удалось получить курсы валют' } unless pln_rate && eur_rate
     
-    # 1. Динамическая наценка K
-    markup_k = compute_k(product_price_zl)
-    
-    # 2. Доставка в PLN: явное значение (как delivery_cost у товара) или тариф по Польше
+    # 1. Доставка в PLN: явное значение (как delivery_cost у товара) или тариф по Польше
     delivery_zl = if delivery_pln.nil?
                     PolandDeliveryService.calculate(weight_kg, use_gls_pickup: use_gls_pickup)
                   else
                     delivery_pln.to_f
                   end
+
+    breakdown = line_breakdown_pln(
+      unit_price_zl: product_price_zl,
+      quantity: 1,
+      weight_kg: weight_kg,
+      delivery_unit_pln: delivery_zl
+    )
+    total_pln = breakdown[:total_pln]
+    belarus_delivery_zl = breakdown[:wc_by_pln]
+    markup_k = breakdown[:markup_k]
+    pricing_mode = breakdown[:mode]
     
-    # 3. Весовая логистика РБ (в злотых за кг)
-    belarus_delivery_zl = BelarusDeliveryService.calculate(weight_kg)
-    
-    # 4. Итоговая сумма в PLN
-    # priceTotalPLN = P_pl * (1 + K) + delivery + WC_BY
-    product_with_markup_zl = product_price_zl * (1 + markup_k)
-    total_pln = product_with_markup_zl + delivery_zl + belarus_delivery_zl
-    
-    # 5. Перевод в BYN: round(total_pln × курс_PLN_BYN × exchange_rate_buffer, 2), buffer по умолчанию 1.05
+    # 2. Перевод в BYN: round(total_pln × курс_PLN_BYN × exchange_rate_buffer, 2), buffer по умолчанию 1.05
     buffer = exchange_rate_buffer
     pln_rate_with_buffer = pln_rate * buffer
     total_price_byn = (total_pln * pln_rate_with_buffer).round(2)
     
-    # Для совместимости с UI и старыми частями системы рассчитываем "виртуальные" значения в BYN
-    product_price_byn = (product_with_markup_zl * pln_rate_with_buffer).round(2)
+    # Для UI: составляющие в BYN
+    goods_component_pln =
+      if pricing_mode == :cheap
+        # В cheap режиме множитель применяется к всей базе, поэтому "товарный" компонент
+        # в UI оставляем как цена IKEA без разбиения коэффициента.
+        product_price_zl
+      else
+        product_price_zl * (1 + markup_k)
+      end
+    product_price_byn = (goods_component_pln * pln_rate_with_buffer).round(2)
     poland_delivery_byn = (delivery_zl * pln_rate_with_buffer).round(2)
     belarus_delivery_byn = (belarus_delivery_zl * pln_rate_with_buffer).round(2)
 
@@ -115,6 +174,9 @@ class PriceCalculationService
       product_price_byn: product_price_byn,
       weight_kg: weight_kg.round(2),
       markup_k: markup_k.round(4),
+      pricing_mode: pricing_mode.to_s,
+      cheap_threshold_pln: cheap_threshold_pln.round(2),
+      cheap_multiplier: CHEAP_MULTIPLIER,
       
       # Доставка и логистика
       delivery_pln: delivery_zl.round(2),

@@ -206,11 +206,11 @@
             <section class="mb-4">
               <h5><i class="fa fa-calculator text-primary"></i> Ценообразование и Финансы</h5>
               <div class="formula-block mb-3">
-                <code>K = max(0.10, target_profit_pln / цена_PLN − markup_subtrahend)</code>, по умолчанию <code>87 / цена − 0.187</code>
+                <code>cheap: (price + delivery + WC_BY) × 1.3</code>; <code>k: price × (1 + K) + delivery + WC_BY</code>
               </div>
               <ul class="guide-list">
-                <li><strong>Сумма в PLN:</strong> <code>цена_PLN × (1 + K) + доставка_PL + весовая_логистика_РБ</code>; затем <code>× курс_PLN_BYN × exchange_rate_buffer</code> (5% к курсу, <code>1.05</code>) и округление до 2 знаков.</li>
-                <li><strong>Минимальная маржа:</strong> K не ниже <strong>10%</strong> (<code>min_markup = 0.10</code>).</li>
+                <li><strong>Режим cheap:</strong> если <code>price ≤ PRICE_CHEAP_THRESHOLD_PLN</code> (по умолчанию 150 PLN), на всю базу применяется множитель <code>1.3</code>.</li>
+                <li><strong>Режим k:</strong> если цена выше порога, <code>K = max(0.10, 87 / price − 0.187)</code>, и K применяется только к цене IKEA.</li>
                 <li><strong>Логистика по Польше:</strong> Ступенчатые тарифы в <code>poland_delivery_rates</code> (JSON).</li>
                 <li><strong>Весовая логистика РБ:</strong> PLN за кг по весу (по умолчанию до 20 кг — 16.85; далее 12.81 / 10.69 / 8.58). Настройка <code>belarus_delivery_rates</code>.</li>
                 <li><strong>Таможня:</strong> Лимиты 200€ и 31кг. Пошлина 15% или 2€/кг + сбор 10 BYN. Все расчеты автоматизированы.</li>

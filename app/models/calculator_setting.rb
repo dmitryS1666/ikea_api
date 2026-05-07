@@ -71,15 +71,7 @@ class CalculatorSetting < ApplicationRecord
   
   # Инициализация дефолтных настроек
   def self.initialize_defaults
-    # Маржа (старая)
-    set('margin_multiplier', 1.1, setting_type: 'decimal', description: 'Маржа (старая логика, 10% = 1.1)')
-    
-    # Наценка K = max(min_markup, target_profit_pln / цена_PLN − markup_subtrahend)
-    set('target_profit_pln', 87.0, setting_type: 'decimal',
-        description: 'Целевая прибыль в PLN (числитель K, экв. ~20 EUR; формула K = target / цена − subtrahend)')
-    set('markup_subtrahend', 0.187, setting_type: 'decimal',
-        description: 'Вычитаемое в формуле K (K = target_profit_pln / цена_PLN − это значение, не ниже min_markup)')
-    set('min_markup', 0.10, setting_type: 'decimal', description: 'Минимальная наценка K (10% = 0.10)')
+    # В новой политике K/порог зашиты в PriceCalculationService, в настройках оставляем только общий буфер курса.
     set('exchange_rate_buffer', 1.05, setting_type: 'decimal',
         description: 'Множитель к курсу PLN→BYN после суммы в PLN (5% к курсу = 1.05)')
 

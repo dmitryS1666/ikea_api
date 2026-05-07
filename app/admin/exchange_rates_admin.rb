@@ -25,7 +25,7 @@ Trestle.resource(:exchange_rates, model: ExchangeRate) do
       super
       @current_rates = {}
       today = Date.today
-      margin = CalculatorSetting.get('margin_multiplier') || 1.1
+      buffer = PriceCalculationService.exchange_rate_buffer
       
       # Получаем актуальные курсы для основных валют
       ['USD', 'EUR', 'PLN'].each do |currency|
@@ -33,7 +33,7 @@ Trestle.resource(:exchange_rates, model: ExchangeRate) do
         if rate
           @current_rates[currency] = {
             nbrb: rate.rate_per_unit.round(4),
-            with_margin: (rate.rate_per_unit * margin).round(4),
+            with_buffer: (rate.rate_per_unit * buffer).round(4),
             date: rate.date,
             scale: rate.scale,
             official_rate: rate.rate

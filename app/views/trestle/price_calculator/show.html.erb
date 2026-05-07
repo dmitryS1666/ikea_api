@@ -68,8 +68,8 @@
     <div class="col-md-5">
       <div class="card">
         <div class="card-header">
-          <h3>Калькулятор стоимости товара (Новый)</h3>
-          <p class="text-muted mb-0">K + доставка PL + весовая логистика РБ → сумма PLN → BYN (курс × <%= @params_info[:buffer] %>)</p>
+          <h3>Калькулятор стоимости товара</h3>
+          <p class="text-muted mb-0">Режимы cheap/k + доставка PL + весовая логистика РБ → сумма PLN → BYN (курс × <%= @params_info[:buffer] %>)</p>
         </div>
         <div class="card-body">
           <%= form_tag admin.instance_path(PriceCalculator.new(id: 'show')), method: :get, data: { turbo: false } do %>
@@ -126,9 +126,9 @@
         <div class="card-body">
           <ol class="mb-3">
             <li class="mb-2">
-              <strong>Наценка K</strong> (чем дешевле товар, тем выше K, минимум <%= (@params_info[:min_markup] * 100).round %>%):<br>
+              <strong>Определение режима:</strong><br>
               <small class="text-muted">
-                <code>K = max(<%= @params_info[:min_markup] %>, <%= @params_info[:target_profit] %> / Цена_PLN − <%= @params_info[:markup_subtrahend] %>)</code>
+                <code>если price ≤ <%= @params_info[:cheap_threshold_pln] %> PLN → cheap</code>, иначе <code>k</code>
               </small>
             </li>
             <li class="mb-2">
@@ -141,8 +141,8 @@
             <li class="mb-2">
               <strong>Сумма в PLN:</strong><br>
               <small class="text-muted">
-                <code>Цена_PLN × (1 + K) + Доставка_PLN + WC_BY</code><br>
-                Доставка — из поля выше (как у товара) или ступенчатый тариф <code>poland_delivery_rates</code> + GLS, если поле пустое.
+                <code>cheap: (price + delivery + WC_BY) × <%= @params_info[:cheap_multiplier] %></code><br>
+                <code>k: price × (1 + K) + delivery + WC_BY</code>, где <code>K = max(<%= @params_info[:min_markup] %>, <%= @params_info[:target_profit] %> / price − <%= @params_info[:markup_subtrahend] %>)</code>
               </small>
             </li>
             <li class="mb-2">
@@ -154,9 +154,9 @@
             </li>
           </ol>
           <p class="mb-0 small text-muted">
-            <strong>Пример:</strong> 500 PLN, доставка 50 PLN, 15 кг → K = max(10%, 87/500−0.187) = 10%;
+            <strong>Пример (режим k):</strong> 500 PLN, доставка 50 PLN, 15 кг → K = max(10%, 87/500−0.187) = 10%;
             WC_BY = 15×16.85 = 252.75; итого PLN = 500×1.10 + 50 + 252.75 = 852.75.
-            В калькуляторе доставка PL берётся по вашим тарифам (для 15 кг это обычно не 50 PLN).
+            Для цены ≤ <%= @params_info[:cheap_threshold_pln] %> PLN работает режим cheap с множителем <%= @params_info[:cheap_multiplier] %> на всю базу.
           </p>
         </div>
       </div>
@@ -190,6 +190,10 @@
               <div class="col-md-6">
                 <h5>Наценка и Коэффициенты:</h5>
                 <table class="table table-sm table-bordered mb-4">
+                  <tr>
+                    <td>Режим:</td>
+                    <td class="text-right"><strong><%= @calculation[:pricing_mode] %></strong></td>
+                  </tr>
                   <tr>
                     <td>Наценка K:</td>
                     <td class="text-right"><strong><%= (@calculation[:markup_k] * 100).round(2) %>%</strong></td>
@@ -225,10 +229,12 @@
                 <td>Цена товара:</td>
                 <td class="text-right"><%= number_to_currency(@calculation[:product_price_zl], unit: 'PLN', format: '%n %u', precision: 2) %></td>
               </tr>
-              <tr>
-                <td>Наценка (<%= (@calculation[:markup_k] * 100).round(2) %>%):</td>
-                <td class="text-right">+ <%= number_to_currency(@calculation[:product_price_zl] * @calculation[:markup_k], unit: 'PLN', format: '%n %u', precision: 2) %></td>
-              </tr>
+              <% if @calculation[:pricing_mode] == 'k' %>
+                <tr>
+                  <td>Наценка (<%= (@calculation[:markup_k] * 100).round(2) %>%):</td>
+                  <td class="text-right">+ <%= number_to_currency(@calculation[:product_price_zl] * @calculation[:markup_k], unit: 'PLN', format: '%n %u', precision: 2) %></td>
+                </tr>
+              <% end %>
               <tr>
                 <td>Доставка (PLN):</td>
                 <td class="text-right">+ <%= number_to_currency(@calculation[:delivery_pln] || @calculation[:poland_delivery_zl], unit: 'PLN', format: '%n %u', precision: 2) %></td>
