@@ -45,26 +45,11 @@ module Products
     end
 
     def ids_matching_display_price(min_price, max_price)
-      pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
-      buffer = CalculatorSetting.get('exchange_rate_buffer') || PriceCalculationService.exchange_rate_buffer
-
-      @scope
-        .where.not(price: nil)
-        .pluck(:id, :price, :weight, :delivery_cost)
-        .filter_map do |id, price, weight, delivery_cost|
-          price_byn = PriceCalculationService.product_price_byn(
-            price.to_f,
-            weight_kg: weight.to_f,
-            delivery_pln: delivery_cost.to_f,
-            pln_rate: pln_rate,
-            buffer: buffer
-          )
-
-          next if min_price && price_byn < min_price
-          next if max_price && price_byn > max_price
-
-          id
-        end
+      scope = @scope.where.not(price: nil)
+      price_sql = display_price_byn_sql
+      scope = scope.where("#{price_sql} >= ?", min_price.to_f) if min_price
+      scope = scope.where("#{price_sql} <= ?", max_price.to_f) if max_price
+      scope.pluck(:id)
     end
 
     def number_from_param(value)
@@ -115,43 +100,77 @@ module Products
     end
 
     def sort_by_display_price(direction:)
-      pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
-      buffer = CalculatorSetting.get('exchange_rate_buffer') || PriceCalculationService.exchange_rate_buffer
-
-      priced_rows = @scope.where.not(price: nil).pluck(:id, :price, :weight, :delivery_cost)
-      return fallback_price_sort(direction) if priced_rows.empty?
-
-      sorted_ids =
-        priced_rows
-          .map do |id, price, weight, delivery_cost|
-            price_byn = PriceCalculationService.product_price_byn(
-              price.to_f,
-              weight_kg: weight.to_f,
-              delivery_pln: delivery_cost.to_f,
-              pln_rate: pln_rate,
-              buffer: buffer
-            )
-
-            [id, price_byn]
-          end
-          .sort_by do |id, price_byn|
-            direction == :asc ? [price_byn, id] : [-price_byn, -id]
-          end
-          .map(&:first)
-
-      return fallback_price_sort(direction) if sorted_ids.empty?
-
-      case_sql = +"CASE products.id "
-      sorted_ids.each_with_index { |id, idx| case_sql << "WHEN #{id.to_i} THEN #{idx} " }
-      case_sql << "ELSE #{sorted_ids.length} END"
-
-      @scope.reorder(Arel.sql(case_sql))
+      direction_sql = direction == :asc ? 'ASC' : 'DESC'
+      id_sql = direction == :asc ? 'ASC' : 'DESC'
+      price_sql = display_price_byn_sql
+      @scope.where.not(price: nil).reorder(Arel.sql("#{price_sql} #{direction_sql}, products.id #{id_sql}"))
     end
 
     def fallback_price_sort(direction)
       direction_sql = direction == :asc ? 'ASC' : 'DESC'
       id_sql = direction == :asc ? 'ASC' : 'DESC'
       @scope.reorder(Arel.sql("products.price #{direction_sql} NULLS LAST, products.id #{id_sql}"))
+    end
+
+    def display_price_byn_sql
+      pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
+      buffer = CalculatorSetting.get('exchange_rate_buffer') || PriceCalculationService.exchange_rate_buffer
+      cheap_threshold = PriceCalculationService.cheap_threshold_pln
+      delivery_case_sql = belarus_delivery_per_kg_sql
+
+      effective_pln_rate = pln_rate.to_f
+      effective_buffer = buffer.to_f
+
+      # Реплицируем формулу PriceCalculationService.product_price_byn(...) в SQL:
+      # 1) считаем total_pln по cheap/k режиму;
+      # 2) конвертируем в BYN через pln_rate * buffer.
+      <<~SQL.squish
+        (
+          CASE
+            WHEN products.price <= #{cheap_threshold.to_f}
+              THEN (
+                (
+                  products.price
+                  + COALESCE(products.delivery_cost, 0)
+                  + (
+                    COALESCE(products.weight, 0) *
+                    #{delivery_case_sql}
+                  )
+                ) * 1.3
+              )
+            ELSE (
+              (
+                products.price * (
+                  1 + GREATEST((87.0 / NULLIF(products.price, 0)) - 0.187, 0.10)
+                )
+              )
+              + COALESCE(products.delivery_cost, 0)
+              + (
+                COALESCE(products.weight, 0) *
+                #{delivery_case_sql}
+              )
+            )
+          END
+        ) * #{effective_pln_rate} * #{effective_buffer}
+      SQL
+    end
+
+    def belarus_delivery_per_kg_sql
+      clauses = BelarusDeliveryService.delivery_rates.map do |(min_weight, max_weight), rate|
+        if max_weight.finite?
+          "WHEN COALESCE(products.weight, 0) > #{min_weight.to_f} AND COALESCE(products.weight, 0) <= #{max_weight.to_f} THEN #{rate.to_f}"
+        else
+          "WHEN COALESCE(products.weight, 0) > #{min_weight.to_f} THEN #{rate.to_f}"
+        end
+      end
+
+      <<~SQL.squish
+        CASE
+          WHEN COALESCE(products.weight, 0) <= 0 THEN 0
+          #{clauses.join(' ')}
+          ELSE 0
+        END
+      SQL
     end
   end
 end

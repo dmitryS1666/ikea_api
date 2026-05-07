@@ -34,6 +34,7 @@ module Api
       def products
         category = Category.find_by(ikea_id: params[:id])
         return render json: { error: 'Category not found' }, status: :not_found unless category
+        per_page = normalized_per_page
 
         search_params = {
           min_price: params[:min_price],
@@ -52,7 +53,7 @@ module Api
         products = products_scope
                            .includes(:categories, :category_products, :seo_meta)
                            .page(params[:page])
-                           .per(params[:per_page] || 50)
+                           .per(per_page)
 
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
         
@@ -75,7 +76,7 @@ module Api
           meta: {
             total: products.total_count,
             page: (params[:page] || 1).to_i,
-            per_page: (params[:per_page] || 50).to_i,
+            per_page: per_page,
             total_pages: products.total_pages,
             default_sort: category.default_sort
           }
@@ -130,6 +131,14 @@ module Api
           }).serializable_hash.to_json
         end
         render json: json
+      end
+
+      private
+
+      def normalized_per_page
+        per_page = params[:per_page].to_i
+        per_page = 20 if per_page <= 0
+        [per_page, 100].min
       end
     end
   end

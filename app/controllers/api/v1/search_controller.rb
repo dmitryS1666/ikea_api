@@ -7,9 +7,10 @@ module Api
         query = params[:q].to_s.strip
         page = normalized_page
         per_page = normalized_per_page
+        first_page = page == 1
 
-        suggestions = suggestions_for(query)
-        popular_queries = PopularSearchQuery.active.matching(query).ordered.limit(5)
+        suggestions = first_page ? suggestions_for(query) : []
+        popular_queries = first_page ? PopularSearchQuery.active.matching(query).ordered.limit(5) : []
 
         all_matching_products_scope = search_scope(query)
         paginated_products_scope = paginated_search_scope(all_matching_products_scope, query)
@@ -19,13 +20,18 @@ module Api
                              .page(page)
                              .per(per_page)
 
-        matched_categories = matching_categories(query)
-        product_categories = get_product_categories(display_products)
-        combined_categories = (matched_categories.to_a + product_categories.to_a).uniq(&:ikea_id)
+        matched_categories = first_page ? matching_categories(query) : Category.none
+        combined_categories =
+          if first_page
+            product_categories = get_product_categories(display_products)
+            (matched_categories.to_a + product_categories.to_a).uniq(&:ikea_id)
+          else
+            []
+          end
 
-        available_filters = aggregate_filters_for(all_matching_products_scope, combined_categories)
+        available_filters = first_page ? aggregate_filters_for(all_matching_products_scope, combined_categories) : []
 
-        log_search(query, all_matching_products_scope.count) if query.present?
+        log_search(query, display_products.total_count) if first_page && query.present?
 
         rates = {
           eur: ExchangeRate.fetch_or_create('EUR')&.rate_per_unit,
@@ -162,7 +168,7 @@ module Api
 
       def normalized_per_page
         per_page = params[:per_page].to_i
-        per_page = 50 if per_page <= 0
+        per_page = 20 if per_page <= 0
         [per_page, 100].min
       end
 
