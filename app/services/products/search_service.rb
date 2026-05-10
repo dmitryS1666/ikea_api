@@ -21,7 +21,8 @@ module Products
 
     def initial_scope
       if @category&.ikea_id.present?
-        Product.where(category_id: @category.ikea_id).active.with_available_stock
+        ikea_ids = @category.self_and_descendant_ikea_ids
+        Product.in_categories_ikea_ids(ikea_ids).active.with_available_stock
       else
         Product.active
       end
@@ -64,6 +65,8 @@ module Products
       return unless filters.present? && (filters.is_a?(Hash) || filters.is_a?(ActionController::Parameters))
       return unless @category&.ikea_id
 
+      category_ikea_ids = @category.self_and_descendant_ikea_ids
+
       filters.each do |filter_param, values|
         filter_param = filter_param.to_s
         next if filter_param.blank?
@@ -75,7 +78,7 @@ module Products
         next if value_ids.empty?
 
         subquery = ProductFilterValue
-                     .where(category_id: @category.ikea_id, parameter: filter_param, value_id: value_ids)
+                     .where(category_id: category_ikea_ids, parameter: filter_param, value_id: value_ids)
                      .select(:product_id)
 
         @scope = @scope.where(id: subquery)

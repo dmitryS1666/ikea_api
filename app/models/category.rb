@@ -156,6 +156,13 @@ class Category < ApplicationRecord
             end
   end
 
+  # Текущая категория + все вложенные (для каталога API у родителя показываются товары потомков)
+  def self_and_descendant_ikea_ids
+    return [] if ikea_id.blank?
+
+    [ikea_id.to_s, *descendant_ikea_ids].uniq
+  end
+
   def children_count
     direct_children.count
   end

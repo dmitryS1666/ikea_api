@@ -37,13 +37,21 @@ class Product < ApplicationRecord
   scope :recommended, -> { where(is_recommended: true) }
   scope :with_category, -> { where.not(category_id: nil) }
 
+  # Товары в одной или нескольких категориях по ikea_id: products.category_id и/или category_products
+  scope :in_categories_ikea_ids, lambda { |ikea_ids|
+    ikea_ids = Array(ikea_ids).map(&:to_s).map(&:strip).reject(&:blank?).uniq
+    next all if ikea_ids.empty?
+
+    linked_ids = CategoryProduct.where(category_id: ikea_ids).select(:product_id)
+    where(category_id: ikea_ids).or(where(id: linked_ids))
+  }
+
   # Товары в категории по ikea_id: основная category_id и/или связь category_products
   scope :in_category_ikea_id, lambda { |ikea_id|
     ikea_id = ikea_id.to_s.strip
     next all if ikea_id.blank?
 
-    linked_ids = CategoryProduct.where(category_id: ikea_id).select(:product_id)
-    where(category_id: ikea_id).or(where(id: linked_ids))
+    in_categories_ikea_ids([ikea_id])
   }
 
   # Единая область товаров категории для каталога, фильтров и переиндексации.

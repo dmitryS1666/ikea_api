@@ -68,6 +68,39 @@ RSpec.describe Products::SearchService do
         service = described_class.new(category, { filters: { "f-type" => ["50310", "99999"] } })
         expect(service.call).to contain_exactly(product1, product2)
       end
+
+      it 'matches filter rows indexed on a descendant category' do
+        parent = create(:category, ikea_id: 'filter_parent')
+        create(:category, ikea_id: 'filter_child', parent_ids: ['filter_parent'])
+        child_product = create(:product, price: 100, quantity: 10)
+        CategoryProduct.create!(category_id: 'filter_child', product: child_product)
+        create(:product_filter_value,
+               product: child_product,
+               category_id: 'filter_child',
+               parameter: 'f-type',
+               value_id: '50310')
+
+        service = described_class.new(parent, { filters: { 'f-type' => '50310' } })
+        expect(service.call).to contain_exactly(child_product)
+      end
+    end
+
+    context 'parent category includes products from descendant categories' do
+      let!(:parent_category) { create(:category, ikea_id: 'root_parent') }
+      let!(:child_category) do
+        create(:category, ikea_id: 'root_child', parent_ids: ['root_parent'])
+      end
+      let!(:parent_direct_product) do
+        create(:product, category_id: parent_category.ikea_id, price: 100, quantity: 10)
+      end
+      let!(:child_product) do
+        create(:product, category_id: child_category.ikea_id, price: 200, quantity: 10)
+      end
+
+      it 'returns products linked to self and to descendants' do
+        service = described_class.new(parent_category, {})
+        expect(service.call).to contain_exactly(parent_direct_product, child_product)
+      end
     end
 
   end
