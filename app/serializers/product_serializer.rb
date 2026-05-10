@@ -375,6 +375,20 @@ class ProductSerializer
     "szerokosc po lewej" => "Ширина слева",
     "szerokość po prawej" => "Ширина справа",
     "szerokosc po prawej" => "Ширина справа",
+    "wysokość łóżka" => "Высота кровати",
+    "wysokosc lozka" => "Высота кровати",
+    "wysokość z poduchami oparcia" => "Высота с подушками спинки",
+    "wysokosc z poduchami oparcia" => "Высота с подушками спинки",
+    "wysokość oparcia" => "Высота спинки",
+    "wysokosc oparcia" => "Высота спинки",
+    "głębokość całkowita po rozłożeniu" => "Общая глубина в разложенном виде",
+    "glebokosc calkowita po rozlozeniu" => "Общая глубина в разложенном виде",
+    "głębokość siedziska, szezlong" => "Глубина сиденья, козетка",
+    "glebokosc siedziska, szezlong" => "Глубина сиденья, козетка",
+    "grubość materaca" => "Толщина матраса",
+    "grubosc materaca" => "Толщина матраса",
+    "wysokość podłokietnika" => "Высота подлокотника",
+    "wysokosc podlokietnika" => "Высота подлокотника",
 
     "waga wypełnienia" => "Вес наполнителя",
     "waga wypelnienia" => "Вес наполнителя",
@@ -497,10 +511,22 @@ class ProductSerializer
       "Ширина кровати"
     when "wysokość siedziska", "wysokosc siedziska"
       "Высота сиденья"
+    when "wysokość łóżka", "wysokosc lozka"
+      "Высота кровати"
+    when "wysokość z poduchami oparcia", "wysokosc z poduchami oparcia"
+      "Высота с подушками спинки"
+    when "wysokość oparcia", "wysokosc oparcia"
+      "Высота спинки"
+    when "wysokość podłokietnika", "wysokosc podlokietnika"
+      "Высота подлокотника"
     when "głębokość siedziska", "glebokosc siedziska"
       "Глубина сиденья"
+    when "głębokość całkowita po rozłożeniu", "glebokosc calkowita po rozlozeniu"
+      "Общая глубина в разложенном виде"
     when "szerokość siedziska", "szerokosc siedziska"
       "Ширина сиденья"
+    when "głębokość siedziska, szezlong", "glebokosc siedziska, szezlong"
+      "Глубина сиденья, козетка"
     when "głębokość szezlonga", "glebokosc szezlonga"
       "Глубина козетки"
     when "waga", "weight", "вес"
@@ -509,6 +535,8 @@ class ProductSerializer
       "Упаковка(-и)"
     when "grubość", "grubosc", "thickness", "толщина"
       "Толщина"
+    when "grubość materaca", "grubosc materaca"
+      "Толщина матраса"
     when "głębokość do zabudowy", "glebokosc do zabudowy", "built-in depth", "depth for built-in"
       "Глубина для встраивания"
     else

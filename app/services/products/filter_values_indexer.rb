@@ -27,11 +27,11 @@ module Products
       "f-pattern" => ["Wzór", "Wzory", "Узор", "Узоры"],
       "f-shape" => ["Kształt", "Ksztalt", "Форма"],
       "f-brand" => ["Marka", "Producent", "Бренд", "Марка", "Производитель"],
-      "f-size" => ["Rozmiar", "Wymiar", "Wymiary", "Wysokość wraz z uchwytem", "Wysokość pod meblem", "Wysokość z poduchami oparcia", "Szerokość siedziska strona lewa", "Obciążenie półki", "Размер", "Габарит", "Габариты", "Размеры"],
+      "f-size" => ["Rozmiar", "Wymiar", "Wymiary", "Wysokość wraz z uchwytem", "Wysokość pod meblem", "Wysokość z poduchami oparcia", "Wysokość łóżka", "Wysokość oparcia", "Wysokość podłokietnika", "Głębokość całkowita po rozłożeniu", "Głębokość siedziska, szezlong", "grubość materaca", "Szerokość siedziska strona lewa", "Obciążenie półki", "Размер", "Габарит", "Габариты", "Размеры"],
       "f-length" => ["Długość", "Dlugosc", "Длина"],
       "f-width" => ["Szerokość", "Szerokość siedziska strona lewa", "Ширина"],
-      "f-height" => ["Wysokość", "Wysokość wraz z uchwytem", "Wysokość pod meblem", "Wysokość z poduchami oparcia", "Высота"],
-      "f-depth" => ["Głębokość", "Глубина"],
+      "f-height" => ["Wysokość", "Wysokość wraz z uchwytem", "Wysokość pod meblem", "Wysokość z poduchami oparcia", "Wysokość łóżka", "Wysokość oparcia", "Wysokość podłokietnika", "Высота"],
+      "f-depth" => ["Głębokość", "Głębokość całkowita po rozłożeniu", "Głębokość siedziska, szezlong", "Глубина"],
       "f-number-of-doors" => ["Liczba drzwi", "Количество дверей"],
       "f-number-of-drawers" => ["Liczba szuflad", "Количество ящиков"],
       "f-number-of-shelves" => ["Liczba półek", "Количество полок"],
@@ -40,8 +40,8 @@ module Products
 
     MEASUREMENT_KEYS = {
       width: ["Szerokość", "Szerokość siedziska strona lewa", "Ширина"],
-      height: ["Wysokość", "Wysokość wraz z uchwytem", "Wysokość pod meblem", "Wysokość z poduchami oparcia", "Высота"],
-      depth: ["Głębokość", "Глубина"],
+      height: ["Wysokość", "Wysokość wraz z uchwytem", "Wysokość pod meblem", "Wysokość z poduchami oparcia", "Wysokość łóżka", "Wysokość oparcia", "Wysokość podłokietnika", "Высота"],
+      depth: ["Głębokość", "Głębokość całkowita po rozłożeniu", "Głębokość siedziska, szezlong", "Глубина"],
       length: ["Długość", "Dlugosc", "Длина"],
       diameter: ["Średnica", "Srednica", "Диаметр"],
       volume: ["Pojemność", "Объем", "Объём"]
