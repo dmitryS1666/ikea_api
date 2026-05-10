@@ -631,12 +631,7 @@ class Products::ExtendedAttributesFetchService
   end
 
   def assign_measurements_modal_to_full_attributes!(product, pl_details, lt_details, use_lt, attributes)
-    snap =
-      if use_lt && lt_details[:measurements_modal].present?
-        lt_details[:measurements_modal]
-      elsif pl_details[:measurements_modal].present?
-        pl_details[:measurements_modal]
-      end
+    snap = pick_measurements_modal_snapshot(pl_details, lt_details, use_lt)
     return if snap.blank?
     return unless product.respond_to?(:full_attributes=)
 
@@ -646,6 +641,35 @@ class Products::ExtendedAttributesFetchService
     base["measurements_modal"] = snap_s
     base["measurements_modal_extracted_at"] = Time.current.iso8601
     attributes[:full_attributes] = base
+  end
+
+  # LT-модалка раньше перекрывала PL целиком: на LT часто нет полной ВГХ упаковки, на PL — есть.
+  # Тогда подставляем только блок packages (и заметку о числе упаковок) из PL, оставляя product_measurements с LT.
+  def pick_measurements_modal_snapshot(pl_details, lt_details, use_lt)
+    pl_mm = pl_details[:measurements_modal]
+    lt_mm = lt_details[:measurements_modal]
+
+    if use_lt && lt_mm.present?
+      merge_pl_packages_into_lt_when_lt_missing_packaging_dims(lt_mm, pl_mm)
+    elsif pl_mm.present?
+      pl_mm
+    end
+  end
+
+  def merge_pl_packages_into_lt_when_lt_missing_packaging_dims(lt_mm, pl_mm)
+    return lt_mm if pl_mm.blank?
+    return lt_mm if Products::PackagingDimensionsStatus.modal_has_full_packaging_dimensions?(lt_mm)
+    return lt_mm unless Products::PackagingDimensionsStatus.modal_has_full_packaging_dimensions?(pl_mm)
+
+    lt = lt_mm.is_a?(Hash) ? lt_mm.deep_stringify_keys.deep_dup : {}
+    pl = pl_mm.is_a?(Hash) ? pl_mm.deep_stringify_keys : {}
+    pkgs = pl["packages"]
+    return lt_mm if pkgs.blank?
+
+    lt["packages"] = pkgs
+    lt["number_of_packages"] = pl["number_of_packages"] if pl["number_of_packages"].present?
+    lt["package_count_note"] = pl["package_count_note"] if pl["package_count_note"].present? && lt["package_count_note"].blank?
+    lt
   end
 
   def assign_inferred_variant_type!(product, pl_details, attributes)

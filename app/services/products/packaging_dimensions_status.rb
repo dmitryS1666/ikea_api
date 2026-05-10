@@ -51,6 +51,16 @@ module Products
       def missing_full_packaging_dimensions?(product)
         !full_packaging_dimensions_in_customer_payload?(product)
       end
+
+      # Сырой measurements_modal из парсера (до customer payload): есть ли хотя бы одна упаковка
+      # с тройкой Ширина + Высота + (Глубина|Длина) в measurements.
+      def modal_has_full_packaging_dimensions?(measurements_modal)
+        return false unless measurements_modal.is_a?(Hash)
+
+        mm = measurements_modal.deep_stringify_keys
+        packages = ProductSerializer.extract_packages_from_measurements_modal(mm)
+        packages.any? { |pkg| package_measurements_have_box_dims?(pkg) }
+      end
     end
   end
 end

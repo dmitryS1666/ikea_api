@@ -39,4 +39,34 @@ RSpec.describe Products::PackagingDimensionsStatus do
       expect(described_class.size_has_full_packaging_dimensions?(size)).to eq(false)
     end
   end
+
+  describe ".modal_has_full_packaging_dimensions?" do
+    it "returns true when modal packages include width, height, depth" do
+      mm = {
+        "packages" => [
+          {
+            "measurements" => [
+              { "name" => "Szerokość", "measure" => "40 cm" },
+              { "name" => "Wysokość", "measure" => "88 cm" },
+              { "name" => "Głębokość", "measure" => "39 cm" }
+            ]
+          }
+        ]
+      }
+      expect(described_class.modal_has_full_packaging_dimensions?(mm)).to eq(true)
+    end
+
+    it "returns false when packages lack a full box" do
+      mm = {
+        "packages" => [
+          {
+            "measurements" => [
+              { "name" => "Waga", "measure" => "12 kg" }
+            ]
+          }
+        ]
+      }
+      expect(described_class.modal_has_full_packaging_dimensions?(mm)).to eq(false)
+    end
+  end
 end
