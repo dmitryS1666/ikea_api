@@ -28,9 +28,6 @@ Trestle.resource(:legal_pages, model: LegalPage) do
         col(sm: 12) { text_field :title, required: true, label: "Заголовок" }
       end
       row do
-        col(sm: 12) { text_field :slug, label: "Slug", hint: "Латинский идентификатор для URL; если пусто — из заголовка" }
-      end
-      row do
         col(sm: 12) { tinymce :body, label: "Текст страницы" }
       end
     end
@@ -38,6 +35,7 @@ Trestle.resource(:legal_pages, model: LegalPage) do
     sidebar do
       form_group :meta, label: "Метаданные" do
         select :status, LegalPage.status_select_options, label: "Статус"
+        static_field :slug, label: "Slug (ЧПУ, из заголовка)"
         static_field :created_at, label: "Создано"
         static_field :updated_at, label: "Изменено"
       end
@@ -45,6 +43,6 @@ Trestle.resource(:legal_pages, model: LegalPage) do
   end
 
   params do |params|
-    params.require(:legal_page).permit(:title, :slug, :body, :status)
+    params.require(:legal_page).permit(:title, :body, :status)
   end
 end

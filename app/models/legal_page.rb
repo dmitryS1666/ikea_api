@@ -50,6 +50,7 @@ class LegalPage < ApplicationRecord
   def normalize_slug
     return if title.blank? && slug.present?
 
+    # Пустой slug заполняется из заголовка; явно заданный slug (в т.ч. сиды) сохраняем
     base_slug = slug.present? ? slug : title
     normalized_base = normalize_slug_candidate(base_slug)
     normalized_base = "legal-page-#{SecureRandom.hex(4)}" if normalized_base.blank?
@@ -65,6 +66,9 @@ class LegalPage < ApplicationRecord
   end
 
   def normalize_slug_candidate(value)
-    value.to_s.parameterize
+    result = SlugifyService.call(value)
+    return result if result.present?
+
+    value.to_s.parameterize.presence
   end
 end
