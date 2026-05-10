@@ -50,7 +50,10 @@
                     ['Актуализация категории (список с LT)', 'refresh_category_lt'],
                     ['Актуализация одного товара по SKU (LT/PL)', 'refresh_product_lt'],
                     ['Переиндексация фильтров (одна категория)', 'category_filters_one'],
-                    ['Цены и остатки PL (все SKU в БД)', 'pl_prices_stock']
+                    ['Цены и остатки PL (все SKU в БД)', 'pl_prices_stock'],
+                    ['Подсчёт: битая ВГХ упаковки', 'count_broken_packaging_dimensions'],
+                    ['Подсчёт: битые картинки товара', 'count_broken_product_images'],
+                    ['Подсчёт: подозрительный польский текст', 'count_broken_product_translations']
                   ]),
                   { prompt: 'Выберите тип задачи', class: "form-control", required: true, id: "task_type_select" } %>
             </div>
@@ -214,7 +217,10 @@
                         'refresh_category_lt' => 'Актуализация категории (LT)',
                         'refresh_product_lt' => 'Актуализация товара (SKU)',
                         'category_filters_one' => 'Фильтры категории (одна)',
-                        'pl_prices_stock' => 'Цены и остатки (PL)'
+                        'pl_prices_stock' => 'Цены и остатки (PL)',
+                        'count_broken_packaging_dimensions' => 'Подсчёт: ВГХ упаковки',
+                        'count_broken_product_images' => 'Подсчёт: битые картинки',
+                        'count_broken_product_translations' => 'Подсчёт: польский текст'
                       }[task.task_type] || task.task_type %>
                       <% if task.status == 'pending' %>
                         <span class="badge badge-secondary ml-2">Ожидание</span>
@@ -332,7 +338,10 @@
                       'refresh_category_lt' => 'Актуализация категории (LT)',
                       'refresh_product_lt' => 'Актуализация товара (SKU)',
                       'category_filters_one' => 'Фильтры категории (одна)',
-                      'pl_prices_stock' => 'Цены и остатки (PL)'
+                      'pl_prices_stock' => 'Цены и остатки (PL)',
+                      'count_broken_packaging_dimensions' => 'Подсчёт: ВГХ упаковки',
+                      'count_broken_product_images' => 'Подсчёт: битые картинки',
+                      'count_broken_product_translations' => 'Подсчёт: польский текст'
                     }[task.task_type] || task.task_type %>
                   </td>
                   <td>
@@ -495,7 +504,10 @@
             'refresh_category_lt': 'Актуализация категории (LT)',
             'refresh_product_lt': 'Актуализация товара (SKU)',
             'category_filters_one': 'Фильтры категории (одна)',
-            'pl_prices_stock': 'Цены и остатки (PL)'
+            'pl_prices_stock': 'Цены и остатки (PL)',
+            'count_broken_packaging_dimensions': 'Подсчёт: ВГХ упаковки',
+            'count_broken_product_images': 'Подсчёт: битые картинки',
+            'count_broken_product_translations': 'Подсчёт: польский текст'
           }[task.task_type] || task.task_type;
           
           const limitText = task.limit ? task.limit : '∞';

@@ -82,7 +82,10 @@ class TelegramService
         'recover_missing_packaging_dimensions' => 'Восполнение размеров упаковки',
         'recover_broken_product_images' => 'Восстановление битых картинок',
         'refresh_category_lt' => 'Актуализация категории (список SKU с LT)',
-        'pl_prices_stock' => 'Цены и остатки (PL, все SKU)'
+        'pl_prices_stock' => 'Цены и остатки (PL, все SKU)',
+        'count_broken_packaging_dimensions' => 'Подсчёт: битая ВГХ упаковки',
+        'count_broken_product_images' => 'Подсчёт: битые картинки товара',
+        'count_broken_product_translations' => 'Подсчёт: польский текст в API'
       }[task_type.to_s] || task_type.to_s
     end
 

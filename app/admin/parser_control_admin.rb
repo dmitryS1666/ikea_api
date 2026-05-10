@@ -622,6 +622,12 @@ Trestle.resource :parser_control, model: ParserControl do
         ReindexCategoryFiltersJob
       when 'pl_prices_stock'
         RefreshPlPricesAndStockJob
+      when 'count_broken_packaging_dimensions'
+        CountBrokenPackagingDimensionsJob
+      when 'count_broken_product_images'
+        CountBrokenProductImagesJob
+      when 'count_broken_product_translations'
+        CountBrokenProductTranslationsJob
       end
     end
 
@@ -660,7 +666,10 @@ Trestle.resource :parser_control, model: ParserControl do
         'recover_missing_packaging_dimensions' => 'Восполнение размеров упаковки (PL+LT, measurements_modal)',
         'refresh_category_lt' => 'Актуализация категории (список с LT, PL-поля)',
         'refresh_product_lt' => 'Актуализация одного товара по SKU (LT/PL)',
-        'pl_prices_stock' => 'Обновление цен и остатков (PL) для всех SKU'
+        'pl_prices_stock' => 'Обновление цен и остатков (PL) для всех SKU',
+        'count_broken_packaging_dimensions' => 'Подсчёт товаров с битой ВГХ упаковки',
+        'count_broken_product_images' => 'Подсчёт товаров с битыми картинками',
+        'count_broken_product_translations' => 'Подсчёт товаров с подозрительным польским текстом'
       }[type] || type
     end
   end
