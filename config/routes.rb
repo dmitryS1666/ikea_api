@@ -155,6 +155,7 @@ Rails.application.routes.draw do
       # Content
       namespace :content do
         resources :articles, only: [:index, :show], param: :slug
+        resources :legal_pages, only: [:index, :show], param: :slug
       end
 
       # Reviews Export (API version)

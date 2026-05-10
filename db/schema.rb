@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_05_135500) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_10_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -415,6 +415,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_05_135500) do
     t.index ["active"], name: "index_homepage_product_blocks_on_active"
     t.index ["key"], name: "index_homepage_product_blocks_on_key", unique: true
     t.index ["position"], name: "index_homepage_product_blocks_on_position"
+  end
+
+  create_table "legal_pages", force: :cascade do |t|
+    t.string "title", null: false
+    t.string "slug", null: false
+    t.text "body"
+    t.integer "status", default: 0, null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["slug"], name: "index_legal_pages_on_slug", unique: true
+    t.index ["status", "position"], name: "index_legal_pages_on_status_and_position"
   end
 
   create_table "order_items", force: :cascade do |t|

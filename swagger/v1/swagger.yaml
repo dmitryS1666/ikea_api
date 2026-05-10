@@ -2327,6 +2327,55 @@ paths:
         '404':
           description: Статья не найдена
 
+  /api/v1/content/legal_pages:
+    get:
+      summary: Список опубликованных правовых страниц
+      description: |
+        Возвращает только страницы со статусом «Опубликовано», отсортированные по **id** (порядок создания записей).
+        Черновики и страницы со статусом «Выключено» в API не отдаются.
+      tags:
+        - Content
+      responses:
+        '200':
+          description: Список правовых страниц (формат JSON:API)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LegalPage'
+
+  /api/v1/content/legal_pages/{slug}:
+    get:
+      summary: Правовая страница по slug
+      description: |
+        Полные данные страницы, включая HTML-текст в **body**.
+        Доступна только **опубликованная** страница; черновик или выключенная запись — ответ 404.
+      tags:
+        - Content
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ЧПУ страницы (латиница), например `personal-data-consent-ikeya-by`
+      responses:
+        '200':
+          description: Правовая страница с телом документа
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/LegalPage'
+        '404':
+          description: Страница не найдена или недоступна (не опубликована)
+
 
   /api/v1/account/reviews/available:
     get:
@@ -3170,6 +3219,36 @@ components:
           type: integer
         active:
           type: boolean
+
+    LegalPage:
+      type: object
+      description: Элемент ответа Fast JSON API для правовой страницы
+      properties:
+        id:
+          type: string
+          description: В JSON:API совпадает со значением slug
+        type:
+          type: string
+          example: legal_page
+        attributes:
+          type: object
+          properties:
+            title:
+              type: string
+              description: Заголовок документа
+            slug:
+              type: string
+              description: ЧПУ для URL API и клиента
+            updated_at:
+              type: string
+              format: date-time
+              description: Время последнего изменения
+            body:
+              type: string
+              description: |
+                HTML-содержимое страницы (TinyMCE). Присутствует в ответе GET `/api/v1/content/legal_pages/{slug}`;
+                в списке GET `/api/v1/content/legal_pages` поле не включается.
+              nullable: true
 
     ContentArticle:
       type: object

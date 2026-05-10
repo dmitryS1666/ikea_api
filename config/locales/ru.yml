@@ -180,6 +180,7 @@ ru:
         categories: { label: "Категории" }
         cooperation_requests: { label: "Сотрудничество" }
         content_articles: { label: "Статьи" }
+        legal_pages: { label: "Правовая информация" }
         cron_schedules: { label: "Cron расписания" }
         customs_duty_calculator: { label: "Калькулятор пошлин" }
         exchange_rates: { label: "Курсы валют" }
@@ -216,6 +217,9 @@ ru:
       content_article:
         one: "Статья"
         other: "Статьи"
+      legal_page:
+        one: "Правовая страница"
+        other: "Правовые страницы"
       cron_schedule:
         one: "Cron расписание"
         other: "Cron расписания"
@@ -374,6 +378,16 @@ ru:
         body: "Текст отзыва"
         admin_note: "Примечание модератора"
         excluded_from_rating: "Исключен из рейтинга"
+      legal_page:
+        title: "Заголовок"
+        slug: "Slug (ЧПУ)"
+        body: "Текст страницы"
+        status: "Статус"
+        statuses:
+          draft: "Черновик"
+          published: "Опубликовано"
+          disabled: "Выключено"
+        position: "Порядок"
       content_article:
         title: "Заголовок"
         content_type: "Тип"

@@ -59,3 +59,6 @@ else
     puts "   - #{message}"
   end
 end
+
+LegalPage.seed_defaults!
+puts "✅ Правовые страницы (дефолтный набор): проверены/созданы."

@@ -85,6 +85,7 @@ en:
         categories: { label: "Категории" }
         cooperation_requests: { label: "Сотрудничество" }
         content_articles: { label: "Статьи" }
+        legal_pages: { label: "Правовая информация" }
         cron_schedules: { label: "Cron расписания" }
         customs_duty_calculator: { label: "Калькулятор пошлин" }
         exchange_rates: { label: "Курсы валют" }
@@ -121,6 +122,9 @@ en:
       content_article:
         one: "Статья"
         other: "Статьи"
+      legal_page:
+        one: "Legal page"
+        other: "Legal pages"
       cron_schedule:
         one: "Cron расписание"
         other: "Cron расписания"
@@ -189,6 +193,16 @@ en:
         one: "Пользователь"
         other: "Пользователи"
     attributes:
+      legal_page:
+        title: "Title"
+        slug: "Slug"
+        body: "Page body"
+        status: "Status"
+        statuses:
+          draft: "Draft"
+          published: "Published"
+          disabled: "Disabled"
+        position: "Sort order"
       content_article:
         content_type: "Content type"
         content_types:
