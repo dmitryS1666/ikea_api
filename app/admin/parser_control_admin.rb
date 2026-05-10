@@ -66,16 +66,23 @@ Trestle.resource :parser_control, model: ParserControl do
         else
           payload = {}
 
-          if task_type == "refresh_category_lt"
+          if task_type == "refresh_category_lt" || task_type == "harvest_category_related_products"
             rc = parse_refresh_category_lt_extra(extra_data)
             if rc[:ikea_id].blank?
-              flash[:error] = "Укажите ikea_id категории (просто номер или JSON: {\"ikea_id\":\"20515\",\"lt_jsonl_path\":\"/path/file.jsonl\",\"detach_orphans\":false} — лишние SKU из категории убираются по умолчанию; false отключает)"
+              flash[:error] =
+                if task_type == "harvest_category_related_products"
+                  "Укажите ikea_id категории (номер или JSON: {\"ikea_id\":\"20515\"})"
+                else
+                  "Укажите ikea_id категории (просто номер или JSON: {\"ikea_id\":\"20515\",\"lt_jsonl_path\":\"/path/file.jsonl\",\"detach_orphans\":false} — лишние SKU из категории убираются по умолчанию; false отключает)"
+                end
               redirect_to admin.instance_path(ParserControl.new(id: 'show'))
               return
             end
             payload[:ikea_id] = rc[:ikea_id]
-            payload[:lt_jsonl_path] = rc[:lt_jsonl_path] if rc[:lt_jsonl_path].present?
-            payload[:detach_orphans] = rc[:detach_orphans] unless rc[:detach_orphans].nil?
+            if task_type == "refresh_category_lt"
+              payload[:lt_jsonl_path] = rc[:lt_jsonl_path] if rc[:lt_jsonl_path].present?
+              payload[:detach_orphans] = rc[:detach_orphans] unless rc[:detach_orphans].nil?
+            end
           end
 
           if task_type == "refresh_product_lt"
@@ -160,6 +167,8 @@ Trestle.resource :parser_control, model: ParserControl do
                   job_class.perform_later(task_id: task.id, ikea_id: payload[:ikea_id].to_s)
                 elsif task_type == 'refresh_product_lt'
                   job_class.perform_later(task_id: task.id, sku: payload[:sku].to_s)
+                elsif task_type == 'harvest_category_related_products'
+                  job_class.perform_later(task_id: task.id, ikea_id: payload[:ikea_id].to_s)
                 elsif task_type == 'category_filters_one'
                   job_class.perform_later(
                     payload[:ikea_id].to_s,
@@ -618,6 +627,8 @@ Trestle.resource :parser_control, model: ParserControl do
         RefreshCategoryFromLtJob
       when 'refresh_product_lt'
         RefreshProductFromLtJob
+      when 'harvest_category_related_products'
+        HarvestCategoryRelatedProductsJob
       when 'category_filters_one'
         ReindexCategoryFiltersJob
       when 'pl_prices_stock'
@@ -666,6 +677,7 @@ Trestle.resource :parser_control, model: ParserControl do
         'recover_missing_packaging_dimensions' => 'Восполнение размеров упаковки (PL+LT, measurements_modal)',
         'refresh_category_lt' => 'Актуализация категории (список с LT, PL-поля)',
         'refresh_product_lt' => 'Актуализация одного товара по SKU (LT/PL)',
+        'harvest_category_related_products' => 'Сбор category related_products (1-й/последний SKU)',
         'pl_prices_stock' => 'Обновление цен и остатков (PL) для всех SKU',
         'count_broken_packaging_dimensions' => 'Подсчёт товаров с битой ВГХ упаковки',
         'count_broken_product_images' => 'Подсчёт товаров с битыми картинками',

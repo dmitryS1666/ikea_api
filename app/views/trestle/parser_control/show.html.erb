@@ -48,6 +48,7 @@
                     ['Восполнение размеров упаковки (measurements_modal)', 'recover_missing_packaging_dimensions'],
                     ['Восстановление битых картинок (по логу/SKU)', 'recover_broken_product_images'],
                     ['Актуализация категории (список с LT)', 'refresh_category_lt'],
+                    ['Сбор category related_products (1-й/последний SKU)', 'harvest_category_related_products'],
                     ['Актуализация одного товара по SKU (LT/PL)', 'refresh_product_lt'],
                     ['Переиндексация фильтров (одна категория)', 'category_filters_one'],
                     ['Цены и остатки PL (все SKU в БД)', 'pl_prices_stock'],
@@ -215,6 +216,7 @@
                         'recover_missing_packaging_dimensions' => 'Восполнение размеров упаковки',
                         'recover_broken_product_images' => 'Восстановление битых картинок',
                         'refresh_category_lt' => 'Актуализация категории (LT)',
+                        'harvest_category_related_products' => 'Сбор category related_products',
                         'refresh_product_lt' => 'Актуализация товара (SKU)',
                         'category_filters_one' => 'Фильтры категории (одна)',
                         'pl_prices_stock' => 'Цены и остатки (PL)',
@@ -336,6 +338,7 @@
                       'update_all_product_images' => 'Обновление всех картинок (WebP)',
                       'recover_broken_product_images' => 'Восстановление битых картинок',
                       'refresh_category_lt' => 'Актуализация категории (LT)',
+                      'harvest_category_related_products' => 'Сбор category related_products',
                       'refresh_product_lt' => 'Актуализация товара (SKU)',
                       'category_filters_one' => 'Фильтры категории (одна)',
                       'pl_prices_stock' => 'Цены и остатки (PL)',
@@ -502,6 +505,7 @@
             'update_all_product_images': 'Обновление всех картинок (WebP)',
             'recover_broken_product_images': 'Восстановление битых картинок',
             'refresh_category_lt': 'Актуализация категории (LT)',
+            'harvest_category_related_products': 'Сбор category related_products',
             'refresh_product_lt': 'Актуализация товара (SKU)',
             'category_filters_one': 'Фильтры категории (одна)',
             'pl_prices_stock': 'Цены и остатки (PL)',
@@ -666,7 +670,7 @@
       if (extraDataMainLabel) extraDataMainLabel.textContent = 'Список SKU (через пробел или запятую)';
       if (extraDataTextarea) extraDataTextarea.placeholder = 'Например: 123.456.78, 987.654.32';
 
-      if (task === 'extended_attributes_by_skus' || task === 'import_products_by_skus' || task === 'recover_broken_product_images' || task === 'update_product_variants' || task === 'refresh_category_lt' || task === 'refresh_product_lt' || task === 'category_filters_one') {
+      if (task === 'extended_attributes_by_skus' || task === 'import_products_by_skus' || task === 'recover_broken_product_images' || task === 'update_product_variants' || task === 'refresh_category_lt' || task === 'harvest_category_related_products' || task === 'refresh_product_lt' || task === 'category_filters_one') {
         extraDataField.classList.remove('d-none');
       } else if (task === 'extended_attrs_import') {
         extraFileField.classList.remove('d-none');
@@ -696,6 +700,10 @@
         if (extraDataSkuFileBlock) extraDataSkuFileBlock.classList.add('d-none');
         if (extraDataMainLabel) extraDataMainLabel.textContent = 'SKU товара или JSON';
         if (extraDataTextarea) extraDataTextarea.placeholder = '60580273 или {"sku":"60580273","category_ikea_id":"20515","process_related":true}';
+      } else if (task === 'harvest_category_related_products') {
+        if (extraDataSkuFileBlock) extraDataSkuFileBlock.classList.add('d-none');
+        if (extraDataMainLabel) extraDataMainLabel.textContent = 'IKEA ID категории или JSON';
+        if (extraDataTextarea) extraDataTextarea.placeholder = '20515 или {"ikea_id":"20515"}';
       }
     }
 
