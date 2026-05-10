@@ -25,6 +25,14 @@ class LegalPage < ApplicationRecord
 
   scope :for_public_api, -> { published.order(:id) }
 
+  def self.status_select_options
+    statuses.keys.map { |key| [I18n.t("activerecord.attributes.legal_page.statuses.#{key}"), key] }
+  end
+
+  def status_label
+    I18n.t("activerecord.attributes.legal_page.statuses.#{status}")
+  end
+
   def self.seed_defaults!
     SEED_PAGES.each_with_index do |(slug, title), index|
       record = find_or_initialize_by(slug: slug)

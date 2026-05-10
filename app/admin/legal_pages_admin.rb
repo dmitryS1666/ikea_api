@@ -4,10 +4,10 @@ Trestle.resource(:legal_pages, model: LegalPage) do
   end
 
   scopes do
-    scope :all, default: true
-    scope :draft, -> { LegalPage.draft }
-    scope :published, -> { LegalPage.published }
-    scope :disabled, -> { LegalPage.disabled }
+    scope :all, default: true, label: "Все"
+    scope :draft, -> { LegalPage.draft }, label: "Черновики"
+    scope :published, -> { LegalPage.published }, label: "Опубликовано"
+    scope :disabled, -> { LegalPage.disabled }, label: "Выключено"
   end
 
   collection do
@@ -17,9 +17,7 @@ Trestle.resource(:legal_pages, model: LegalPage) do
   table do
     column :title, link: true
     column :slug
-    column :status do |page|
-      LegalPage.human_attribute_name("statuses.#{page.status}")
-    end
+    column :status, &:status_label
     column :updated_at, align: :center
     actions
   end
@@ -39,9 +37,7 @@ Trestle.resource(:legal_pages, model: LegalPage) do
 
     sidebar do
       form_group :meta, label: "Метаданные" do
-        select :status,
-               LegalPage.statuses.keys.map { |key| [LegalPage.human_attribute_name("statuses.#{key}"), key] },
-               label: "Статус"
+        select :status, LegalPage.status_select_options, label: "Статус"
         static_field :created_at, label: "Создано"
         static_field :updated_at, label: "Изменено"
       end
