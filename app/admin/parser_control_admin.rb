@@ -125,6 +125,13 @@ Trestle.resource :parser_control, model: ParserControl do
             payload[:category_ikea_id] = params[:packaging_recover_category_ikea_id].to_s.strip.presence
           end
 
+          if task_type == "recover_broken_product_translations"
+            payload[:only_suspected] = params[:translation_only_suspected].to_s != "0"
+            payload[:sku] = params[:translation_recover_sku].to_s.strip.presence
+            payload[:skus] = params[:translation_recover_skus].to_s.strip.presence
+            payload[:category_ikea_id] = params[:translation_recover_category_ikea_id].to_s.strip.presence
+          end
+
           # Обработка дополнительных данных (SKUs и т.д.)
           if task_type == "extended_attributes_by_skus" || task_type == "import_products_by_skus" || task_type == "recover_broken_product_images" || task_type == "update_all_product_images" || task_type == "update_product_variants"
             payload[:skus] = extra_data
@@ -194,6 +201,15 @@ Trestle.resource :parser_control, model: ParserControl do
                     only_missing_packaging_dimensions: payload[:only_missing_packaging_dimensions],
                     packaging_recover_sku: payload[:packaging_recover_sku],
                     packaging_recover_skus: payload[:packaging_recover_skus],
+                    category_ikea_id: payload[:category_ikea_id]
+                  )
+                elsif task_type == "recover_broken_product_translations"
+                  job_class.perform_later(
+                    limit: limit,
+                    task_id: task.id,
+                    only_suspected: payload[:only_suspected],
+                    sku: payload[:sku],
+                    skus: payload[:skus],
                     category_ikea_id: payload[:category_ikea_id]
                   )
                 elsif %w[extended_attrs_import extended_attributes_by_skus import_products_by_skus fix_missing_images update_all_product_images update_product_variants].include?(task_type)
@@ -639,6 +655,8 @@ Trestle.resource :parser_control, model: ParserControl do
         CountBrokenProductImagesJob
       when 'count_broken_product_translations'
         CountBrokenProductTranslationsJob
+      when 'recover_broken_product_translations'
+        RecoverBrokenProductTranslationsJob
       end
     end
 
@@ -681,7 +699,8 @@ Trestle.resource :parser_control, model: ParserControl do
         'pl_prices_stock' => 'Обновление цен и остатков (PL) для всех SKU',
         'count_broken_packaging_dimensions' => 'Подсчёт товаров с битой ВГХ упаковки',
         'count_broken_product_images' => 'Подсчёт товаров с битыми картинками',
-        'count_broken_product_translations' => 'Подсчёт товаров с подозрительным польским текстом'
+        'count_broken_product_translations' => 'Подсчёт товаров с подозрительным польским текстом',
+        'recover_broken_product_translations' => 'Восстановление переводов (LT → AI fallback)'
       }[type] || type
     end
   end

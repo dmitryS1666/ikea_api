@@ -86,7 +86,8 @@ class TelegramService
         'pl_prices_stock' => 'Цены и остатки (PL, все SKU)',
         'count_broken_packaging_dimensions' => 'Подсчёт: битая ВГХ упаковки',
         'count_broken_product_images' => 'Подсчёт: битые картинки товара',
-        'count_broken_product_translations' => 'Подсчёт: польский текст в API'
+        'count_broken_product_translations' => 'Подсчёт: польский текст в API',
+        'recover_broken_product_translations' => 'Восстановление переводов (LT / AI)'
       }[task_type.to_s] || task_type.to_s
     end
 

@@ -3,12 +3,6 @@
 class CountBrokenProductTranslationsJob < ApplicationJob
   queue_as :parser
 
-  PL_MARKERS = %w[
-    materiał materiały wymiary waga szerokość wysokość głębokość opakowanie
-    sztuk zestaw elementów instrukcja montażu pranie prać
-    pokrycie obicia nóżki podłokietnik zawiera skład
-  ].freeze
-
   def perform(limit: nil, task_id: nil)
     task = task_id ? ParserTask.find(task_id) : create_parser_task("count_broken_product_translations", limit: limit)
     task.update!(processed: 0, updated: 0, error_count: 0) if task.status == "pending"
@@ -27,9 +21,7 @@ class CountBrokenProductTranslationsJob < ApplicationJob
     scope.find_each(batch_size: 200) do |product|
       check_task_not_stopped!(task)
 
-      payload = ProductSerializer.customer_full_attributes_payload(product)
-      texts = deep_strings(payload).uniq
-      is_suspect = texts.any? { |text| likely_polish_not_russian?(text) }
+      is_suspect = Products::SuspectedPolishInCustomerPayload.suspect?(product)
 
       if is_suspect
         suspect += 1
@@ -64,32 +56,5 @@ class CountBrokenProductTranslationsJob < ApplicationJob
     raise
   end
 
-  private
-
-  def deep_strings(obj, acc = [])
-    case obj
-    when String
-      stripped = obj.strip
-      acc << stripped if stripped.length >= 12
-    when Hash
-      obj.each_value { |v| deep_strings(v, acc) }
-    when Array
-      obj.each { |v| deep_strings(v, acc) }
-    end
-    acc
-  end
-
-  def likely_polish_not_russian?(text)
-    return false if text.blank? || text.length < 12
-
-    cyr = text.scan(/[а-яА-ЯёЁ]/).size
-    lat = text.scan(/[A-Za-zÀ-ÿ]/).size
-    return false if lat < 8
-    return false if cyr >= 12 || (lat.positive? && (cyr.to_f / (cyr + lat)) > 0.25)
-    return true if text.match?(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/)
-
-    low = text.downcase
-    PL_MARKERS.any? { |word| low.include?(word) }
-  end
 end
 
