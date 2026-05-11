@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
-# Только польский сайт: цена в злотых (PLN) и наличие (PlDetailsFetcher.shelf_snapshot),
+# Только польский сайт: цена в злотых (PLN) и наличие через PlDetailsFetcher.shelf_snapshot
+# (JSON-LD: при нескольких PLN-offer цена только при однозначном оффере или совпадении sku/mpn/url с артикулом страницы; иначе — цена из hydration).
 # обновление канонической ссылки на товар. В БД пишутся только price, quantity, url (+ updated_at).
 # Поле products.price — всегда в PLN для записей, обновлённых этим сервисом.
 # Если страница PL недоступна (нет URL, 404, пустой HTML/снимок) — quantity принудительно 0.

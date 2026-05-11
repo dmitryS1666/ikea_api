@@ -174,7 +174,10 @@ class PlDetailsFetcher
     product_data = parse_hydration_product_data(doc)
 
     schema = extract_json_ld(doc)
-    price = shelf_snapshot_pln_price_from_json_ld(schema)
+    page_item_token = shelf_snapshot_page_item_token(canonical_url) ||
+      shelf_snapshot_page_item_token(full_url) ||
+      shelf_snapshot_product_mpn_token(schema)
+    price = shelf_snapshot_pln_price_from_json_ld(schema, page_item_token: page_item_token)
     if price.blank? && product_data.is_a?(Hash)
       price = shelf_snapshot_pln_price_from_hydration(product_data)
     end
@@ -454,8 +457,22 @@ class PlDetailsFetcher
     nil
   end
 
-  # Цена из JSON-LD только в PLN (на pl/pl витрине — злотые).
-  def shelf_snapshot_pln_price_from_json_ld(schema)
+  # Артикул из URL карточки (…-s19485139/ или …-19485139/) для сопоставления с Offer в JSON-LD.
+  def shelf_snapshot_page_item_token(url)
+    u = url.to_s
+    m = u.match(/-([s]?\d{8})\/?(?:[#?]|$)/i) || u.match(%r{/p/[^/]+-([s]?\d{8})\/?}i)
+    normalize_product_token(m[1]) if m
+  end
+
+  def shelf_snapshot_product_mpn_token(schema)
+    return nil unless schema.is_a?(Hash)
+
+    normalize_product_token(schema["mpn"] || schema["sku"])
+  end
+
+  # Цена из JSON-LD только в PLN. При нескольких PLN-офферах не выбираем «первый попавшийся»:
+  # только один однозначный оффер или оффер, у которого sku/mpn/url совпадает с артикулом страницы.
+  def shelf_snapshot_pln_price_from_json_ld(schema, page_item_token: nil)
     return nil unless schema.is_a?(Hash)
 
     offers = schema["offers"]
@@ -470,6 +487,7 @@ class PlDetailsFetcher
         [offers]
       end
 
+    pln_rows = []
     flat.each do |o|
       next unless o.is_a?(Hash)
 
@@ -477,10 +495,41 @@ class PlDetailsFetcher
       next if curr.present? && curr != "PLN"
 
       p = o["price"]
-      return p if p.present?
+      next if p.blank?
+
+      pln_rows << { price: p, token: json_ld_offer_item_token(o) }
     end
 
+    return nil if pln_rows.empty?
+
+    return pln_rows.first[:price] if pln_rows.size == 1
+
+    return nil if page_item_token.blank?
+
+    want = page_item_token.to_s.downcase
+    matched = pln_rows.select { |row| row[:token].present? && shelf_snapshot_item_tokens_match?(row[:token], want) }
+    return matched.first[:price] if matched.size == 1
+
     nil
+  end
+
+  # s12345678 и 12345678 — один артикул IKEA.
+  def shelf_snapshot_item_tokens_match?(a, b)
+    da = a.to_s.downcase.sub(/\As/, "")
+    db = b.to_s.downcase.sub(/\As/, "")
+    da.match?(/\A\d{8}\z/) && da == db
+  end
+
+  def json_ld_offer_item_token(offer)
+    return nil unless offer.is_a?(Hash)
+
+    idish = offer["sku"] || offer["mpn"] || offer["gtin13"] || offer["gtin"] || offer["productID"] || offer["product_id"]
+    tok = normalize_product_token(idish) if idish.present?
+    return tok if tok.present?
+
+    url = (offer["url"] || offer["@id"]).to_s
+    m = url.match(/-([s]?\d{8})\/?(?:[#?]|$)/i)
+    normalize_product_token(m[1]) if m
   end
 
   # Цена из hydration (salesPrice / price) только при PLN или без указания валюты.
