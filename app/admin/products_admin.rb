@@ -413,6 +413,30 @@ Trestle.resource(:products, model: Product) do
           )
       end
 
+      form_group :full_attributes_api_override_json_input, label: "Override: Карточка API (full_attributes)" do
+        current_override =
+          begin
+            full = product.full_attributes.is_a?(Hash) ? product.full_attributes : {}
+            override = full[Product::FULL_ATTRIBUTES_API_OVERRIDE_KEY] || {}
+            JSON.pretty_generate(override)
+          rescue StandardError
+            ""
+          end
+
+        text_area_tag(
+          "product[full_attributes_api_override_json_input]",
+          current_override,
+          rows: 18,
+          class: "form-control",
+          style: "font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;"
+        ) +
+          content_tag(
+            :small,
+            "Этот JSON будет наложен поверх «Карточка API (full_attributes)». Можно переопределять любые поля/ключи. Некорректный JSON не сохранится.",
+            class: "form-text text-muted"
+          )
+      end
+
       static_field :full_attributes_json, label: "Документы и атрибуты" do
         accordion_id = "product-full-attrs-#{product.id}"
         assembly_collapse_id = "#{accordion_id}-assembly"
@@ -646,6 +670,7 @@ Trestle.resource(:products, model: Product) do
       :care_instructions, :care_instructions_ru,
       :included_products, :variant_type,
       :full_attributes_json_input,
+      :full_attributes_api_override_json_input,
       category_ids: [],
       seo_meta_attributes: [:id, :title, :description, :keywords, :robots, :seo_text, :_destroy]
     )

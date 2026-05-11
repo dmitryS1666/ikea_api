@@ -219,12 +219,19 @@ class ProductSerializer
     enrich_instructions_block_from_product!(instructions, product, product_details_modal)
     instructions["files"] = dedupe_instruction_files(instructions["files"])
 
-    {
+    payload = {
       "description" => description,
       "size" => size,
       "materials" => materials,
       "instructions" => instructions
     }
+
+    override = full[Product::FULL_ATTRIBUTES_API_OVERRIDE_KEY]
+    if override.is_a?(Hash)
+      payload.deep_merge(override.deep_stringify_keys)
+    else
+      payload
+    end
   end
 
   def self.build_description_block(full, detailed_info)

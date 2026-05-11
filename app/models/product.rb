@@ -4,6 +4,9 @@ class Product < ApplicationRecord
 
   # Virtual attribute for editing JSONB `full_attributes` in admin UI.
   attr_accessor :full_attributes_json_input
+  attr_accessor :full_attributes_api_override_json_input
+
+  FULL_ATTRIBUTES_API_OVERRIDE_KEY = "customer_full_attributes_override".freeze
 
   COLOR_PARAM = "f-colors".freeze
   SIZE_PARAMS = %w[
@@ -15,6 +18,7 @@ class Product < ApplicationRecord
   validates :sku, presence: true, uniqueness: true
   validates :name, presence: true
   validate :validate_full_attributes_json_input
+  validate :validate_full_attributes_api_override_json_input
 
   # Ассоциации
   belongs_to :category, foreign_key: :category_id, primary_key: :ikea_id, optional: true
@@ -122,6 +126,7 @@ class Product < ApplicationRecord
   before_save :cache_slug, if: -> { name_changed? || name_ru_changed? || cached_slug.blank? }
   before_validation :normalize_included_products!
   before_validation :apply_full_attributes_json_input
+  before_validation :apply_full_attributes_api_override_json_input
 
   def slug
     cached_slug || generate_slug
@@ -650,6 +655,29 @@ class Product < ApplicationRecord
   def validate_full_attributes_json_input
     # Trigger parsing early so errors show up in the form.
     apply_full_attributes_json_input if full_attributes_json_input.present?
+  end
+
+  def apply_full_attributes_api_override_json_input
+    return if full_attributes_api_override_json_input.nil?
+
+    text = full_attributes_api_override_json_input.to_s
+    return if text.strip.blank?
+
+    parsed = JSON.parse(text)
+    unless parsed.is_a?(Hash)
+      errors.add(:full_attributes, "API override должен быть JSON-объектом")
+      return
+    end
+
+    base = full_attributes.is_a?(Hash) ? full_attributes.deep_dup : {}
+    base[FULL_ATTRIBUTES_API_OVERRIDE_KEY] = parsed
+    self.full_attributes = base
+  rescue JSON::ParserError => e
+    errors.add(:full_attributes, "некорректный JSON в API override: #{e.message}")
+  end
+
+  def validate_full_attributes_api_override_json_input
+    apply_full_attributes_api_override_json_input if full_attributes_api_override_json_input.present?
   end
 end
 
