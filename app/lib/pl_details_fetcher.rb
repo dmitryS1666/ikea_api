@@ -2494,6 +2494,10 @@ class PlDetailsFetcher
       "Глубина"
     when "waga", "weight"
       "Вес"
+    when /\Aobciążenie półki\b/i, /\Aobciazenie polki\b/i
+      "Нагрузка на полку"
+    when /\Amaks\. obciążenie\/półka szklana\b/i, /\Amaks\. obciazenie\/polka szklana\b/i
+      "Макс. нагрузка на стеклянную полку"
     when "paczka(i)", "paczki", "package(s)", "packages"
       "Упаковка(-и)"
     when "numer artykułu", "article number"

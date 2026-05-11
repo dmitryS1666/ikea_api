@@ -27,7 +27,7 @@ module Products
       "f-pattern" => ["Wzór", "Wzory", "Узор", "Узоры"],
       "f-shape" => ["Kształt", "Ksztalt", "Форма"],
       "f-brand" => ["Marka", "Producent", "Бренд", "Марка", "Производитель"],
-      "f-size" => ["Rozmiar", "Wymiar", "Wymiary", "Wysokość wraz z uchwytem", "Wysokość pod meblem", "Wysokość z poduchami oparcia", "Wysokość łóżka", "Wysokość oparcia", "Wysokość podłokietnika", "Głębokość całkowita po rozłożeniu", "Głębokość siedziska, szezlong", "grubość materaca", "Szerokość siedziska strona lewa", "Obciążenie półki", "Размер", "Габарит", "Габариты", "Размеры"],
+      "f-size" => ["Rozmiar", "Wymiar", "Wymiary", "Wysokość wraz z uchwytem", "Wysokość pod meblem", "Wysokość z poduchami oparcia", "Wysokość łóżka", "Wysokość oparcia", "Wysokość podłokietnika", "Głębokość całkowita po rozłożeniu", "Głębokość siedziska, szezlong", "grubość materaca", "Szerokość siedziska strona lewa", "Obciążenie półki", "Maks. obciążenie/półka szklana", "Размер", "Габарит", "Габариты", "Размеры"],
       "f-length" => ["Długość", "Dlugosc", "Длина"],
       "f-width" => ["Szerokość", "Szerokość siedziska strona lewa", "Ширина"],
       "f-height" => ["Wysokość", "Wysokość wraz z uchwytem", "Wysokość pod meblem", "Wysokość z poduchami oparcia", "Wysokość łóżka", "Wysokość oparcia", "Wysokość podłokietnika", "Высота"],

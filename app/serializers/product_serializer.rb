@@ -401,7 +401,13 @@ class ProductSerializer
     "głębokość do zabudowy" => "Глубина для встраивания",
     "glebokosc do zabudowy" => "Глубина для встраивания",
     "built-in depth" => "Глубина для встраивания",
-    "depth for built-in" => "Глубина для встраивания"
+    "depth for built-in" => "Глубина для встраивания",
+
+    "obciążenie półki" => "Нагрузка на полку",
+    "obciazenie polki" => "Нагрузка на полку",
+
+    "maks. obciążenie/półka szklana" => "Макс. нагрузка на стеклянную полку",
+    "maks. obciazenie/polka szklana" => "Макс. нагрузка на стеклянную полку"
   }.freeze
 
   ARTICLE_IN_LABEL_RE = /\b(\d{3}\.\d{3}\.\d{2})\b|\b(\d{8})\b/.freeze
@@ -531,6 +537,10 @@ class ProductSerializer
       "Глубина козетки"
     when "waga", "weight", "вес"
       "Вес"
+    when /\Aobciążenie półki\b/i, /\Aobciazenie polki\b/i
+      "Нагрузка на полку"
+    when /\Amaks\. obciążenie\/półka szklana\b/i, /\Amaks\. obciazenie\/polka szklana\b/i
+      "Макс. нагрузка на стеклянную полку"
     when "paczka(i)", "paczki", "package(s)", "packages", "упаковка(-и)"
       "Упаковка(-и)"
     when "grubość", "grubosc", "thickness", "толщина"
@@ -839,7 +849,13 @@ class ProductSerializer
     base = label.to_s.gsub(":", "").strip
     return nil if base.blank?
 
-    DIMENSION_LABELS_RU[base.downcase] || base
+    key = base.downcase
+    return DIMENSION_LABELS_RU[key] if DIMENSION_LABELS_RU[key]
+
+    stripped = key.sub(/\s+[\d.,]+\s*(кг|kg|г)\s*\z/i, "").strip
+    return DIMENSION_LABELS_RU[stripped] if DIMENSION_LABELS_RU[stripped]
+
+    base
   end
 
   def self.enrich_materials_block_from_product!(block, product, product_details_modal)
