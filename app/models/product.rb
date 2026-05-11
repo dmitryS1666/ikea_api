@@ -2,6 +2,9 @@ class Product < ApplicationRecord
   # Колонка убрана из БД; виртуальное чтение — ProductFullAttributesRuCompat (prepend в initializer to_prepare).
   self.ignored_columns += ["full_attributes_ru"]
 
+  # Virtual attribute for editing JSONB `full_attributes` in admin UI.
+  attr_accessor :full_attributes_json_input
+
   COLOR_PARAM = "f-colors".freeze
   SIZE_PARAMS = %w[
     f-measurement-buckets
@@ -11,6 +14,7 @@ class Product < ApplicationRecord
   # Валидации
   validates :sku, presence: true, uniqueness: true
   validates :name, presence: true
+  validate :validate_full_attributes_json_input
 
   # Ассоциации
   belongs_to :category, foreign_key: :category_id, primary_key: :ikea_id, optional: true
@@ -117,6 +121,7 @@ class Product < ApplicationRecord
 
   before_save :cache_slug, if: -> { name_changed? || name_ru_changed? || cached_slug.blank? }
   before_validation :normalize_included_products!
+  before_validation :apply_full_attributes_json_input
 
   def slug
     cached_slug || generate_slug
@@ -623,6 +628,28 @@ class Product < ApplicationRecord
           end
         end
         .uniq
+  end
+
+  def apply_full_attributes_json_input
+    return if full_attributes_json_input.nil?
+
+    text = full_attributes_json_input.to_s
+    return if text.strip.blank?
+
+    parsed = JSON.parse(text)
+    unless parsed.is_a?(Hash) || parsed.is_a?(Array)
+      errors.add(:full_attributes, "должен быть JSON-объектом или массивом")
+      return
+    end
+
+    self.full_attributes = parsed
+  rescue JSON::ParserError => e
+    errors.add(:full_attributes, "некорректный JSON: #{e.message}")
+  end
+
+  def validate_full_attributes_json_input
+    # Trigger parsing early so errors show up in the form.
+    apply_full_attributes_json_input if full_attributes_json_input.present?
   end
 end
 
