@@ -51,7 +51,7 @@
                     ['Сбор category related_products (1-й/последний SKU)', 'harvest_category_related_products'],
                     ['Актуализация одного товара по SKU (LT/PL)', 'refresh_product_lt'],
                     ['Переиндексация фильтров (одна категория)', 'category_filters_one'],
-                    ['Цены и остатки PL (все SKU в БД)', 'pl_prices_stock'],
+                    ['Цены и остатки PL (все SKU или один)', 'pl_prices_stock'],
                     ['Подсчёт: битая ВГХ упаковки', 'count_broken_packaging_dimensions'],
                     ['Подсчёт: битые картинки товара', 'count_broken_product_images'],
                     ['Подсчёт: подозрительный польский текст', 'count_broken_product_translations'],
@@ -147,6 +147,12 @@
               <%= label_tag :threads, "Количество потоков", class: "form-label" %>
               <%= number_field_tag :threads, 2, class: "form-control", min: 1, max: 10, placeholder: "Рекомендуется 2-5" %>
               <small class="form-text text-muted">Увеличение потоков ускоряет работу, но повышает нагрузку на сервер и риск блокировки по IP.</small>
+            </div>
+
+            <div class="form-group d-none" id="pl_prices_stock_sku_field">
+              <%= label_tag :pl_prices_stock_sku, "Только этот SKU (необязательно)", class: "form-label" %>
+              <%= text_field_tag :pl_prices_stock_sku, nil, class: "form-control", placeholder: "Например: 19485139 или 194.851.39" %>
+              <small class="form-text text-muted">Пустое поле — обход всех товаров с непустым SKU, как раньше. Для проверки джобы укажите один артикул из базы.</small>
             </div>
 
             <div class="form-group d-none" id="reset_field">
@@ -680,6 +686,7 @@
     const recoverMissingWeightsField = document.getElementById('recover_missing_weights_field');
     const recoverMissingPackagingDimsField = document.getElementById('recover_missing_packaging_dimensions_field');
     const recoverBrokenTranslationsField = document.getElementById('recover_broken_product_translations_field');
+    const plPricesStockSkuField = document.getElementById('pl_prices_stock_sku_field');
     const extraDataMainLabel = document.getElementById('extra_data_main_label');
     const extraDataTextarea = document.getElementById('extra_data_textarea');
     const categoryFiltersOneHint = document.getElementById('category_filters_one_hint');
@@ -700,6 +707,7 @@
       if (recoverMissingWeightsField) recoverMissingWeightsField.classList.add('d-none');
       if (recoverMissingPackagingDimsField) recoverMissingPackagingDimsField.classList.add('d-none');
       if (recoverBrokenTranslationsField) recoverBrokenTranslationsField.classList.add('d-none');
+      if (plPricesStockSkuField) plPricesStockSkuField.classList.add('d-none');
       if (categoryFiltersOneHint) categoryFiltersOneHint.classList.add('d-none');
       if (extraDataSkuFileBlock) extraDataSkuFileBlock.classList.remove('d-none');
       if (extraDataMainLabel) extraDataMainLabel.textContent = 'Список SKU (через пробел или запятую)';
@@ -719,6 +727,7 @@
         if (webpImageSearchField) webpImageSearchField.classList.remove('d-none');
       } else if (task === 'pl_prices_stock') {
         threadsField.classList.remove('d-none');
+        if (plPricesStockSkuField) plPricesStockSkuField.classList.remove('d-none');
       } else if (task === 'recover_missing_weights') {
         if (recoverMissingWeightsField) recoverMissingWeightsField.classList.remove('d-none');
       } else if (task === 'recover_missing_packaging_dimensions') {

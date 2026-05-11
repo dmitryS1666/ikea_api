@@ -11,11 +11,12 @@ class ApplicationJob < ActiveJob::Base
   # Базовые методы для всех задач парсинга
   protected
   
-  def create_parser_task(task_type, limit: nil)
+  def create_parser_task(task_type, limit: nil, payload: {})
     ParserTask.create!(
       task_type: task_type,
       status: 'pending',
-      limit: limit
+      limit: limit,
+      payload: payload || {}
     )
   end
   

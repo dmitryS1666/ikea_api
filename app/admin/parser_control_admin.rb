@@ -132,6 +132,11 @@ Trestle.resource :parser_control, model: ParserControl do
             payload[:category_ikea_id] = params[:translation_recover_category_ikea_id].to_s.strip.presence
           end
 
+          if task_type == "pl_prices_stock"
+            one = params[:pl_prices_stock_sku].to_s.strip.presence
+            payload[:sku] = one if one
+          end
+
           # Обработка дополнительных данных (SKUs и т.д.)
           if task_type == "extended_attributes_by_skus" || task_type == "import_products_by_skus" || task_type == "recover_broken_product_images" || task_type == "update_all_product_images" || task_type == "update_product_variants"
             payload[:skus] = extra_data
@@ -184,7 +189,7 @@ Trestle.resource :parser_control, model: ParserControl do
                     product_id: payload[:product_id]
                   )
                 elsif task_type == 'pl_prices_stock'
-                  job_class.perform_later(task_id: task.id, threads: threads)
+                  job_class.perform_later(task_id: task.id, threads: threads, sku: payload[:sku])
                 elsif task_type == 'recover_missing_weights'
                   job_class.perform_later(
                     limit: limit,
@@ -696,7 +701,7 @@ Trestle.resource :parser_control, model: ParserControl do
         'refresh_category_lt' => 'Актуализация категории (список с LT, PL-поля)',
         'refresh_product_lt' => 'Актуализация одного товара по SKU (LT/PL)',
         'harvest_category_related_products' => 'Сбор category related_products (1-й/последний SKU)',
-        'pl_prices_stock' => 'Обновление цен и остатков (PL) для всех SKU',
+        'pl_prices_stock' => 'Обновление цен и остатков (PL), все SKU или один по полю',
         'count_broken_packaging_dimensions' => 'Подсчёт товаров с битой ВГХ упаковки',
         'count_broken_product_images' => 'Подсчёт товаров с битыми картинками',
         'count_broken_product_translations' => 'Подсчёт товаров с подозрительным польским текстом',

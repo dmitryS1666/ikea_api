@@ -14,6 +14,14 @@ namespace :parser do
     puts "Готово!"
   end
 
+  desc "Цены и остатки IKEA (PL): все SKU или один. Примеры: rake parser:pl_prices_stock  /  rake \"parser:pl_prices_stock[19485139]\""
+  task :pl_prices_stock, [:sku] => :environment do |_t, args|
+    sku = args[:sku].to_s.strip.presence
+    puts "Очередь RefreshPlPricesAndStockJob (#{sku ? "SKU #{sku}" : 'все товары с SKU'})…"
+    RefreshPlPricesAndStockJob.perform_later(sku: sku)
+    puts "Задача поставлена в очередь."
+  end
+
   desc "Запустить парсинг категорий"
   task :parse_categories, [:limit] => :environment do |_t, args|
     limit = args[:limit]&.to_i
