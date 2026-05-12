@@ -311,18 +311,40 @@ class Category < ApplicationRecord
       value = value.deep_stringify_keys
       value_id = value["id"].to_s
       next if value_id.blank?
-  
+
       count = working_filter_value_count(param, value_id)
       next if count.zero?
-  
+
       value.merge("count" => count)
     end
-  
+
+    if param == "f-series" && values.size > 1
+      values = dedupe_f_series_values_for_api(values)
+    end
+
     return nil if values.empty?
-  
+
     filter.merge("values" => values)
   end
-  
+
+  def dedupe_f_series_values_for_api(values)
+    values
+      .group_by { |v| Products::SeriesFilterNormalization.normalize_key(v["name"].presence || v["id"]) }
+      .reject { |k, _| k.blank? }
+      .map do |_key, rows|
+        canonical = Products::SeriesFilterNormalization.pick_canonical_value_row(rows)
+        ids = rows.map { |r| r["id"].to_s }.reject(&:blank?).uniq
+        count =
+          if rows.one?
+            rows.first["count"].to_i
+          else
+            working_filter_value_count_distinct_products("f-series", ids)
+          end
+        canonical.merge("count" => count)
+      end
+      .sort_by { |v| (v["name"].presence || v["id"]).to_s.mb_chars.downcase.to_s }
+  end
+
   def build_price_filter_for_api(filter)
     price_range = current_category_price_range_byn
     return nil if price_range.blank?
@@ -344,6 +366,15 @@ class Category < ApplicationRecord
   def working_filter_value_count(parameter, value_id)
     ProductFilterValue
       .where(category_id: catalog_filter_tree_ikea_ids, parameter: parameter.to_s, value_id: value_id.to_s)
+      .joins(:product)
+      .merge(Product.with_available_stock)
+      .distinct
+      .count(:product_id)
+  end
+
+  def working_filter_value_count_distinct_products(parameter, value_ids)
+    ProductFilterValue
+      .where(category_id: catalog_filter_tree_ikea_ids, parameter: parameter.to_s, value_id: value_ids)
       .joins(:product)
       .merge(Product.with_available_stock)
       .distinct

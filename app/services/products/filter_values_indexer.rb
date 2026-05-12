@@ -274,7 +274,7 @@ module Products
       grouped_values = Array(values)
         .map { |value| value.is_a?(Hash) ? value.deep_stringify_keys : nil }
         .compact
-        .group_by { |value| normalize_series_name(value["name"].presence || value["id"]) }
+        .group_by { |value| SeriesFilterNormalization.normalize_key(value["name"].presence || value["id"]) }
         .reject { |normalized_name, _| normalized_name.blank? }
 
       matched_series_names = extract_series_names_from_product(product, grouped_values.keys)
@@ -283,12 +283,13 @@ module Products
       grouped_values.each do |normalized_name, grouped_filter_values|
         next unless matched_series_names.include?(normalized_name)
 
-        grouped_filter_values.each do |value|
-          value_id = value["id"].to_s
-          next if value_id.blank?
+        canonical = SeriesFilterNormalization.pick_canonical_value_row(grouped_filter_values)
+        next unless canonical
 
-          results[parameter] << value_id
-        end
+        value_id = canonical["id"].to_s
+        next if value_id.blank?
+
+        results[parameter] << value_id
       end
     end
 
@@ -625,27 +626,5 @@ module Products
       normalize_text(value).upcase
     end
 
-    def normalize_series_name(name)
-      return nil if name.blank?
-    
-      text = name.to_s.dup.strip
-      text = text.tr("ё", "е")
-    
-      text = text.gsub(/\A\s*[СC]\s*ЕРИЯ\s+ДЛЯ\s+.*?\s+/i, "")
-      text = text.gsub(/\A\s*[СC]\s*ЕРИЯ\s+/i, "")
-      text = text.gsub(/\A\s*СТЕЛЛАЖИ\s+/i, "")
-      text = text.gsub(/\A\s*КНИЖНЫЕ ШКАФЫ\s+/i, "")
-      text = text.gsub(/\A\s*ДВЕРИ\s+/i, "")
-      text = text.gsub(/\A\s*ФУРНИТУРА И ВНУТРЕННИЕ ОРГАНАЙЗЕРЫ\s+/i, "")
-      text = text.gsub(/\A\s*ОБЕДЕННЫЕ СТУЛЬЯ\s+/i, "")
-      text = text.gsub(/\A\s*ОБЕДЕННЫЕ СТОЛЫ\s+/i, "")
-      text = text.gsub(/\A\s*ОБЕДЕННЫЕ ГАРНИТУРЫ\s+/i, "")
-      text = text.gsub(/\A\s*АКСЕССУАРЫ\s+/i, "")
-      text = text.gsub(/\A\s*ПЕРФОРИРОВАННЫЕ ДОСКИ\s+/i, "")
-      text = text.gsub(/\A\s*ВСТАВКИ И АКСЕССУАРЫ ДЛЯ\s+/i, "")
-    
-      text = normalize_series_text(text)
-      text.presence
-    end
   end
 end

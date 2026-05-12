@@ -56,7 +56,14 @@ module Categories
             vid = value["id"].to_s.presence || value["value_id"].to_s.presence
             next if vid.blank?
 
-            values_by_param[parameter][vid] = merge_value_row(values_by_param[parameter][vid], value)
+            if parameter == "f-series"
+              bucket_key = Products::SeriesFilterNormalization.normalize_key(value["name"].presence || vid)
+              bucket_key = vid if bucket_key.blank?
+              values_by_param[parameter][bucket_key] =
+                merge_f_series_value_row(values_by_param[parameter][bucket_key], value)
+            else
+              values_by_param[parameter][vid] = merge_value_row(values_by_param[parameter][vid], value)
+            end
           end
         end
       end
@@ -87,6 +94,31 @@ module Categories
       m["name"] = a["name"].presence || b["name"].presence
       if a.key?("label") || b.key?("label")
         m["label"] = a["label"].presence || b["label"].presence
+      end
+      m
+    end
+
+    def merge_f_series_value_row(existing, incoming)
+      a = (existing || {}).stringify_keys
+      b = incoming.stringify_keys
+      return b if a.empty?
+
+      a_name = a["name"].to_s
+      b_name = b["name"].to_s
+      primary, secondary =
+        if b_name.length < a_name.length
+          [b, a]
+        elsif a_name.length < b_name.length
+          [a, b]
+        else
+          a["id"].to_s <= b["id"].to_s ? [a, b] : [b, a]
+        end
+
+      m = primary.merge(secondary)
+      m["id"] = primary["id"].to_s.presence || secondary["id"].to_s
+      m["name"] = primary["name"].presence || secondary["name"].presence
+      if primary.key?("label") || secondary.key?("label")
+        m["label"] = primary["label"].presence || secondary["label"].presence
       end
       m
     end

@@ -117,4 +117,27 @@ RSpec.describe Products::FilterValuesIndexer do
       expect(ProductFilterValue.where(product_id: product.id, parameter: "f-price-buckets")).to exist
     end
   end
+
+  describe "f-series indexing" do
+    it "stores one value_id per logical series when available_filters lists synonyms" do
+      category = create(:category, ikea_id: "700601", available_filters: [
+        {
+          "parameter" => "f-series",
+          "values" => [
+            { "id" => "id_guest", "name" => "Серия для гостиных HAUGA" },
+            { "id" => "id_short", "name" => "HAUGA" },
+            { "id" => "id_table", "name" => "Серия для столовых HAUGA" }
+          ]
+        }
+      ])
+
+      product = create(:product, name_ru: "Комод HAUGA белый", quantity: 1)
+      category.products_through_categories << product
+
+      described_class.new(category).reindex!
+
+      rows = ProductFilterValue.where(product_id: product.id, category_id: category.ikea_id, parameter: "f-series")
+      expect(rows.pluck(:value_id)).to eq(["id_short"])
+    end
+  end
 end

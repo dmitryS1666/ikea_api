@@ -72,5 +72,32 @@ RSpec.describe Category, type: :model do
 
       expect(toftan["count"]).to eq(1)
     end
+
+    it "dedupes f-series synonyms into one row with correct distinct product count" do
+      category = create(
+        :category,
+        ikea_id: "cat-series-dedupe",
+        available_filters: [
+          {
+            "parameter" => "f-series",
+            "name" => "Коллекции",
+            "values" => [
+              { "id" => "FJALLBO_LONG", "name" => "Серия FJÄLLBO" },
+              { "id" => "FJALLBO_SHORT", "name" => "FJÄLLBO" }
+            ]
+          }
+        ]
+      )
+
+      product = create(:product, category_id: category.ikea_id, quantity: 5)
+      create(:product_filter_value, product: product, category_id: category.ikea_id, parameter: "f-series", value_id: "FJALLBO_LONG")
+      create(:product_filter_value, product: product, category_id: category.ikea_id, parameter: "f-series", value_id: "FJALLBO_SHORT")
+
+      filters = category.display_filters_for_api
+      series_filter = filters.find { |f| f["parameter"] == "f-series" }
+      expect(series_filter["values"].size).to eq(1)
+      expect(series_filter["values"].first["count"]).to eq(1)
+      expect(series_filter["values"].first["id"]).to eq("FJALLBO_SHORT")
+    end
   end
 end
