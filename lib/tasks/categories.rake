@@ -2316,6 +2316,18 @@ namespace :categories do
       puts "=" * 100
   end
 
+  desc "Слить в родителя значения available_filters из потомков (f-series и др.), затем поставить переиндексацию фильтров"
+  task :merge_parent_filters, [:ikea_id] => :environment do |_t, args|
+    ikea_id = args[:ikea_id].to_s.strip.presence
+    if ikea_id
+      MergeParentCategoryFiltersJob.perform_later(ikea_id)
+      puts "В очереди: MergeParentCategoryFiltersJob для категории #{ikea_id}"
+    else
+      MergeParentCategoryFiltersJob.perform_later
+      puts "В очереди: MergeParentCategoryFiltersJob для всех категорий с потомками"
+    end
+  end
+
   def normalize_cell(value)
     text = value.to_s.dup
   

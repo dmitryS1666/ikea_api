@@ -111,6 +111,12 @@ Trestle.resource :parser_control, model: ParserControl do
             payload[:product_id] = rc[:product_id] if rc[:product_id].present?
           end
 
+          if task_type == "merge_parent_category_filters"
+            rc = parse_category_filters_one_extra(extra_data)
+            payload[:ikea_id] = rc[:ikea_id]
+            payload[:reindex] = params[:merge_parent_reindex].to_s != "0"
+          end
+
           if task_type == "recover_missing_weights"
             # hidden "0" + checkbox "1": без галочки уходит только "0"
             payload[:only_missing_weight] = params[:only_missing_weight].to_s != "0"
@@ -188,6 +194,12 @@ Trestle.resource :parser_control, model: ParserControl do
                     task_id: task.id,
                     parameters: payload[:parameters],
                     product_id: payload[:product_id]
+                  )
+                elsif task_type == 'merge_parent_category_filters'
+                  job_class.perform_later(
+                    payload[:ikea_id].presence,
+                    task_id: task.id,
+                    reindex: payload.fetch(:reindex, true)
                   )
                 elsif task_type == 'pl_prices_stock'
                   job_class.perform_later(task_id: task.id, threads: threads, sku: payload[:sku])
@@ -653,6 +665,8 @@ Trestle.resource :parser_control, model: ParserControl do
         HarvestCategoryRelatedProductsJob
       when 'category_filters_one'
         ReindexCategoryFiltersJob
+      when 'merge_parent_category_filters'
+        MergeParentCategoryFiltersJob
       when 'pl_prices_stock'
         RefreshPlPricesAndStockJob
       when 'count_broken_packaging_dimensions'
@@ -689,6 +703,7 @@ Trestle.resource :parser_control, model: ParserControl do
         'currency_rates' => 'Курсы валют',
         'category_filters' => 'Переиндексация фильтров категорий',
         'category_filters_one' => 'Переиндексация фильтров одной категории',
+        'merge_parent_category_filters' => 'Слияние фильтров потомков в родителя',
         'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)',
         'fix_missing_images' => 'Проверка и докачка отсутствующих картинок',
         'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',

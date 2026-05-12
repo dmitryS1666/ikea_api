@@ -51,6 +51,7 @@
                     ['Сбор category related_products (1-й/последний SKU)', 'harvest_category_related_products'],
                     ['Актуализация одного товара по SKU (LT/PL)', 'refresh_product_lt'],
                     ['Переиндексация фильтров (одна категория)', 'category_filters_one'],
+                    ['Слияние фильтров потомков в родителя', 'merge_parent_category_filters'],
                     ['Цены и остатки PL (все SKU или один)', 'pl_prices_stock'],
                     ['Подсчёт: битая ВГХ упаковки', 'count_broken_packaging_dimensions'],
                     ['Подсчёт: битые картинки товара', 'count_broken_product_images'],
@@ -177,10 +178,23 @@
                 Выборочно: <code>{"ikea_id":"20515","parameters":["f-series"]}</code> (коллекции = <code>f-series</code>).
                 Только один товар: добавьте <code>"product_id":123</code>. Без <code>parameters</code> — все фильтры.
               </small>
+              <small id="merge_parent_category_filters_hint" class="form-text text-muted d-none">
+                В <code>available_filters</code> родителя объединяются значения фильтров (в т.ч. <code>f-series</code>) из всех потомков.
+                Поле ниже оставьте пустым — обработка всех категорий с дочерними. Иначе одна строка <code>ikea_id</code> или JSON <code>{"ikea_id":"20515"}</code>.
+              </small>
               <div class="mt-2" id="extra_data_sku_file_block">
                 <%= label_tag :sku_file_path, "ИЛИ путь к файлу со списком SKU на сервере", class: "form-label" %>
                 <%= text_field_tag :sku_file_path, nil, class: "form-control", placeholder: "/absolute/path/to/file.txt" %>
               </div>
+            </div>
+
+            <div class="form-group d-none" id="merge_parent_category_filters_field">
+              <%= hidden_field_tag :merge_parent_reindex, "0" %>
+              <div class="custom-control custom-checkbox">
+                <%= check_box_tag :merge_parent_reindex, "1", true, class: "custom-control-input", id: "merge_parent_reindex_checkbox" %>
+                <%= label_tag :merge_parent_reindex_checkbox, "После слияния поставить переиндексацию фильтров этой категории (очередь)", class: "custom-control-label" %>
+              </div>
+              <small class="form-text text-muted">Снимите галочку, если нужно только обновить JSON <code>available_filters</code> без постановки ReindexCategoryFiltersJob.</small>
             </div>
 
             <div class="form-group d-none" id="webp_image_search_field">
@@ -255,6 +269,7 @@
                         'harvest_category_related_products' => 'Сбор category related_products',
                         'refresh_product_lt' => 'Актуализация товара (SKU)',
                         'category_filters_one' => 'Фильтры категории (одна)',
+                        'merge_parent_category_filters' => 'Слияние фильтров в родителя',
                         'pl_prices_stock' => 'Цены и остатки (PL)',
                         'count_broken_packaging_dimensions' => 'Подсчёт: ВГХ упаковки',
                         'count_broken_product_images' => 'Подсчёт: битые картинки',
@@ -378,6 +393,7 @@
                       'harvest_category_related_products' => 'Сбор category related_products',
                       'refresh_product_lt' => 'Актуализация товара (SKU)',
                       'category_filters_one' => 'Фильтры категории (одна)',
+                      'merge_parent_category_filters' => 'Слияние фильтров в родителя',
                       'pl_prices_stock' => 'Цены и остатки (PL)',
                       'count_broken_packaging_dimensions' => 'Подсчёт: ВГХ упаковки',
                       'count_broken_product_images' => 'Подсчёт: битые картинки',
@@ -546,6 +562,7 @@
             'harvest_category_related_products': 'Сбор category related_products',
             'refresh_product_lt': 'Актуализация товара (SKU)',
             'category_filters_one': 'Фильтры категории (одна)',
+            'merge_parent_category_filters': 'Слияние фильтров в родителя',
             'pl_prices_stock': 'Цены и остатки (PL)',
             'count_broken_packaging_dimensions': 'Подсчёт: ВГХ упаковки',
             'count_broken_product_images': 'Подсчёт: битые картинки',
@@ -690,6 +707,8 @@
     const extraDataMainLabel = document.getElementById('extra_data_main_label');
     const extraDataTextarea = document.getElementById('extra_data_textarea');
     const categoryFiltersOneHint = document.getElementById('category_filters_one_hint');
+    const mergeParentCategoryFiltersHint = document.getElementById('merge_parent_category_filters_hint');
+    const mergeParentCategoryFiltersField = document.getElementById('merge_parent_category_filters_field');
     const extraDataSkuFileBlock = document.getElementById('extra_data_sku_file_block');
 
     function toggleFields() {
@@ -709,11 +728,13 @@
       if (recoverBrokenTranslationsField) recoverBrokenTranslationsField.classList.add('d-none');
       if (plPricesStockSkuField) plPricesStockSkuField.classList.add('d-none');
       if (categoryFiltersOneHint) categoryFiltersOneHint.classList.add('d-none');
+      if (mergeParentCategoryFiltersHint) mergeParentCategoryFiltersHint.classList.add('d-none');
+      if (mergeParentCategoryFiltersField) mergeParentCategoryFiltersField.classList.add('d-none');
       if (extraDataSkuFileBlock) extraDataSkuFileBlock.classList.remove('d-none');
       if (extraDataMainLabel) extraDataMainLabel.textContent = 'Список SKU (через пробел или запятую)';
       if (extraDataTextarea) extraDataTextarea.placeholder = 'Например: 123.456.78, 987.654.32';
 
-      if (task === 'extended_attributes_by_skus' || task === 'import_products_by_skus' || task === 'recover_broken_product_images' || task === 'update_product_variants' || task === 'refresh_category_lt' || task === 'harvest_category_related_products' || task === 'refresh_product_lt' || task === 'category_filters_one') {
+      if (task === 'extended_attributes_by_skus' || task === 'import_products_by_skus' || task === 'recover_broken_product_images' || task === 'update_product_variants' || task === 'refresh_category_lt' || task === 'harvest_category_related_products' || task === 'refresh_product_lt' || task === 'category_filters_one' || task === 'merge_parent_category_filters') {
         extraDataField.classList.remove('d-none');
       } else if (task === 'extended_attrs_import') {
         extraFileField.classList.remove('d-none');
@@ -742,6 +763,13 @@
         if (extraDataSkuFileBlock) extraDataSkuFileBlock.classList.add('d-none');
         if (extraDataMainLabel) extraDataMainLabel.textContent = 'IKEA ID категории или JSON';
         if (extraDataTextarea) extraDataTextarea.placeholder = '20515 или {"ikea_id":"20515","parameters":["f-series"]}';
+      } else if (task === 'merge_parent_category_filters') {
+        limitField.classList.add('d-none');
+        if (mergeParentCategoryFiltersHint) mergeParentCategoryFiltersHint.classList.remove('d-none');
+        if (mergeParentCategoryFiltersField) mergeParentCategoryFiltersField.classList.remove('d-none');
+        if (extraDataSkuFileBlock) extraDataSkuFileBlock.classList.add('d-none');
+        if (extraDataMainLabel) extraDataMainLabel.textContent = 'IKEA ID родителя (необязательно) или JSON';
+        if (extraDataTextarea) extraDataTextarea.placeholder = 'Пусто = все родительские категории; или 20515; или {"ikea_id":"20515"}';
       } else if (task === 'refresh_product_lt') {
         if (extraDataSkuFileBlock) extraDataSkuFileBlock.classList.add('d-none');
         if (extraDataMainLabel) extraDataMainLabel.textContent = 'SKU товара или JSON';
