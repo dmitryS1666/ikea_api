@@ -725,9 +725,9 @@
         cleanupHelp.classList.remove('d-none');
         extraDataField.classList.remove('d-none');
         if (webpImageSearchField) webpImageSearchField.classList.remove('d-none');
-      } else if (task === 'pl_prices_stock') {
+      } else if (task === 'pl_prices_stock' || task === 'refresh_category_lt') {
         threadsField.classList.remove('d-none');
-        if (plPricesStockSkuField) plPricesStockSkuField.classList.remove('d-none');
+        if (task === 'pl_prices_stock' && plPricesStockSkuField) plPricesStockSkuField.classList.remove('d-none');
       } else if (task === 'recover_missing_weights') {
         if (recoverMissingWeightsField) recoverMissingWeightsField.classList.remove('d-none');
       } else if (task === 'recover_missing_packaging_dimensions') {

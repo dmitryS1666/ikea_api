@@ -82,6 +82,7 @@ Trestle.resource :parser_control, model: ParserControl do
             if task_type == "refresh_category_lt"
               payload[:lt_jsonl_path] = rc[:lt_jsonl_path] if rc[:lt_jsonl_path].present?
               payload[:detach_orphans] = rc[:detach_orphans] unless rc[:detach_orphans].nil?
+              payload[:threads] = threads
             end
           end
 
@@ -176,7 +177,7 @@ Trestle.resource :parser_control, model: ParserControl do
 
           # Передаем task_id в job и сохраняем job_id
           job = if task_type == 'refresh_category_lt'
-                  job_class.perform_later(task_id: task.id, ikea_id: payload[:ikea_id].to_s)
+                  job_class.perform_later(task_id: task.id, ikea_id: payload[:ikea_id].to_s, threads: threads)
                 elsif task_type == 'refresh_product_lt'
                   job_class.perform_later(task_id: task.id, sku: payload[:sku].to_s)
                 elsif task_type == 'harvest_category_related_products'

@@ -27,6 +27,52 @@ RSpec.describe Products::VariantProductsEnsureService do
 
       expect(Product.find_by(sku: "s87654321")).to be_nil
     end
+
+    it "syncs variant categories with the parent product categories" do
+      extra_category = create(:category, ikea_id: "701200")
+      existing_variant = create(
+        :product,
+        sku: "s87654321",
+        name: "Variant sofa",
+        category_id: extra_category.ikea_id,
+        price: 10,
+        weight: 1.0,
+        materials: "fabric",
+        content: "ready"
+      )
+
+      CategoryProduct.create!(product: parent, category_id: category.ikea_id)
+      CategoryProduct.create!(product: parent, category_id: extra_category.ikea_id)
+      CategoryProduct.create!(product: existing_variant, category_id: extra_category.ikea_id)
+
+      described_class.ensure!(parent, category: category)
+      existing_variant.reload
+
+      expect(existing_variant.category_id).to eq(parent.category_id)
+      expect(existing_variant.category_products.pluck(:category_id)).to include(category.ikea_id, extra_category.ikea_id)
+    end
+
+    it "links all variant products with each other" do
+      payload = [
+        {
+          "type" => "color",
+          "data" => [
+            { "item" => { "sku" => "s87654321" } },
+            { "item" => { "sku" => "s22222222" } }
+          ]
+        }
+      ].to_json
+      parent.update!(variants_payload: payload, materials: "fabric", content: "ready", weight: 1.0)
+
+      variant_a = create(:product, sku: "s87654321", name: "Variant A", price: 10, weight: 1.0, materials: "fabric", content: "ready")
+      variant_b = create(:product, sku: "s22222222", name: "Variant B", price: 10, weight: 1.0, materials: "fabric", content: "ready")
+
+      described_class.ensure!(parent, category: category)
+
+      expect(parent.reload.normalized_variant_skus).to contain_exactly("s87654321", "s22222222")
+      expect(variant_a.reload.normalized_variant_skus).to contain_exactly(parent.sku, "s22222222")
+      expect(variant_b.reload.normalized_variant_skus).to contain_exactly(parent.sku, "s87654321")
+    end
   end
 
   describe ".variant_skus_from_variants_payload" do

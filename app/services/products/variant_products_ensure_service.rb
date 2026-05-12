@@ -21,7 +21,8 @@ module Products
       # Убираем жесткую привязку только к variants_payload, так как варианты могут быть и в обычном поле variants
       return if @product.variants_payload.blank? && @product.normalized_variant_skus.blank?
 
-      collect_skus.each { |sku| process_variant_sku(sku) }
+      variants = collect_skus.filter_map { |sku| process_variant_sku(sku) }
+      sync_variant_group_links!(([product] + variants).uniq(&:id))
     end
 
     private
@@ -37,20 +38,22 @@ module Products
     def process_variant_sku(listing_sku)
       existing = ListingSkuResolver.find_product(listing_sku)
       if existing
-        CategoryProduct.find_or_create_by!(product: existing, category_id: category.ikea_id.to_s)
+        sync_variant_categories!(existing)
         if incomplete_product?(existing)
           EnrichVariantProductJob.enqueue_once(sku: existing.sku, category_ikea_id: category.ikea_id)
         end
-        return
+        return existing
       end
 
       stub = create_variant_product_after_pl_fetch(listing_sku)
       return if stub.blank?
 
-      CategoryProduct.find_or_create_by!(product: stub, category_id: category.ikea_id.to_s)
+      sync_variant_categories!(stub)
       EnrichVariantProductJob.enqueue_once(sku: stub.sku, category_ikea_id: category.ikea_id)
+      stub
     rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid => e
       Rails.logger.warn "VariantProductsEnsureService sku=#{listing_sku}: #{e.class} #{e.message}"
+      nil
     end
 
     def incomplete_product?(p)
@@ -133,6 +136,42 @@ module Products
       discard_variant_stub!(product, cid) if product&.persisted?
       Rails.logger.warn "VariantProductsEnsureService: variant sku=#{listing_sku} #{e.class}: #{e.message}"
       nil
+    end
+
+    def sync_variant_group_links!(products)
+      records = Array(products).compact.uniq(&:id)
+      return if records.size < 2
+
+      records.each do |record|
+        sibling_skus = records.reject { |p| p.id == record.id }.map { |p| p.sku.to_s }.reject(&:blank?).uniq
+        next if sibling_skus.sort == record.normalized_variant_skus.map(&:to_s).sort
+
+        record.update_columns(
+          variants: sibling_skus.to_json,
+          updated_at: Time.current
+        )
+      end
+    end
+
+    def sync_variant_categories!(variant)
+      category_ids = variant_category_ids_to_link
+      category_ids.each do |cid|
+        CategoryProduct.find_or_create_by!(product: variant, category_id: cid)
+      end
+
+      primary_category_id = product.category_id.presence || category.ikea_id.to_s
+      return if primary_category_id.blank? || variant.category_id.to_s == primary_category_id.to_s
+
+      variant.update_columns(category_id: primary_category_id, updated_at: Time.current)
+    end
+
+    def variant_category_ids_to_link
+      @variant_category_ids_to_link ||= begin
+        from_parent = product.category_products.pluck(:category_id)
+        from_parent << product.category_id
+        from_parent << category.ikea_id
+        from_parent.compact.map(&:to_s).map(&:strip).reject(&:blank?).uniq
+      end
     end
 
     class << self

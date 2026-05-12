@@ -22,7 +22,7 @@
 class RefreshCategoryFromLtJob < ApplicationJob
   queue_as :parser
 
-  def perform(ikea_id:, task_id: nil, max_created: nil)
+  def perform(ikea_id:, task_id: nil, max_created: nil, threads: 2)
     task =
       if task_id.present?
         ParserTask.find(task_id)
@@ -55,6 +55,14 @@ class RefreshCategoryFromLtJob < ApplicationJob
       else
         false
       end
+    threads =
+      if payload["threads"].present?
+        payload["threads"].to_i
+      else
+        threads.to_i
+      end
+    threads = 1 if threads <= 0
+    threads = 10 if threads > 10
 
     category = Category.find_by(ikea_id: ikea_id.to_s)
     unless category
@@ -118,6 +126,7 @@ class RefreshCategoryFromLtJob < ApplicationJob
       end
 
       # 2. Обрабатываем каждый продукт
+      products_to_enrich = []
       all_pl_products.each do |product_data|
         check_task_not_stopped!(task)
         
@@ -137,10 +146,20 @@ class RefreshCategoryFromLtJob < ApplicationJob
         # - Проверка LT, если нет - AI перевод
         # - Variants (IkeaLvProductVariantsService)
         # - Related/Included (ReferencedProductsEnsureService)
-        enrich_product!(product, category, rows_by_sku, task, stats, nil, process_related: process_related)
+        products_to_enrich << product.id
         
         break if max_created.present? && stats[:created] >= max_created
       end
+
+      enrich_products_batch!(
+        products_to_enrich: products_to_enrich,
+        category: category,
+        rows_by_sku: rows_by_sku,
+        task: task,
+        stats: stats,
+        process_related: process_related,
+        threads: threads
+      )
 
       touched_canonical_skus.compact!
       touched_canonical_skus.uniq!
@@ -173,6 +192,44 @@ class RefreshCategoryFromLtJob < ApplicationJob
   end
 
   private
+
+  def enrich_products_batch!(products_to_enrich:, category:, rows_by_sku:, task:, stats:, process_related:, threads:)
+    product_ids = Array(products_to_enrich).compact.uniq
+    return if product_ids.empty?
+
+    if threads <= 1
+      Product.where(id: product_ids).find_each(batch_size: 100) do |product|
+        enrich_product!(product, category, rows_by_sku, task, stats, nil, process_related: process_related)
+      end
+      return
+    end
+
+    queue = Queue.new
+    product_ids.each { |id| queue << id }
+    mutex = Mutex.new
+
+    workers = Array.new(threads) do
+      Thread.new do
+        ActiveRecord::Base.connection_pool.with_connection do
+          loop do
+            product_id = queue.pop(true)
+            check_task_not_stopped!(task)
+            product = Product.find_by(id: product_id)
+            next unless product
+
+            enrich_product!(product, category, rows_by_sku, task, stats, mutex, process_related: process_related)
+          rescue ThreadError
+            break
+          rescue StandardError => e
+            Rails.logger.warn "RefreshCategoryFromLtJob: enrich worker failed: #{e.class} #{e.message}"
+            break if e.message == "Task was stopped manually"
+          end
+        end
+      end
+    end
+
+    workers.each(&:join)
+  end
 
   def enrich_product!(product, category, rows_by_sku, task, stats, mutex, process_related: false)
     check_task_not_stopped!(task)
