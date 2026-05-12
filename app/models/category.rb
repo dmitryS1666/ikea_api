@@ -87,7 +87,7 @@ class Category < ApplicationRecord
   end
 
   def current_category_price_range_byn
-    products_scope = Product.catalog_category_scope(ikea_id).where.not(price: nil)
+    products_scope = catalog_scope_for_filters_api.where.not(price: nil)
     return nil unless products_scope.exists?
 
     pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
@@ -326,8 +326,8 @@ class Category < ApplicationRecord
   def build_price_filter_for_api(filter)
     price_range = current_category_price_range_byn
     return nil if price_range.blank?
-  
-    products_count = Product.catalog_category_scope(ikea_id).where.not(price: nil).distinct.count
+
+    products_count = catalog_scope_for_filters_api.where.not(price: nil).distinct.count
     return nil if products_count.zero?
   
     filter.merge(
@@ -342,12 +342,22 @@ class Category < ApplicationRecord
   end
   
   def working_filter_value_count(parameter, value_id)
-    product_filter_values
-      .where(parameter: parameter.to_s, value_id: value_id.to_s)
+    ProductFilterValue
+      .where(category_id: catalog_filter_tree_ikea_ids, parameter: parameter.to_s, value_id: value_id.to_s)
       .joins(:product)
       .merge(Product.with_available_stock)
       .distinct
       .count(:product_id)
+  end
+
+  # Товары и product_filter_values для API-фильтров: текущая категория + потомки
+  # (как в Products::SearchService#initial_scope).
+  def catalog_scope_for_filters_api
+    Product.in_categories_ikea_ids(catalog_filter_tree_ikea_ids).active.with_available_stock
+  end
+
+  def catalog_filter_tree_ikea_ids
+    @catalog_filter_tree_ikea_ids ||= self_and_descendant_ikea_ids
   end
 
   def price_bucket_name_in_byn(value_id, eur_rate)

@@ -41,5 +41,36 @@ RSpec.describe Category, type: :model do
       series_filter = filters.find { |f| f["parameter"] == "f-series" }
       expect(series_filter).to be_nil
     end
+
+    it "aggregates series counts from in-stock products indexed under descendant categories" do
+      parent = create(
+        :category,
+        ikea_id: "parent-tree-1",
+        available_filters: [
+          {
+            "parameter" => "f-series",
+            "name" => "Коллекции",
+            "values" => [
+              { "id" => "TOFTAN", "name" => "Серия TOFTAN" }
+            ]
+          }
+        ]
+      )
+      create(
+        :category,
+        ikea_id: "child-tree-1",
+        parent_ids: ["parent-tree-1"],
+        available_filters: []
+      )
+
+      product = create(:product, category_id: "child-tree-1", quantity: 5)
+      create(:product_filter_value, product: product, category_id: "child-tree-1", parameter: "f-series", value_id: "TOFTAN")
+
+      filters = parent.display_filters_for_api
+      series_filter = filters.find { |f| f["parameter"] == "f-series" }
+      toftan = series_filter["values"].find { |v| v["id"] == "TOFTAN" }
+
+      expect(toftan["count"]).to eq(1)
+    end
   end
 end
