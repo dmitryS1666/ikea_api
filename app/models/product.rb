@@ -6,6 +6,9 @@ class Product < ApplicationRecord
   attr_accessor :full_attributes_json_input
   attr_accessor :full_attributes_api_override_json_input
 
+  # Админка: SKU соседних вариантов (колонка `variants`), JSON `variants_payload`, синхронизация связей.
+  attr_accessor :sync_variant_sibling_links
+
   FULL_ATTRIBUTES_API_OVERRIDE_KEY = "customer_full_attributes_override".freeze
 
   COLOR_PARAM = "f-colors".freeze
@@ -127,6 +130,8 @@ class Product < ApplicationRecord
   before_validation :normalize_included_products!
   before_validation :apply_full_attributes_json_input
   before_validation :apply_full_attributes_api_override_json_input
+  before_validation :apply_variants_skus_from_form_text
+  before_validation :apply_variants_payload_from_form_text
 
   def slug
     cached_slug || generate_slug
@@ -134,6 +139,8 @@ class Product < ApplicationRecord
 
   # Callbacks
   before_save :calculate_delivery, if: :weight_changed?
+  after_save :maybe_sync_variant_sibling_links
+  after_save :reset_variants_admin_form_flags
   after_commit :enqueue_filters_reindex, on: [:create, :update]
 
   # Сырой sku в JSON иногда приходит массивом; у Array#to_s получается строка вида "["s1", "s2"]" — это мусор для БД.
@@ -161,6 +168,50 @@ class Product < ApplicationRecord
   def variant_products
     skus = ([sku.to_s] + normalized_variant_skus).uniq
     Product.where(sku: skus)
+  end
+
+  # Синхронизация колонки `variants` у всех карточек группы (полный граф между SKU в БД).
+  # Группа: текущий артикул + `normalized_variant_skus` после сохранения.
+  def sync_variant_sibling_links!
+    group_skus = ([sku.to_s] + normalized_variant_skus.map(&:to_s)).uniq.reject(&:blank?)
+    records_by_sku = Product.where(sku: group_skus).index_by { |r| r.sku.to_s }
+    present_skus = group_skus.select { |s| records_by_sku[s] }
+    return if present_skus.size < 2
+
+    present_skus.each do |sku_key|
+      rec = records_by_sku[sku_key]
+      sibling_skus = present_skus.reject { |s| s == sku_key }
+      next if sibling_skus.sort == rec.normalized_variant_skus.map(&:to_s).sort
+
+      rec.update_columns(variants: sibling_skus.to_json, updated_at: Time.current)
+    end
+  end
+
+  # --- Админка (Trestle): текстовое поле со списком SKU вариантов ---
+  def variants_skus_text_for_form=(text)
+    @variants_skus_text_for_form_submitted = true
+    @variants_skus_text_for_form = text
+  end
+
+  def variants_skus_text_for_form
+    return @variants_skus_text_for_form if @variants_skus_text_for_form_submitted
+
+    normalized_variant_skus.join("\n")
+  end
+
+  def variants_payload_text_for_form=(text)
+    @variants_payload_text_for_form_submitted = true
+    @variants_payload_text_for_form = text
+  end
+
+  def variants_payload_text_for_form
+    return @variants_payload_text_for_form if @variants_payload_text_for_form_submitted
+
+    return "" if variants_payload.blank?
+
+    JSON.pretty_generate(JSON.parse(variants_payload.to_s))
+  rescue JSON::ParserError
+    variants_payload.to_s
   end
 
   def filter_map
@@ -455,6 +506,52 @@ class Product < ApplicationRecord
   end
 
   private
+
+  def apply_variants_skus_from_form_text
+    return unless @variants_skus_text_for_form_submitted
+
+    text = @variants_skus_text_for_form
+    list =
+      text.to_s.split(/[\n,\r;]+/).map { |s| s.to_s.strip }.reject(&:blank?).uniq
+    list -= [sku.to_s] if sku.present?
+    self.variants = list
+  end
+
+  def apply_variants_payload_from_form_text
+    return unless @variants_payload_text_for_form_submitted
+
+    raw = @variants_payload_text_for_form.to_s.strip
+    if raw.blank?
+      self.variants_payload = nil
+      return
+    end
+
+    parsed = JSON.parse(raw)
+    unless parsed.is_a?(Hash) || parsed.is_a?(Array)
+      errors.add(:variants_payload, "должен быть JSON-массивом или объектом")
+      return
+    end
+
+    self.variants_payload = JSON.generate(parsed)
+  rescue JSON::ParserError => e
+    errors.add(:variants_payload, "некорректный JSON: #{e.message}")
+  end
+
+  def maybe_sync_variant_sibling_links
+    raw = sync_variant_sibling_links
+    raw = raw.last if raw.is_a?(Array)
+    return unless ActiveModel::Type::Boolean.new.cast(raw)
+
+    sync_variant_sibling_links!
+  end
+
+  def reset_variants_admin_form_flags
+    @variants_skus_text_for_form_submitted = false
+    @variants_payload_text_for_form_submitted = false
+    remove_instance_variable(:@variants_skus_text_for_form) if instance_variable_defined?(:@variants_skus_text_for_form)
+    remove_instance_variable(:@variants_payload_text_for_form) if instance_variable_defined?(:@variants_payload_text_for_form)
+    self.sync_variant_sibling_links = nil
+  end
 
   # variants_payload: раскрыть as: в /images/products/..., убрать ikea.com при наличии локальных путей
   def normalize_variant_payload_images!(processed_payload)

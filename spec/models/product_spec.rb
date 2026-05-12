@@ -73,4 +73,48 @@ RSpec.describe Product, type: :model do
       expect(p.normalized_variant_skus).to contain_exactly("s11111111", "s22222222")
     end
   end
+
+  describe "#sync_variant_sibling_links!" do
+    it "writes mutual variant sku lists for every product in the group" do
+      a = create(:product, sku: "sva11111", variants: [])
+      b = create(:product, sku: "svb22222", variants: [])
+      a.variants = ["svb22222"]
+      a.save!
+
+      a.sync_variant_sibling_links!
+
+      expect(a.reload.normalized_variant_skus).to eq(["svb22222"])
+      expect(b.reload.normalized_variant_skus).to eq(["sva11111"])
+    end
+  end
+
+  describe "admin variant form fields" do
+    it "applies variants_skus_text_for_form into variants" do
+      p = build(:product, sku: "s10000001", variants: [])
+      p.variants_skus_text_for_form = "s20000002\ns20000002"
+      p.valid?
+      expect(p.variants).to eq(%w[s20000002])
+    end
+
+    it "strips own sku from the list" do
+      p = build(:product, sku: "s10000001", variants: [])
+      p.variants_skus_text_for_form = "s10000001, s20000002"
+      p.valid?
+      expect(p.variants).to eq(%w[s20000002])
+    end
+
+    it "applies variants_payload_text_for_form as canonical JSON" do
+      p = build(:product, sku: "s10000001")
+      p.variants_payload_text_for_form = { "type" => "color", "data" => [] }.to_json
+      p.valid?
+      expect(JSON.parse(p.variants_payload)).to eq("type" => "color", "data" => [])
+    end
+
+    it "rejects invalid variants_payload JSON" do
+      p = build(:product, sku: "s10000001")
+      p.variants_payload_text_for_form = "{"
+      expect(p).not_to be_valid
+      expect(p.errors[:variants_payload].join).to include("JSON")
+    end
+  end
 end

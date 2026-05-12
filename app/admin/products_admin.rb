@@ -377,6 +377,76 @@ Trestle.resource(:products, model: Product) do
       end
     end
 
+    tab :variants, label: "Варианты" do
+      products_admin = Trestle.lookup(:products)
+
+      static_field :variant_group_preview, label: "Текущая группа в БД" do
+        peers = product.variant_products.order(:sku).to_a
+        if peers.size < 2
+          content_tag(:span, "Пока одна карточка (добавьте SKU соседей ниже или через парсер).", class: "text-muted")
+        else
+          content_tag(:ul, class: "mb-0") do
+            safe_join(
+              peers.map do |p|
+                label = p.sku.to_s
+                label += " — текущий" if p.id == product.id
+                content_tag(:li) do
+                  link_to(label, products_admin.path(:edit, id: p.id), target: "_blank", rel: "noopener")
+                end
+              end
+            )
+          end
+        end
+      end
+
+      text_field :variant_type,
+                 label: "Тип группы вариантов (variant_type)",
+                 placeholder: "color / size или пусто для авто",
+                 help: "Переопределяет авто-определение для API. Парсер иногда пишет несколько значений через запятую — поле можно править вручную."
+
+      form_group :variants_skus_text_for_form, label: "SKU соседних вариантов (колонка variants)" do
+        text_area :variants_skus_text_for_form,
+                  rows: 8,
+                  class: "form-control",
+                  style: "font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;",
+                  help: "Один SKU на строку (или через запятую / ;). Собственный SKU можно не указывать — он будет отфильтрован. Это связи «та же модель, другой цвет/размер»."
+      end
+
+      form_group :variants_payload_text_for_form, label: "variants_payload (JSON с витрины PL)" do
+        text_area :variants_payload_text_for_form,
+                  rows: 14,
+                  class: "form-control",
+                  style: "font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;",
+                  help: "Сырой JSON групп вариантов для фронта. Оставьте пустым, чтобы сбросить. Некорректный JSON не сохранится."
+      end
+
+      form_group :sync_variant_sibling_links, label: "Корректировка связей между карточками" do
+        default_checked = product.normalized_variant_skus.any?
+        safe_join([
+          hidden_field_tag("product[sync_variant_sibling_links]", "0", id: nil),
+          content_tag(:div, class: "form-check mb-2") do
+            check_box_tag(
+              "product[sync_variant_sibling_links]",
+              "1",
+              default_checked,
+              class: "form-check-input",
+              id: "product_sync_variant_sibling_links"
+            ) +
+              label_tag(
+                "product_sync_variant_sibling_links",
+                "После сохранения выровнять колонку variants у всех товаров из списка (взаимные ссылки)",
+                class: "form-check-label"
+              )
+          end,
+          content_tag(
+            :small,
+            "В группе каждая карточка в БД получит в variants остальные SKU из списка. Снимите галочку, если нужно изменить только эту строку без правок соседей.",
+            class: "form-text text-muted d-block"
+          )
+        ])
+      end
+    end
+
     tab :pricing, label: "Цена и наличие" do
       number_field :price, label: "Цена (PLN)"
       number_field :quantity, label: "Количество"
@@ -669,6 +739,7 @@ Trestle.resource(:products, model: Product) do
       :short_description, :short_description_ru, :materials, :materials_ru,
       :care_instructions, :care_instructions_ru,
       :included_products, :variant_type,
+      :variants_skus_text_for_form, :variants_payload_text_for_form, :sync_variant_sibling_links,
       :full_attributes_json_input,
       :full_attributes_api_override_json_input,
       category_ids: [],
