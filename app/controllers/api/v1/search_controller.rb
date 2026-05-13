@@ -9,8 +9,8 @@ module Api
         per_page = normalized_per_page
         first_page = page == 1
 
-        suggestions = first_page ? suggestions_for(query) : []
         popular_queries = first_page ? PopularSearchQuery.active.matching(query).ordered.limit(5) : []
+        suggestions = first_page ? suggestions_for(query, popular_queries: popular_queries) : []
 
         all_matching_products_scope = search_scope(query)
         paginated_products_scope = paginated_search_scope(all_matching_products_scope, query)
@@ -287,8 +287,19 @@ module Api
         aggregated.values
       end
 
-      def suggestions_for(query)
+      def suggestions_for(query, popular_queries: nil)
         return [] if query.blank?
+
+        popular_queries = Array(popular_queries)
+        normalized_query = query.downcase
+        query_suggestions = popular_queries.map(&:query)
+                                          .compact
+                                          .map(&:strip)
+                                          .reject(&:blank?)
+                                          .select { |entry| entry.downcase.include?(normalized_query) }
+
+        # Если уже набралось достаточно "поисковых связок", не смешиваем их с товарами.
+        return query_suggestions.uniq.first(5) if query_suggestions.size >= 5
 
         term = "%#{query}%"
         # Расширенный список аксессуаров и текстиля, которые нужно понизить в выдаче
@@ -303,7 +314,7 @@ module Api
         )
                           .limit(100)
 
-        suggestions = products.map do |p|
+        product_suggestions = products.map do |p|
           display_name = p.small_desc_name.presence || p.name.presence
           next if display_name.blank?
 
@@ -328,7 +339,7 @@ module Api
            .take(5)
            .map { |s| s[:name] }
 
-        return suggestions
+        (query_suggestions + product_suggestions).uniq.first(5)
       end
 
       def matching_categories(query)
