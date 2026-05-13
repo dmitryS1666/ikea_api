@@ -26,10 +26,7 @@ class EuropostOfficeHoursEnricher
 
   def self.merge_store(office, by_id, by_ops)
     oid = (office["WarehouseId"] || office[:WarehouseId]).to_s.presence
-    store = nil
-    if oid.present?
-      store = by_id[oid] || by_ops[oid]
-    end
+    store = oid.present? ? lookup_store(oid, by_id, by_ops) : nil
     return office unless store.is_a?(Hash)
 
     merged = office.is_a?(Hash) ? office.dup : office.to_h
@@ -48,7 +45,7 @@ class EuropostOfficeHoursEnricher
   private_class_method :merge_store
 
   def self.fetch_stores_indexes(type: nil)
-    list = EuropostApiService.external_stores(type: type)
+    list = EuropostApiService.external_stores_for_merge(type: type)
     return [{}, {}] unless list.is_a?(Array)
 
     by_id = {}
@@ -57,15 +54,36 @@ class EuropostOfficeHoursEnricher
       next unless row.is_a?(Hash)
 
       rid = row["id"] || row[:id]
-      by_id[rid.to_s] = row if rid.present?
+      if rid.present?
+        id_lookup_variants(rid.to_s).each { |k| by_id[k] ||= row }
+      end
 
       on = row["ops_number"] || row[:ops_number]
       next if on.blank?
 
-      key = on.to_s
-      by_ops[key] ||= row
+      id_lookup_variants(on.to_s).each { |k| by_ops[k] ||= row }
     end
     [by_id, by_ops]
   end
   private_class_method :fetch_stores_indexes
+
+  def self.lookup_store(oid, by_id, by_ops)
+    id_lookup_variants(oid).each do |k|
+      found = by_id[k] || by_ops[k]
+      return found if found
+    end
+    nil
+  end
+  private_class_method :lookup_store
+
+  def self.id_lookup_variants(raw)
+    s = raw.to_s.strip
+    return [] if s.blank?
+
+    stripped = s.sub(/\A0+/, "")
+    stripped = s if stripped.empty?
+
+    [s, stripped].uniq
+  end
+  private_class_method :id_lookup_variants
 end

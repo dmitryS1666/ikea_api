@@ -39,7 +39,7 @@ RSpec.describe EuropostOfficeHoursEnricher do
 
       prev = ENV["EUROPOST_API_TOKEN"]
       ENV["EUROPOST_API_TOKEN"] = "secret-token"
-      allow(EuropostApiService).to receive(:external_stores).with(type: 1).and_return([store])
+      allow(EuropostApiService).to receive(:external_stores_for_merge).with(type: 1).and_return([store])
 
       merged = described_class.enrich(offices, type: 1).first
 
@@ -66,10 +66,28 @@ RSpec.describe EuropostOfficeHoursEnricher do
 
       prev = ENV["EUROPOST_API_TOKEN"]
       ENV["EUROPOST_API_TOKEN"] = "secret-token"
-      allow(EuropostApiService).to receive(:external_stores).with(type: nil).and_return([store])
+      allow(EuropostApiService).to receive(:external_stores_for_merge).with(type: nil).and_return([store])
 
       merged = described_class.enrich(offices_ops, type: nil).first
       expect(merged["working_hours"]).to eq("08:00-20:00")
+    ensure
+      if prev
+        ENV["EUROPOST_API_TOKEN"] = prev
+      else
+        ENV.delete("EUROPOST_API_TOKEN")
+      end
+    end
+
+    it "matches WarehouseId with leading zeros to external store id" do
+      store = { "id" => "70130010", "working_hours" => "10-20" }
+      offices_lz = [{ "WarehouseId" => "070130010", "WarehouseName" => "X" }]
+
+      prev = ENV["EUROPOST_API_TOKEN"]
+      ENV["EUROPOST_API_TOKEN"] = "secret-token"
+      allow(EuropostApiService).to receive(:external_stores_for_merge).with(type: nil).and_return([store])
+
+      merged = described_class.enrich(offices_lz, type: nil).first
+      expect(merged["working_hours"]).to eq("10-20")
     ensure
       if prev
         ENV["EUROPOST_API_TOKEN"] = prev

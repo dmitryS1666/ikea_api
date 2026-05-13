@@ -103,6 +103,47 @@ class EuropostApiService
     []
   end
 
+  # Для сопоставления с Postal.OfficesOut: если type не задан, запрашиваем ОПС/склад/ОПС при складе отдельно
+  # и объединяем по id (часто один вызов без type не возвращает все точки).
+  STORE_TYPES_FOR_UNION = [1, 3, 4].freeze
+
+  def self.external_stores_for_merge(type: nil)
+    t = normalize_external_store_type(type)
+    return external_stores(type: t) if t
+
+    by_id = {}
+    STORE_TYPES_FOR_UNION.each do |store_type|
+      external_stores(type: store_type).each do |row|
+        next unless row.is_a?(Hash)
+
+        sid = row["id"] || row[:id]
+        next if sid.blank?
+
+        key = sid.to_s
+        existing = by_id[key]
+        by_id[key] = merge_richer_store_row(existing, row)
+      end
+    end
+    by_id.values
+  end
+
+  def self.merge_richer_store_row(existing, candidate)
+    return candidate if existing.nil?
+
+    store_enrichment_score(candidate) >= store_enrichment_score(existing) ? candidate : existing
+  end
+  private_class_method :merge_richer_store_row
+
+  def self.store_enrichment_score(row)
+    score = 0
+    sched = row["schedules"] || row[:schedules]
+    score += 4 if sched.is_a?(Array) && sched.any?
+    score += 2 if (row["working_hours"] || row[:working_hours]).to_s.strip.present?
+    score += 1 if (row["break_hours"] || row[:break_hours]).to_s.strip.present?
+    score
+  end
+  private_class_method :store_enrichment_score
+
   def self.offices_in(type_sender: nil)
     data = {}
     data["TypeSender"] = type_sender if type_sender

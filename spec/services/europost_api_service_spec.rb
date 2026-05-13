@@ -116,4 +116,46 @@ RSpec.describe EuropostApiService do
       expect(described_class.external_stores).to eq([{ "id" => 2 }])
     end
   end
+
+  describe ".external_stores_for_merge" do
+    around do |example|
+      previous = ENV["EUROPOST_API_TOKEN"]
+      ENV["EUROPOST_API_TOKEN"] = "test-store-token"
+      example.run
+    ensure
+      if previous
+        ENV["EUROPOST_API_TOKEN"] = previous
+      else
+        ENV.delete("EUROPOST_API_TOKEN")
+      end
+    end
+
+    it "loads types 1, 3, 4 and dedupes by id when type is omitted" do
+      stub_request(:get, %r{\Ahttps://api\.eurotorg\.by/api/external/stores\z})
+        .with(query: { "type" => "1" })
+        .to_return(status: 200, body: [{ "id" => 1, "working_hours" => "A" }].to_json, headers: { "Content-Type" => "application/json" })
+      stub_request(:get, %r{\Ahttps://api\.eurotorg\.by/api/external/stores\z})
+        .with(query: { "type" => "3" })
+        .to_return(status: 200, body: [{ "id" => 2 }].to_json, headers: { "Content-Type" => "application/json" })
+      stub_request(:get, %r{\Ahttps://api\.eurotorg\.by/api/external/stores\z})
+        .with(query: { "type" => "4" })
+        .to_return(status: 200, body: [{ "id" => 1, "schedules" => [{ "work_time" => "9-17" }] }].to_json, headers: { "Content-Type" => "application/json" })
+
+      list = described_class.external_stores_for_merge(type: nil)
+
+      expect(list.size).to eq(2)
+      one = list.find { |r| r["id"] == 1 }
+      expect(one["schedules"]).to be_present
+    end
+
+    it "uses a single typed request when type is set" do
+      stub_request(:get, %r{\Ahttps://api\.eurotorg\.by/api/external/stores\z})
+        .with(query: { "type" => "3" })
+        .to_return(status: 200, body: [{ "id" => 9 }].to_json, headers: { "Content-Type" => "application/json" })
+
+      list = described_class.external_stores_for_merge(type: "3")
+
+      expect(list).to eq([{ "id" => 9 }])
+    end
+  end
 end
