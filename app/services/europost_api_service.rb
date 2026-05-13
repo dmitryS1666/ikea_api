@@ -206,7 +206,7 @@ class EuropostApiService
     uri = URI(BASE_URL)
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = (uri.scheme == "https")
-    http.verify_mode = OpenSSL::SSL::VERIFY_PEER if http.use_ssl?
+    http.verify_mode = OpenSSL::SSL::VERIFY_PEER if uri.scheme == "https"
 
     req = Net::HTTP::Post.new(uri.request_uri)
     req["Content-Type"] = "application/json; charset=utf-8"
@@ -238,7 +238,7 @@ class EuropostApiService
   def self.extract_external_stores_array(parsed)
     case parsed
     when Array
-      parsed
+      return parsed
     when Hash
       %w[data stores results items offices rows Table].each do |key|
         v = parsed[key] || parsed[key.to_sym]
@@ -247,12 +247,13 @@ class EuropostApiService
 
       nested = parsed["data"] || parsed[:data]
       if nested.is_a?(Array)
-        nested
+        return nested
       elsif nested.is_a?(Hash)
         inner = nested["stores"] || nested[:stores] || nested["items"] || nested[:items]
         return inner if inner.is_a?(Array)
       end
     end
+
     []
   end
   private_class_method :extract_external_stores_array
@@ -264,7 +265,7 @@ class EuropostApiService
 
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = (uri.scheme == "https")
-    http.verify_mode = OpenSSL::SSL::VERIFY_PEER if http.use_ssl?
+    http.verify_mode = OpenSSL::SSL::VERIFY_PEER if uri.scheme == "https"
 
     req = Net::HTTP::Get.new(uri.request_uri)
     req["Accept"] = "application/json"
@@ -290,7 +291,7 @@ class EuropostApiService
     uri = URI.join("#{EXTERNAL_BASE_URL}/", path.sub(%r{\A/}, ""))
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = (uri.scheme == "https")
-    http.verify_mode = OpenSSL::SSL::VERIFY_PEER if http.use_ssl?
+    http.verify_mode = OpenSSL::SSL::VERIFY_PEER if uri.scheme == "https"
 
     req = Net::HTTP::Post.new(uri.request_uri)
     req["Content-Type"] = "application/json; charset=utf-8"

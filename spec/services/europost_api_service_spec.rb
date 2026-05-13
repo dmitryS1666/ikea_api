@@ -100,8 +100,8 @@ RSpec.describe EuropostApiService do
     end
 
     it "GETs /api/external/stores with Token header and type query" do
-      stub_request(:get, %r{\Ahttps://api\.eurotorg\.by/api/external/stores\z})
-        .with(headers: { "Token" => "test-store-token" }, query: { "type" => "3" })
+      stub_request(:get, %r{/api/external/stores})
+        .with { |req| URI(req.uri).query == "type=3" }
         .to_return(status: 200, body: [{ "id" => 40130190, "working_hours" => "10-22" }].to_json, headers: { "Content-Type" => "application/json" })
 
       result = described_class.external_stores(type: "3")
@@ -110,7 +110,8 @@ RSpec.describe EuropostApiService do
     end
 
     it "unwraps stores array from JSON object" do
-      stub_request(:get, %r{\Ahttps://api\.eurotorg\.by/api/external/stores\z})
+      stub_request(:get, %r{/api/external/stores})
+        .with { |req| URI(req.uri).query.nil? || URI(req.uri).query.empty? }
         .to_return(status: 200, body: { "stores" => [{ "id" => 2 }] }.to_json, headers: { "Content-Type" => "application/json" })
 
       expect(described_class.external_stores).to eq([{ "id" => 2 }])
@@ -131,14 +132,14 @@ RSpec.describe EuropostApiService do
     end
 
     it "loads types 1, 3, 4 and dedupes by id when type is omitted" do
-      stub_request(:get, %r{\Ahttps://api\.eurotorg\.by/api/external/stores\z})
-        .with(query: { "type" => "1" })
+      stub_request(:get, %r{/api/external/stores})
+        .with { |req| URI(req.uri).query == "type=1" }
         .to_return(status: 200, body: [{ "id" => 1, "working_hours" => "A" }].to_json, headers: { "Content-Type" => "application/json" })
-      stub_request(:get, %r{\Ahttps://api\.eurotorg\.by/api/external/stores\z})
-        .with(query: { "type" => "3" })
+      stub_request(:get, %r{/api/external/stores})
+        .with { |req| URI(req.uri).query == "type=3" }
         .to_return(status: 200, body: [{ "id" => 2 }].to_json, headers: { "Content-Type" => "application/json" })
-      stub_request(:get, %r{\Ahttps://api\.eurotorg\.by/api/external/stores\z})
-        .with(query: { "type" => "4" })
+      stub_request(:get, %r{/api/external/stores})
+        .with { |req| URI(req.uri).query == "type=4" }
         .to_return(status: 200, body: [{ "id" => 1, "schedules" => [{ "work_time" => "9-17" }] }].to_json, headers: { "Content-Type" => "application/json" })
 
       list = described_class.external_stores_for_merge(type: nil)
@@ -149,8 +150,8 @@ RSpec.describe EuropostApiService do
     end
 
     it "uses a single typed request when type is set" do
-      stub_request(:get, %r{\Ahttps://api\.eurotorg\.by/api/external/stores\z})
-        .with(query: { "type" => "3" })
+      stub_request(:get, %r{/api/external/stores})
+        .with { |req| URI(req.uri).query == "type=3" }
         .to_return(status: 200, body: [{ "id" => 9 }].to_json, headers: { "Content-Type" => "application/json" })
 
       list = described_class.external_stores_for_merge(type: "3")

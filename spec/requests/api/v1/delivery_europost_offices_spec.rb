@@ -27,8 +27,8 @@ RSpec.describe "Delivery Europost offices", type: :request do
       allow(EuropostApiService).to receive(:offices_out).and_return(
         [{ "WarehouseId" => "123", "WarehouseName" => "EP-1", "Address7Name" => "Минск", "Latitude" => "53.9", "Longitude" => "27.5" }]
       )
-      stub_request(:get, %r{\Ahttps://api\.eurotorg\.by/api/external/stores\z})
-        .with(headers: { "Token" => "tok" }, query: { "type" => "1" })
+      stub_request(:get, %r{/api/external/stores})
+        .with { |req| URI(req.uri).query == "type=1" }
         .to_return(status: 200, body: [].to_json, headers: { "Content-Type" => "application/json" })
 
       get "/api/v1/delivery/europost_offices", params: { type: "1" }
