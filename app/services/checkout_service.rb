@@ -580,7 +580,7 @@ class CheckoutService
 
   def self.find_europost_office(pickup_point_id)
     external_id = pickup_point_id.to_s
-    EuropostApiService.offices_out.find { |office| office["WarehouseId"].to_s == external_id }
+    DeliveryOptionsService.europost_offices.find { |office| office["WarehouseId"].to_s == external_id }
   rescue StandardError => e
     Rails.logger.error("[EUROPOST] checkout office lookup failed #{e.class}: #{e.message}")
     nil
@@ -595,8 +595,8 @@ class CheckoutService
       name: office["WarehouseName"],
       city: office["Address7Name"],
       address: europost_office_address(office),
-      working_hours: europost_office_working_hours(office)
-    }.compact
+      working_hours: EuropostWorkingHoursFormatter.summary_for_payload(office)
+    }.merge(EuropostWorkingHoursFormatter.structured_for_payload(office))
   end
 
   def self.europost_office_address(office)
@@ -608,11 +608,7 @@ class CheckoutService
   end
 
   def self.europost_office_working_hours(office)
-    info_texts = [office["Info1"], office["Info2"], office["Info3"]]
-      .map { |value| value.to_s.strip }
-      .reject(&:blank?)
-
-    info_texts.find { |text| text.match?(/режим\s*работы|hours|time/i) } || info_texts.first
+    EuropostWorkingHoursFormatter.summary_for_payload(office)
   end
 
   def self.delivery_prices_for(weight_kg:, delivery_type:)

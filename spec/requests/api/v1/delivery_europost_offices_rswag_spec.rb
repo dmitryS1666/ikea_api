@@ -9,6 +9,9 @@ RSpec.describe "Delivery Europost Offices API", type: :request do
       parameter name: :cart_id, in: :query, type: :integer, required: false,
                 description: "Если передан, ответ фильтруется по ВГХ корзины и содержит ETA/цены."
 
+      parameter name: :type, in: :query, type: :integer, required: false,
+                description: "Фильтр типа ПВЗ для GET /api/external/stores (1, 3, 4). Нужен EUROPOST_API_TOKEN."
+
       response "200", "successful" do
         schema type: :object, properties: {
           offices: {

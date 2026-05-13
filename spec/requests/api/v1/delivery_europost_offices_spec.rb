@@ -21,6 +21,28 @@ RSpec.describe "Delivery Europost offices", type: :request do
       expect(body["offices"].first).to have_key("external_id")
     end
 
+    it "requests external stores with type when EUROPOST_API_TOKEN is set" do
+      prev = ENV["EUROPOST_API_TOKEN"]
+      ENV["EUROPOST_API_TOKEN"] = "tok"
+      allow(EuropostApiService).to receive(:offices_out).and_return(
+        [{ "WarehouseId" => "123", "WarehouseName" => "EP-1", "Address7Name" => "Минск", "Latitude" => "53.9", "Longitude" => "27.5" }]
+      )
+      stub_request(:get, %r{\Ahttps://api\.eurotorg\.by/api/external/stores\z})
+        .with(headers: { "Token" => "tok" }, query: { "type" => "1" })
+        .to_return(status: 200, body: [].to_json, headers: { "Content-Type" => "application/json" })
+
+      get "/api/v1/delivery/europost_offices", params: { type: "1" }
+
+      expect(response).to have_http_status(:ok)
+      expect(WebMock).to have_requested(:get, %r{/api/external/stores}).with(query: { "type" => "1" })
+    ensure
+      if prev
+        ENV["EUROPOST_API_TOKEN"] = prev
+      else
+        ENV.delete("EUROPOST_API_TOKEN")
+      end
+    end
+
     it "filters out non-eligible pickup points when cart_id is provided" do
       cart = create(:cart)
       # `package_volume` is stored in liters.

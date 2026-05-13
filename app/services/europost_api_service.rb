@@ -86,6 +86,23 @@ class EuropostApiService
     table
   end
 
+  # GET /api/external/stores — список ПВЗ/ОПС (авторизация: Header Token).
+  # При отсутствии EUROPOST_API_TOKEN возвращает пустой массив (без сетевых вызовов).
+  def self.external_stores(type: nil)
+    token = ENV["EUROPOST_API_TOKEN"].to_s.strip
+    return [] if token.blank?
+
+    query = {}
+    t = normalize_external_store_type(type)
+    query["type"] = t if t
+
+    parsed = get_external_json_with_token!("/api/external/stores", query: query, token: token)
+    extract_external_stores_array(parsed)
+  rescue HttpError, ResponseError, JSON::ParserError => e
+    Rails.logger.error("[EUROPOST] external/stores failed #{e.class}: #{e.message}")
+    []
+  end
+
   def self.offices_in(type_sender: nil)
     data = {}
     data["TypeSender"] = type_sender if type_sender
@@ -161,6 +178,72 @@ class EuropostApiService
     JSON.parse(body)
   end
   private_class_method :post_json!
+
+  # Допустимые значения query `type` для GET /api/external/stores (1 — ОПС, 3 — склад, 4 — ОПС при складе).
+  def self.external_stores_type_param(value)
+    normalize_external_store_type(value)
+  end
+
+  def self.normalize_external_store_type(type)
+    v = type.to_s.strip
+    return nil if v.blank?
+
+    return v.to_i if %w[1 3 4].include?(v)
+
+    nil
+  end
+  private_class_method :normalize_external_store_type
+
+  def self.extract_external_stores_array(parsed)
+    case parsed
+    when Array
+      parsed
+    when Hash
+      %w[data stores results items offices rows Table].each do |key|
+        v = parsed[key] || parsed[key.to_sym]
+        return v if v.is_a?(Array)
+      end
+
+      nested = parsed["data"] || parsed[:data]
+      if nested.is_a?(Array)
+        nested
+      elsif nested.is_a?(Hash)
+        inner = nested["stores"] || nested[:stores] || nested["items"] || nested[:items]
+        return inner if inner.is_a?(Array)
+      end
+    end
+    []
+  end
+  private_class_method :extract_external_stores_array
+
+  def self.get_external_json_with_token!(path, query:, token:)
+    path_clean = path.sub(%r{\A/}, "")
+    uri = URI.join("#{EXTERNAL_BASE_URL}/", path_clean)
+    uri.query = URI.encode_www_form(query) if query.any?
+
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = (uri.scheme == "https")
+    http.verify_mode = OpenSSL::SSL::VERIFY_PEER if http.use_ssl?
+
+    req = Net::HTTP::Get.new(uri.request_uri)
+    req["Accept"] = "application/json"
+    req["Token"] = token
+
+    res = http.request(req)
+    body = res.body.to_s.force_encoding("UTF-8").sub("\xEF\xBB\xBF", "")
+
+    unless res.is_a?(Net::HTTPSuccess)
+      raise HttpError, "HTTP #{res.code}: #{body.presence || res.message}"
+    end
+
+    parsed = JSON.parse(body)
+    raise ResponseError, "Expected JSON array or object response, got: #{parsed.class}" unless parsed.is_a?(Hash) || parsed.is_a?(Array)
+
+    parsed
+  rescue JSON::ParserError => e
+    raise ResponseError, "Invalid JSON response: #{e.message}"
+  end
+  private_class_method :get_external_json_with_token!
 
   def self.post_external_json!(path, payload)
     uri = URI.join("#{EXTERNAL_BASE_URL}/", path.sub(%r{\A/}, ""))

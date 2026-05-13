@@ -140,7 +140,7 @@ module Api
           return render_filtered_europost_offices_for_request_context
         end
 
-        offices = EuropostApiService.offices_out
+        offices = DeliveryOptionsService.europost_offices(europost_store_type: europost_store_type_param)
         render json: {
           offices: offices.map { |office| europost_office_payload(office) }
         }
@@ -148,10 +148,14 @@ module Api
 
       private
 
+      def europost_store_type_param
+        EuropostApiService.external_stores_type_param(params[:type])
+      end
+
       def europost_office_payload(office)
         external_id = office["WarehouseId"].to_s
 
-        {
+        payload = {
           id: external_id,
           external_id: external_id,
           name: office["WarehouseName"],
@@ -165,6 +169,12 @@ module Api
           provider: "europost",
           max_weight_kg: DeliveryOptionsService.europost_office_weight_limit_kg(office)
         }
+        payload.merge!(EuropostWorkingHoursFormatter.structured_for_payload(office))
+        payload[:store_type] = office["store_type"] if office.key?("store_type")
+        payload[:ops_number] = office["ops_number"] if office.key?("ops_number")
+        payload[:ops_name] = office["ops_name"] if office.key?("ops_name")
+        payload[:is_large_weight_limit] = office["is_large_weight_limit"] if office.key?("is_large_weight_limit")
+        payload
       end
 
       def europost_address(office)
@@ -176,11 +186,7 @@ module Api
       end
 
       def europost_working_hours(office)
-        info_texts = [office['Info1'], office['Info2'], office['Info3']]
-          .map { |value| value.to_s.strip }
-          .reject(&:blank?)
-
-        info_texts.find { |text| text.match?(/режим\s*работы|hours|time/i) } || info_texts.first || ""
+        EuropostWorkingHoursFormatter.summary_for_payload(office)
       end
 
       def calculation_basis
@@ -241,7 +247,7 @@ module Api
       end
 
       def pickup_point_payload(point)
-        {
+        base = {
           id: point[:id],
           provider: point[:provider],
           name: point[:name],
@@ -253,11 +259,17 @@ module Api
           lon: point[:lon],
           priority: point[:priority]
         }
+        base.merge!(EuropostWorkingHoursFormatter.structured_for_payload(point.stringify_keys))
+        base[:store_type] = point[:store_type] if point.key?(:store_type)
+        base[:ops_number] = point[:ops_number] if point.key?(:ops_number)
+        base[:ops_name] = point[:ops_name] if point.key?(:ops_name)
+        base[:is_large_weight_limit] = point[:is_large_weight_limit] if point.key?(:is_large_weight_limit)
+        base
       end
 
       def europost_pickup_points
-        DeliveryOptionsService.europost_offices.map do |office|
-          {
+        DeliveryOptionsService.europost_offices(europost_store_type: europost_store_type_param).map do |office|
+          row = {
             id: office["WarehouseId"].to_s,
             provider: "europost",
             name: office["WarehouseName"],
@@ -269,6 +281,12 @@ module Api
             lon: office["Longitude"]&.to_f,
             priority: false
           }
+          row.merge!(EuropostWorkingHoursFormatter.structured_for_payload(office))
+          row[:store_type] = office["store_type"] if office.key?("store_type")
+          row[:ops_number] = office["ops_number"] if office.key?("ops_number")
+          row[:ops_name] = office["ops_name"] if office.key?("ops_name")
+          row[:is_large_weight_limit] = office["is_large_weight_limit"] if office.key?("is_large_weight_limit")
+          row
         end
       end
 
@@ -346,7 +364,7 @@ module Api
         eta = DeliveryEtaService.call(order_date: Date.current, with_storage: true)
         pricing = delivery_pricing_for_weight(cart_vgh[:weight_kg].to_f)
 
-        api_offices = DeliveryOptionsService.europost_offices
+        api_offices = DeliveryOptionsService.europost_offices(europost_store_type: europost_store_type_param)
         offices = api_offices.filter_map do |office|
           available_for_cart = cart_vgh[:eligible_for_europost] &&
                                DeliveryOptionsService.europost_office_supports_parcels?(office: office, parcels: parcels)

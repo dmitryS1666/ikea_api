@@ -1300,6 +1300,13 @@ paths:
       tags:
         - Delivery
       parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: integer
+            enum: [1, 3, 4]
+          description: "Фильтр типа ПВЗ для GET /api/external/stores Европочты (1 — ОПС, 3 — склад, 4 — ОПС при складе). Требуется EUROPOST_API_TOKEN."
         - name: cart_id
           in: query
           required: false
@@ -3941,7 +3948,27 @@ components:
         city: { type: string }
         address: { type: string }
         phone: { type: string }
-        working_hours: { type: string }
+        working_hours: { type: string, nullable: true }
+        schedules:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        break_hours: { type: string, nullable: true }
+        break:
+          type: object
+          nullable: true
+          additionalProperties: true
+        breaks:
+          type: array
+          nullable: true
+          items:
+            type: object
+            additionalProperties: true
+        store_type: { type: integer, nullable: true }
+        ops_number: { type: integer, nullable: true }
+        ops_name: { type: string, nullable: true }
+        is_large_weight_limit: { type: boolean, nullable: true }
         lat: { type: number }
         lon: { type: number }
         priority: { type: boolean }
@@ -3954,7 +3981,27 @@ components:
         city: { type: string, example: "Минск" }
         address: { type: string, example: "ул. Монтажников, 2" }
         phone: { type: string, nullable: true }
-        working_hours: { type: string }
+        working_hours: { type: string, nullable: true }
+        schedules:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        break_hours: { type: string, nullable: true }
+        break:
+          type: object
+          nullable: true
+          additionalProperties: true
+        breaks:
+          type: array
+          nullable: true
+          items:
+            type: object
+            additionalProperties: true
+        store_type: { type: integer, nullable: true }
+        ops_number: { type: integer, nullable: true }
+        ops_name: { type: string, nullable: true }
+        is_large_weight_limit: { type: boolean, nullable: true }
         lat: { type: string }
         lon: { type: string }
         provider: { type: string, example: "europost" }
@@ -3967,7 +4014,27 @@ components:
         external_id: { type: string, example: "12345" }
         city: { type: string, example: "Минск" }
         address: { type: string, example: "пр-т Пушкина, д. 28" }
-        working_hours: { type: string, example: "Пн-Вс 10:00-21:00" }
+        working_hours: { type: string, example: "Пн-Вс 10:00-21:00", nullable: true }
+        schedules:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        break_hours: { type: string, nullable: true }
+        break:
+          type: object
+          nullable: true
+          additionalProperties: true
+        breaks:
+          type: array
+          nullable: true
+          items:
+            type: object
+            additionalProperties: true
+        store_type: { type: integer, nullable: true }
+        ops_number: { type: integer, nullable: true }
+        ops_name: { type: string, nullable: true }
+        is_large_weight_limit: { type: boolean, nullable: true }
         lat: { type: number, example: 53.9123 }
         lng: { type: number, example: 27.4567 }
         available_for_cart: { type: boolean }

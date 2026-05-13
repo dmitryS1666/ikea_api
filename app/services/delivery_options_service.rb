@@ -59,8 +59,9 @@ class DeliveryOptionsService
     value.to_f.positive? ? value.to_f : nil
   end
 
-  def self.europost_offices
-    EuropostApiService.offices_out
+  def self.europost_offices(europost_store_type: nil)
+    offices = EuropostApiService.offices_out
+    EuropostOfficeHoursEnricher.enrich(offices, type: europost_store_type)
   rescue StandardError => e
     Rails.logger.error("[EUROPOST] offices availability failed #{e.class}: #{e.message}")
     []

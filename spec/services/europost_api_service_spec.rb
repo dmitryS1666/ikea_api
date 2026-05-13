@@ -85,4 +85,35 @@ RSpec.describe EuropostApiService do
       }.to raise_error(EuropostApiService::ValidationError, /expects Hash payload/)
     end
   end
+
+  describe ".external_stores" do
+    around do |example|
+      previous = ENV["EUROPOST_API_TOKEN"]
+      ENV["EUROPOST_API_TOKEN"] = "test-store-token"
+      example.run
+    ensure
+      if previous
+        ENV["EUROPOST_API_TOKEN"] = previous
+      else
+        ENV.delete("EUROPOST_API_TOKEN")
+      end
+    end
+
+    it "GETs /api/external/stores with Token header and type query" do
+      stub_request(:get, %r{\Ahttps://api\.eurotorg\.by/api/external/stores\z})
+        .with(headers: { "Token" => "test-store-token" }, query: { "type" => "3" })
+        .to_return(status: 200, body: [{ "id" => 40130190, "working_hours" => "10-22" }].to_json, headers: { "Content-Type" => "application/json" })
+
+      result = described_class.external_stores(type: "3")
+
+      expect(result).to eq([{ "id" => 40130190, "working_hours" => "10-22" }])
+    end
+
+    it "unwraps stores array from JSON object" do
+      stub_request(:get, %r{\Ahttps://api\.eurotorg\.by/api/external/stores\z})
+        .to_return(status: 200, body: { "stores" => [{ "id" => 2 }] }.to_json, headers: { "Content-Type" => "application/json" })
+
+      expect(described_class.external_stores).to eq([{ "id" => 2 }])
+    end
+  end
 end
