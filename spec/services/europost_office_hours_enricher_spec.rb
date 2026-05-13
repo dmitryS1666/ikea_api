@@ -54,5 +54,28 @@ RSpec.describe EuropostOfficeHoursEnricher do
         ENV.delete("EUROPOST_API_TOKEN")
       end
     end
+
+    it "merges by ops_number when WarehouseId matches ops_number, not id" do
+      store = {
+        "id" => 99_999_999,
+        "ops_number" => 70130010,
+        "working_hours" => "08:00-20:00",
+        "schedules" => []
+      }
+      offices_ops = [{ "WarehouseId" => "70130010", "WarehouseName" => "X", "Address7Name" => "M" }]
+
+      prev = ENV["EUROPOST_API_TOKEN"]
+      ENV["EUROPOST_API_TOKEN"] = "secret-token"
+      allow(EuropostApiService).to receive(:external_stores).with(type: nil).and_return([store])
+
+      merged = described_class.enrich(offices_ops, type: nil).first
+      expect(merged["working_hours"]).to eq("08:00-20:00")
+    ensure
+      if prev
+        ENV["EUROPOST_API_TOKEN"] = prev
+      else
+        ENV.delete("EUROPOST_API_TOKEN")
+      end
+    end
   end
 end
