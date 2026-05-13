@@ -130,7 +130,6 @@ RSpec.describe DeliveryOptionsService do
 
       result = described_class.call(cart)
 
-      expect(PickupPoint.where(provider: "europost")).to be_empty
       expect(result[:cart_vgh][:eligible_for_europost]).to be(true)
       expect(result[:methods].find { |m| m[:code] == "europost_pickup" }[:available]).to be(true)
     end

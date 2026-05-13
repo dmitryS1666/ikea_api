@@ -2,6 +2,7 @@ module Api
   module V1
     class DeliveryController < ApplicationController
       include CartResponseFormatter
+      DELIVERY_PROVIDERS = ["europost"].freeze
 
       # GET /api/v1/delivery/types
       # Returns delivery types + available pickup points.
@@ -12,7 +13,7 @@ module Api
             { key: DeliveryTypeNormalizer::COURIER, name: 'Курьер' },
             { key: DeliveryTypeNormalizer::IKEYA_DELIVERY, name: 'Доставка IKEYA' }
           ],
-          providers: PickupPoint::PROVIDERS
+          providers: DELIVERY_PROVIDERS
         }
       end
 
@@ -113,18 +114,17 @@ module Api
 
       # GET /api/v1/delivery/pickup_points
       def pickup_points
-        points = PickupPoint.active.ordered
-        render json: { pickup_points: points.map { |p| pickup_point_payload(p) } }
+        points = europost_pickup_points
+        points = filter_pickup_points_by_city(points, params[:city])
+        render json: { pickup_points: points.map { |point| pickup_point_payload(point) } }
       end
 
       # ... остальное без изменений ...
       def pickup_points_search
         q = params[:query].to_s.strip
-        points = PickupPoint.active.ordered
-        if q.present?
-          points = points.where('name ILIKE ? OR city ILIKE ? OR address ILIKE ?', "%#{q}%", "%#{q}%", "%#{q}%")
-        end
-        render json: { pickup_points: points.limit(50).map { |p| pickup_point_payload(p) } }
+        points = europost_pickup_points
+        points = filter_pickup_points_by_query(points, q) if q.present?
+        render json: { pickup_points: points.first(50).map { |point| pickup_point_payload(point) } }
       end
 
       def europost_offices
@@ -240,19 +240,52 @@ module Api
         payload
       end
 
-      def pickup_point_payload(p)
+      def pickup_point_payload(point)
         {
-          id: p.id,
-          provider: p.provider,
-          name: p.name,
-          city: p.city,
-          address: p.address,
-          phone: p.phone,
-          working_hours: p.working_hours,
-          lat: p.lat&.to_f,
-          lon: p.lon&.to_f,
-          priority: p.priority
+          id: point[:id],
+          provider: point[:provider],
+          name: point[:name],
+          city: point[:city],
+          address: point[:address],
+          phone: point[:phone],
+          working_hours: point[:working_hours],
+          lat: point[:lat],
+          lon: point[:lon],
+          priority: point[:priority]
         }
+      end
+
+      def europost_pickup_points
+        DeliveryOptionsService.europost_offices.map do |office|
+          {
+            id: office["WarehouseId"].to_s,
+            provider: "europost",
+            name: office["WarehouseName"],
+            city: office["Address7Name"],
+            address: europost_address(office),
+            phone: nil,
+            working_hours: europost_working_hours(office),
+            lat: office["Latitude"]&.to_f,
+            lon: office["Longitude"]&.to_f,
+            priority: false
+          }
+        end
+      end
+
+      def filter_pickup_points_by_city(points, city)
+        query = city.to_s.strip
+        return points if query.blank?
+
+        downcased_query = query.downcase
+        points.select { |point| point[:city].to_s.downcase.include?(downcased_query) }
+      end
+
+      def filter_pickup_points_by_query(points, query)
+        downcased_query = query.to_s.downcase
+        points.select do |point|
+          [point[:name], point[:city], point[:address]]
+            .any? { |value| value.to_s.downcase.include?(downcased_query) }
+        end
       end
 
       def cart_for_delivery_options
