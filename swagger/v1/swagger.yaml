@@ -3948,12 +3948,21 @@ components:
         city: { type: string }
         address: { type: string }
         phone: { type: string }
-        working_hours: { type: string, nullable: true }
+        working_hours:
+          type: string
+          nullable: true
+          description: "Для Европочты — режим на текущий календарный день (по schedules.iso_day_of_week); иначе агрегат из API."
         schedules:
           type: array
           items:
             type: object
             additionalProperties: true
+            properties:
+              weekday_short:
+                type: string
+                nullable: true
+                example: "чт"
+                description: "Краткий день недели (пн, вт, ср, чт, пт, сб, вск) по iso_day_of_week"
         break_hours: { type: string, nullable: true }
         break:
           type: object
@@ -3981,12 +3990,21 @@ components:
         city: { type: string, example: "Минск" }
         address: { type: string, example: "ул. Монтажников, 2" }
         phone: { type: string, nullable: true }
-        working_hours: { type: string, nullable: true }
+        working_hours:
+          type: string
+          nullable: true
+          description: "Режим на сегодня из schedules при наличии iso_day_of_week; иначе строка из API (working_hours + break_hours)."
         schedules:
           type: array
           items:
             type: object
             additionalProperties: true
+            properties:
+              weekday_short:
+                type: string
+                nullable: true
+                example: "чт"
+                description: "пн, вт, ср, чт, пт, сб, вск — по iso_day_of_week (ISO, пн=1 … вс=7)"
         break_hours: { type: string, nullable: true }
         break:
           type: object
@@ -4014,12 +4032,22 @@ components:
         external_id: { type: string, example: "12345" }
         city: { type: string, example: "Минск" }
         address: { type: string, example: "пр-т Пушкина, д. 28" }
-        working_hours: { type: string, example: "Пн-Вс 10:00-21:00", nullable: true }
+        working_hours:
+          type: string
+          example: "09:00-21:00, 14:00-15:00"
+          nullable: true
+          description: "Режим на сегодня из schedules; иначе агрегат из API."
         schedules:
           type: array
           items:
             type: object
             additionalProperties: true
+            properties:
+              weekday_short:
+                type: string
+                nullable: true
+                example: "чт"
+                description: "пн, вт, ср, чт, пт, сб, вск — по iso_day_of_week"
         break_hours: { type: string, nullable: true }
         break:
           type: object

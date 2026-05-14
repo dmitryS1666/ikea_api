@@ -175,8 +175,8 @@
 - query `type` (1, 3, 4) проксируется в Европочту как фильтр типа ПВЗ при запросе `stores`.
 
 В cart-aware ответе каждый ПВЗ содержит:
-- `working_hours` — краткая строка (приоритет: `schedules` → `working_hours`/`break_hours` → legacy Info).
-- `schedules`, `break_hours`, `break` / `breaks` — как пришло из REST `stores`, если токен задан и точка сопоставлена.
+- `working_hours` — одна строка на **текущий календарный день** приложения (`Time.zone` / `Date.today`): берётся слот из `schedules` с `iso_day_of_week` как у Ruby `Date#cwday` (пн=1 … вс=7); если на сегодня слота нет — строка `working_hours` + `break_hours` из ответа API; дальше legacy Info.
+- `schedules`, `break_hours`, `break` / `breaks` — как пришло из REST `stores`, плюс в каждом элементе `schedules` поле **`weekday_short`**: пн, вт, ср, чт, пт, сб, вск (по `iso_day_of_week`).
 - `id` / `external_id` — `WarehouseId` Европочты, его можно передавать как `pickup_point_id` в checkout.
 - `available_for_cart`
 - `delivery_date`
