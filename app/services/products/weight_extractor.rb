@@ -50,6 +50,24 @@ module Products
           from_total_weight(size)
       end
 
+      # Только упаковка: `packaging.details` и `packages` (без «Общий вес» и без колонки `products.weight`).
+      def extract_packaging_kg(source)
+        data = deep_stringify(source)
+        size = extract_size_block(data)
+        return nil unless size.is_a?(Hash)
+
+        from_packaging_details(size) || from_packages(size)
+      end
+
+      def packaging_weight_kg_for_product(product)
+        return nil unless product.is_a?(Product)
+
+        payload = ProductSerializer.customer_full_attributes_payload(product)
+        extract_packaging_kg(payload)
+      rescue StandardError
+        nil
+      end
+
       def parse_weight_to_kg(value, allow_unitless: false)
         return nil if value.blank?
 

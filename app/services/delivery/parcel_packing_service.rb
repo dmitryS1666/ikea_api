@@ -131,24 +131,7 @@ class Delivery
     end
 
     def self.safe_product_weight_kg(product)
-      weight = (product.weight.presence || product.net_weight)&.to_f
-      extracted_weight = extract_weight_from_customer_payload(product)
-
-      return extracted_weight if weight.to_f <= 0 && extracted_weight.present?
-
-      # Same data issue as in ProductSerializer: some imports stored grams as kg
-      # (e.g. 330 instead of 0.33), which blocks Europost for small goods.
-      if weight.to_f > 100 && extracted_weight.present? && extracted_weight < 100 && weight / extracted_weight > 10
-        return extracted_weight
-      end
-
-      weight
-    end
-
-    def self.extract_weight_from_customer_payload(product)
-      return nil unless defined?(Products::WeightExtractor)
-
-      Products::WeightExtractor.extract_kg(customer_full_attributes_payload(product))
+      Products::WeightExtractor.packaging_weight_kg_for_product(product)
     end
 
     def self.extract_sides_from_customer_payload(product)

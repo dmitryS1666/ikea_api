@@ -349,7 +349,7 @@ class Product < ApplicationRecord
             rec = sku_v.present? ? resolve_variant_record(sku_v, variants_by_sku) : nil
             rec = nil if rec.present? && !same_variant_sku?(rec.sku, sku_v)
         
-            w_kg = (rec || self).weight.to_f
+            w_kg = (rec || self).packaging_weight_kg.to_f
             d_pln = (rec || self).delivery_cost.to_f
         
             payload_images =
@@ -678,6 +678,11 @@ class Product < ApplicationRecord
   def calculate_delivery
     # Логика расчета доставки
     # Аналогично deliveryService.js
+  end
+
+  # Вес для цен, доставки и ВГХ: только из блока упаковки в `full_attributes` (см. Products::WeightExtractor).
+  def packaging_weight_kg
+    Products::WeightExtractor.packaging_weight_kg_for_product(self)
   end
 
   def enqueue_filters_reindex

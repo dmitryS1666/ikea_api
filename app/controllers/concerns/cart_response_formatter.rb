@@ -70,7 +70,7 @@ module CartResponseFormatter
       price_byn: format_byn(
         PriceCalculationService.product_price_byn(
           product.price,
-          weight_kg: product.weight.to_f,
+          weight_kg: product.packaging_weight_kg.to_f,
           delivery_pln: product.delivery_cost.to_f
         )
       ),
@@ -92,7 +92,7 @@ module CartResponseFormatter
         price_byn: format_byn(
           PriceCalculationService.product_price_byn(
             similar.price,
-            weight_kg: similar.weight.to_f,
+            weight_kg: similar.packaging_weight_kg.to_f,
             delivery_pln: similar.delivery_cost.to_f
           )
         ),
@@ -126,7 +126,7 @@ module CartResponseFormatter
       price_byn: format_byn(
         PriceCalculationService.product_price_byn(
           product.price,
-          weight_kg: product.weight.to_f,
+          weight_kg: product.packaging_weight_kg.to_f,
           delivery_pln: product.delivery_cost.to_f
         )
       ),

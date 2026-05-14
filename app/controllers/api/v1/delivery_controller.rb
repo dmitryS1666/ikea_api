@@ -186,7 +186,7 @@ module Api
           cart, = CartTokenResolver.call(request: request, params: { cart_token: params[:cart_token] })
           pricing = CartPricingService.call(cart: cart)
           subtotal = pricing[:totals][:items_total_byn].to_f
-          weight = cart.cart_items.joins(:product).sum('products.weight * cart_items.quantity').to_f
+          weight = cart.cart_items.includes(:product).sum { |ci| ci.product.packaging_weight_kg.to_f * ci.quantity }
           volume = cart.cart_items.joins(:product).sum('products.package_volume * cart_items.quantity').to_f
           [weight, volume, subtotal]
         else
@@ -205,7 +205,7 @@ module Api
             next unless p && qty.positive?
             
             pln_price = p.price.to_f
-            w = p.weight.to_f
+            w = p.packaging_weight_kg.to_f
             line_weight = w * qty
             line_total_pln = PriceCalculationService.line_total_pln(
               unit_price_zl: pln_price,

@@ -48,7 +48,7 @@ class CartPricingService
 
     items = items_relation.map do |item|
       product_pln = item.product&.price.to_f || 0
-      weight = item.product&.weight || 0
+      weight = item.product&.packaging_weight_kg.to_f
       quantity = item.quantity
       delivery_unit_pln = item.product&.delivery_cost.to_f
       line_weight = weight * quantity

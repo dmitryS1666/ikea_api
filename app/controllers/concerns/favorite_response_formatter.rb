@@ -35,7 +35,7 @@ module FavoriteResponseFormatter
       price_byn: format_byn(
         PriceCalculationService.product_price_byn(
           product.price,
-          weight_kg: product.weight.to_f,
+          weight_kg: product.packaging_weight_kg.to_f,
           delivery_pln: product.delivery_cost.to_f
         )
       ),

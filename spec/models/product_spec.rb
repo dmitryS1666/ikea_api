@@ -43,7 +43,7 @@ RSpec.describe Product, type: :model do
 
       expect(PriceCalculationService).to have_received(:product_price_byn).with(
         100.0,
-        hash_including(pln_rate: 3.5, buffer: 0, weight_kg: product.weight.to_f, delivery_pln: product.delivery_cost.to_f)
+        hash_including(pln_rate: 3.5, buffer: 0, weight_kg: product.packaging_weight_kg.to_f, delivery_pln: product.delivery_cost.to_f)
       )
     end
 

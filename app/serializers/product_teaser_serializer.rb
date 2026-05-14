@@ -98,7 +98,7 @@ class ProductTeaserSerializer
   
       price = PriceCalculationService.product_price_byn(
         pln_price,
-        weight_kg: product.weight.to_f,
+        weight_kg: product.packaging_weight_kg.to_f,
         delivery_pln: product.delivery_cost.to_f,
         pln_rate: pln_rate,
         buffer: buffer
@@ -127,27 +127,6 @@ class ProductTeaserSerializer
   end
 
   def self.safe_product_weight_kg(product)
-    weight = product.weight.to_f
-  
-    return nil if weight <= 0
-  
-    extracted_weight = nil
-  
-    if weight > 100 && product.full_attributes_ru.present?
-      extracted_weight = Products::WeightExtractor.extract_kg(product.full_attributes_ru)
-    end
-  
-    if extracted_weight.present?
-      # Явный кейс бага: в БД 330 кг, а из упаковки достается 0.49 кг.
-      if extracted_weight < 100 && weight / extracted_weight > 10
-        return extracted_weight
-      end
-  
-      # Если extractor подтверждает тяжелый вес — тоже возвращаем его.
-      return extracted_weight if (weight - extracted_weight).abs <= 0.01
-    end
-  
-    # Если данных упаковки нет, не ломаем реальные тяжелые товары.
-    weight
+    Products::WeightExtractor.packaging_weight_kg_for_product(product)
   end
 end

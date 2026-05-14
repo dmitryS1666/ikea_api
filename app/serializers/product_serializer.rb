@@ -8,7 +8,6 @@ class ProductSerializer
              :price_pln,
              :price_byn,
              :quantity,
-             :weight,
              :is_bestseller,
              :is_new,
              :is_recommended,
@@ -25,6 +24,15 @@ class ProductSerializer
   # Фронт по-прежнему читает ключ `name_ru`; значение — оригинальное полное имя с витрины (`name`).
   attribute :name_ru do |product|
     product.name.to_s.presence
+  end
+
+  # Вес упаковки (кг), только из `full_attributes`; без колонки `products.weight`.
+  attribute :weight do |product|
+    w = product.packaging_weight_kg
+    next nil if w.blank?
+
+    i = (w * 1000).round
+    (i % 1000).zero? ? (i / 1000).to_s : format("%.2f", w).sub(/0+\z/, "").sub(/\.\z/, "")
   end
 
   attribute :promo do |product, params|
@@ -90,7 +98,7 @@ class ProductSerializer
   
       price = PriceCalculationService.product_price_byn(
         pln_price,
-        weight_kg: product.weight.to_f,
+        weight_kg: product.packaging_weight_kg.to_f,
         delivery_pln: product.delivery_cost.to_f,
         pln_rate: pln_rate,
         buffer: buffer
@@ -301,28 +309,7 @@ class ProductSerializer
   end
 
   def self.safe_product_weight_kg(product)
-    weight = product.weight.to_f
-  
-    return nil if weight <= 0
-  
-    extracted_weight = nil
-  
-    if weight > 100 && product.full_attributes_ru.present?
-      extracted_weight = Products::WeightExtractor.extract_kg(product.full_attributes_ru)
-    end
-  
-    if extracted_weight.present?
-      # Явный кейс бага: в БД 330 кг, а из упаковки достается 0.49 кг.
-      if extracted_weight < 100 && weight / extracted_weight > 10
-        return extracted_weight
-      end
-  
-      # Если extractor подтверждает тяжелый вес — тоже возвращаем его.
-      return extracted_weight if (weight - extracted_weight).abs <= 0.01
-    end
-  
-    # Если данных упаковки нет, не ломаем реальные тяжелые товары.
-    weight
+    Products::WeightExtractor.packaging_weight_kg_for_product(product)
   end
 
   MEASUREMENT_KEYS = %w[length width height weight diameter].freeze
