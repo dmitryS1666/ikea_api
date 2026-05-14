@@ -505,6 +505,11 @@ class Product < ApplicationRecord
       .uniq
   end
 
+  # Вес для цен, доставки и ВГХ: только из блока упаковки в `full_attributes` (см. Products::WeightExtractor).
+  def packaging_weight_kg
+    Products::WeightExtractor.packaging_weight_kg_for_product(self)
+  end
+
   private
 
   def apply_variants_skus_from_form_text
@@ -678,11 +683,6 @@ class Product < ApplicationRecord
   def calculate_delivery
     # Логика расчета доставки
     # Аналогично deliveryService.js
-  end
-
-  # Вес для цен, доставки и ВГХ: только из блока упаковки в `full_attributes` (см. Products::WeightExtractor).
-  def packaging_weight_kg
-    Products::WeightExtractor.packaging_weight_kg_for_product(self)
   end
 
   def enqueue_filters_reindex
