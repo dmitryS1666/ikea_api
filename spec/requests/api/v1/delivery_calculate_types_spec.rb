@@ -53,6 +53,8 @@ RSpec.describe "Delivery calculate types", type: :request do
     expect(body["delivery"]["delivery_date"]).to be_present
     expect(body["delivery"]).to have_key("storage_until")
     expect(body["delivery"]["display"]).to be_a(Hash)
+    expect(body["delivery"]["pricing"]["source"]).to be_present
+    expect(body["delivery"]["pricing"]["internal"]).to be_a(Hash)
   end
 
   it "returns payload for courier" do
@@ -64,6 +66,34 @@ RSpec.describe "Delivery calculate types", type: :request do
     expect(body["delivery"]["available"]).to be(true)
     expect(body["delivery"]["delivery_price_byn"].to_f).to be > 0
     expect(body["delivery"]["total_delivery_price_byn"].to_f).to be > 0
+    expect(body["delivery"]["pricing"]["source"]).to eq("internal_weight_tables")
+  end
+
+  it "uses Europost API segment when postal quote succeeds" do
+    prev = ENV["EUROPOST_API_TOKEN"]
+    ENV["EUROPOST_API_TOKEN"] = "tok"
+    allow(EuropostPostalPaymentQuote).to receive(:call).and_return(
+      success: true,
+      reason: nil,
+      error: nil,
+      postal_total_byn: 7.25,
+      currency: "BYN",
+      payload: { "weight" => 20.0 },
+      raw: { "total" => 7.25 }
+    )
+
+    calculate(delivery_type: "europost_pickup")
+
+    expect(response).to have_http_status(:ok)
+    body = JSON.parse(response.body)
+    expect(body["delivery"]["pricing"]["source"]).to eq("europost_api")
+    expect(body["delivery"]["delivery_price_byn"]).to eq("7.25")
+  ensure
+    if prev
+      ENV["EUROPOST_API_TOKEN"] = prev
+    else
+      ENV.delete("EUROPOST_API_TOKEN")
+    end
   end
 
   it "returns payload for ikeya_delivery when europost is ineligible" do

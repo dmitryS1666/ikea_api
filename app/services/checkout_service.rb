@@ -55,7 +55,12 @@ class CheckoutService
         order_date: Date.current,
         with_storage: normalized_delivery_type == DeliveryTypeNormalizer::EUROPOST_PICKUP
       )
-      prices = delivery_prices_for(weight_kg: pricing[:totals][:total_weight_kg], delivery_type: normalized_delivery_type)
+      prices = delivery_prices_for(
+        weight_kg: pricing[:totals][:total_weight_kg],
+        delivery_type: normalized_delivery_type,
+        parcels: delivery_options[:parcels],
+        pickup_point_id: params[:pickup_point_id]
+      )
       total_amount = pricing[:totals][:total_byn].to_f - pricing[:totals][:delivery_total_byn].to_f + prices[:total_delivery_price_byn]
 
       delivery_snapshot = build_delivery_snapshot(
@@ -161,7 +166,12 @@ class CheckoutService
       order_date: Date.current,
       with_storage: normalized_delivery_type == DeliveryTypeNormalizer::EUROPOST_PICKUP
     )
-    prices = delivery_prices_for(weight_kg: pricing[:totals][:total_weight_kg], delivery_type: normalized_delivery_type)
+    prices = delivery_prices_for(
+      weight_kg: pricing[:totals][:total_weight_kg],
+      delivery_type: normalized_delivery_type,
+      parcels: delivery_options[:parcels],
+      pickup_point_id: merged[:pickup_point_id]
+    )
     total_amount = pricing[:totals][:total_byn].to_f - pricing[:totals][:delivery_total_byn].to_f + prices[:total_delivery_price_byn]
 
     delivery_snapshot = build_delivery_snapshot(
@@ -350,7 +360,12 @@ class CheckoutService
       order_date: Date.current,
       with_storage: normalized_delivery_type == DeliveryTypeNormalizer::EUROPOST_PICKUP
     )
-    prices = delivery_prices_for(weight_kg: pricing[:totals][:total_weight_kg], delivery_type: normalized_delivery_type)
+    prices = delivery_prices_for(
+      weight_kg: pricing[:totals][:total_weight_kg],
+      delivery_type: normalized_delivery_type,
+      parcels: delivery_options[:parcels],
+      pickup_point_id: params[:pickup_point_id]
+    )
     total_amount = pricing[:totals][:total_byn].to_f - pricing[:totals][:delivery_total_byn].to_f + prices[:total_delivery_price_byn]
 
     delivery_snapshot = build_delivery_snapshot(
@@ -612,25 +627,23 @@ class CheckoutService
     EuropostWorkingHoursFormatter.summary_for_payload(office)
   end
 
-  def self.delivery_prices_for(weight_kg:, delivery_type:)
+  def self.delivery_prices_for(weight_kg:, delivery_type:, parcels: nil, pickup_point_id: nil)
     pln_rate = ExchangeRate.fetch_or_create("PLN")&.rate_per_unit || 0
     buffer = PriceCalculationService.exchange_rate_buffer
     rate = pln_rate * buffer
 
-    poland_delivery_byn = (PolandDeliveryService.calculate(weight_kg) * rate).round(2)
-    belarus_delivery_byn = (BelarusDeliveryService.calculate(weight_kg) * rate).round(2)
-
-    delivery_price_byn =
-      if delivery_type == DeliveryTypeNormalizer::IKEYA_DELIVERY
-        0.0
-      else
-        poland_delivery_byn
-      end
+    fin = DeliveryCalculateFinance.call(
+      normalized_delivery_type: delivery_type,
+      weight_kg: weight_kg,
+      pln_rate_with_buffer: rate,
+      parcels: parcels,
+      pickup_point_id: pickup_point_id
+    )
 
     {
-      delivery_price_byn: delivery_price_byn.round(2),
-      delivery_to_belarus_price_byn: belarus_delivery_byn.round(2),
-      total_delivery_price_byn: (delivery_price_byn + belarus_delivery_byn).round(2)
+      delivery_price_byn: fin[:delivery_price_byn].round(2),
+      delivery_to_belarus_price_byn: fin[:delivery_to_belarus_price_byn].round(2),
+      total_delivery_price_byn: fin[:total_delivery_price_byn].round(2)
     }
   end
 

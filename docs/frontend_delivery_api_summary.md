@@ -11,6 +11,7 @@
 - Добавлены сохраненные ПВЗ пользователя:
   - `GET/POST/DELETE /api/v1/account/pickup_points`.
 - `POST /api/v1/delivery/calculate` теперь отдает дату доставки, хранение, цены и `display` блок.
+- В ответе `delivery` добавлено поле **`pricing`**: `source` (откуда взята сумма сегмента «почта/Польша»), блок `internal` (таблицы `PolandDeliveryService` + `BelarusDeliveryService`) и при попытке расчёта Европочты — `europost` (успех/ошибка, `postal_total_byn`, `request_payload`). Для `europost_pickup` при заданном `EUROPOST_API_TOKEN` сегмент `delivery_price_byn` берётся из **`POST /api/external/postal/payment/calculate`**, при ошибке API или без токена — внутренний тариф Польши (fallback).
 - `POST /api/v1/checkout` сохраняет расширенный delivery snapshot в `order.address_json` (старые ключи сохранены).
 - `autolight` деактивирован/удален из активных API (routes/controller/swagger/providers).
 - Legacy-read для старых заказов сохранен: сериализация заказа не падает, даже если в исторических данных встречаются старые значения.
@@ -19,7 +20,7 @@
 
 | delivery_type | Название | Когда доступен | Что передавать |
 |---|---|---|---|
-| `europost_pickup` | ПВЗ Европочты | Когда корзина проходит ВГХ-проверку и есть подходящие офисы из API Европочты | В `checkout`: `pickup_point_id` (`WarehouseId`) или `pickup_point` payload |
+| `europost_pickup` | ПВЗ Европочты | Когда корзина проходит **ВГХ-посылки** (`ParcelPackingService`); список подходящих ПВЗ — отдельно `GET .../europost_offices` с `cart_id`/`cart_token` | В `checkout`: `pickup_point_id` (`WarehouseId`) или `pickup_point` payload |
 | `courier` | Курьер | Когда корзина проходит ВГХ-проверку | В `checkout`: `delivery_address_id` или `address` payload |
 | `ikeya_delivery` | Доставка IKEYA | Когда корзина **не** проходит ВГХ-проверку (как fallback) | В `checkout`: `delivery_address_id` или `address` payload |
 | `pickup` | Legacy alias | Поддерживается для backward compatibility | Нормализуется backend в `europost_pickup` |

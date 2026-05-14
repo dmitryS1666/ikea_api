@@ -4,12 +4,6 @@ RSpec.describe DeliveryOptionsService do
   describe ".call" do
     let(:cart) { create(:cart) }
 
-    before do
-      allow(EuropostApiService).to receive(:offices_out).and_return(
-        [{ "WarehouseId" => "70130010", "WarehouseWeightLimit" => "50" }]
-      )
-    end
-
     it "enables europost_pickup and courier when cart passes VGH" do
       product = create(
         :product,

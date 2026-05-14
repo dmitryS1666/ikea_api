@@ -1396,7 +1396,38 @@ paths:
                     type: object
                     properties:
                       type: { type: string }
-                      base_cost_byn: { type: string }
+                      base_cost_byn: { type: string, description: "Сумма внутренних таблиц PL→BY (PolandDelivery + BelarusDelivery) в BYN." }
+                      pricing:
+                        type: object
+                        description: "Источник цены и разбивка; для europost_pickup сегмент почты может браться из API Европочты."
+                        properties:
+                          source:
+                            type: string
+                            enum:
+                              - europost_api
+                              - internal_weight_tables
+                              - internal_ikeya_poland_zero
+                              - internal_europost_token_missing
+                              - internal_europost_fallback
+                          internal:
+                            type: object
+                            properties:
+                              poland_delivery_byn: { type: string }
+                              belarus_delivery_byn: { type: string }
+                              total_delivery_byn: { type: string }
+                          europost:
+                            type: object
+                            nullable: true
+                            properties:
+                              success: { type: boolean }
+                              reason: { type: string, nullable: true }
+                              error: { type: string, nullable: true }
+                              postal_total_byn: { type: string, nullable: true }
+                              currency: { type: string, nullable: true }
+                              request_payload:
+                                type: object
+                                additionalProperties: true
+                                nullable: true
                       free_delivery_eligible: { type: boolean }
                   pickup_point:
                     allOf:

@@ -28,15 +28,14 @@ class DeliveryOptionsService
     }
   end
 
+  # Только ВГХ/лимиты посылок (без запроса списка ПВЗ). Совпадение корзины с конкретными ПВЗ
+  # (лимит веса пункта и т.д.) делается в GET delivery/europost_offices с контекстом корзины.
   def self.europost_cart_eligibility(parcel_result:)
-    return { eligible: false, reason: normalize_ineligible_reason(parcel_result[:ineligible_reason]) } unless parcel_result[:eligible_for_europost]
-
-    offices = europost_offices
-    return { eligible: false, reason: "europost_pickup_points_unavailable" } if offices.empty?
-
-    eligible = offices.any? { |office| europost_office_supports_parcels?(office: office, parcels: parcel_result[:parcels]) }
-
-    eligible ? { eligible: true, reason: nil } : { eligible: false, reason: "europost_pickup_points_constraints_failed" }
+    if parcel_result[:eligible_for_europost]
+      { eligible: true, reason: nil }
+    else
+      { eligible: false, reason: normalize_ineligible_reason(parcel_result[:ineligible_reason]) }
+    end
   end
 
   def self.normalize_ineligible_reason(reason)

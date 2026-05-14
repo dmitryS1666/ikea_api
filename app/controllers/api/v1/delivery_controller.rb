@@ -5,7 +5,6 @@ module Api
       DELIVERY_PROVIDERS = ["europost"].freeze
 
       # GET /api/v1/delivery/types
-      # Returns delivery types + available pickup points.
       def types
         render json: {
           types: [
@@ -56,22 +55,13 @@ module Api
         buffer = PriceCalculationService.exchange_rate_buffer
         pln_rate_with_buffer = pln_rate * buffer
 
-        poland_delivery_pln = PolandDeliveryService.calculate(weight_kg)
-        belarus_delivery_pln = BelarusDeliveryService.calculate(weight_kg)
-        
-        total_delivery_pln = poland_delivery_pln + belarus_delivery_pln
-        total_delivery_byn = (total_delivery_pln * pln_rate_with_buffer).round(2)
-        poland_delivery_byn = (poland_delivery_pln * pln_rate_with_buffer).round(2)
-        belarus_delivery_byn = (belarus_delivery_pln * pln_rate_with_buffer).round(2)
-
-        delivery_price_byn =
-          if normalized_delivery_type == DeliveryTypeNormalizer::IKEYA_DELIVERY
-            0.0
-          else
-            poland_delivery_byn
-          end
-        delivery_to_belarus_price_byn = belarus_delivery_byn
-        total_delivery_price_byn = (delivery_price_byn + delivery_to_belarus_price_byn).round(2)
+        finance = DeliveryCalculateFinance.call(
+          normalized_delivery_type: normalized_delivery_type,
+          weight_kg: weight_kg,
+          pln_rate_with_buffer: pln_rate_with_buffer,
+          parcels: options[:parcels],
+          pickup_point_id: params[:pickup_point_id]
+        )
 
         rules = CartRulesService.call(subtotal_new_byn: subtotal_byn)
 
@@ -88,9 +78,9 @@ module Api
               delivery_date: eta[:delivery_date],
               storage_until: eta[:storage_until]
             },
-            base_cost_byn: sprintf('%.2f', total_delivery_byn),
-            poland_delivery_byn: sprintf('%.2f', poland_delivery_byn),
-            belarus_delivery_byn: sprintf('%.2f', belarus_delivery_byn),
+            base_cost_byn: sprintf('%.2f', finance[:base_cost_byn]),
+            poland_delivery_byn: sprintf('%.2f', finance[:poland_delivery_byn]),
+            belarus_delivery_byn: sprintf('%.2f', finance[:belarus_delivery_byn]),
             free_delivery_threshold_byn: sprintf('%.2f', rules[:rules][:free_delivery_threshold_byn]),
             free_delivery_eligible: subtotal_byn >= rules[:rules][:free_delivery_threshold_byn],
             free_delivery_missing_byn: sprintf('%.2f', rules[:flags][:free_delivery_missing_byn]),
@@ -99,13 +89,14 @@ module Api
             available: selected_method[:available],
             delivery_date: eta[:delivery_date],
             storage_until: eta[:storage_until],
-            delivery_price_byn: sprintf('%.2f', delivery_price_byn),
-            delivery_to_belarus_price_byn: sprintf('%.2f', delivery_to_belarus_price_byn),
-            total_delivery_price_byn: sprintf('%.2f', total_delivery_price_byn),
+            delivery_price_byn: sprintf('%.2f', finance[:delivery_price_byn]),
+            delivery_to_belarus_price_byn: sprintf('%.2f', finance[:delivery_to_belarus_price_byn]),
+            total_delivery_price_byn: sprintf('%.2f', finance[:total_delivery_price_byn]),
+            pricing: delivery_calculate_pricing_json(finance),
             display: {
               title: "Доставка",
               subtitle: normalized_delivery_type,
-              total_delivery_price_byn: sprintf('%.2f', total_delivery_price_byn)
+              total_delivery_price_byn: sprintf('%.2f', finance[:total_delivery_price_byn])
             }
           },
           pickup_point: pp_eval
@@ -367,7 +358,16 @@ module Api
         cart_vgh = options[:cart_vgh]
         parcels = options[:parcels]
         eta = DeliveryEtaService.call(order_date: Date.current, with_storage: true)
-        pricing = delivery_pricing_for_weight(cart_vgh[:weight_kg].to_f)
+        pln_rate = ExchangeRate.fetch_or_create("PLN")&.rate_per_unit || 0
+        buffer = PriceCalculationService.exchange_rate_buffer
+        pln_rate_with_buffer = pln_rate * buffer
+        finance = DeliveryCalculateFinance.call(
+          normalized_delivery_type: DeliveryTypeNormalizer::EUROPOST_PICKUP,
+          weight_kg: cart_vgh[:weight_kg].to_f,
+          pln_rate_with_buffer: pln_rate_with_buffer,
+          parcels: parcels,
+          pickup_point_id: nil
+        )
 
         api_offices = DeliveryOptionsService.europost_offices(europost_store_type: europost_store_type_param)
         offices = api_offices.filter_map do |office|
@@ -379,9 +379,9 @@ module Api
             available_for_cart: true,
             delivery_date: eta[:delivery_date],
             storage_until: eta[:storage_until],
-            delivery_price_byn: sprintf("%.2f", pricing[:delivery_price_byn]),
-            delivery_to_belarus_price_byn: sprintf("%.2f", pricing[:delivery_to_belarus_price_byn]),
-            total_delivery_price_byn: sprintf("%.2f", pricing[:total_delivery_price_byn])
+            delivery_price_byn: sprintf("%.2f", finance[:delivery_price_byn]),
+            delivery_to_belarus_price_byn: sprintf("%.2f", finance[:delivery_to_belarus_price_byn]),
+            total_delivery_price_byn: sprintf("%.2f", finance[:total_delivery_price_byn])
           )
         end
 
@@ -392,21 +392,28 @@ module Api
         params[:cart_token].present? || params[:items].present?
       end
 
-      def delivery_pricing_for_weight(weight_kg)
-        pln_rate = ExchangeRate.fetch_or_create("PLN")&.rate_per_unit || 0
-        buffer = PriceCalculationService.exchange_rate_buffer
-        pln_rate_with_buffer = pln_rate * buffer
-
-        poland_delivery_pln = PolandDeliveryService.calculate(weight_kg)
-        belarus_delivery_pln = BelarusDeliveryService.calculate(weight_kg)
-
-        delivery_price_byn = (poland_delivery_pln * pln_rate_with_buffer).round(2)
-        delivery_to_belarus_price_byn = (belarus_delivery_pln * pln_rate_with_buffer).round(2)
+      def delivery_calculate_pricing_json(finance)
+        eq = finance[:europost_quote]
+        europost =
+          if eq.is_a?(Hash)
+            {
+              success: eq[:success],
+              reason: eq[:reason],
+              error: eq[:error],
+              postal_total_byn: eq[:postal_total_byn]&.then { |v| sprintf("%.2f", v.to_f) },
+              currency: eq[:currency],
+              request_payload: eq[:payload]
+            }.compact
+          end
 
         {
-          delivery_price_byn: delivery_price_byn,
-          delivery_to_belarus_price_byn: delivery_to_belarus_price_byn,
-          total_delivery_price_byn: (delivery_price_byn + delivery_to_belarus_price_byn).round(2)
+          source: finance[:pricing_source],
+          internal: {
+            poland_delivery_byn: sprintf("%.2f", finance[:poland_delivery_byn]),
+            belarus_delivery_byn: sprintf("%.2f", finance[:belarus_delivery_byn]),
+            total_delivery_byn: sprintf("%.2f", finance[:total_internal_byn])
+          },
+          europost: europost
         }
       end
     end
