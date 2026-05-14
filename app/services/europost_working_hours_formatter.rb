@@ -43,6 +43,8 @@ class EuropostWorkingHoursFormatter
     elsif br.is_a?(Array)
       out[:breaks] = br
     end
+    wh = (office["working_hours"] || office[:working_hours]).to_s.strip
+    out[:working_hours] = wh if wh.present?
     out
   end
 

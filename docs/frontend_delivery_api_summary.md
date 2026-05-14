@@ -167,12 +167,16 @@
 - Auth: не обязателен.
 - Query:
   - `cart_id` (опционально)
+  - `type` (опционально, 1 / 3 / 4) — тип точки для REST `stores`
 
 Поведение:
-- без `cart_id`: legacy-режим, данные напрямую из `EuropostApiService.offices_out`.
-- с `cart_id`: данные берутся напрямую из `EuropostApiService.offices_out` и фильтруются по ВГХ корзины/лимитам отделения.
+- без `cart_id`: список из `EuropostApiService.offices_out` (legacy JSON API), дополненный режимом работы из REST `GET /api/external/stores` при заданном `EUROPOST_API_TOKEN` (база `EUROPOST_API_BASE_URL`, по умолчанию `https://api-kassa.evropochta.by`).
+- с `cart_id`: те же источники, ответ фильтруется по ВГХ корзины/лимитам отделения.
+- query `type` (1, 3, 4) проксируется в Европочту как фильтр типа ПВЗ при запросе `stores`.
 
 В cart-aware ответе каждый ПВЗ содержит:
+- `working_hours` — краткая строка (приоритет: `schedules` → `working_hours`/`break_hours` → legacy Info).
+- `schedules`, `break_hours`, `break` / `breaks` — как пришло из REST `stores`, если токен задан и точка сопоставлена.
 - `id` / `external_id` — `WarehouseId` Европочты, его можно передавать как `pickup_point_id` в checkout.
 - `available_for_cart`
 - `delivery_date`

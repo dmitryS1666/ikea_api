@@ -588,15 +588,16 @@ class CheckoutService
 
   def self.europost_pickup_snapshot(office)
     external_id = office["WarehouseId"].to_s
+    summary = EuropostWorkingHoursFormatter.summary_for_payload(office)
+    structured = EuropostWorkingHoursFormatter.structured_for_payload(office)
 
     {
       id: external_id,
       external_id: external_id,
       name: office["WarehouseName"],
       city: office["Address7Name"],
-      address: europost_office_address(office),
-      working_hours: EuropostWorkingHoursFormatter.summary_for_payload(office)
-    }.merge(EuropostWorkingHoursFormatter.structured_for_payload(office))
+      address: europost_office_address(office)
+    }.merge(structured).merge(working_hours: summary)
   end
 
   def self.europost_office_address(office)

@@ -154,6 +154,8 @@ module Api
 
       def europost_office_payload(office)
         external_id = office["WarehouseId"].to_s
+        summary = europost_working_hours(office)
+        structured = EuropostWorkingHoursFormatter.structured_for_payload(office)
 
         payload = {
           id: external_id,
@@ -162,14 +164,13 @@ module Api
           city: office["Address7Name"],
           address: europost_address(office),
           phone: nil,
-          working_hours: europost_working_hours(office),
           lat: office["Latitude"],
           lon: office["Longitude"],
           lng: office["Longitude"],
           provider: "europost",
           max_weight_kg: DeliveryOptionsService.europost_office_weight_limit_kg(office)
-        }
-        payload.merge!(EuropostWorkingHoursFormatter.structured_for_payload(office))
+        }.merge(structured).merge(working_hours: summary)
+
         payload[:store_type] = office["store_type"] if office.key?("store_type")
         payload[:ops_number] = office["ops_number"] if office.key?("ops_number")
         payload[:ops_name] = office["ops_name"] if office.key?("ops_name")
@@ -247,6 +248,9 @@ module Api
       end
 
       def pickup_point_payload(point)
+        summary = point[:working_hours]
+        structured = EuropostWorkingHoursFormatter.structured_for_payload(point.stringify_keys)
+
         base = {
           id: point[:id],
           provider: point[:provider],
@@ -254,12 +258,11 @@ module Api
           city: point[:city],
           address: point[:address],
           phone: point[:phone],
-          working_hours: point[:working_hours],
           lat: point[:lat],
           lon: point[:lon],
           priority: point[:priority]
-        }
-        base.merge!(EuropostWorkingHoursFormatter.structured_for_payload(point.stringify_keys))
+        }.merge(structured).merge(working_hours: summary)
+
         base[:store_type] = point[:store_type] if point.key?(:store_type)
         base[:ops_number] = point[:ops_number] if point.key?(:ops_number)
         base[:ops_name] = point[:ops_name] if point.key?(:ops_name)
@@ -269,6 +272,9 @@ module Api
 
       def europost_pickup_points
         DeliveryOptionsService.europost_offices(europost_store_type: europost_store_type_param).map do |office|
+          summary = europost_working_hours(office)
+          structured = EuropostWorkingHoursFormatter.structured_for_payload(office)
+
           row = {
             id: office["WarehouseId"].to_s,
             provider: "europost",
@@ -276,12 +282,11 @@ module Api
             city: office["Address7Name"],
             address: europost_address(office),
             phone: nil,
-            working_hours: europost_working_hours(office),
             lat: office["Latitude"]&.to_f,
             lon: office["Longitude"]&.to_f,
             priority: false
-          }
-          row.merge!(EuropostWorkingHoursFormatter.structured_for_payload(office))
+          }.merge(structured).merge(working_hours: summary)
+
           row[:store_type] = office["store_type"] if office.key?("store_type")
           row[:ops_number] = office["ops_number"] if office.key?("ops_number")
           row[:ops_name] = office["ops_name"] if office.key?("ops_name")

@@ -149,6 +149,16 @@ SENDPULSE_ADMIN_NOTIFY_EMAIL=
 SENDPULSE_ORDER_CREATED_TEMPLATE_ID=
 SENDPULSE_ORDER_STATUS_TEMPLATE_ID=
 SENDPULSE_PASSWORD_RESET_TEMPLATE_ID=
+
+# Европочта: REST v1.8.0 (ПВЗ / postal) — только https://api-kassa.evropochta.by; не использовать api.eurotorg.by для REST
+EUROPOST_API_BASE_URL=https://api-kassa.evropochta.by
+EUROPOST_API_TOKEN=replace_me
+
+# Европочта: legacy JSON endpoint (GetJWT, Postal.OfficesOut/Tracking и т.д.) — отдельно от REST base
+# EUROPOST_BASE_URL=https://api.eurotorg.by:10352/Json
+# EUROPOST_SERVICE_NUMBER=...
+# EUROPOST_LOGIN=...
+# EUROPOST_PASSWORD=...
 ```
 
 Генерация JWT_SECRET:
@@ -185,6 +195,11 @@ rails server
 | `SENDPULSE_ORDER_CREATED_TEMPLATE_ID` | Template ID для письма о создании заказа | Нет |
 | `SENDPULSE_ORDER_STATUS_TEMPLATE_ID` | Template ID для письма о смене статуса | Нет |
 | `SENDPULSE_PASSWORD_RESET_TEMPLATE_ID` | Template ID для reset password | Нет |
+| `EUROPOST_API_BASE_URL` | Базовый URL REST API Европочты v1.8.0 (без завершающего `/`). По умолчанию: `https://api-kassa.evropochta.by` | Нет |
+| `EUROPOST_API_TOKEN` | Заголовок `Token` для REST-вызовов (`/api/external/...`). Не логируйте целиком | Нет (без него список `stores` не подтягивается) |
+| `EUROPOST_HTTP_OPEN_TIMEOUT` / `EUROPOST_HTTP_READ_TIMEOUT` | Таймауты HTTP для REST (сек). Fallback: `EUROPOST_OPEN_TIMEOUT`, `EUROPOST_READ_TIMEOUT` | Нет |
+| `EUROPOST_BASE_URL` | Legacy JSON-RPC URL (Postal.OfficesOut и т.д.), не путать с REST base | Да, если используется трекинг/офисы legacy |
+| `EUROPOST_SERVICE_NUMBER`, `EUROPOST_LOGIN`, `EUROPOST_PASSWORD` | Учётные данные legacy JSON API | Да при использовании legacy методов |
 
 ### База данных
 

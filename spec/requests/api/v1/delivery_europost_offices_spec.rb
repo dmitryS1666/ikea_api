@@ -3,6 +3,9 @@ require "rails_helper"
 RSpec.describe "Delivery Europost offices", type: :request do
   describe "GET /api/v1/delivery/europost_offices" do
     before do
+      # Avoid real HTTP when EUROPOST_API_TOKEN is set in developer .env
+      stub_request(:get, %r{\Ahttps://api-kassa\.evropochta\.by/api/external/stores})
+        .to_return(status: 200, body: [].to_json, headers: { "Content-Type" => "application/json" })
       allow(ExchangeRate).to receive(:fetch_or_create).and_return(double(rate_per_unit: 3.0))
       allow(PriceCalculationService).to receive(:exchange_rate_buffer).and_return(1.0)
     end

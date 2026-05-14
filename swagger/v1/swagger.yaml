@@ -1306,7 +1306,7 @@ paths:
           schema:
             type: integer
             enum: [1, 3, 4]
-          description: "Фильтр типа ПВЗ для GET /api/external/stores Европочты (1 — ОПС, 3 — склад, 4 — ОПС при складе). Требуется EUROPOST_API_TOKEN."
+          description: "Фильтр типа ПВЗ для GET https://api-kassa.evropochta.by/api/external/stores (1 — ОПС, 3 — склад, 4 — ОПС при складе). Нужны EUROPOST_API_TOKEN и корректный EUROPOST_API_BASE_URL (по умолчанию https://api-kassa.evropochta.by)."
         - name: cart_id
           in: query
           required: false

@@ -5,13 +5,17 @@ require "json"
 require "openssl"
 
 class EuropostApiService
+  # Legacy JSON-RPC-style endpoint (GetJWT, Postal.*). Not the REST v1.8.0 base URL.
   BASE_URL = ENV.fetch("EUROPOST_BASE_URL", "https://api.eurotorg.by:10352/Json")
-  EXTERNAL_BASE_URL = ENV.fetch("EUROPOST_EXTERNAL_BASE_URL", "https://api.eurotorg.by")
+
+  DEFAULT_REST_API_BASE_URL = "https://api-kassa.evropochta.by"
 
   class Error < StandardError; end
   class ValidationError < Error; end
   class HttpError < Error; end
+  class UnauthorizedError < HttpError; end
   class ResponseError < Error; end
+  class NonJsonResponseError < ResponseError; end
 
   def self.get_jwt!
     payload = {
@@ -98,7 +102,10 @@ class EuropostApiService
 
     parsed = get_external_json_with_token!("/api/external/stores", query: query, token: token)
     extract_external_stores_array(parsed)
-  rescue HttpError, ResponseError, JSON::ParserError => e
+  rescue UnauthorizedError => e
+    Rails.logger.error("[EUROPOST] external/stores unauthorized #{e.class}: #{e.message}")
+    []
+  rescue HttpError, ResponseError, NonJsonResponseError, Net::OpenTimeout, Net::ReadTimeout => e
     Rails.logger.error("[EUROPOST] external/stores failed #{e.class}: #{e.message}")
     []
   end
@@ -214,7 +221,7 @@ class EuropostApiService
     req.body = JSON.generate(payload)
 
     res = http.request(req)
-    body = res.body.to_s.force_encoding("UTF-8").sub("\xEF\xBB\xBF", "")
+    body = read_response_body_utf8(res)
 
     JSON.parse(body)
   end
@@ -258,55 +265,119 @@ class EuropostApiService
   end
   private_class_method :extract_external_stores_array
 
-  def self.get_external_json_with_token!(path, query:, token:)
-    path_clean = path.sub(%r{\A/}, "")
-    uri = URI.join("#{EXTERNAL_BASE_URL}/", path_clean)
-    uri.query = URI.encode_www_form(query) if query.any?
+  # REST API v1.8.0 (external). Base URL without trailing slash.
+  def self.rest_api_base_url
+    ENV["EUROPOST_API_BASE_URL"].to_s.strip.chomp("/").presence || DEFAULT_REST_API_BASE_URL
+  end
 
+  def self.external_rest_token!
+    token = ENV["EUROPOST_API_TOKEN"].to_s.strip
+    raise ValidationError, "EUROPOST_API_TOKEN is required for Europost REST API calls" if token.blank?
+
+    token
+  end
+  private_class_method :external_rest_token!
+
+  def self.external_request_uri(path, query = nil)
+    path_clean = path.sub(%r{\A/}, "")
+    uri = URI.join("#{rest_api_base_url}/", path_clean)
+    uri.query = URI.encode_www_form(query) if query.present? && query.any?
+    uri
+  end
+  private_class_method :external_request_uri
+
+  def self.configure_external_http!(http)
+    open_t = ENV["EUROPOST_HTTP_OPEN_TIMEOUT"].presence || ENV["EUROPOST_OPEN_TIMEOUT"].presence || "15"
+    read_t = ENV["EUROPOST_HTTP_READ_TIMEOUT"].presence || ENV["EUROPOST_READ_TIMEOUT"].presence || "60"
+    http.open_timeout = Integer(open_t)
+    http.read_timeout = Integer(read_t)
+  end
+  private_class_method :configure_external_http!
+
+  def self.json_content_type?(header_value)
+    v = header_value.to_s.downcase
+    return false if v.blank?
+
+    v.include?("application/json") || v.include?("+json")
+  end
+  private_class_method :json_content_type?
+
+  def self.assert_external_json_body!(response, body)
+    if body.lstrip.start_with?("<")
+      raise NonJsonResponseError, "Europost API returned non-JSON response. Check EUROPOST_API_BASE_URL"
+    end
+
+    unless json_content_type?(response["Content-Type"])
+      raise NonJsonResponseError, "Europost API returned non-JSON response. Check EUROPOST_API_BASE_URL"
+    end
+
+    parsed = JSON.parse(body)
+    parsed
+  rescue JSON::ParserError
+    raise NonJsonResponseError, "Europost API returned non-JSON response. Check EUROPOST_API_BASE_URL"
+  end
+  private_class_method :assert_external_json_body!
+
+  def self.raise_for_external_http_status!(response, body)
+    case response
+    when Net::HTTPUnauthorized
+      raise UnauthorizedError, "Europost API authorization failed (HTTP 401). Check EUROPOST_API_TOKEN."
+    end
+
+    return if response.is_a?(Net::HTTPSuccess)
+
+    snippet = body.to_s[0, 400]
+    raise HttpError, "HTTP #{response.code}: #{snippet.presence || response.message}"
+  end
+  private_class_method :raise_for_external_http_status!
+
+  def self.read_response_body_utf8(response)
+    raw = response.body.to_s
+    (+raw).force_encoding(Encoding::UTF_8).sub(/\A\xEF\xBB\xBF/, "")
+  end
+  private_class_method :read_response_body_utf8
+
+  def self.get_external_json_with_token!(path, query:, token:)
+    uri = external_request_uri(path, query)
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = (uri.scheme == "https")
     http.verify_mode = OpenSSL::SSL::VERIFY_PEER if uri.scheme == "https"
+    configure_external_http!(http)
 
     req = Net::HTTP::Get.new(uri.request_uri)
     req["Accept"] = "application/json"
     req["Token"] = token
 
     res = http.request(req)
-    body = res.body.to_s.force_encoding("UTF-8").sub("\xEF\xBB\xBF", "")
+    body = read_response_body_utf8(res)
 
-    unless res.is_a?(Net::HTTPSuccess)
-      raise HttpError, "HTTP #{res.code}: #{body.presence || res.message}"
-    end
-
-    parsed = JSON.parse(body)
+    raise_for_external_http_status!(res, body)
+    parsed = assert_external_json_body!(res, body)
     raise ResponseError, "Expected JSON array or object response, got: #{parsed.class}" unless parsed.is_a?(Hash) || parsed.is_a?(Array)
 
     parsed
-  rescue JSON::ParserError => e
-    raise ResponseError, "Invalid JSON response: #{e.message}"
   end
   private_class_method :get_external_json_with_token!
 
   def self.post_external_json!(path, payload)
-    uri = URI.join("#{EXTERNAL_BASE_URL}/", path.sub(%r{\A/}, ""))
+    token = external_rest_token!
+    uri = external_request_uri(path, nil)
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = (uri.scheme == "https")
     http.verify_mode = OpenSSL::SSL::VERIFY_PEER if uri.scheme == "https"
+    configure_external_http!(http)
 
     req = Net::HTTP::Post.new(uri.request_uri)
     req["Content-Type"] = "application/json; charset=utf-8"
     req["Accept"] = "application/json"
-    req["Authorization"] = "Bearer #{jwt}"
+    req["Token"] = token
     req.body = JSON.generate(payload)
 
     res = http.request(req)
-    body = res.body.to_s.force_encoding("UTF-8").sub("\xEF\xBB\xBF", "")
+    body = read_response_body_utf8(res)
 
-    unless res.is_a?(Net::HTTPSuccess)
-      raise HttpError, "HTTP #{res.code}: #{body.presence || res.message}"
-    end
-
-    parsed = JSON.parse(body)
+    raise_for_external_http_status!(res, body)
+    parsed = assert_external_json_body!(res, body)
     raise ResponseError, "Expected JSON object response, got: #{parsed.class}" unless parsed.is_a?(Hash)
 
     if parsed["error"].present?
@@ -314,8 +385,6 @@ class EuropostApiService
     end
 
     parsed
-  rescue JSON::ParserError => e
-    raise ResponseError, "Invalid JSON response: #{e.message}"
   end
   private_class_method :post_external_json!
 

@@ -62,5 +62,18 @@ RSpec.describe EuropostWorkingHoursFormatter do
 
       expect(described_class.structured_for_payload(office)).to eq(breaks: [{ "a" => 1 }])
     end
+
+    it "includes working_hours when schedules are empty but API sent a string" do
+      office = {
+        "schedules" => [],
+        "working_hours" => "10:00-22:00",
+        "break_hours" => "13:00-14:00"
+      }
+
+      expect(described_class.structured_for_payload(office)).to eq(
+        break_hours: "13:00-14:00",
+        working_hours: "10:00-22:00"
+      )
+    end
   end
 end
