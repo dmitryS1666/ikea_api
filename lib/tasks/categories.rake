@@ -2316,6 +2316,17 @@ namespace :categories do
       puts "=" * 100
   end
 
+  desc "Собрать f-series в available_filters из товаров категории и поддерева (без дублей, без префикса «Серия »)"
+  task :rebuild_fseries_filters, [:ikea_id] => :environment do |_t, args|
+    ikea_id = args[:ikea_id].to_s.strip.presence
+    if ikea_id
+      RebuildCategoryFseriesFiltersJob.perform_later(ikea_id)
+      puts "В очереди: RebuildCategoryFseriesFiltersJob для категории #{ikea_id}"
+    else
+      puts "Укажите ikea_id: rake categories:rebuild_fseries_filters[hs001]"
+    end
+  end
+
   desc "Слить в родителя значения available_filters из потомков (f-series и др.), затем поставить переиндексацию фильтров"
   task :merge_parent_filters, [:ikea_id] => :environment do |_t, args|
     ikea_id = args[:ikea_id].to_s.strip.presence

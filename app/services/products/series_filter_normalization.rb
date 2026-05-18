@@ -6,26 +6,17 @@ module Products
   module SeriesFilterNormalization
     module_function
 
+    # Подпись для available_filters / API без префиксов «Серия …», «Серия для …».
+    def display_name(name_or_id)
+      return nil if name_or_id.blank?
+
+      strip_series_prefixes(name_or_id.to_s.dup).presence
+    end
+
     def normalize_key(name_or_id)
       return nil if name_or_id.blank?
 
-      text = name_or_id.to_s.dup.strip
-      text = text.tr("ё", "е")
-
-      text = text.gsub(/\A\s*[СC]\s*ЕРИЯ\s+ДЛЯ\s+.*?\s+/i, "")
-      text = text.gsub(/\A\s*[СC]\s*ЕРИЯ\s+/i, "")
-      text = text.gsub(/\A\s*СТЕЛЛАЖИ\s+/i, "")
-      text = text.gsub(/\A\s*КНИЖНЫЕ ШКАФЫ\s+/i, "")
-      text = text.gsub(/\A\s*ДВЕРИ\s+/i, "")
-      text = text.gsub(/\A\s*ФУРНИТУРА И ВНУТРЕННИЕ ОРГАНАЙЗЕРЫ\s+/i, "")
-      text = text.gsub(/\A\s*ОБЕДЕННЫЕ СТУЛЬЯ\s+/i, "")
-      text = text.gsub(/\A\s*ОБЕДЕННЫЕ СТОЛЫ\s+/i, "")
-      text = text.gsub(/\A\s*ОБЕДЕННЫЕ ГАРНИТУРЫ\s+/i, "")
-      text = text.gsub(/\A\s*АКСЕССУАРЫ\s+/i, "")
-      text = text.gsub(/\A\s*ПЕРФОРИРОВАННЫЕ ДОСКИ\s+/i, "")
-      text = text.gsub(/\A\s*ВСТАВКИ И АКСЕССУАРЫ ДЛЯ\s+/i, "")
-
-      text = normalize_series_token(text)
+      text = normalize_series_token(strip_series_prefixes(name_or_id.to_s.dup))
       text.presence
     end
 
@@ -53,5 +44,25 @@ module Products
       text = text.tr("ё", "е")
       text.tr("\u00A0", " ").squeeze(" ").strip
     end
+
+    def strip_series_prefixes(text)
+      text = text.tr("ё", "е")
+      text = text.gsub(/\A\s*[СC]\s*ЕРИЯ\s+ДЛЯ\s+.*?\s+/i, "")
+      text = text.gsub(/\A\s*[СC]\s*ЕРИЯ\s+/i, "")
+      text = text.gsub(/\A\s*СЕРИЯ\s+ДЛЯ\s+.*?\s+/i, "")
+      text = text.gsub(/\A\s*СЕРИЯ\s+/i, "")
+      text = text.gsub(/\A\s*СТЕЛЛАЖИ\s+/i, "")
+      text = text.gsub(/\A\s*КНИЖНЫЕ ШКАФЫ\s+/i, "")
+      text = text.gsub(/\A\s*ДВЕРИ\s+/i, "")
+      text = text.gsub(/\A\s*ФУРНИТУРА И ВНУТРЕННИЕ ОРГАНАЙЗЕРЫ\s+/i, "")
+      text = text.gsub(/\A\s*ОБЕДЕННЫЕ СТУЛЬЯ\s+/i, "")
+      text = text.gsub(/\A\s*ОБЕДЕННЫЕ СТОЛЫ\s+/i, "")
+      text = text.gsub(/\A\s*ОБЕДЕННЫЕ ГАРНИТУРЫ\s+/i, "")
+      text = text.gsub(/\A\s*АКСЕССУАРЫ\s+/i, "")
+      text = text.gsub(/\A\s*ПЕРФОРИРОВАННЫЕ ДОСКИ\s+/i, "")
+      text = text.gsub(/\A\s*ВСТАВКИ И АКСЕССУАРЫ ДЛЯ\s+/i, "")
+      text.squeeze(" ").strip
+    end
+    private_class_method :strip_series_prefixes
   end
 end

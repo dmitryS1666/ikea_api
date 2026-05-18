@@ -119,6 +119,31 @@ RSpec.describe Products::FilterValuesIndexer do
   end
 
   describe "f-series indexing" do
+    it "matches series from Seria attribute in full_attributes" do
+      category = create(:category, ikea_id: "700602", available_filters: [
+        {
+          "parameter" => "f-series",
+          "values" => [
+            { "id" => "KAJPLATS", "name" => "KAJPLATS" }
+          ]
+        }
+      ])
+
+      product = create(
+        :product,
+        name_ru: "Умная лампа",
+        quantity: 1,
+        full_attributes: { "Seria" => "Серия KAJPLATS" }
+      )
+      category.products_through_categories << product
+
+      described_class.new(category).reindex!
+
+      expect(
+        ProductFilterValue.where(product_id: product.id, parameter: "f-series", value_id: "KAJPLATS")
+      ).to exist
+    end
+
     it "stores one value_id per logical series when available_filters lists synonyms" do
       category = create(:category, ikea_id: "700601", available_filters: [
         {

@@ -599,13 +599,20 @@ module Products
         product.name,
         product.small_desc_name,
         (product.respond_to?(:collection) ? product.collection : nil)
-      ].compact.map { |text| normalize_series_text(text) }.uniq
-    
-      return [] if texts.empty?
+      ].compact
+
+      attribute_values_for_keys(product, PARAMETER_KEYS["f-series"]).each do |value|
+        stripped = Products::SeriesFilterNormalization.display_name(value)
+        texts << stripped if stripped.present?
+        texts << value
+      end
+
+      normalized_texts = texts.map { |text| normalize_series_text(text) }.uniq
+      return [] if normalized_texts.empty?
       return [] if available_series_names.blank?
-    
+
       available_series_names.select do |series_name|
-        texts.any? { |text| series_name_in_text?(series_name, text) }
+        normalized_texts.any? { |text| series_name_in_text?(series_name, text) }
       end
     end
     
