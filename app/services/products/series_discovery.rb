@@ -14,11 +14,37 @@ module Products
 
     def raw_labels_from_product(product)
       labels = []
-      labels << product.collection.to_s.strip if product.collection.present?
+      labels.concat(expand_labels(product.collection)) if product.collection.present?
       labels.concat(series_from_full_attributes(product))
       labels.concat(tokens_from_titles(product))
 
       labels.map(&:strip).reject(&:blank?).uniq
+    end
+
+    # Разворачивает значения вида ["KAJPLATS"], '["KAJPLATS"]' или массивы из full_attributes.
+    def expand_labels(value)
+      case value
+      when Array
+        value.flat_map { |item| expand_labels(item) }
+      when String
+        text = value.to_s.strip
+        return [] if text.blank?
+
+        if text.start_with?("[")
+          begin
+            parsed = JSON.parse(text)
+            return expand_labels(parsed) if parsed.is_a?(Array)
+          rescue JSON::ParserError
+            # fall through
+          end
+        end
+
+        [text]
+      when nil
+        []
+      else
+        expand_labels(value.to_s)
+      end
     end
 
     def series_from_full_attributes(product)
@@ -85,15 +111,11 @@ module Products
 
     def normalize_attr_values(value)
       case value
-      when Array
-        value.flat_map { |v| normalize_attr_values(v) }
       when Hash
         value.values.flat_map { |v| normalize_attr_values(v) }
-      when nil
-        []
       else
-        [value.to_s.strip]
-      end.reject(&:blank?)
+        expand_labels(value)
+      end
     end
   end
 end

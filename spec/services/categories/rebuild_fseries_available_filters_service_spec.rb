@@ -45,6 +45,8 @@ RSpec.describe Categories::RebuildFseriesAvailableFiltersService do
 
     expect(names).to include("KAJPLATS")
     expect(names.map { |n| Products::SeriesFilterNormalization.normalize_key(n) }).to include("TRADFRI")
+    expect(names.none? { |n| n.include?("[") }).to eq(true)
+    expect(ids.none? { |id| id.to_s.start_with?("[") }).to eq(true)
     expect(names.none? { |n| n.match?(/\AСерия\s/i) }).to eq(true)
     expect(ids).to include("700598")
     expect(parent.available_filters.find { |f| f["parameter"] == "f-colors" }).to be_present

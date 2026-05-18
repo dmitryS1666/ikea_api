@@ -63,11 +63,14 @@ module Categories
 
       Category.where(ikea_id: tree_ids).find_each do |cat|
         f_series_values(cat.available_filters).each do |row|
-          key = Products::SeriesFilterNormalization.normalize_key(row["name"].presence || row["id"])
+          sanitized = sanitize_existing_row(row)
+          next unless sanitized
+
+          key = Products::SeriesFilterNormalization.normalize_key(sanitized["name"].presence || sanitized["id"])
           next if key.blank?
 
           by_key[key] ||= []
-          by_key[key] << row unless by_key[key].any? { |r| r["id"] == row["id"] }
+          by_key[key] << sanitized unless by_key[key].any? { |r| r["id"] == sanitized["id"] }
         end
       end
 
@@ -90,7 +93,7 @@ module Categories
 
     def build_value_row(normalized_key, raw_labels, existing_rows)
       candidate_rows = Array(existing_rows).map { |r| r.deep_stringify_keys }
-      raw_labels.each do |label|
+      raw_labels.flat_map { |label| Products::SeriesDiscovery.expand_labels(label) }.each do |label|
         candidate_rows << { "id" => provisional_id(label, normalized_key), "name" => label }
       end
 
@@ -98,35 +101,71 @@ module Categories
       return nil unless canonical
 
       id = stable_value_id(normalized_key, canonical, existing_rows)
-      display = Products::SeriesFilterNormalization.display_name(canonical["name"].presence || canonical["id"])
-      display = normalized_key if display.blank?
+      display = canonical_display_name(canonical, normalized_key)
 
       { "id" => id, "name" => display }
     end
 
     def stable_value_id(normalized_key, canonical, existing_rows)
       Array(existing_rows).each do |row|
-        id = row["id"].to_s.presence
+        id = sanitized_row_id(row["id"])
         return id if id.present?
       end
 
-      id = canonical["id"].to_s.presence
+      id = sanitized_row_id(canonical["id"])
       return id if id.match?(/\A\d+\z/)
-      return id if Products::SeriesFilterNormalization.normalize_key(id) == normalized_key
+      return id if id.present? && Products::SeriesFilterNormalization.normalize_key(id) == normalized_key
 
       normalized_key
     end
 
+    def sanitized_row_id(raw_id)
+      label = Products::SeriesDiscovery.expand_labels(raw_id).first.to_s.strip
+      return nil if label.blank?
+      return label if label.match?(/\A\d+\z/)
+      return nil if label.start_with?("[")
+
+      Products::SeriesFilterNormalization.normalize_key(label).presence
+    end
+
+    def canonical_display_name(canonical, normalized_key)
+      source = Products::SeriesDiscovery.expand_labels(canonical["name"]).first ||
+               Products::SeriesDiscovery.expand_labels(canonical["id"]).first
+      display = Products::SeriesFilterNormalization.display_name(source)
+      display.presence || normalized_key
+    end
+
+    def sanitize_existing_row(row)
+      h = row.deep_stringify_keys
+      labels = (
+        Products::SeriesDiscovery.expand_labels(h["name"]) +
+        Products::SeriesDiscovery.expand_labels(h["id"])
+      ).filter_map do |label|
+        Products::SeriesFilterNormalization.display_name(label).presence || label.to_s.strip.presence
+      end.uniq
+      return nil if labels.blank?
+
+      numeric_id = h["id"].to_s.strip
+      numeric_id = nil unless numeric_id.match?(/\A\d+\z/)
+
+      best_name = labels.min_by(&:length)
+      {
+        "id" => numeric_id || Products::SeriesFilterNormalization.normalize_key(best_name),
+        "name" => best_name
+      }
+    end
+
     def provisional_id(label, normalized_key)
-      stripped = Products::SeriesFilterNormalization.display_name(label)
-      token = stripped.to_s.gsub(/[^A-Z0-9]/i, "").upcase
+      stripped = Products::SeriesFilterNormalization.display_name(label) || label.to_s.strip
+      token = stripped.gsub(/[^A-Z0-9ÅÄÖÆ]/i, "").upcase
       token.presence || normalized_key
     end
 
     def f_series_filter_name
-      f_series_values(@category.available_filters).first&.dig("name").presence ||
-        f_series_filter_from_tree&.dig("name").presence ||
-        "Серия"
+      raw =
+        f_series_values(@category.available_filters).first&.dig("name").presence ||
+        f_series_filter_from_tree&.dig("name").presence
+      Products::SeriesFilterNormalization.display_name(raw).presence || raw.presence || "Серия"
     end
 
     def f_series_filter_from_tree

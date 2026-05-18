@@ -22,5 +22,21 @@ RSpec.describe Products::SeriesDiscovery do
       labels = described_class.raw_labels_from_product(product)
       expect(labels).to include("SKYDRAG")
     end
+
+    it "unwraps JSON array strings from attributes" do
+      product = build(
+        :product,
+        full_attributes: { "Seria" => '["KAJPLATS"]' }
+      )
+
+      labels = described_class.raw_labels_from_product(product)
+      expect(labels).to eq(["KAJPLATS"])
+    end
+  end
+
+  describe ".expand_labels" do
+    it "parses string JSON arrays" do
+      expect(described_class.expand_labels('["MITTLED","SKYDRAG"]')).to eq(%w[MITTLED SKYDRAG])
+    end
   end
 end
