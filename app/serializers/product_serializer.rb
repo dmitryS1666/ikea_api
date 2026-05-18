@@ -26,7 +26,7 @@ class ProductSerializer
     product.name.to_s.presence
   end
 
-  # Вес упаковки (кг), только из `full_attributes`; без колонки `products.weight`.
+  # Вес для API (г): сумма весов всех элементов упаковки из `full_attributes` (details/packages).
   attribute :weight do |product|
     w = product.packaging_weight_kg
     next nil if w.blank?

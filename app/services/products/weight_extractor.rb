@@ -50,13 +50,21 @@ module Products
           from_total_weight(size)
       end
 
-      # Только упаковка: `packaging.details` и `packages` (без «Общий вес» и без колонки `products.weight`).
+      # Суммарный вес всех физических упаковок (кг): Σ (вес_элемента × количество).
+      # Источники: `size.packages[]` (приоритет, если есть измерения «Вес») или `size.packaging.details[]`.
+      # Поле «Общий вес» и колонка products.weight не используются — только элементы упаковки.
       def extract_packaging_kg(source)
         data = deep_stringify(source)
         size = extract_size_block(data)
         return nil unless size.is_a?(Hash)
 
-        from_packaging_details(size) || from_packages(size)
+        packages_kg = packaging_elements_total_from_packages(size)
+        return packages_kg.round(3) if packages_kg.positive?
+
+        details_kg = packaging_elements_total_from_details(size)
+        return details_kg.round(3) if details_kg.positive?
+
+        nil
       end
 
       def packaging_weight_kg_for_product(product)
@@ -113,48 +121,55 @@ module Products
         data
       end
 
-      def from_packaging_details(size)
+      def packaging_elements_total_from_details(size)
         details = size.dig("packaging", "details")
-        return nil unless details.is_a?(Array) && details.any?
+        return 0.0 unless details.is_a?(Array) && details.any?
 
-        total = details.sum do |row|
-          next 0 unless row.is_a?(Hash)
+        details.sum do |row|
+          next 0.0 unless row.is_a?(Hash)
 
           weight = parse_weight_to_kg(row["weight"], allow_unitless: true)
           count = parse_count(row["count"])
 
-          next 0 unless weight&.positive?
+          next 0.0 unless weight&.positive?
 
           weight * count
         end
-
-        total.positive? ? total.round(3) : nil
       end
 
-      def from_packages(size)
+      def packaging_elements_total_from_packages(size)
         packages = size["packages"]
-        return nil unless packages.is_a?(Array) && packages.any?
+        return 0.0 unless packages.is_a?(Array) && packages.any?
 
-        total = packages.sum do |package|
-          next 0 unless package.is_a?(Hash)
+        packages.sum do |package|
+          next 0.0 unless package.is_a?(Hash)
 
           measurements = package["measurements"]
-          next 0 unless measurements.is_a?(Array)
+          next 0.0 unless measurements.is_a?(Array)
 
           weight_row = measurements.find do |measurement|
             measurement.is_a?(Hash) && normalize_key(measurement["name"]) == "вес"
           end
 
-          next 0 unless weight_row
+          next 0.0 unless weight_row
 
           weight = parse_weight_to_kg(weight_row["measure"], allow_unitless: false)
           count = package_count_from_measurements(measurements)
 
-          next 0 unless weight&.positive?
+          next 0.0 unless weight&.positive?
 
           weight * count
         end
+      end
 
+      # Используется при импорте и в extract_kg (с fallback на «Общий вес»).
+      def from_packaging_details(size)
+        total = packaging_elements_total_from_details(size)
+        total.positive? ? total.round(3) : nil
+      end
+
+      def from_packages(size)
+        total = packaging_elements_total_from_packages(size)
         total.positive? ? total.round(3) : nil
       end
 

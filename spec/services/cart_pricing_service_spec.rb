@@ -55,4 +55,34 @@ RSpec.describe CartPricingService do
     expect(item[:line_total_byn]).to eq(0.0)
     expect(item[:unit_discount_byn]).to eq(item[:unit_price_byn_before_discount])
   end
+
+  it "включает доставку по Беларуси как сумму весов всех упаковок" do
+    user = create(:user)
+    product = create(
+      :product,
+      sku: "SKU-BULKY-1",
+      price: 500.0,
+      weight: nil,
+      delivery_cost: 50.0,
+      quantity: 5,
+      full_attributes: {
+        "dimensions_map" => {
+          "packaging" => {
+            "details" => [
+              { "weight" => "15 кг", "count" => 1, "width" => "80 см", "height" => "40 см", "length" => "150 см" },
+              { "weight" => "10 кг", "count" => 1, "width" => "60 см", "height" => "30 см", "length" => "120 см" }
+            ]
+          }
+        }
+      }
+    )
+    cart = create(:cart, user: user)
+    create(:cart_item, cart: cart, product_sku: product.sku, quantity: 1)
+
+    pricing = described_class.call(cart: Cart.find(cart.id))
+    wc_by_byn = (BelarusDeliveryService.calculate(25.0) * 0.85 * 1.05).round(2)
+
+    expect(pricing[:totals][:total_weight_kg]).to eq(25.0)
+    expect(pricing[:totals][:delivery_total_byn]).to be >= wc_by_byn
+  end
 end
