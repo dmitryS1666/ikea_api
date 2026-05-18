@@ -46,12 +46,17 @@ module CartResponseFormatter
   end
 
   def pricing_payload(pricing_line)
+    quantity = [pricing_line[:quantity].to_i, 1].max
+    unit_before = pricing_line[:unit_price_byn_before_discount]
+    unit_after = pricing_line[:unit_price_byn]
+    line_before = (unit_before.to_f * quantity).round(2)
+
     {
-      unit_price_old_byn: format_byn(pricing_line[:unit_price_old_byn]),
-      unit_price_new_byn: format_byn(pricing_line[:unit_price_new_byn]),
+      unit_price_old_byn: format_byn(unit_before),
+      unit_price_new_byn: format_byn(unit_after),
       unit_discount_byn: format_byn(pricing_line[:unit_discount_byn]),
-      line_total_old_byn: format_byn(pricing_line[:line_total_old_byn]),
-      line_total_new_byn: format_byn(pricing_line[:line_total_new_byn]),
+      line_total_old_byn: format_byn(line_before),
+      line_total_new_byn: format_byn(pricing_line[:line_total_byn]),
       line_discount_byn: format_byn(pricing_line[:line_discount_byn]),
       customs_duty_byn: format_byn(pricing_line[:customs_duty_byn]),
       customs_fee_byn: format_byn(pricing_line[:customs_fee_byn]),
@@ -148,11 +153,16 @@ module CartResponseFormatter
   end
 
   def format_totals(totals)
+    subtotal_new = totals[:subtotal_new_byn].to_f
+    discount = totals[:discount_total_byn].to_f
+    subtotal_old = totals[:subtotal_old_byn]
+    subtotal_old = (subtotal_new + discount).round(2) if subtotal_old.nil?
+
     {
       items_total_byn: format_byn(totals[:items_total_byn]),
       delivery_total_byn: format_byn(totals[:delivery_total_byn]),
       total_byn: format_byn(totals[:total_byn]),
-      subtotal_old_byn: format_byn(totals[:subtotal_old_byn]),
+      subtotal_old_byn: format_byn(subtotal_old),
       subtotal_new_byn: format_byn(totals[:subtotal_new_byn]),
       discount_total_byn: format_byn(totals[:discount_total_byn]),
       customs_duty_byn: format_byn(totals[:customs_duty_byn]),
