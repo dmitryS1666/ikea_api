@@ -2,7 +2,7 @@
 
 module Products
   # Извлекает сырые подписи серий из товара (collection, атрибуты Seria/…, заголовки).
-  class SeriesDiscovery
+  module SeriesDiscovery
     ATTRIBUTE_KEYS = FilterValuesIndexer::PARAMETER_KEYS.fetch("f-series").freeze
     NAME_TOKEN_PATTERN = /\b([A-ZÅÄÖÆ][A-ZÅÄÖÆ0-9\-]{3,})\b/
     TOKEN_BLACKLIST = %w[
