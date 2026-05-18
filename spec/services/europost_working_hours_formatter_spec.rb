@@ -113,5 +113,53 @@ RSpec.describe EuropostWorkingHoursFormatter do
         working_hours: "10:00-22:00"
       )
     end
+
+    it "returns only current calendar week Mon-Sun, not today+6 or adjacent weeks" do
+      travel_to(Time.zone.local(2026, 5, 20, 12, 0, 0)) do # среда, неделя 18–24 мая
+        office = {
+          "schedules" => [
+            { "iso_day_of_week" => 1, "day" => "11 мая", "work_time" => "8:00-12:00", "is_working" => "1" },
+            { "iso_day_of_week" => 2, "day" => "12 мая", "work_time" => "8:00-12:00", "is_working" => "1" },
+            { "iso_day_of_week" => 3, "day" => "20 мая", "work_time" => "10:00-22:00", "is_working" => "1" },
+            { "iso_day_of_week" => 4, "day" => "21 мая", "work_time" => "10:00-22:00", "is_working" => "1" },
+            { "iso_day_of_week" => 5, "day" => "22 мая", "work_time" => "10:00-22:00", "is_working" => "1" },
+            { "iso_day_of_week" => 6, "day" => "23 мая", "work_time" => "10:00-22:00", "is_working" => "1" },
+            { "iso_day_of_week" => 7, "day" => "24 мая", "work_time" => "10:00-22:00", "is_working" => "1" },
+            { "iso_day_of_week" => 1, "day" => "25 мая", "work_time" => "9:00-18:00", "is_working" => "1" }
+          ]
+        }
+
+        result = described_class.structured_for_payload(office)
+        schedules = result[:schedules]
+
+        expect(schedules.map { |s| s["day"] }).to eq(
+          ["20 мая", "21 мая", "22 мая", "23 мая", "24 мая"]
+        )
+        expect(schedules.map { |s| s["iso_day_of_week"] }).to eq([3, 4, 5, 6, 7])
+        expect(schedules.map { |s| s["weekday_short"] }).to eq(%w[ср чт пт сб вск])
+      end
+    end
+
+    it "orders schedules Monday through Sunday for the current week" do
+      travel_to(Time.zone.local(2026, 5, 18, 12, 0, 0)) do
+        office = {
+          "schedules" => (18..24).map.with_index(1) do |dom, iso|
+            {
+              "iso_day_of_week" => iso,
+              "day" => "#{dom} мая",
+              "work_time" => "10:00-22:00",
+              "is_working" => "1"
+            }
+          end
+        }
+
+        result = described_class.structured_for_payload(office)
+        schedules = result[:schedules]
+
+        expect(schedules.size).to eq(7)
+        expect(schedules.map { |s| s["iso_day_of_week"] }).to eq((1..7).to_a)
+        expect(schedules.map { |s| s["weekday_short"] }).to eq(%w[пн вт ср чт пт сб вск])
+      end
+    end
   end
 end
