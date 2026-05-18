@@ -7,6 +7,7 @@ module CartResponseFormatter
     rules_data = CartRulesService.call(subtotal_new_byn: totals[:subtotal_new_byn])
     pricing_map = pricing[:items].index_by { |entry| entry[:sku] }
     cart_items = cart.cart_items.includes(:product)
+    delivery_options = DeliveryOptionsService.call(cart)
 
     {
       cart: {
@@ -15,6 +16,7 @@ module CartResponseFormatter
         items_count: cart_items.sum(:quantity),
         items: build_items(cart_items, pricing_map),
         totals: format_totals(totals),
+        delivery: format_cart_delivery(totals, delivery_options),
         rules: format_rules(rules_data[:rules]),
         flags: format_flags(rules_data[:flags]),
         recommendations: build_recommendations(cart_items),
@@ -161,6 +163,8 @@ module CartResponseFormatter
     {
       items_total_byn: format_byn(totals[:items_total_byn]),
       delivery_total_byn: format_byn(totals[:delivery_total_byn]),
+      delivery_poland_byn: format_byn(totals[:delivery_poland_byn]),
+      delivery_to_belarus_byn: format_byn(totals[:delivery_to_belarus_byn]),
       total_byn: format_byn(totals[:total_byn]),
       subtotal_old_byn: format_byn(subtotal_old),
       subtotal_new_byn: format_byn(totals[:subtotal_new_byn]),
@@ -169,6 +173,28 @@ module CartResponseFormatter
       customs_fee_byn: format_byn(totals[:customs_fee_byn]),
       customs_total_byn: format_byn(totals[:customs_total_byn]),
       total_weight_kg: totals[:total_weight_kg]
+    }
+  end
+
+  # Оценка доставки для корзины: внутренние тарифы, без API Европочты (см. POST /delivery/calculate на checkout).
+  def format_cart_delivery(totals, delivery_options)
+    methods = Array(delivery_options[:methods]).map do |method|
+      {
+        code: method[:code],
+        available: method[:available],
+        reason: method[:reason]
+      }
+    end
+
+    {
+      pricing_source: "internal_cart",
+      total_weight_kg: totals[:total_weight_kg].to_f,
+      delivery_poland_byn: format_byn(totals[:delivery_poland_byn]),
+      delivery_to_belarus_byn: format_byn(totals[:delivery_to_belarus_byn]),
+      delivery_total_byn: format_byn(totals[:delivery_total_byn]),
+      available_methods: methods,
+      europost_eligible: delivery_options.dig(:cart_vgh, :eligible_for_europost) == true,
+      ineligible_reason: delivery_options.dig(:cart_vgh, :ineligible_reason)
     }
   end
 

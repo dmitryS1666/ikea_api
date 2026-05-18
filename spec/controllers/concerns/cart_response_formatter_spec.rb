@@ -50,6 +50,8 @@ RSpec.describe CartResponseFormatter do
         discount_total_byn: 50.0,
         items_total_byn: 400.0,
         delivery_total_byn: 171.0,
+        delivery_poland_byn: 50.0,
+        delivery_to_belarus_byn: 121.0,
         total_byn: 900.0,
         customs_duty_byn: 0,
         customs_fee_byn: 0,
@@ -59,6 +61,32 @@ RSpec.describe CartResponseFormatter do
 
       expect(totals[:subtotal_old_byn]).to eq("550.00")
       expect(totals[:delivery_total_byn]).to eq("171.00")
+      expect(totals[:delivery_to_belarus_byn]).to eq("121.00")
+    end
+  end
+
+  describe "#format_cart_delivery" do
+    it "exposes internal cart delivery breakdown and method availability" do
+      totals = {
+        total_weight_kg: 25.0,
+        delivery_poland_byn: 10.0,
+        delivery_to_belarus_byn: 90.0,
+        delivery_total_byn: 100.0
+      }
+      options = {
+        cart_vgh: { eligible_for_europost: false, ineligible_reason: "max_weight_exceeded" },
+        methods: [
+          { code: "europost_pickup", available: false, reason: "max_weight_exceeded" },
+          { code: "ikeya_delivery", available: true, reason: nil }
+        ]
+      }
+
+      delivery = helper.send(:format_cart_delivery, totals, options)
+
+      expect(delivery[:pricing_source]).to eq("internal_cart")
+      expect(delivery[:delivery_to_belarus_byn]).to eq("90.00")
+      expect(delivery[:europost_eligible]).to be(false)
+      expect(delivery[:available_methods].size).to eq(2)
     end
   end
 end

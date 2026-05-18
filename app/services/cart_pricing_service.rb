@@ -29,6 +29,8 @@ class CartPricingService
     total_weight = 0.0
     total_items_cost_eur = 0.0
     logistics_pln = 0.0
+    logistics_poland_pln = 0.0
+    logistics_belarus_pln = 0.0
 
     # Pre-calculate promo applicability for all items at once
     promos = promo_valid ? [promo] : []
@@ -89,6 +91,8 @@ class CartPricingService
       unit_price_byn = quantity.positive? ? (line_total_byn / quantity).round(2) : 0.0
 
       items_goods_pln += line_breakdown[:goods_pln]
+      logistics_poland_pln += line_breakdown[:delivery_pln]
+      logistics_belarus_pln += line_breakdown[:wc_by_pln]
       logistics_pln += line_breakdown[:delivery_pln] + line_breakdown[:wc_by_pln]
 
       markup_k = line_breakdown[:markup_k]
@@ -128,6 +132,8 @@ class CartPricingService
     total_byn = items.sum { |i| i[:line_total_byn].to_f }.round(2)
 
     logistics_byn = (logistics_pln * pln_rate_with_buffer).round(2)
+    delivery_poland_byn = (logistics_poland_pln * pln_rate_with_buffer).round(2)
+    delivery_to_belarus_byn = (logistics_belarus_pln * pln_rate_with_buffer).round(2)
     delivery_total_byn = logistics_byn
 
     # Для правил — только товары с наценкой (без доставки и WC_BY)
@@ -141,6 +147,8 @@ class CartPricingService
         items_total_byn: items_total_byn,
         total_pln: total_pln.round(2),
         delivery_total_byn: delivery_total_byn,
+        delivery_poland_byn: delivery_poland_byn,
+        delivery_to_belarus_byn: delivery_to_belarus_byn,
         total_byn: total_byn,
         discount_total_byn: discount_total_byn.round(2),
         total_weight_kg: total_weight.to_f,

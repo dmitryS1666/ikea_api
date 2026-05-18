@@ -84,5 +84,9 @@ RSpec.describe CartPricingService do
 
     expect(pricing[:totals][:total_weight_kg]).to eq(25.0)
     expect(pricing[:totals][:delivery_total_byn]).to be >= wc_by_byn
+    expect(pricing[:totals][:delivery_to_belarus_byn]).to be >= wc_by_byn
+    expect(pricing[:totals][:delivery_total_byn]).to eq(
+      pricing[:totals][:delivery_poland_byn] + pricing[:totals][:delivery_to_belarus_byn]
+    )
   end
 end
