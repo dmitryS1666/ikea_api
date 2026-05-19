@@ -8,7 +8,7 @@ RSpec.describe Products::IncludedProductsBootstrapService do
 
     before do
       allow(PlDetailsFetcher).to receive(:headless_browser_executable_available?).and_return(false)
-      allow(PlDetailsFetcher).to receive(:fetch).and_return({ included_products: [] })
+      allow(PlDetailsFetcher).to receive(:fetch_included_articles).and_return([])
     end
 
     it "enriches existing included product when it is incomplete" do
@@ -89,9 +89,7 @@ RSpec.describe Products::IncludedProductsBootstrapService do
 
     it "creates children from PL fetch when parent included_products was empty" do
       parent.update!(included_products: [])
-      allow(PlDetailsFetcher).to receive(:fetch).and_return(
-        { included_products: %w[60489549 00417621], included_products_from_modal: true }
-      )
+      allow(PlDetailsFetcher).to receive(:fetch_included_articles).and_return(%w[60489549 00417621])
       allow(Products::ExtendedAttributesFetchService).to receive(:fetch_for_product).and_return({ updated: true })
       allow(ImageDownloader).to receive(:sync_product_images)
 

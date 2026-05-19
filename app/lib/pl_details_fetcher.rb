@@ -74,6 +74,85 @@ class PlDetailsFetcher
     parsed
   end
 
+  # Только артикулы «в комплект» — HTTP/hydration, headless sheet, scrape.do (без полного parse_html).
+  def self.fetch_included_articles(url, scope_sku: nil)
+    new(scope_sku: scope_sku).fetch_included_articles(url)
+  end
+
+  def fetch_included_articles(url)
+    full_url = url.to_s.start_with?("http") ? url : "https://www.ikea.com#{url}"
+    parent_article =
+      shelf_snapshot_page_item_token(full_url) ||
+      Products::ArticleNumber.normalize(@scope_sku)
+
+    articles = []
+    html = nil
+    begin
+      html = fetch_with_proxy(full_url)
+    rescue StandardError => e
+      Rails.logger.warn "PlDetailsFetcher.fetch_included_articles: HTTP failed #{e.message}"
+    end
+
+    if html.present?
+      articles.concat(collect_included_articles_from_html(html))
+    end
+
+    articles = Products::ArticleNumber.normalize_list(articles)
+    articles.reject! { |a| a == parent_article } if parent_article.present?
+
+    if articles.size < 2 && self.class.headless_browser_executable_available?
+      headless = fetch_included_products_headless_only(full_url)
+      articles = (articles + Products::ArticleNumber.normalize_list(headless)).uniq
+      articles.reject! { |a| a == parent_article } if parent_article.present?
+    end
+
+    if articles.size < 2 && ENV["SCRAPE_DO_API_TOKEN"].present?
+      rendered = fetch_via_scrape_do(full_url)
+      if rendered.present?
+        extra = collect_included_articles_from_html(rendered)
+        articles = (articles + Products::ArticleNumber.normalize_list(extra)).uniq
+        articles.reject! { |a| a == parent_article } if parent_article.present?
+      end
+    end
+
+    Rails.logger.info "PlDetailsFetcher.fetch_included_articles: #{articles.size} sku for #{full_url}"
+    articles
+  end
+
+  def collect_included_articles_from_html(html)
+    doc = Nokogiri::HTML(html)
+    product_data = parse_hydration_product_data(doc)
+    articles = []
+    ip, = extract_included_products(product_data, doc)
+    articles.concat(ip)
+    articles.concat(extract_included_products_from_packaging(product_data))
+    articles.concat(extract_included_articles_from_measurements_doc(doc))
+    articles
+  end
+
+  def extract_included_articles_from_measurements_doc(doc)
+    return [] unless doc
+
+    articles = []
+    doc.css(
+      ".pipf-measurements-modal .pipf-product-identifier__value, " \
+      "#measurements-packaging .pipf-product-identifier__value, " \
+      "li[id*='measurements-packaging'] .pipf-product-identifier__value"
+    ).each do |el|
+      norm = Products::ArticleNumber.normalize(el.text)
+      articles << norm if norm.present?
+    end
+    articles
+  end
+
+  def fetch_included_products_headless_only(url)
+    headless = fetch_modal_with_headless_browser(url)
+    Products::ArticleNumber.normalize_list(headless[:included_products])
+  rescue StandardError => e
+    Rails.logger.warn "PlDetailsFetcher.fetch_included_products_headless_only: #{e.message}"
+    []
+  end
+
   def extract_related_products_from_recommendation_panel(doc)
     return [] unless doc
   
@@ -737,9 +816,8 @@ class PlDetailsFetcher
     extension_dir = nil
 
     proxy_options = ProxyRotator.get_proxy
-    unless proxy_options
-      Rails.logger.warn "PlDetailsFetcher.fetch_modal_with_headless_browser: Skipping headless browser because PROXY_LIST is empty"
-      return {}
+    if proxy_options.blank?
+      Rails.logger.warn "PlDetailsFetcher.fetch_modal_with_headless_browser: PROXY_LIST empty, headless without proxy"
     end
 
     browser_executable = self.class.resolved_chromium_path_for_headless
@@ -867,8 +945,7 @@ class PlDetailsFetcher
           File.write(File.join(extension_dir, "background.js"), background)
         end
       else
-        Rails.logger.warn "PlDetailsFetcher.fetch_modal_with_headless_browser: Proxy host/port missing"
-        return {}
+        Rails.logger.warn "PlDetailsFetcher.fetch_modal_with_headless_browser: no proxy, direct connection"
       end
 
       browser_options = {

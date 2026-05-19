@@ -278,10 +278,6 @@ class RefreshCategoryFromLtJob < ApplicationJob
       # В одном проходе контролируем качество вариантов: описания/материалы/картинки.
       ensure_variant_siblings_quality!(product, category, task, stats, mutex)
 
-      # Позиции набора — после вариантов: иначе VariantProductsEnsureService повесил бы CategoryProduct на ту же строку.
-      product.reload
-      Products::IncludedProductsBootstrapService.ensure!(product)
-
       related_in_base, related_missing = collect_related_skus_for(product, category: category)
       persist_missing_related_skus!(product, related_missing)
       if mutex
@@ -314,7 +310,16 @@ class RefreshCategoryFromLtJob < ApplicationJob
         stats[:errors] += 1
         task.increment_errors!
       end
+    ensure
+      ensure_included_products_bootstrap!(product)
     end
+  end
+
+  def ensure_included_products_bootstrap!(product)
+    product.reload
+    Products::IncludedProductsBootstrapService.ensure!(product)
+  rescue StandardError => e
+    Rails.logger.error "RefreshCategoryFromLtJob: included bootstrap #{product.sku}: #{e.message}"
   end
 
   def jsonl_row_for_product(rows_by_sku, sku)
