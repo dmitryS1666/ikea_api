@@ -106,6 +106,7 @@ RSpec.describe PlDetailsFetcher do
       result = described_class.parse_html(html, "https://www.ikea.com/pl/pl/p/x-s29545213/", use_headless: false)
 
       expect(result[:included_products]).to contain_exactly("60489549", "00417621")
+      expect(result[:included_products_from_modal]).to eq(true)
       expect(result[:included_sheet_needs_headless]).to eq(false)
     end
 

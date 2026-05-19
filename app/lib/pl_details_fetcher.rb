@@ -298,9 +298,12 @@ class PlDetailsFetcher
     result[:set_items] = si if si.any?
     rp = extract_related_products(product_data, doc)
     result[:related_products] = rp if rp.any?
-    ip = extract_included_products(product_data, doc)
-    result[:included_products] = ip if ip.any?
-    included_sheet_needs_headless = ip.empty? && included_products_sheet_clickable?(doc)
+    ip, included_from_modal = extract_included_products(product_data, doc)
+    if ip.any?
+      result[:included_products] = Products::ArticleNumber.normalize_list(ip)
+      result[:included_products_from_modal] = true if included_from_modal
+    end
+    included_sheet_needs_headless = included_products_sheet_clickable?(doc)
     sv = extract_variants(product_data, doc)
     result[:variants] = sv if sv.any?
     vpt = infer_variant_picker_types_from_doc(doc)
@@ -353,10 +356,16 @@ class PlDetailsFetcher
       Rails.logger.warn "PlDetailsFetcher: headless нужен, но нет Chrome/Chromium (CHROME_PATH / BROWSER_PATH)"
     end
 
-    prev_included = Array(result[:included_products])
+    prev_included = Products::ArticleNumber.normalize_list(result[:included_products])
     result.merge!(modal_data)
     if modal_data[:included_products].present?
-      result[:included_products] = (prev_included + Array(modal_data[:included_products])).uniq
+      modal_included = Products::ArticleNumber.normalize_list(modal_data[:included_products])
+      if modal_data[:included_products_from_modal]
+        result[:included_products] = modal_included
+        result[:included_products_from_modal] = true
+      else
+        result[:included_products] = (prev_included + modal_included).uniq
+      end
     end
 
     final_meas =
@@ -1083,7 +1092,10 @@ class PlDetailsFetcher
         end
       end
 
-      result[:included_products] = included_skus if included_skus.present?
+      if included_skus.present?
+        result[:included_products] = included_skus
+        result[:included_products_from_modal] = true
+      end
       accessories_related = extract_related_products_from_accessories_modal(modal_doc)
       recommendation_related = extract_related_products_from_recommendation_panel(modal_doc)
       related = (Array(accessories_related) + Array(recommendation_related)).map(&:to_s).uniq
@@ -1249,14 +1261,18 @@ class PlDetailsFetcher
   def included_products_sheet_clickable?(doc)
     return false unless doc
 
-    doc.css("button.pipf-list-view-item__action").any? do |btn|
-      txt = btn.text.to_s.downcase
-      txt.include?("elementy w zestawie") ||
-        txt.match?(/elements?\s+in\s+the\s+package|items\s+in\s+the\s+set/) ||
-        txt.match?(/элементы|входит\s+в\s+комплект/) ||
-        txt.include?("bestanddelen") ||
-        txt.include?("komponenty")
+    doc.css("button.pipf-list-view-item__action, .pipf-list-view-item, [class*='list-view-item']").any? do |el|
+      package_sheet_title?(el)
     end
+  end
+
+  def package_sheet_title?(node)
+    txt = node.text.to_s.downcase
+    txt.include?("elementy w zestawie") ||
+      txt.match?(/elements?\s+in\s+the\s+package|items\s+in\s+the\s+set/) ||
+      txt.match?(/что\s+входит|элементы|входит\s+в\s+комплект/) ||
+      txt.include?("bestanddelen") ||
+      txt.include?("komponenty")
   end
 
   # Headless: клик по строке «Elementy w zestawie» → sheet с .pipf-included-products-modal.
@@ -1282,10 +1298,16 @@ class PlDetailsFetcher
           return document.querySelector(".pipf-included-products-modal__list li, .pipf-included-products-modal a[href*='/p/']") !== null;
         })();
       JS
-      return extract_included_products(nil, Nokogiri::HTML(browser.body)) if open
+      if open
+        scroll_included_products_modal!(browser)
+        items, = extract_included_products(nil, Nokogiri::HTML(browser.body))
+        return items
+      end
     end
 
-    extract_included_products(nil, Nokogiri::HTML(browser.body))
+    scroll_included_products_modal!(browser)
+    items, = extract_included_products(nil, Nokogiri::HTML(browser.body))
+    items
   rescue StandardError => e
     Rails.logger.debug "PlDetailsFetcher.try_open_included_products_sheet!: #{e.message}"
     []
@@ -1293,34 +1315,50 @@ class PlDetailsFetcher
 
   # Только модалка «Elementy w zestawie» / pipf-included-products-modal (см. PIPF list view + sheet).
   # Не берём subProducts / JSON — там смешиваются варианты и прочие сущности.
+  # @return [Array<String>, Boolean] артикулы и признак «список из модалки»
   def extract_included_products(_product_data, doc)
     modal_root = doc.at_css(".pipf-included-products-modal")
-    return [] unless modal_root
+    return [[], false] unless modal_root
 
     items = []
 
     modal_root.css("a[href*='/p/']").each do |el|
       next unless el["href"].present?
 
-      m = el["href"].to_s.match(/-([a-z0-9]{8,9})\/?$/i)
+      m = el["href"].to_s.match(/-([a-z0-9]{8,9})\/?(?:[#?].*)?$/i)
+      m ||= el["href"].to_s.match(%r{/p/[^/]*-([a-z0-9]{8,9})/?(?:[#?].*)?$}i)
       token = m&.[](1)
-      norm = normalize_product_token(token)
+      norm = normalize_product_token(token) || Products::ArticleNumber.normalize(token)
       items << norm if norm.present?
     end
 
     modal_root.css(".pipf-product-identifier__value").each do |el|
-      compact = el.text.to_s.gsub(/[^0-9a-z]/i, "").downcase
-      norm = normalize_product_token(compact)
+      norm = Products::ArticleNumber.normalize(el.text)
       items << norm if norm.present?
     end
 
     modal_root.css("[data-item-no], [data-product-id], [data-sku]").each do |el|
       token = el["data-item-no"] || el["data-product-id"] || el["data-sku"]
-      norm = normalize_product_token(token)
+      norm = normalize_product_token(token) || Products::ArticleNumber.normalize(token)
       items << norm if norm.present?
     end
 
-    items.uniq
+    [items.uniq, true]
+  end
+
+  def scroll_included_products_modal!(browser)
+    browser.evaluate(<<~'JS')
+      (function() {
+        const list = document.querySelector(".pipf-included-products-modal__list");
+        if (!list) { return false; }
+        list.scrollTop = list.scrollHeight;
+        return true;
+      })();
+    JS
+    sleep(0.4)
+  rescue StandardError => e
+    Rails.logger.debug "PlDetailsFetcher.scroll_included_products_modal!: #{e.message}"
+    false
   end
 
   def extract_variants(product_data, doc)

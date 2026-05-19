@@ -19,12 +19,13 @@ RSpec.describe Products::IncludedProductsBootstrapService do
         results_jsonl_row: nil,
         force_ai_translation: false,
         fallback_pl_when_lt_missing: true,
-        strip_listing_relations: true
+        strip_listing_relations: true,
+        bundle_component: true
       )
     end
 
-    it "skips enrich for existing included product with complete card" do
-      create(
+    it "enriches complete included product (bundle components always refreshed)" do
+      child = create(
         :product,
         sku: "s12345678",
         item_no: "12345678",
@@ -37,11 +38,27 @@ RSpec.describe Products::IncludedProductsBootstrapService do
         content: "desc"
       )
 
-      allow(Products::ExtendedAttributesFetchService).to receive(:fetch_for_product)
+      allow(Products::ExtendedAttributesFetchService).to receive(:fetch_for_product).and_return({ updated: true })
+      allow(ImageDownloader).to receive(:sync_product_images)
 
       described_class.ensure!(parent)
 
-      expect(Products::ExtendedAttributesFetchService).not_to have_received(:fetch_for_product)
+      expect(Products::ExtendedAttributesFetchService).to have_received(:fetch_for_product).with(
+        child,
+        hash_including(bundle_component: true)
+      )
+    end
+
+    it "does not require images to finish bootstrap" do
+      child = create(:product, sku: "s60489549", item_no: "60489549", name: "IKEA 60489549", images: [], quantity: 0)
+
+      allow(Products::ExtendedAttributesFetchService).to receive(:fetch_for_product).and_return({ updated: true })
+      allow(ImageDownloader).to receive(:sync_product_images)
+
+      described_class.ensure!(parent)
+
+      expect(ImageDownloader).not_to have_received(:sync_product_images)
+      expect(Products::ExtendedAttributesFetchService).to have_received(:fetch_for_product)
     end
 
     it "extracts articles from mixed included_products payload formats" do

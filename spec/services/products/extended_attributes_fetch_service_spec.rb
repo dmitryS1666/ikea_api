@@ -29,18 +29,40 @@ RSpec.describe Products::ExtendedAttributesFetchService do
       expect(result).not_to have_key(:included_sheet_needs_headless)
     end
 
-    it "does not retry headless when modal is complete and included_products are present" do
+    it "does not retry headless when included list came from modal in static HTML" do
       complete = {
         materials: "Rama: Stal",
         care_instructions: "Odkurzać",
         included_products: %w[60489549],
-        included_sheet_needs_headless: false
+        included_sheet_needs_headless: true,
+        included_products_from_modal: true
       }
 
       expect(PlDetailsFetcher).to receive(:fetch).with(url, use_headless: false, scope_sku: nil).and_return(complete)
       expect(PlDetailsFetcher).not_to receive(:fetch).with(url, use_headless: true, scope_sku: nil)
 
       service.send(:fetch_details_with_optional_headless, url)
+    end
+
+    it "retries headless when sheet is clickable but included list is partial and not from modal" do
+      light = {
+        materials: "Rama: Stal",
+        care_instructions: "Odkurzać",
+        included_products: %w[10568638],
+        included_sheet_needs_headless: true,
+        included_products_from_modal: false
+      }
+      headless = light.merge(
+        included_products: %w[60489549 00417621 30489490 80498114 10568638],
+        included_products_from_modal: true
+      )
+
+      expect(PlDetailsFetcher).to receive(:fetch).with(url, use_headless: false, scope_sku: nil).and_return(light)
+      expect(PlDetailsFetcher).to receive(:fetch).with(url, use_headless: true, scope_sku: nil).and_return(headless)
+
+      result = service.send(:fetch_details_with_optional_headless, url)
+
+      expect(result[:included_products]).to eq(%w[60489549 00417621 30489490 80498114 10568638])
     end
 
     it "retries with headless when materials are missing" do

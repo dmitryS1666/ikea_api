@@ -18,7 +18,7 @@ class Products::ExtendedAttributesFetchService
   # Любая витрина IKEA (pl, lt/ru, …) — один и тот же каталог фото; при смене scoped-галереи вычищаем все, иначе LT+PL копятся в кашу.
   REMOTE_IKEA_PRODUCT_GALLERY_URL = %r{\Ahttps?://www\.ikea\.com/[^/]+/[^/]+/images/products}i.freeze
 
-  def self.fetch_for_product(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false, skip_image_reconciliation: false)
+  def self.fetch_for_product(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false, skip_image_reconciliation: false, bundle_component: false)
     new.fetch(
       product,
       results_jsonl_row: results_jsonl_row,
@@ -26,13 +26,15 @@ class Products::ExtendedAttributesFetchService
       fallback_pl_when_lt_missing: fallback_pl_when_lt_missing,
       strip_listing_relations: strip_listing_relations,
       skip_document_download: skip_document_download,
-      skip_image_reconciliation: skip_image_reconciliation
+      skip_image_reconciliation: skip_image_reconciliation,
+      bundle_component: bundle_component
     )
   end
 
-  def fetch(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false, skip_image_reconciliation: false)
+  def fetch(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false, skip_image_reconciliation: false, bundle_component: false)
     @skip_document_download = skip_document_download
     @skip_image_reconciliation = skip_image_reconciliation
+    @bundle_component = bundle_component
     pl_url = pl_product_url(product)
     return { updated: false } if pl_url.blank?
 
@@ -234,7 +236,9 @@ class Products::ExtendedAttributesFetchService
       return
     end
   
-    Rails.logger.warn(
+    log_level = @bundle_component ? :info : :warn
+    Rails.logger.public_send(
+      log_level,
       "ExtendedAttributesFetchService: PL scoped images empty for sku=#{product.sku}; keeping images unchanged"
     )
   
@@ -419,12 +423,7 @@ class Products::ExtendedAttributesFetchService
     merge_pl_variants_union!(pl_details, attributes) if pl_details[:variants].present?
 
     # included_products — только из модалки набора на PL (см. PlDetailsFetcher), не смешиваем с set_items.
-    combined_included = Array(pl_details[:included_products]).map(&:to_s)
-    if combined_included.any?
-      existing = Array(product.included_products).map(&:to_s)
-      merged = (existing + combined_included + Array(attributes[:included_products]).map(&:to_s)).compact.uniq
-      attributes[:included_products] = merged
-    end
+    merge_included_products_attribute!(product, pl_details, attributes)
 
     if pl_details[:videos].present? && attributes[:videos].blank?
       attributes[:videos] = pl_details[:videos]
@@ -567,12 +566,7 @@ class Products::ExtendedAttributesFetchService
     end
     merge_pl_variants_union!(pl_details, attributes) if pl_details[:variants].present?
 
-    combined_included = Array(pl_details[:included_products]).map(&:to_s)
-    if combined_included.any?
-      existing = Array(product.included_products).map(&:to_s)
-      merged = (existing + combined_included + Array(attributes[:included_products]).map(&:to_s)).compact.uniq
-      attributes[:included_products] = merged
-    end
+    merge_included_products_attribute!(product, pl_details, attributes)
 
     attributes[:videos] = pl_details[:videos] if pl_details[:videos]
     if pl_details[:manuals].present?
@@ -717,26 +711,58 @@ class Products::ExtendedAttributesFetchService
   # Модалка «Elementy w zestawie» / «Что входит в комплект» — только после клика (PlDetailsFetcher).
   def pl_included_products_need_headless?(details)
     return false if details.blank?
-    return false if Array(details[:included_products]).present?
 
     flag = details[:included_sheet_needs_headless]
     flag = details["included_sheet_needs_headless"] if flag.nil?
-    ActiveModel::Type::Boolean.new.cast(flag)
+    return false unless ActiveModel::Type::Boolean.new.cast(flag)
+
+    from_modal = details[:included_products_from_modal]
+    from_modal = details["included_products_from_modal"] if from_modal.nil?
+    return false if ActiveModel::Type::Boolean.new.cast(from_modal) && normalize_included_articles(details[:included_products]).any?
+
+    true
   end
 
   def strip_pl_fetch_metadata!(details)
     return {} if details.blank?
 
-    details.except(:included_sheet_needs_headless, "included_sheet_needs_headless")
+    details.except(
+      :included_sheet_needs_headless, "included_sheet_needs_headless",
+      :included_products_from_modal, "included_products_from_modal"
+    )
   end
 
   def merge_pl_headless_fetch(light, headless)
     merged = headless.dup
-    prev_included = Array(light[:included_products]).map(&:to_s)
-    headless_included = Array(merged[:included_products]).map(&:to_s)
-    combined = (headless_included + prev_included).compact.uniq
-    merged[:included_products] = combined if combined.any?
+    headless_included = normalize_included_articles(merged[:included_products])
+    from_modal = merged[:included_products_from_modal] || merged["included_products_from_modal"]
+
+    if ActiveModel::Type::Boolean.new.cast(from_modal) && headless_included.any?
+      merged[:included_products] = headless_included
+    else
+      combined = (headless_included + normalize_included_articles(light[:included_products])).compact.uniq
+      merged[:included_products] = combined if combined.any?
+    end
     merged
+  end
+
+  def normalize_included_articles(values)
+    Products::ArticleNumber.normalize_list(values)
+  end
+
+  def merge_included_products_attribute!(product, pl_details, attributes)
+    pl_list = normalize_included_articles(pl_details[:included_products])
+    return if pl_list.empty?
+
+    from_modal = pl_details[:included_products_from_modal] || pl_details["included_products_from_modal"]
+    if ActiveModel::Type::Boolean.new.cast(from_modal)
+      attributes[:included_products] = pl_list
+      return
+    end
+
+    existing = normalize_included_articles(product.included_products)
+    merged = (existing + pl_list + normalize_included_articles(attributes[:included_products])).compact.uniq
+    attributes[:included_products] = merged if merged.any?
   end
 
   def pl_headless_enabled?

@@ -4,6 +4,7 @@ module Products
   # Дочерние позиции набора: связь только в `parent.included_products` (JSON на родителе).
   # Для отсутствующих в БД артикулов создаём полную карточку: LT при наличии, иначе PL, без variants/related.
   # В категорию (CategoryProduct) такие строки не добавляем — они не из листинга PL.
+  # Комплектующие без фото на IKEA (placeholder в модалке) тоже создаём и обогащаем — галерея не обязательна.
   class IncludedProductsBootstrapService
     def self.ensure!(parent)
       new(parent: parent).ensure!
@@ -22,56 +23,16 @@ module Products
     attr_reader :parent
 
     def articles
-      Array(parent.included_products).flat_map { |entry| normalize_articles(entry) }.uniq
-    end
-
-    def normalize_articles(entry)
-      extract_tokens(entry).filter_map { |token| normalize_article_token(token) }.uniq
-    end
-
-    def extract_tokens(entry)
-      return [] if entry.blank?
-
-      if entry.is_a?(Hash)
-        nested = entry["item"] || entry[:item]
-        return [
-          entry["sku"], entry[:sku],
-          entry["item_no"], entry[:item_no],
-          entry["itemNo"], entry[:itemNo],
-          entry["itemNoGlobal"], entry[:itemNoGlobal],
-          entry["articleNumber"], entry[:articleNumber],
-          entry["id"], entry[:id],
-          entry["value"], entry[:value],
-          nested
-        ].compact
-      end
-
-      [entry]
-    end
-
-    def normalize_article_token(token)
-      return nil if token.blank?
-
-      if token.is_a?(Hash)
-        return normalize_articles(token).first
-      end
-
-      s = token.to_s.strip
-      return nil if s.blank?
-
-      compact = s.gsub(/[^0-9a-z]/i, "").downcase
-      return compact if compact.match?(/\A\d{8}\z/)
-      return compact.delete_prefix("s") if compact.match?(/\As\d{8}\z/)
-
-      embedded = s.match(/(^|[^0-9])(\d{8})([^0-9]|$)/)
-      embedded&.[](2)
+      Products::ArticleNumber.normalize_list(parent.included_products)
     end
 
     def ensure_article!(article)
       return if article.blank?
 
-      existing = Products::ListingSkuResolver.find_product(article) ||
-        Product.find_by(item_no: article)
+      existing =
+        Products::ListingSkuResolver.find_product(article) ||
+        Product.find_by(item_no: article) ||
+        Product.where("regexp_replace(item_no, '[^0-9]', '', 'g') = ?", article).first
       if existing
         enrich_product!(existing)
         return
@@ -101,46 +62,29 @@ module Products
     end
 
     def enrich_product!(product)
-      return unless incomplete_product?(product)
-
-      Products::ExtendedAttributesFetchService.fetch_for_product(
+      result = Products::ExtendedAttributesFetchService.fetch_for_product(
         product,
         results_jsonl_row: nil,
         force_ai_translation: false,
         fallback_pl_when_lt_missing: true,
-        strip_listing_relations: true
+        strip_listing_relations: true,
+        bundle_component: true
       )
 
       product.reload
+      sync_local_images_if_present!(product)
+
+      Rails.logger.info(
+        "IncludedProductsBootstrapService: parent=#{parent.sku} child=#{product.sku} " \
+        "updated=#{result[:updated]} images=#{Array(product.images).compact.size} " \
+        "name=#{product.name.to_s.truncate(40)}"
+      )
+    end
+
+    def sync_local_images_if_present!(product)
       return unless Array(product.images).compact.reject(&:blank?).any?
 
       ImageDownloader.sync_product_images(product)
-    end
-
-    def incomplete_product?(product)
-      return true if product.price.blank? || product.price.to_f <= 0
-      return true if product.weight.blank? && product.dimensions.blank?
-      return true if product.materials.blank? && poor_full_attributes?(product)
-      return true if product.content.to_s.strip.blank? && product.short_description.to_s.strip.blank?
-      return true if placeholder_name?(product)
-
-      false
-    end
-
-    def poor_full_attributes?(product)
-      fa = product.full_attributes
-      return true unless fa.is_a?(Hash)
-
-      fa = fa.deep_stringify_keys
-      detailed = fa["detailed_info"]
-      return false if detailed.is_a?(Hash) && detailed.any?
-
-      skip = %w[measurements_modal product_details_modal measurements_modal_extracted_at product_details_modal_extracted_at]
-      fa.except(*skip).blank?
-    end
-
-    def placeholder_name?(product)
-      product.name.to_s.match?(/\AIKEA\s+(s?)\d{8}\z/i)
     end
   end
 end
