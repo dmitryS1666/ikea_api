@@ -3,6 +3,8 @@ require 'rails_helper'
 RSpec.describe 'Public Return Requests API', type: :request do
   let(:user) { create(:user) }
   let!(:order) { create(:order, user: user, public_uid: '1234567') }
+  let(:token) { JwtService.encode(user_id: user.id) }
+  let(:auth_headers) { { "Authorization" => "Bearer #{token}" } }
 
   describe 'POST /api/v1/return_requests' do
     let(:payload) do
@@ -42,6 +44,13 @@ RSpec.describe 'Public Return Requests API', type: :request do
       expect(JSON.parse(response.body)['error']).to eq('Заказ не найден')
     end
 
+    it 'returns 422 when order number format is invalid' do
+      post '/api/v1/return_requests', params: payload.merge(order_number: 'fewf'), as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(JSON.parse(response.body)['error']).to include('6–8 цифр')
+    end
+
     it 'maps compensation_method values from the storefront form' do
       post '/api/v1/return_requests',
            params: payload.merge(compensation_method: 'обмен', compensation_type: nil),
@@ -49,6 +58,40 @@ RSpec.describe 'Public Return Requests API', type: :request do
 
       expect(response).to have_http_status(:created)
       expect(ReturnRequest.last.compensation_type).to eq('exchange')
+    end
+  end
+
+  describe 'POST /api/v1/account/returns without JWT' do
+    it 'creates a return request (storefront modal uses this URL)' do
+      post '/api/v1/account/returns',
+           params: {
+             order_id: order.public_uid,
+             reason: 'damaged',
+             comment: "test\nКомпенсация: возврат"
+           },
+           as: :json
+
+      expect(response).to have_http_status(:created)
+      expect(ReturnRequest.last.compensation_type).to eq('refund')
+    end
+
+    it 'does not require Authorization header' do
+      post '/api/v1/account/returns',
+           params: { order_id: '9999999', reason: 'damaged' },
+           as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(JSON.parse(response.body)['error']).not_to eq('Не авторизован')
+    end
+
+    it 'returns 422 for invalid order_id when authorized' do
+      post '/api/v1/account/returns',
+           params: { order_id: 'fewf', reason: 'wrong', comment: 'Компенсация: возврат' },
+           headers: auth_headers,
+           as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(JSON.parse(response.body)['error']).to include('6–8 цифр')
     end
   end
 end
