@@ -716,10 +716,7 @@ class Products::ExtendedAttributesFetchService
     flag = details["included_sheet_needs_headless"] if flag.nil?
     return false unless ActiveModel::Type::Boolean.new.cast(flag)
 
-    from_modal = details[:included_products_from_modal]
-    from_modal = details["included_products_from_modal"] if from_modal.nil?
-    return false if ActiveModel::Type::Boolean.new.cast(from_modal) && normalize_included_articles(details[:included_products]).any?
-
+    # Частичный SSR-список не заменяет клик по «Elementy w zestawie» — headless всегда, если sheet в DOM.
     true
   end
 
@@ -738,7 +735,9 @@ class Products::ExtendedAttributesFetchService
     from_modal = merged[:included_products_from_modal] || merged["included_products_from_modal"]
 
     if ActiveModel::Type::Boolean.new.cast(from_modal) && headless_included.any?
-      merged[:included_products] = headless_included
+      merged[:included_products] = (
+        headless_included + normalize_included_articles(light[:included_products])
+      ).uniq
     else
       combined = (headless_included + normalize_included_articles(light[:included_products])).compact.uniq
       merged[:included_products] = combined if combined.any?
@@ -756,7 +755,8 @@ class Products::ExtendedAttributesFetchService
 
     from_modal = pl_details[:included_products_from_modal] || pl_details["included_products_from_modal"]
     if ActiveModel::Type::Boolean.new.cast(from_modal)
-      attributes[:included_products] = pl_list
+      existing = normalize_included_articles(product.included_products)
+      attributes[:included_products] = (existing + pl_list).uniq
       return
     end
 

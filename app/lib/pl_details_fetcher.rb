@@ -100,7 +100,13 @@ class PlDetailsFetcher
     articles = Products::ArticleNumber.normalize_list(articles)
     articles.reject! { |a| a == parent_article } if parent_article.present?
 
-    if articles.size < 2 && self.class.headless_browser_executable_available?
+    html_doc = html.present? ? Nokogiri::HTML(html) : nil
+    sheet_needs_click = html_doc && included_products_sheet_clickable?(html_doc)
+    modal_in_static_html = html_doc&.at_css(".pipf-included-products-modal").present?
+
+    # Не пропускаем headless при «частичном» HTTP-списке (4 с фото): без клика по sheet нет 60489549 и др.
+    if self.class.headless_browser_executable_available? &&
+         (articles.size < 2 || sheet_needs_click || !modal_in_static_html)
       headless = fetch_included_products_headless_only(full_url)
       articles = (articles + Products::ArticleNumber.normalize_list(headless)).uniq
       articles.reject! { |a| a == parent_article } if parent_article.present?
