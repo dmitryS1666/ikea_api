@@ -474,13 +474,21 @@ class Products::ExtendedAttributesFetchService
   end
 
   def fetch_details_with_optional_headless(url, scope_sku: nil)
-    details = PlDetailsFetcher.fetch(url, use_headless: false, scope_sku: scope_sku) || {}
-    if !pl_modal_fields_complete?(details) && pl_headless_enabled?
-      Rails.logger.info "ExtendedAttributesFetchService: incomplete modal for #{url} -> headless"
-      headless = PlDetailsFetcher.fetch(url, use_headless: true, scope_sku: scope_sku)
-      details = headless if headless.present?
+    light = PlDetailsFetcher.fetch(url, use_headless: false, scope_sku: scope_sku) || {}
+
+    if pl_headless_enabled? && pl_fetch_needs_headless?(light)
+      reason =
+        if pl_included_products_need_headless?(light)
+          "included_products sheet"
+        else
+          "incomplete modal"
+        end
+      Rails.logger.info "ExtendedAttributesFetchService: #{reason} for #{url} -> headless"
+      headless = PlDetailsFetcher.fetch(url, use_headless: true, scope_sku: scope_sku) || {}
+      light = merge_pl_headless_fetch(light, headless) if headless.present?
     end
-    details
+
+    strip_pl_fetch_metadata!(light)
   end
 
   def apply_lt_descriptive(lt_details, attributes)
@@ -700,6 +708,35 @@ class Products::ExtendedAttributesFetchService
 
   def pl_modal_fields_complete?(details)
     details.present? && details[:materials].present? && details[:care_instructions].present?
+  end
+
+  def pl_fetch_needs_headless?(details)
+    !pl_modal_fields_complete?(details) || pl_included_products_need_headless?(details)
+  end
+
+  # Модалка «Elementy w zestawie» / «Что входит в комплект» — только после клика (PlDetailsFetcher).
+  def pl_included_products_need_headless?(details)
+    return false if details.blank?
+    return false if Array(details[:included_products]).present?
+
+    flag = details[:included_sheet_needs_headless]
+    flag = details["included_sheet_needs_headless"] if flag.nil?
+    ActiveModel::Type::Boolean.new.cast(flag)
+  end
+
+  def strip_pl_fetch_metadata!(details)
+    return {} if details.blank?
+
+    details.except(:included_sheet_needs_headless, "included_sheet_needs_headless")
+  end
+
+  def merge_pl_headless_fetch(light, headless)
+    merged = headless.dup
+    prev_included = Array(light[:included_products]).map(&:to_s)
+    headless_included = Array(merged[:included_products]).map(&:to_s)
+    combined = (headless_included + prev_included).compact.uniq
+    merged[:included_products] = combined if combined.any?
+    merged
   end
 
   def pl_headless_enabled?

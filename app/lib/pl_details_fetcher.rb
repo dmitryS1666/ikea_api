@@ -381,6 +381,9 @@ class PlDetailsFetcher
     # Цепочка категорий на витрине (последний числовой id в хлебных крошках — «текущий» раздел, напр. 700631)
     result[:pl_breadcrumb_category_ids] = extract_pl_breadcrumb_category_ids(doc)
 
+    # Метаданные для ExtendedAttributesFetchService: модалка «в комплект» только по клику (headless).
+    result[:included_sheet_needs_headless] = included_sheet_needs_headless
+
     result
   end
 

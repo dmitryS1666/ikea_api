@@ -78,6 +78,37 @@ RSpec.describe PlDetailsFetcher do
       expect(unscoped[:images].length).to eq(3)
     end
 
+    it "sets included_sheet_needs_headless when package sheet is clickable but modal is absent" do
+      html = <<~HTML
+        <!DOCTYPE html><html><body>
+          <button class="pipf-list-view-item__action">Elementy w zestawie</button>
+        </body></html>
+      HTML
+
+      result = described_class.parse_html(html, "https://www.ikea.com/pl/pl/p/x-s29545213/", use_headless: false)
+
+      expect(result[:included_sheet_needs_headless]).to eq(true)
+      expect(result[:included_products]).to be_nil
+    end
+
+    it "extracts included_products from pipf-included-products-modal when present in HTML" do
+      html = <<~HTML
+        <!DOCTYPE html><html><body>
+          <div class="pipf-included-products-modal">
+            <ul class="pipf-included-products-modal__list">
+              <li><a href="https://www.ikea.com/pl/pl/p/foo-60489549/">a</a></li>
+              <li><span class="pipf-product-identifier__value">004.176.21</span></li>
+            </ul>
+          </div>
+        </body></html>
+      HTML
+
+      result = described_class.parse_html(html, "https://www.ikea.com/pl/pl/p/x-s29545213/", use_headless: false)
+
+      expect(result[:included_products]).to contain_exactly("60489549", "00417621")
+      expect(result[:included_sheet_needs_headless]).to eq(false)
+    end
+
     it "extracts related_products only from accessories modal cards" do
       html = <<~HTML
         <!DOCTYPE html><html><body>
