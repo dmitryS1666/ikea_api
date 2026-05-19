@@ -190,9 +190,14 @@ class CrmIntegrationService
 
   def self.notify_return(return_request)
     Rails.logger.info "[AmoCRM] Notifying about return request #{return_request.id}"
-    
+
     user = return_request.user
-    contact_id = user.crm_contact_id || find_contact(user)
+    contact_id =
+      if user
+        user.crm_contact_id || find_contact(user)
+      else
+        find_or_create_contact_for_return(return_request)
+      end
     return false unless contact_id && contact_id != :error
 
     status_id = case return_request.status
@@ -203,20 +208,30 @@ class CrmIntegrationService
                 else 83327814
                 end
 
+    fio = return_request.applicant_full_name.presence || user&.full_name
+    phone = return_request.phone.presence || user&.phone
+    email = return_request.email.presence || user&.email
+    order_label = return_request.order_number.presence || return_request.order_id.to_s
+    return_type_label =
+      case return_request.compensation_type
+      when 'exchange' then 'Обмен'
+      else 'Возврат'
+      end
+
     lead_payload = {
-      name: "Возврат по заказу №#{return_request.order_id}",
+      name: "Возврат по заказу №#{order_label}",
       price: return_request.order.total_amount.to_i,
       status_id: status_id,
       custom_fields_values: [
-        { field_id: contact_field_id('RETURN_FIO'), values: [{ value: user.full_name }] },
-        { field_id: contact_field_id('RETURN_ORDER_ID'), values: [{ value: return_request.order_id.to_s }] },
-        { field_id: contact_field_id('RETURN_PHONE'), values: [{ value: user.phone }] },
-        { field_id: contact_field_id('RETURN_EMAIL'), values: [{ value: user.email }] },
+        { field_id: contact_field_id('RETURN_FIO'), values: [{ value: fio }] },
+        { field_id: contact_field_id('RETURN_ORDER_ID'), values: [{ value: order_label }] },
+        { field_id: contact_field_id('RETURN_PHONE'), values: [{ value: phone }] },
+        { field_id: contact_field_id('RETURN_EMAIL'), values: [{ value: email }] },
         { field_id: contact_field_id('RETURN_REASON'), values: [{ value: return_request.reason }] },
         { field_id: contact_field_id('RETURN_COMMENT'), values: [{ value: return_request.comment }] },
-        { field_id: contact_field_id('RETURN_TYPE'), values: [{ value: 'Возврат' }] }, # Тип по умолчанию
+        { field_id: contact_field_id('RETURN_TYPE'), values: [{ value: return_type_label }] },
         { field_id: contact_field_id('RETURN_DATE'), values: [{ value: return_request.created_at.to_i }] }
-      ],
+      ].reject { |f| f.dig(:values, 0, :value).blank? },
       _embedded: {
         contacts: [{ id: contact_id }]
       }
@@ -394,6 +409,40 @@ class CrmIntegrationService
     response = post_with_log("#{base_url}/api/v4/contacts", body: [payload].to_json, headers: headers)
     return nil unless response.success?
     response.parsed_response.dig('_embedded', 'contacts', 0, 'id')
+  end
+
+  def self.find_or_create_contact_for_return(return_request)
+    query = return_request.phone.presence || return_request.email
+
+    if query.present?
+      Rails.logger.info "[AmoCRM] Finding contact for return #{query}"
+      response = get_with_log("#{base_url}/api/v4/contacts", query: { query: query }, headers: headers)
+      return :error if response.code >= 500
+      found = response.success? ? response.parsed_response.dig('_embedded', 'contacts', 0, 'id') : nil
+      return found if found.present?
+    end
+
+    contact_payload = {
+      name: return_request.applicant_full_name.presence || "Возврат ##{return_request.id}",
+      first_name: return_request.first_name,
+      custom_fields_values: []
+    }
+
+    if return_request.phone.present?
+      contact_payload[:custom_fields_values] << {
+        field_id: contact_field_id('PHONE'),
+        values: [{ value: return_request.phone, enum_code: 'MOB' }]
+      }
+    end
+
+    if return_request.email.present?
+      contact_payload[:custom_fields_values] << {
+        field_id: contact_field_id('EMAIL'),
+        values: [{ value: return_request.email, enum_code: 'WORK' }]
+      }
+    end
+
+    create_contact_with_id(contact_payload)
   end
 
   def self.find_or_create_contact_for_cooperation(cooperation_request)

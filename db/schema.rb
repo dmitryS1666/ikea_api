@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_10_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_19_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -740,14 +740,21 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_10_120000) do
   end
 
   create_table "return_requests", force: :cascade do |t|
-    t.bigint "user_id", null: false
+    t.bigint "user_id"
     t.bigint "order_id", null: false
     t.string "reason", null: false
     t.text "comment"
     t.string "status", default: "new", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "first_name"
+    t.string "patronymic"
+    t.string "order_number"
+    t.string "phone"
+    t.string "email"
+    t.string "compensation_type"
     t.index ["order_id"], name: "index_return_requests_on_order_id"
+    t.index ["order_number"], name: "index_return_requests_on_order_number"
     t.index ["status", "created_at"], name: "index_return_requests_on_status_and_created_at"
     t.index ["user_id"], name: "index_return_requests_on_user_id"
   end

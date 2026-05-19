@@ -21,6 +21,7 @@ module Api
           order = Order.find_for_account!(current_user, params.require(:order_id))
           req = current_user.return_requests.create!(
             order: order,
+            order_number: order.public_uid,
             reason: params.require(:reason),
             comment: params[:comment]
           )
