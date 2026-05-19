@@ -303,6 +303,7 @@ class PlDetailsFetcher
       result[:included_products] = Products::ArticleNumber.normalize_list(ip)
       result[:included_products_from_modal] = true if included_from_modal
     end
+    supplement_included_products_from_packaging!(result, product_data)
     included_sheet_needs_headless = included_products_sheet_clickable?(doc)
     sv = extract_variants(product_data, doc)
     result[:variants] = sv if sv.any?
@@ -1311,6 +1312,67 @@ class PlDetailsFetcher
   rescue StandardError => e
     Rails.logger.debug "PlDetailsFetcher.try_open_included_products_sheet!: #{e.message}"
     []
+  end
+
+  # Артикулы комплектующих из hydration packaging.packages (без клика по модалке).
+  def extract_included_products_from_packaging(product_data)
+    return [] unless product_data.is_a?(Hash)
+
+    paths = [
+      %w[stockcheckSection packagingProps packages],
+      %w[stockcheckSection packaging packages],
+      %w[pageProps product packaging packages],
+      %w[packaging contentProps packages],
+      %w[packaging packages],
+      %w[packagingProps packages],
+      %w[packages],
+      %w[productInformationSection packaging packages],
+      %w[productInformationSection packagingProps packages],
+      %w[productDetails packaging packages],
+      %w[productDetails packagingProps packages],
+      %w[specifications packaging packages],
+      %w[specifications packagingProps packages]
+    ]
+
+    articles = []
+    paths.each do |path|
+      pkgs = product_data.dig(*path)
+      next unless pkgs.is_a?(Array)
+
+      pkgs.each { |pkg| articles.concat(article_numbers_from_package_hash(pkg)) }
+    end
+
+    Products::ArticleNumber.normalize_list(articles)
+  end
+
+  def supplement_included_products_from_packaging!(result, product_data)
+    packaging_articles = extract_included_products_from_packaging(product_data)
+    return if packaging_articles.empty?
+
+    current = Products::ArticleNumber.normalize_list(result[:included_products])
+    merged = (current + packaging_articles).uniq
+    return if merged == current
+
+    result[:included_products] = merged
+    Rails.logger.info(
+      "PlDetailsFetcher: included_products supplemented from packaging JSON " \
+      "(#{current.size} -> #{merged.size})"
+    )
+  end
+
+  def article_numbers_from_package_hash(pkg)
+    return [] unless pkg.is_a?(Hash)
+
+    articles = []
+    %w[itemNo itemNoGlobal articleNumber productNo productNumber id].each do |key|
+      norm = Products::ArticleNumber.normalize(pkg[key])
+      articles << norm if norm.present?
+    end
+
+    nested = pkg["product"] || pkg[:product]
+    articles.concat(article_numbers_from_package_hash(nested)) if nested.is_a?(Hash)
+
+    articles
   end
 
   # Только модалка «Elementy w zestawie» / pipf-included-products-modal (см. PIPF list view + sheet).

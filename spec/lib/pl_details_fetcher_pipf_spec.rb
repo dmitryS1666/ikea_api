@@ -78,6 +78,21 @@ RSpec.describe PlDetailsFetcher do
       expect(unscoped[:images].length).to eq(3)
     end
 
+    it "extracts included_products from packaging hydration JSON" do
+      product_data = {
+        "packaging" => {
+          "packages" => [
+            { "itemNo" => "60489549" },
+            { "itemNo" => "00417621" }
+          ]
+        }
+      }
+
+      articles = described_class.new.send(:extract_included_products_from_packaging, product_data)
+
+      expect(articles).to contain_exactly("60489549", "00417621")
+    end
+
     it "sets included_sheet_needs_headless when package sheet is clickable but modal is absent" do
       html = <<~HTML
         <!DOCTYPE html><html><body>

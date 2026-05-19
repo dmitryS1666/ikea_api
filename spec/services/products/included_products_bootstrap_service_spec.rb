@@ -6,6 +6,11 @@ RSpec.describe Products::IncludedProductsBootstrapService do
   describe ".ensure!" do
     let(:parent) { create(:product, sku: "s11111111", included_products: ["12345678"]) }
 
+    before do
+      allow(PlDetailsFetcher).to receive(:headless_browser_executable_available?).and_return(false)
+      allow(PlDetailsFetcher).to receive(:fetch).and_return({ included_products: [] })
+    end
+
     it "enriches existing included product when it is incomplete" do
       child = create(:product, sku: "s12345678", item_no: "12345678", name: "IKEA 12345678", price: 0, quantity: 0)
 
@@ -80,6 +85,21 @@ RSpec.describe Products::IncludedProductsBootstrapService do
       expect(Product.find_by(item_no: "87654321")).to be_present
       expect(Product.find_by(item_no: "23456789")).to be_present
       expect(Product.find_by(item_no: "34567890")).to be_present
+    end
+
+    it "creates children from PL fetch when parent included_products was empty" do
+      parent.update!(included_products: [])
+      allow(PlDetailsFetcher).to receive(:fetch).and_return(
+        { included_products: %w[60489549 00417621], included_products_from_modal: true }
+      )
+      allow(Products::ExtendedAttributesFetchService).to receive(:fetch_for_product).and_return({ updated: true })
+      allow(ImageDownloader).to receive(:sync_product_images)
+
+      described_class.ensure!(parent)
+
+      expect(Product.find_by(item_no: "60489549")).to be_present
+      expect(Product.find_by(item_no: "00417621")).to be_present
+      expect(parent.reload.included_products).to eq(%w[60489549 00417621])
     end
   end
 end

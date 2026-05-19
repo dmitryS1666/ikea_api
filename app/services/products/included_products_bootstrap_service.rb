@@ -15,6 +15,13 @@ module Products
     end
 
     def ensure!
+      articles = resolve_articles!
+      if articles.empty?
+        Rails.logger.warn "IncludedProductsBootstrapService: no included articles for parent=#{parent.sku}"
+        return
+      end
+
+      Rails.logger.info "IncludedProductsBootstrapService: parent=#{parent.sku} ensuring #{articles.size} articles"
       articles.each { |article| ensure_article!(article) }
     end
 
@@ -22,26 +29,87 @@ module Products
 
     attr_reader :parent
 
-    def articles
-      Products::ArticleNumber.normalize_list(parent.included_products)
+    # Сначала подтягиваем состав с PL (headless + packaging JSON), затем дочерние карточки.
+    def resolve_articles!
+      stored = Products::ArticleNumber.normalize_list(parent.included_products)
+      fetched = fetch_included_articles_from_pl!
+      list =
+        if fetched.size > stored.size
+          fetched
+        elsif fetched.any?
+          (stored + fetched).uniq
+        else
+          stored
+        end
+
+      persist_parent_included!(list) if list.any? && list != stored
+      list
+    end
+
+    def fetch_included_articles_from_pl!
+      url = parent_pl_pip_url
+      return [] if url.blank?
+
+      headless = PlDetailsFetcher.headless_browser_executable_available?
+      unless headless
+        Rails.logger.warn(
+          "IncludedProductsBootstrapService: Chrome/Chromium unavailable, PL fetch without headless parent=#{parent.sku}"
+        )
+      end
+
+      details = PlDetailsFetcher.fetch(url, use_headless: headless, scope_sku: parent.sku)
+      list = Products::ArticleNumber.normalize_list(details[:included_products])
+      if list.empty?
+        Rails.logger.warn "IncludedProductsBootstrapService: empty included_products from PL parent=#{parent.sku} url=#{url}"
+      end
+      list
+    rescue StandardError => e
+      Rails.logger.error "IncludedProductsBootstrapService: PL fetch failed parent=#{parent.sku}: #{e.class} #{e.message}"
+      []
+    end
+
+    def parent_pl_pip_url
+      article = Products::ArticleNumber.normalize(parent.item_no) ||
+                Products::ArticleNumber.normalize(parent.sku)
+      return "https://www.ikea.com/pl/pl/p/-#{article}/" if article.present?
+
+      u = parent.url.to_s
+      return u if u.include?("/pl/pl/")
+
+      u.gsub(%r{/lt/ru/}, "/pl/pl/").presence
+    end
+
+    def persist_parent_included!(list)
+      parent.update!(included_products: list)
+      parent.reload
+    rescue StandardError => e
+      Rails.logger.warn "IncludedProductsBootstrapService: failed to save included_products parent=#{parent.sku}: #{e.message}"
     end
 
     def ensure_article!(article)
       return if article.blank?
 
-      existing =
-        Products::ListingSkuResolver.find_product(article) ||
-        Product.find_by(item_no: article) ||
-        Product.where("regexp_replace(item_no, '[^0-9]', '', 'g') = ?", article).first
-      if existing
-        enrich_product!(existing)
-        return
-      end
+      child = find_existing_child(article)
+      child ||= create_child!(article)
+      return unless child
 
+      enrich_product!(child)
+    rescue StandardError => e
+      Rails.logger.error "IncludedProductsBootstrapService: article=#{article} parent=#{parent.sku}: #{e.class} #{e.message}"
+    end
+
+    def find_existing_child(article)
+      Products::ListingSkuResolver.find_product(article) ||
+        Product.find_by(item_no: article) ||
+        Product.find_by(sku: "s#{article}") ||
+        Product.where("regexp_replace(coalesce(item_no, ''), '[^0-9]', '', 'g') = ?", article).first
+    end
+
+    def create_child!(article)
       listing_sku = "s#{article}"
       url = "https://www.ikea.com/pl/pl/p/-#{article}/"
 
-      child = Product.create!(
+      Product.create!(
         sku: listing_sku,
         item_no: article,
         url: url,
@@ -53,12 +121,9 @@ module Products
         images: [],
         quantity: 0
       )
-
-      enrich_product!(child)
     rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
-      Rails.logger.warn "IncludedProductsBootstrapService: article=#{article} parent=#{parent.sku}: #{e.message}"
-    rescue StandardError => e
-      Rails.logger.error "IncludedProductsBootstrapService: article=#{article} parent=#{parent.sku}: #{e.class} #{e.message}"
+      Rails.logger.warn "IncludedProductsBootstrapService: create article=#{article} parent=#{parent.sku}: #{e.message}"
+      find_existing_child(article)
     end
 
     def enrich_product!(product)
