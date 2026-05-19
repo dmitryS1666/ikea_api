@@ -26,19 +26,18 @@ module Api
       
       def show
         resolved = Products::ListingSkuResolver.find_product(params[:sku])
+        unless resolved&.available_in_stock?
+          return render json: { error: 'Product not found' }, status: :not_found
+        end
+
         scope =
-          Product.includes(
+          Product.with_available_stock.includes(
             :seo_meta,
             :category_products,
             category: :category_related_product_list,
             categories: :category_related_product_list
           )
-        product =
-          if resolved
-            scope.find(resolved.id)
-          else
-            scope.find_by!(sku: params[:sku])
-          end
+        product = scope.find(resolved.id)
         
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
         render json: ProductSerializer.new(product, {

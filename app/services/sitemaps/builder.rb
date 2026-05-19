@@ -40,7 +40,7 @@ module Sitemaps
     end
 
     def build_products(xml)
-      Product.active.find_each do |product|
+      Product.active.with_available_stock.find_each do |product|
         add_url(
           xml,
           "/product/#{product.sku}",

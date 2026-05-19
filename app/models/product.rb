@@ -40,8 +40,16 @@ class Product < ApplicationRecord
 
   # Scopes
   scope :active, -> { all }
-  # Публичные списки: только позиции с положительным остатком (как в SimilarProductsService)
-  scope :with_available_stock, -> { where('products.quantity > 0') }
+  # Публичные списки: quantity < 1 не показываем на витрине
+  scope :with_available_stock, -> { where('products.quantity >= ?', Products::StockAvailability::MIN_QUANTITY) }
+
+  def available_in_stock?
+    Products::StockAvailability.product_in_stock?(self)
+  end
+
+  def self.filter_skus_with_available_stock(skus)
+    Products::StockAvailability.filter_skus_with_available_stock(skus)
+  end
   scope :bestsellers, -> { where(is_bestseller: true) }
   scope :new_arrivals, -> { where(is_new: true) }
   scope :popular, -> { where(is_popular: true) }
@@ -170,6 +178,10 @@ class Product < ApplicationRecord
     Product.where(sku: skus)
   end
 
+  def variant_products_in_stock
+    variant_products.merge(Product.with_available_stock)
+  end
+
   # Синхронизация колонки `variants` у всех карточек группы (полный граф между SKU в БД).
   # Группа: текущий артикул + `normalized_variant_skus` после сохранения.
   def sync_variant_sibling_links!
@@ -296,7 +308,7 @@ class Product < ApplicationRecord
       name_ru: name.to_s.presence,
       small_desc_name: small_desc_name,
       price: price&.to_s,
-      quantity: quantity || 999,
+      quantity: quantity.to_i,
       images: images
     }
   end
@@ -431,7 +443,13 @@ class Product < ApplicationRecord
           end
         
           group[:data] =
-            Array(group[:data]).sort_by.with_index do |variant, idx|
+            Array(group[:data]).select do |variant|
+              item = variant[:item] || variant["item"] || {}
+              sku_v = item[:sku].presence || item["sku"].presence
+              rec = sku_v.present? ? resolve_variant_record(sku_v, variants_by_sku) : nil
+              rec = nil if rec.present? && !same_variant_sku?(rec.sku, sku_v)
+              variant_entry_in_stock?(rec, item)
+            end.sort_by.with_index do |variant, idx|
               sku_v = variant.dig(:item, :sku).to_s.downcase
               mine = sku_v == sku.to_s.downcase ? 0 : 1
               [mine, idx]
@@ -439,6 +457,9 @@ class Product < ApplicationRecord
         
           group
         end
+
+        processed_payload = processed_payload.select { |group| Array(group[:data]).size >= 2 }
+        return nil if processed_payload.empty?
 
         normalize_variant_payload_images!(processed_payload)
 
@@ -449,13 +470,15 @@ class Product < ApplicationRecord
 
     return nil if type.blank?
 
-    products = variant_products.to_a
+    products = variant_products_in_stock.to_a
     return nil if products.size < 2
 
     data =
       case type
       when "color"
-        products.map do |product|
+        products.filter_map do |product|
+          next unless product.available_in_stock?
+
           label = product.variant_label_for(COLOR_PARAM)
           next if label.blank?
 
@@ -463,9 +486,10 @@ class Product < ApplicationRecord
             color: label,
             item: product.variant_item_payload
           }
-        end.compact
+        end
       when "size"
-        products.map do |product|
+        products.filter_map do |product|
+          next unless product.available_in_stock?
           label =
             product.variant_label_for("f-measurement-buckets") ||
             product.variant_label_for("f-shape") ||
@@ -479,7 +503,7 @@ class Product < ApplicationRecord
             size: label,
             item: product.variant_item_payload
           }
-        end.compact
+        end
       else
         []
       end
@@ -589,6 +613,14 @@ class Product < ApplicationRecord
     aa = Products::ListingSkuResolver.aliases(a).map(&:to_s)
     bb = Products::ListingSkuResolver.aliases(b).map(&:to_s)
     (aa & bb).any?
+  end
+
+  def variant_entry_in_stock?(record, item)
+    return record.available_in_stock? if record.present?
+
+    Products::StockAvailability.in_stock_quantity?(
+      item["quantity"] || item[:quantity]
+    )
   end
 
   def normalized_color_label(raw_label, small_desc)
@@ -727,13 +759,7 @@ class Product < ApplicationRecord
         Array(included_products)
       end
         .flatten
-        .filter_map do |item|
-          if item.is_a?(Hash)
-            item["sku"] || item[:sku] || item["item_no"] || item[:item_no]
-          else
-            item.to_s.gsub(/[\[\]\"]/, '').strip.presence
-          end
-        end
+        .filter_map { |item| Products::ArticleNumber.normalize(item) }
         .uniq
   end
 

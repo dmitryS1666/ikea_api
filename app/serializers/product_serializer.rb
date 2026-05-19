@@ -146,13 +146,15 @@ class ProductSerializer
               []
             end
 
-    items.filter_map do |item|
+    skus = items.filter_map do |item|
       if item.is_a?(Hash)
         (item["sku"] || item[:sku] || item["item_no"] || item[:item_no]).presence
       else
         item.to_s.presence
       end
     end
+
+    Product.filter_skus_with_available_stock(skus)
   end
 
   belongs_to :category, serializer: CategorySerializer, if: proc { |record| record.category.present? }
@@ -1246,8 +1248,7 @@ class ProductSerializer
   end
 
   attribute :included_products do |product|
-    Array(product.included_products).filter_map do |item|
-      item.to_s.gsub(/[\[\]\"]/, '').strip.presence
-    end.uniq
+    # Состав набора: все артикулы из карточки, без фильтра по quantity (комплектующие часто без остатка).
+    Products::ArticleNumber.normalize_list(product.included_products)
   end
 end

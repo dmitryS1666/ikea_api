@@ -38,6 +38,20 @@ RSpec.describe ProductSerializer do
     end
   end
 
+  describe "related_products attribute" do
+    it "filters out SKUs without available stock" do
+      category = Category.create!(ikea_id: "cat-rel-1", name: "Cat", parent_ids: [])
+      product = create(:product, sku: "srel00001", category_id: category.ikea_id, related_products: %w[srel00002 srel00003])
+      create(:product, sku: "srel00002", quantity: 4)
+      create(:product, sku: "srel00003", quantity: 0)
+
+      serialized = described_class.new(product, params: { detail: true }).serializable_hash
+      related = serialized[:data][:attributes][:related_products]
+
+      expect(related).to eq(["srel00002"])
+    end
+  end
+
   describe ".materials_hash_from_product_details_modal" do
     it "extracts term/definition pairs from material-and-care section" do
       pdm = {

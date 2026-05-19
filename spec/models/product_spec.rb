@@ -25,6 +25,15 @@ RSpec.describe Product, type: :model do
       allow(ExchangeRate).to receive(:fetch_or_create).and_return(instance_double(ExchangeRate, rate_per_unit: 3.5))
       allow(PriceCalculationService).to receive(:exchange_rate_buffer).and_return(0)
       allow(PriceCalculationService).to receive(:product_price_byn).and_return(350.0)
+
+      create(:product, sku: "s11111111", quantity: 5)
+      create(:product, sku: "s29545213", quantity: 5)
+    end
+
+    it "drops variant items that are out of stock" do
+      Product.find_by(sku: "s11111111")&.update!(quantity: 0)
+
+      expect(product.normalized_variants_for_api).to be_nil
     end
 
     it "puts current SKU first and uses nil price_byn when price is missing" do
@@ -48,6 +57,8 @@ RSpec.describe Product, type: :model do
     end
 
     it "normalizes Polish color labels and armrest phrase to Russian" do
+      create(:product, sku: "s22222222", quantity: 3)
+
       product.variants_payload = [
         {
           "type" => "color",
@@ -55,6 +66,10 @@ RSpec.describe Product, type: :model do
             {
               "color" => "z szerokimi podlokietnikami hillared antracyt",
               "item" => { "sku" => "s11111111", "price" => "100.0", "small_desc_name" => "z szerokimi podlokietnikami hillared antracyt" }
+            },
+            {
+              "color" => "Other",
+              "item" => { "sku" => "s22222222", "price" => "80.0", "small_desc_name" => "Other" }
             }
           ]
         }

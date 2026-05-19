@@ -4,7 +4,7 @@ class RecommendedProductsService
     return [] if skus.empty?
 
     # keep order
-    products = Product.where(sku: skus).index_by(&:sku)
+    products = Product.with_available_stock.where(sku: skus).index_by(&:sku)
     skus.filter_map { |sku| products[sku] }
   end
 end
