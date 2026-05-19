@@ -10,6 +10,14 @@ module Products
       new(parent: parent).ensure!
     end
 
+    # Комплектующая — только по listing SKU (s60489549), не по item_no у родительского набора.
+    def self.component_product_for(article)
+      article = Products::ArticleNumber.normalize(article)
+      return nil if article.blank?
+
+      Product.find_by(sku: "s#{article}") || Product.find_by(sku: article)
+    end
+
     def initialize(parent:)
       @parent = parent
     end
@@ -105,10 +113,7 @@ module Products
     end
 
     def find_existing_child(article)
-      Products::ListingSkuResolver.find_product(article) ||
-        Product.find_by(item_no: article) ||
-        Product.find_by(sku: "s#{article}") ||
-        Product.where("regexp_replace(coalesce(item_no, ''), '[^0-9]', '', 'g') = ?", article).first
+      self.class.component_product_for(article)
     end
 
     def create_child!(article)

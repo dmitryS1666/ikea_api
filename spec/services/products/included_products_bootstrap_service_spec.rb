@@ -87,6 +87,27 @@ RSpec.describe Products::IncludedProductsBootstrapService do
       expect(Product.find_by(item_no: "34567890")).to be_present
     end
 
+    it "creates s{article} when another product shares item_no but has a different listing sku" do
+      parent.update!(included_products: ["60489549"])
+      create(
+        :product,
+        sku: "29537072",
+        item_no: "60489549",
+        name: "VIMLE parent",
+        included_products: %w[60489549 00417621]
+      )
+
+      allow(Products::ExtendedAttributesFetchService).to receive(:fetch_for_product).and_return({ updated: true })
+      allow(ImageDownloader).to receive(:sync_product_images)
+
+      described_class.ensure!(parent)
+
+      component = Product.find_by(sku: "s60489549")
+      expect(component).to be_present
+      expect(component.item_no).to eq("60489549")
+      expect(Product.find_by(sku: "29537072").id).not_to eq(component.id)
+    end
+
     it "creates children from PL fetch when parent included_products was empty" do
       parent.update!(included_products: [])
       allow(PlDetailsFetcher).to receive(:fetch_included_articles).and_return(%w[60489549 00417621])

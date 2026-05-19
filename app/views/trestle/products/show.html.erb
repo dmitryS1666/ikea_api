@@ -443,7 +443,7 @@
               <div class="mb-4">
                 <ul class="list-group">
                   <% included_products.each do |item_no| %>
-                    <% set_product = Products::ListingSkuResolver.find_product(item_no) || Product.find_by(item_no: item_no) %>
+                    <% set_product = Products::IncludedProductsBootstrapService.component_product_for(item_no) %>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                       <% if set_product %>
                         <%= link_to "#{set_product.name} (#{item_no})", "/admin/products/#{set_product.id}", class: 'text-decoration-none' %>

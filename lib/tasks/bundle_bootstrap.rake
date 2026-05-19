@@ -19,8 +19,8 @@ namespace :bundle do
     puts "included_products after: #{articles.inspect}"
 
     articles.each do |article|
-      child = Products::ListingSkuResolver.find_product(article) || Product.find_by(item_no: article)
-      puts child ? "  OK #{article} -> #{child.sku} #{child.name}" : "  MISSING #{article}"
+      child = Products::IncludedProductsBootstrapService.component_product_for(article)
+      puts child ? "  OK #{article} -> #{child.sku} #{child.name}" : "  MISSING #{article} (expected sku s#{article})"
     end
   end
 end
