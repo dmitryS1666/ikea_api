@@ -120,6 +120,29 @@ RSpec.describe ContentArticle, type: :model do
       expect(serialized_blocks.first["images"].first["url"]).to include("/rails/active_storage/blobs")
       expect(serialized_blocks.first["button_category"]["ikea_id"]).to eq(category.ikea_id)
       expect(serialized_blocks.first["button_category"]["name"]).to eq(category.name)
+      expect(serialized_blocks.first["button_category"]["slug"]).to eq(category.slug)
+      expect(serialized_blocks.first["button_category"]["url"]).to eq(category.catalog_url)
+    end
+
+    it "exposes slug and catalog url for slider category" do
+      category = create(:category, ikea_id: "bm001", name: "Łóżka i materace", cached_slug: "budilniki")
+
+      article = create(:content_article, body_blocks: [
+        {
+          "type" => "image_left_text_right",
+          "content" => "<p>Текст</p>",
+          "slider_category_id" => category.ikea_id
+        }
+      ])
+
+      block = ContentArticleSerializer.new(article).serializable_hash[:data][:attributes][:body_blocks].first
+
+      expect(block["slider_category"]).to eq(
+        "ikea_id" => "bm001",
+        "name" => "Łóżka i materace",
+        "slug" => "budilniki",
+        "url" => "/catalog/budilniki/"
+      )
     end
 
     it "exposes admin HTML and product grid payloads for frontend rendering" do

@@ -65,6 +65,13 @@ class Category < ApplicationRecord
     cached_slug || generate_slug
   end
 
+  def catalog_url
+    slug_value = slug.to_s.presence
+    return if slug_value.blank?
+
+    "/catalog/#{slug_value}/"
+  end
+
   def display_filters
     available_filters || []
   end

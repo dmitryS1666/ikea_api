@@ -458,7 +458,9 @@ class ContentArticle < ApplicationRecord
 
     {
       "ikea_id" => category.ikea_id,
-      "name" => category.name
+      "name" => category.name,
+      "slug" => category.slug.to_s,
+      "url" => category.catalog_url
     }
   end
 
