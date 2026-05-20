@@ -8,30 +8,81 @@ RSpec.describe Products::SearchService do
 
   before do
     category.products_through_categories << [product1, product2, product3]
+    allow(ExchangeRate).to receive(:fetch_or_create).and_return(instance_double(ExchangeRate, rate_per_unit: 1.0))
+    allow(CalculatorSetting).to receive(:get).with("exchange_rate_buffer").and_return(1.0)
+  end
+
+  def display_price_byn(product)
+    PriceCalculationService.product_price_byn(
+      product.price.to_f,
+      weight_kg: product.packaging_weight_kg.to_f,
+      delivery_pln: product.delivery_cost.to_f,
+      pln_rate: 1.0,
+      buffer: 1.0
+    )
   end
 
   describe '#call' do
     context 'filtering by price' do
-      it 'filters by min_price' do
-        service = described_class.new(category, { min_price: 150 })
+      it 'filters by min_price in BYN (display price)' do
+        threshold = [display_price_byn(product1), display_price_byn(product3)].max + 0.01
+        service = described_class.new(category, { min_price: threshold })
         expect(service.call).to contain_exactly(product2)
       end
 
-      it 'filters by max_price' do
-        service = described_class.new(category, { max_price: 150 })
+      it 'filters by max_price in BYN (display price)' do
+        threshold = [display_price_byn(product1), display_price_byn(product3)].min - 0.01
+        service = described_class.new(category, { max_price: threshold })
         expect(service.call).to contain_exactly(product1, product3)
+      end
+
+      it 'filters by min_price from nested f-price-buckets hash' do
+        threshold = display_price_byn(product2) - 0.01
+        service = described_class.new(category, { filters: { "f-price-buckets" => { "min" => threshold } } })
+        expect(service.call).to contain_exactly(product2)
+      end
+    end
+
+    context 'filtering by f-price-buckets value ids' do
+      before do
+        create(:product_filter_value,
+               product: product1,
+               category_id: category.ikea_id,
+               parameter: "f-price-buckets",
+               value_id: "PRICE_10000_10001")
+        create(:product_filter_value,
+               product: product2,
+               category_id: category.ikea_id,
+               parameter: "f-price-buckets",
+               value_id: "PRICE_20000_20001")
+      end
+
+      it 'filters by indexed bucket ids' do
+        service = described_class.new(category, { filters: { "f-price-buckets" => ["PRICE_10000_10001"] } })
+        expect(service.call).to contain_exactly(product1)
+      end
+
+      it 'ignores PRICE_RANGE sentinel without min/max' do
+        service = described_class.new(category, { filters: { "f-price-buckets" => ["PRICE_RANGE"] } })
+        expect(service.call).to contain_exactly(product1, product2, product3)
       end
     end
 
     context 'sorting' do
-      it 'sorts by cheapest' do
+      it 'sorts by cheapest (display price BYN)' do
         service = described_class.new(category, { sort: 'cheapest' })
-        expect(service.call.to_a).to eq([product3, product1, product2])
+        ordered = service.call.to_a
+        prices = ordered.map { |p| display_price_byn(p) }
+        expect(prices).to eq(prices.sort)
+        expect(ordered).to eq([product3, product1, product2])
       end
 
-      it 'sorts by expensive' do
+      it 'sorts by expensive (display price BYN)' do
         service = described_class.new(category, { sort: 'expensive' })
-        expect(service.call.to_a).to eq([product2, product1, product3])
+        ordered = service.call.to_a
+        prices = ordered.map { |p| display_price_byn(p) }
+        expect(prices).to eq(prices.sort.reverse)
+        expect(ordered).to eq([product2, product1, product3])
       end
 
       it 'sorts by newest' do

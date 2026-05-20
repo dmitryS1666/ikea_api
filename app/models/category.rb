@@ -95,17 +95,20 @@ class Category < ApplicationRecord
 
     buffer = CalculatorSetting.get('exchange_rate_buffer') || PriceCalculationService.exchange_rate_buffer
 
-    prices_byn = products_scope.pluck(:price, :weight, :delivery_cost).filter_map do |price, weight, delivery_cost|
-      pln_price = price.to_f
-      next if pln_price <= 0
+    prices_byn = []
+    products_scope.find_in_batches(batch_size: 200) do |batch|
+      batch.each do |product|
+        pln_price = product.price.to_f
+        next if pln_price <= 0
 
-      PriceCalculationService.product_price_byn(
-        pln_price,
-        weight_kg: weight.to_f,
-        delivery_pln: delivery_cost.to_f,
-        pln_rate: pln_rate,
-        buffer: buffer
-      )
+        prices_byn << PriceCalculationService.product_price_byn(
+          pln_price,
+          weight_kg: product.packaging_weight_kg.to_f,
+          delivery_pln: product.delivery_cost.to_f,
+          pln_rate: pln_rate,
+          buffer: buffer
+        )
+      end
     end
 
     return nil if prices_byn.empty?

@@ -453,12 +453,16 @@ paths:
             default: 50
         - name: min_price
           in: query
-          description: Минимальная цена
+          description: |
+            Минимальная витринная цена в BYN (>=), та же формула, что в `price_byn` у товара.
+            Можно передать только `min_price` (без `max_price`) — «от …».
           schema:
             type: number
         - name: max_price
           in: query
-          description: Максимальная цена
+          description: |
+            Максимальная витринная цена в BYN (<=), та же формула, что в `price_byn` у товара.
+            Можно передать только `max_price` (без `min_price`) — «до …».
           schema:
             type: number
         - name: sort
