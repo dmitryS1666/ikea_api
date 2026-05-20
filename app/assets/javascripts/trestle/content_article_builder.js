@@ -172,8 +172,8 @@
             ? 'undo redo | blocks fontsize | bold italic underline | bullist numlist | link code'
             : 'undo redo | formatselect fontsizeselect | bold italic underline | bullist numlist | link code',
           block_formats: 'Текст=p; Заголовок 2=h2; Заголовок 3=h3; Заголовок 4=h4;',
-          font_size_formats: '8pt 9pt 10pt 11pt 12pt 14pt 16pt 18pt 20pt 22pt 24pt 28pt 32pt 36pt',
-          fontsize_formats: '8pt 9pt 10pt 11pt 12pt 14pt 16pt 18pt 20pt 22pt 24pt 28pt 32pt 36pt',
+          font_size_formats: '8px 9px 10px 11px 12px 14px 16px 18px 20px 22px 24px 28px 32px 36px',
+          fontsize_formats: '8px 9px 10px 11px 12px 14px 16px 18px 20px 22px 24px 28px 32px 36px',
           content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; } h2 { font-size: 1.5rem; font-weight: bold; } h3 { font-size: 1.25rem; font-weight: bold; } h4 { font-size: 1.1rem; font-weight: bold; }',
           setup: function(editor) {
             const syncEditorContent = function() {
