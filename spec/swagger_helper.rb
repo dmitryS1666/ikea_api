@@ -31,6 +31,7 @@ RSpec.configure do |config|
           **Публичные эндпоинты (Без токена):**
           - `GET /api/v1/products` — Список товаров
           - `GET /api/v1/products/{sku}` — Карточка товара
+          - `GET /api/v1/products/{product_sku}/reviews` — Отзывы товара (публично)
           - `GET /api/v1/products/bestsellers` — Бестселлеры
           - `GET /api/v1/products/popular` — Популярные товары
           - `GET /api/v1/categories` — Категории

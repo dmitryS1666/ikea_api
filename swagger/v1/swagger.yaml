@@ -20,6 +20,7 @@ info:
     **Публичные эндпоинты (Без токена):**
     - `GET /api/v1/products` — Список товаров
     - `GET /api/v1/products/{sku}` — Карточка товара
+    - `GET /api/v1/products/{product_sku}/reviews` — Отзывы товара (пагинация, фильтры, агрегаты)
     - `GET /api/v1/products/bestsellers` — Бестселлеры
     - `GET /api/v1/products/popular` — Популярные товары
     - `GET /api/v1/products/categories` — Категории по коллекции
@@ -2491,6 +2492,62 @@ paths:
                     $ref: '#/components/schemas/Meta'
 
   /api/v1/products/{product_sku}/reviews:
+    get:
+      summary: Список опубликованных отзывов товара
+      description: |
+        Публичный эндпоинт для вкладки отзывов в карточке товара.
+        Возвращает список отзывов с пагинацией, агрегаты рейтинга (как на карточке товара),
+        распределение оценок и общую ленту фото из отзывов.
+      tags:
+        - Reviews
+      parameters:
+        - name: product_sku
+          in: path
+          required: true
+          schema:
+            type: string
+          description: SKU товара (как в URL карточки)
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+        - name: rating
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5
+          description: Фильтр по оценке
+        - name: with_photo
+          in: query
+          schema:
+            type: boolean
+          description: Только отзывы с фотографиями
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [newest, oldest, rating_high, rating_low, helpful]
+            default: newest
+          description: Сортировка (закреплённые отзывы всегда выше)
+      responses:
+        '200':
+          description: Список отзывов и агрегаты
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductReviewsIndexResponse'
+        '404':
+          description: Товар не найден
     post:
       summary: Создать отзыв на купленный товар
       tags:
@@ -3433,6 +3490,84 @@ components:
                       type: string
                       example: "category"
 
+
+    ProductReviewPublic:
+      type: object
+      description: Опубликованный отзыв для публичной вкладки товара
+      properties:
+        id:
+          type: integer
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        body:
+          type: string
+        author_name:
+          type: string
+          description: Имя автора (маскированное)
+        created_at:
+          type: string
+          format: date-time
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        variant_label:
+          type: string
+          nullable: true
+          description: Вариант товара (цвет, размер и т.п.)
+        photos:
+          type: array
+          items:
+            type: string
+          description: URL фотографий отзыва
+
+    ProductReviewsIndexResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductReviewPublic'
+        aggregates:
+          type: object
+          properties:
+            rating_avg:
+              type: number
+              format: float
+            rating_weighted:
+              type: number
+              format: float
+            rating_count:
+              type: integer
+        rating_distribution:
+          type: object
+          description: Количество отзывов по звёздам (учитываются только отзывы в рейтинге)
+          additionalProperties:
+            type: integer
+          example:
+            '5': 12
+            '4': 3
+            '3': 1
+            '2': 0
+            '1': 0
+        photos:
+          type: array
+          items:
+            type: string
+          description: Все фото из опубликованных отзывов для верхней ленты
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            per_page:
+              type: integer
+            total:
+              type: integer
+            total_pages:
+              type: integer
 
     Review:
       type: object

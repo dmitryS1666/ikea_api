@@ -1,10 +1,16 @@
 module Api
   module V1
     class ReviewsController < ApplicationController
-      before_action :authenticate_user
+      before_action :authenticate_user, except: [:index]
       before_action :set_user_review, only: [:update, :destroy]
       before_action :set_public_review, only: [:helpful, :remove_helpful]
       before_action :find_product, only: [:create]
+      before_action :find_product_for_reviews, only: [:index]
+
+      def index
+        result = ProductReviews::IndexService.new(product: @product, params: params).call
+        render json: result
+      end
 
       def create
         review = current_user.reviews.new(review_create_params.merge(product_sku: @product.sku))
@@ -64,6 +70,19 @@ module Api
 
       def find_product
         @product = Product.with_available_stock.find_by!(sku: params[:product_sku])
+      end
+
+      def find_product_for_reviews
+        resolved = Products::ListingSkuResolver.find_product(params[:product_sku])
+        unless resolved
+          render json: { error: 'Product not found' }, status: :not_found
+          return
+        end
+
+        @product = Product.find_by(id: resolved.id)
+        return if @product
+
+        render json: { error: 'Product not found' }, status: :not_found
       end
 
       def review_create_params

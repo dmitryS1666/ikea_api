@@ -44,7 +44,7 @@ Rails.application.routes.draw do
 #          get :categories
         end
 
-        resources :reviews, only: [:create]
+        resources :reviews, only: [:create, :index]
       end
 
       resources :reviews, only: [:update, :destroy] do

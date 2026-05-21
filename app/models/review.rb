@@ -39,6 +39,36 @@ class Review < ApplicationRecord
     review_helpful_votes.size
   end
 
+  def public_author_name
+    first = user&.first_name_display.to_s.presence
+    return user&.username.to_s if first.blank?
+
+    last_initial = user&.last_name_display.to_s.strip[0]
+    last_initial.present? ? "#{first} #{last_initial}." : first
+  end
+
+  def public_variant_label
+    p = product
+    return nil unless p
+
+    p.variant_label_for('colour') ||
+      p.variant_label_for('color') ||
+      p.small_desc_name.presence
+  end
+
+  def as_public_json
+    {
+      id: id,
+      rating: rating,
+      body: body,
+      author_name: public_author_name,
+      created_at: created_at,
+      published_at: published_at,
+      variant_label: public_variant_label,
+      photos: photos_urls
+    }
+  end
+
   private
 
   def body_length_within_limits

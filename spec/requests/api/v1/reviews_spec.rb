@@ -1,14 +1,32 @@
 require 'swagger_helper'
 
 RSpec.describe 'Reviews API', type: :request do
-  path '/api/v1/products/{sku}/reviews' do
+  path '/api/v1/products/{product_sku}/reviews' do
+    get 'List product reviews (public)' do
+      tags 'Reviews'
+      produces 'application/json'
+
+      parameter name: :product_sku, in: :path, type: :string, required: true
+      parameter name: :page, in: :query, type: :integer, required: false
+      parameter name: :per_page, in: :query, type: :integer, required: false
+      parameter name: :rating, in: :query, type: :integer, required: false, description: 'Фильтр по оценке 1–5'
+      parameter name: :with_photo, in: :query, type: :boolean, required: false
+      parameter name: :sort, in: :query, type: :string, required: false,
+                description: 'newest (default) | oldest | rating_high | rating_low | helpful'
+
+      response '404', 'product not found' do
+        let(:product_sku) { 'NON_EXISTING_SKU' }
+        run_test!
+      end
+    end
+
     post 'Create review' do
       tags 'Reviews'
       consumes 'application/json'
       produces 'application/json'
       security [bearer_auth: []]
 
-      parameter name: :sku, in: :path, type: :string, required: true
+      parameter name: :product_sku, in: :path, type: :string, required: true
       parameter name: :payload, in: :body, schema: {
         type: :object,
         properties: {
@@ -19,7 +37,7 @@ RSpec.describe 'Reviews API', type: :request do
       }
 
       response '401', 'unauthorized' do
-        let(:sku) { 'NON_EXISTING_SKU' }
+        let(:product_sku) { 'NON_EXISTING_SKU' }
         run_test!
       end
     end
