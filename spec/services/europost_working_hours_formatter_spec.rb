@@ -61,38 +61,51 @@ RSpec.describe EuropostWorkingHoursFormatter do
 
   describe ".structured_for_payload" do
     it "includes schedules with weekday_short from iso_day_of_week" do
-      office = {
-        "schedules" => [
-          { "work_time" => "9:00-15:00", "iso_day_of_week" => 1 },
-          { "work_time" => "10:00-20:00", "lunch_time" => "13:00-14:00", "iso_day_of_week" => 7 }
-        ],
-        "break_hours" => "Без обеда",
-        "break" => { "time_from" => "14:00", "time_to" => "15:00" }
-      }
+      travel_to(Time.zone.local(2026, 5, 18, 12, 0, 0)) do
+        office = {
+          "schedules" => [
+            { "work_time" => "9:00-15:00", "iso_day_of_week" => 1, "day" => "18 мая", "is_working" => 1 },
+            { "work_time" => "10:00-20:00", "lunch_time" => "13:00-14:00", "iso_day_of_week" => 7, "day" => "24 мая", "is_working" => 1 }
+          ],
+          "working_hours" => "10:00-22:00",
+          "break_hours" => "Без обеда",
+          "break" => { "time_from" => "14:00", "time_to" => "15:00" }
+        }
 
-      result = described_class.structured_for_payload(office)
-      expect(result[:schedules]).to eq(
-        [
-          { "work_time" => "9:00-15:00", "iso_day_of_week" => 1, "weekday_short" => "пн" },
-          { "work_time" => "10:00-20:00", "lunch_time" => "13:00-14:00", "iso_day_of_week" => 7, "weekday_short" => "вск" }
-        ]
-      )
-      expect(result[:break_hours]).to eq("Без обеда")
-      expect(result[:break]).to eq({ "time_from" => "14:00", "time_to" => "15:00" })
+        result = described_class.structured_for_payload(office)
+        schedules = result[:schedules]
+
+        expect(schedules.size).to eq(7)
+        expect(schedules.first).to include("work_time" => "9:00-15:00", "iso_day_of_week" => 1, "weekday_short" => "пн")
+        expect(schedules.last).to include(
+          "work_time" => "10:00-20:00",
+          "lunch_time" => "13:00-14:00",
+          "iso_day_of_week" => 7,
+          "weekday_short" => "вск"
+        )
+        expect(schedules[1]).to include("iso_day_of_week" => 2, "weekday_short" => "вт", "work_time" => "10:00-22:00")
+        expect(result[:break_hours]).to eq("Без обеда")
+        expect(result[:break]).to eq({ "time_from" => "14:00", "time_to" => "15:00" })
+      end
     end
 
-    it "omits weekday_short when iso_day_of_week is missing" do
-      office = {
-        "schedules" => [{ "work_time" => "9:00-15:00" }],
-        "break_hours" => "Без обеда",
-        "break" => { "time_from" => "14:00", "time_to" => "15:00" }
-      }
+    it "builds Mon-Sun week when schedule rows lack iso_day_of_week" do
+      travel_to(Time.zone.local(2026, 5, 18, 12, 0, 0)) do
+        office = {
+          "schedules" => [{ "work_time" => "9:00-15:00" }],
+          "working_hours" => "9:00-15:00",
+          "break_hours" => "Без обеда",
+          "break" => { "time_from" => "14:00", "time_to" => "15:00" }
+        }
 
-      expect(described_class.structured_for_payload(office)).to eq(
-        schedules: [{ "work_time" => "9:00-15:00" }],
-        break_hours: "Без обеда",
-        break: { "time_from" => "14:00", "time_to" => "15:00" }
-      )
+        result = described_class.structured_for_payload(office)
+
+        expect(result[:schedules].size).to eq(7)
+        expect(result[:schedules].map { |s| s["weekday_short"] }).to eq(%w[пн вт ср чт пт сб вск])
+        expect(result[:schedules].all? { |s| s["work_time"] == "9:00-15:00" }).to be(true)
+        expect(result[:break_hours]).to eq("Без обеда")
+        expect(result[:break]).to eq({ "time_from" => "14:00", "time_to" => "15:00" })
+      end
     end
 
     it "maps array breaks to :breaks" do
@@ -114,9 +127,11 @@ RSpec.describe EuropostWorkingHoursFormatter do
       )
     end
 
-    it "returns only current calendar week Mon-Sun, not today+6 or adjacent weeks" do
+    it "returns full current calendar week Mon-Sun and ignores adjacent weeks" do
       travel_to(Time.zone.local(2026, 5, 20, 12, 0, 0)) do # среда, неделя 18–24 мая
         office = {
+          "working_hours" => "10:00-22:00",
+          "break_hours" => "14:00-15:00",
           "schedules" => [
             { "iso_day_of_week" => 1, "day" => "11 мая", "work_time" => "8:00-12:00", "is_working" => "1" },
             { "iso_day_of_week" => 2, "day" => "12 мая", "work_time" => "8:00-12:00", "is_working" => "1" },
@@ -132,11 +147,37 @@ RSpec.describe EuropostWorkingHoursFormatter do
         result = described_class.structured_for_payload(office)
         schedules = result[:schedules]
 
+        expect(schedules.size).to eq(7)
         expect(schedules.map { |s| s["day"] }).to eq(
-          ["20 мая", "21 мая", "22 мая", "23 мая", "24 мая"]
+          ["18 мая", "19 мая", "20 мая", "21 мая", "22 мая", "23 мая", "24 мая"]
         )
-        expect(schedules.map { |s| s["iso_day_of_week"] }).to eq([3, 4, 5, 6, 7])
-        expect(schedules.map { |s| s["weekday_short"] }).to eq(%w[ср чт пт сб вск])
+        expect(schedules.map { |s| s["iso_day_of_week"] }).to eq((1..7).to_a)
+        expect(schedules.map { |s| s["weekday_short"] }).to eq(%w[пн вт ср чт пт сб вск])
+        expect(schedules[0]["work_time"]).to eq("10:00-22:00")
+        expect(schedules[1]["work_time"]).to eq("10:00-22:00")
+      end
+    end
+
+    it "fills missing Mon-Wed when Europost only returns Thu-Sun forward" do
+      travel_to(Time.zone.local(2026, 5, 21, 12, 0, 0)) do # четверг, неделя 19–25 мая
+        office = {
+          "working_hours" => "10:00-21:00",
+          "break_hours" => "14:00-15:00",
+          "schedules" => [
+            { "iso_day_of_week" => 4, "day" => "21 мая", "work_time" => "10:00-21:00", "is_working" => 1, "is_temp" => 0, "lunch_time" => nil },
+            { "iso_day_of_week" => 5, "day" => "22 мая", "work_time" => "10:00-21:00", "is_working" => 1, "is_temp" => 0, "lunch_time" => nil },
+            { "iso_day_of_week" => 6, "day" => "23 мая", "work_time" => "10:00-21:00", "is_working" => 1, "is_temp" => 0, "lunch_time" => nil },
+            { "iso_day_of_week" => 7, "day" => "24 мая", "work_time" => "10:00-21:00", "is_working" => 1, "is_temp" => 0, "lunch_time" => nil }
+          ]
+        }
+
+        schedules = described_class.structured_for_payload(office)[:schedules]
+
+        expect(schedules.size).to eq(7)
+        expect(schedules.map { |s| s["iso_day_of_week"] }).to eq((1..7).to_a)
+        expect(schedules.map { |s| s["weekday_short"] }).to eq(%w[пн вт ср чт пт сб вск])
+        expect(schedules[0]).to include("day" => "18 мая", "work_time" => "10:00-21:00")
+        expect(schedules[3]).to include("day" => "21 мая", "work_time" => "10:00-21:00")
       end
     end
 

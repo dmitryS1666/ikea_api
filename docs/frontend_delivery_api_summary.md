@@ -177,7 +177,8 @@
 
 В cart-aware ответе каждый ПВЗ содержит:
 - `working_hours` — одна строка на **текущий календарный день** приложения (`Time.zone` / `Date.today`): берётся слот из `schedules` с `iso_day_of_week` как у Ruby `Date#cwday` (пн=1 … вс=7); если на сегодня слота нет — строка `working_hours` + `break_hours` из ответа API; дальше legacy Info.
-- `schedules`, `break_hours`, `break` / `breaks` — как пришло из REST `stores`, плюс в каждом элементе `schedules` поле **`weekday_short`**: пн, вт, ср, чт, пт, сб, вск (по `iso_day_of_week`).
+- `schedules` — **всегда 7 элементов** за текущую календарную неделю (пн–вс); дни без слота в ответе Европочты дополняются из `working_hours` / `break_hours`. В каждом элементе **`weekday_short`**: пн … вск (по `iso_day_of_week`).
+- `break_hours`, `break` / `breaks` — как пришло из REST `stores`.
 - `id` / `external_id` — `WarehouseId` Европочты, его можно передавать как `pickup_point_id` в checkout.
 - `available_for_cart`
 - `delivery_date`

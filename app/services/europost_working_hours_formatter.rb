@@ -2,7 +2,7 @@
 
 # Builds human-readable working_hours and optional structured fields for Europost pickup points.
 # - `working_hours` string: режим на сегодня (по iso_day_of_week в schedules), иначе агрегат API / legacy.
-# - `schedules`: строки только за текущую календарную неделю (пн–вс), плюс weekday_short (пн … вск).
+# - `schedules`: всегда 7 строк за текущую календарную неделю (пн–вс), плюс weekday_short (пн … вск).
 class EuropostWorkingHoursFormatter
   WEEKDAY_SHORT_RU = {
     1 => "пн",
@@ -15,6 +15,11 @@ class EuropostWorkingHoursFormatter
   }.freeze
 
   DAY_LABEL_PATTERN = /\A(\d{1,2})[.\s-]+([а-яё]+)/i.freeze
+
+  RU_MONTH_LABEL = {
+    1 => "янв", 2 => "фев", 3 => "мар", 4 => "апр", 5 => "мая", 6 => "июн",
+    7 => "июл", 8 => "авг", 9 => "сен", 10 => "окт", 11 => "ноя", 12 => "дек"
+  }.freeze
 
   RU_MONTH_TO_NUMBER = {
     "янв" => 1, "января" => 1, "январь" => 1,
@@ -72,7 +77,7 @@ class EuropostWorkingHoursFormatter
     bh = office["break_hours"].presence || office[:break_hours].presence
 
     out = {}
-    week_schedules = schedules_for_current_week(raw_schedules)
+    week_schedules = schedules_for_current_week(raw_schedules, office: office)
     out[:schedules] = week_schedules if week_schedules.any?
     out[:break_hours] = bh if bh.present?
     if br.is_a?(Hash)
@@ -87,11 +92,11 @@ class EuropostWorkingHoursFormatter
 
   def self.normalized_schedules(office)
     raw = office["schedules"] || office[:schedules]
-    schedules_for_current_week(raw)
+    schedules_for_current_week(raw, office: office)
   end
   private_class_method :normalized_schedules
 
-  def self.schedules_for_current_week(raw)
+  def self.schedules_for_current_week(raw, office: nil)
     return [] unless raw.is_a?(Array)
 
     entries = raw.select { |s| schedule_entry_usable?(s) }
@@ -99,15 +104,50 @@ class EuropostWorkingHoursFormatter
 
     week_start, week_end = current_week_bounds
 
-    (1..7).filter_map do |iso|
+    (1..7).map do |iso|
       target_date = week_start + (iso - 1)
       entry = pick_entry_for_week_day(entries, target_date, iso, week_start, week_end)
-      next unless entry
+      entry ||= build_missing_week_day_row(office, target_date, iso) if office
+      entry ||= default_missing_week_day_row(target_date, iso)
 
-      enrich_schedule_row(entry, calendar_iso: iso)
+      enrich_schedule_row(entry, calendar_iso: iso, day_date: target_date)
     end
   end
   private_class_method :schedules_for_current_week
+
+  def self.build_missing_week_day_row(office, target_date, iso)
+    wh = (office["working_hours"] || office[:working_hours]).to_s.strip
+    bh = (office["break_hours"] || office[:break_hours]).to_s.strip
+    lunch = bh.match?(/\d{1,2}:\d{2}/) ? bh : nil
+
+    {
+      "iso_day_of_week" => iso,
+      "day" => format_day_label(target_date),
+      "work_time" => wh.presence,
+      "lunch_time" => lunch,
+      "is_working" => wh.present? ? 1 : 0,
+      "is_temp" => 0
+    }
+  end
+  private_class_method :build_missing_week_day_row
+
+  def self.default_missing_week_day_row(target_date, iso)
+    {
+      "iso_day_of_week" => iso,
+      "day" => format_day_label(target_date),
+      "work_time" => nil,
+      "lunch_time" => nil,
+      "is_working" => 0,
+      "is_temp" => 0
+    }
+  end
+  private_class_method :default_missing_week_day_row
+
+  def self.format_day_label(date)
+    month = RU_MONTH_LABEL[date.month] || date.strftime("%b")
+    "#{date.day} #{month}"
+  end
+  private_class_method :format_day_label
 
   def self.schedule_entry_usable?(entry)
     return false unless entry.is_a?(Hash)
@@ -265,7 +305,7 @@ class EuropostWorkingHoursFormatter
     raw = office["schedules"] || office[:schedules]
     return nil unless raw.is_a?(Array)
 
-    week_schedules = schedules_for_current_week(raw)
+    week_schedules = schedules_for_current_week(raw, office: office)
     return nil if week_schedules.empty?
 
     today = reference_date
@@ -296,11 +336,14 @@ class EuropostWorkingHoursFormatter
   end
   private_class_method :api_aggregate_hours_string
 
-  def self.enrich_schedule_row(entry, calendar_iso: nil)
+  def self.enrich_schedule_row(entry, calendar_iso: nil, day_date: nil)
     row = entry.stringify_keys
     iso = calendar_iso || row["iso_day_of_week"].to_i
     row["iso_day_of_week"] = iso if calendar_iso
     row["weekday_short"] = WEEKDAY_SHORT_RU[iso] if iso.between?(1, 7)
+    if day_date && row["day"].blank?
+      row["day"] = format_day_label(day_date)
+    end
     row
   end
   private_class_method :enrich_schedule_row
