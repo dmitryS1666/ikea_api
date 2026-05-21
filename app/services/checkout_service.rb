@@ -611,7 +611,8 @@ class CheckoutService
       external_id: external_id,
       name: office["WarehouseName"],
       city: office["Address7Name"],
-      address: europost_office_address(office)
+      address: europost_office_address(office),
+      phone: EuropostOfficePhone.for_office(office)
     }.merge(structured).merge(working_hours: summary)
   end
 

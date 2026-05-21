@@ -197,6 +197,7 @@ rails server
 | `SENDPULSE_PASSWORD_RESET_TEMPLATE_ID` | Template ID для reset password | Нет |
 | `EUROPOST_API_BASE_URL` | Базовый URL REST API Европочты v1.8.0 (без завершающего `/`). По умолчанию: `https://api-kassa.evropochta.by` | Нет |
 | `EUROPOST_API_TOKEN` | Заголовок `Token` для REST-вызовов (`/api/external/...`). Не логируйте целиком | Нет (без него список `stores` не подтягивается) |
+| `EUROPOST_PVZ_PHONE` | Телефон в ответах ПВЗ (`phone`), если API Европочты не отдаёт поле. По умолчанию `+375295353636`; `none` — вернуть `null` | Нет |
 | `EUROPOST_HTTP_OPEN_TIMEOUT` / `EUROPOST_HTTP_READ_TIMEOUT` | Таймауты HTTP для REST (сек). Fallback: `EUROPOST_OPEN_TIMEOUT`, `EUROPOST_READ_TIMEOUT` | Нет |
 | `EUROPOST_BASE_URL` | Legacy JSON-RPC URL (Postal.OfficesOut и т.д.), не путать с REST base | Да, если используется трекинг/офисы legacy |
 | `EUROPOST_SERVICE_NUMBER`, `EUROPOST_LOGIN`, `EUROPOST_PASSWORD` | Учётные данные legacy JSON API | Да при использовании legacy методов |

@@ -154,7 +154,7 @@ module Api
           name: office["WarehouseName"],
           city: office["Address7Name"],
           address: europost_address(office),
-          phone: nil,
+          phone: EuropostOfficePhone.for_office(office),
           lat: office["Latitude"],
           lon: office["Longitude"],
           lng: office["Longitude"],
@@ -272,7 +272,7 @@ module Api
             name: office["WarehouseName"],
             city: office["Address7Name"],
             address: europost_address(office),
-            phone: nil,
+            phone: EuropostOfficePhone.for_office(office),
             lat: office["Latitude"]&.to_f,
             lon: office["Longitude"]&.to_f,
             priority: false

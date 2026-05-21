@@ -22,6 +22,7 @@ RSpec.describe "Delivery Europost offices", type: :request do
       expect(body["offices"]).to be_an(Array)
       expect(body["offices"].first["provider"]).to eq("europost")
       expect(body["offices"].first).to have_key("external_id")
+      expect(body["offices"].first["phone"]).to eq("+375295353636")
     end
 
     it "requests external stores with type when EUROPOST_API_TOKEN is set" do

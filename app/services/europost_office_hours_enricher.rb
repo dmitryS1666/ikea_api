@@ -6,6 +6,7 @@ class EuropostOfficeHoursEnricher
   STORE_KEYS = %w[
     schedules break_hours working_hours break breaks
     is_large_weight_limit ops_number ops_name
+    phone phone_number contact_phone
   ].freeze
 
   def self.enrich(offices, type: nil)
