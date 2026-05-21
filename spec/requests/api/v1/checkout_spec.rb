@@ -43,6 +43,17 @@ RSpec.describe 'api/v1/checkout', type: :request do
               has_elevator: { type: :boolean, nullable: true, example: nil },
               intercom: { type: :string, nullable: true, example: nil }
             }
+          },
+          draft: { type: :boolean, example: true },
+          items: {
+            type: :array,
+            items: {
+              type: :object,
+              properties: {
+                sku: { type: :string, example: '90205097' },
+                quantity: { type: :integer, example: 1 }
+              }
+            }
           }
         }
       }

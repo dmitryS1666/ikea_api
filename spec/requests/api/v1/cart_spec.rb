@@ -60,6 +60,41 @@ RSpec.describe 'Cart API', type: :request do
     end
   end
 
+  path '/api/v1/cart/summary' do
+    post 'Calculate summary for selected cart items' do
+      tags 'Cart'
+      consumes 'application/json'
+      produces 'application/json'
+
+      parameter name: :payload, in: :body, schema: {
+        type: :object,
+        properties: {
+          cart_token: { type: :string },
+          items: {
+            type: :array,
+            items: {
+              type: :object,
+              properties: {
+                sku: { type: :string, example: '90205097' },
+                quantity: { type: :integer, example: 1 }
+              },
+              required: %w[sku quantity]
+            }
+          }
+        },
+        required: ['items']
+      }
+
+      response '200', 'successful' do
+        run_test!
+      end
+
+      response '422', 'unprocessable entity' do
+        run_test!
+      end
+    end
+  end
+
   path '/api/v1/cart/promo/remove' do
     post 'Remove promo code' do
       tags 'Cart'

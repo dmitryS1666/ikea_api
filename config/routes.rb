@@ -152,6 +152,7 @@ Rails.application.routes.draw do
 
       post 'cart/promo/apply', to: 'cart_promo#apply'
       delete 'cart/promo/remove', to: 'cart_promo#remove'
+      post 'cart/summary', to: 'cart_summary#create'
 
       # Content
       namespace :content do

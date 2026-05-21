@@ -46,6 +46,31 @@
 
 Существующие поля без изменений: `items_total_byn`, `delivery_total_byn`, `total_byn`, `total_weight_kg`, пошлина, промо.
 
+### Частичный выбор (чекбоксы): `POST /api/v1/cart/summary`
+
+`GET /cart` всегда считает **всю** корзину. Для итогов только по отмеченным товарам:
+
+```http
+POST /api/v1/cart/summary
+Content-Type: application/json
+
+{
+  "cart_token": "...",
+  "items": [
+    { "sku": "90205097", "quantity": 1 }
+  ]
+}
+```
+
+Ответ (строки BYN в формате `"xx.xx"`):
+
+- `items_count`, `subtotal_new_byn`, `discount_total_byn`, `customs_total_byn`
+- `delivery_to_belarus_byn`, `delivery_total_byn`, `total_weight_kg`, `total_byn`
+- `delivery.available_methods`, `delivery.europost_eligible`
+- `meta.checkout_allowed`, `meta.min_order_error` — минимальная сумма заказа по **выбранным** позициям
+
+Тот же массив `items` передаётся в `POST /checkout` (`draft: true`) и в `POST /checkout/:id/finalize`.
+
 ---
 
 ## Что убрать / не делать на корзине

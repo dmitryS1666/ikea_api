@@ -17,6 +17,9 @@ class CheckoutService
     order = user.orders.find_by(id: order_id, checkout_draft: true)
     return { error: 'Черновик заказа не найден', code: 'draft_not_found' } unless order
 
+    items_check = CartSelectionService.validate_against_order!(order: order, params: params)
+    return items_check if items_check[:error]
+
     pricing = CartPricingService.call_from_order(order: order.reload)
     unless pricing[:meta][:can_checkout]
       return { error: pricing[:meta][:min_order_error] }
@@ -112,6 +115,9 @@ class CheckoutService
   def self.finalize(user:, order_id:, params:)
     order = user.orders.find_by(id: order_id, checkout_draft: true)
     return { error: 'Черновик заказа не найден', code: 'draft_not_found' } unless order
+
+    items_check = CartSelectionService.validate_against_order!(order: order, params: params)
+    return items_check if items_check[:error]
 
     merged = merge_params_for_finalize(order, params)
     merged_params = ActiveSupport::HashWithIndifferentAccess.new(merged)
@@ -275,6 +281,12 @@ class CheckoutService
     return { error: 'Корзина не найдена' } unless cart
     return { error: 'Корзина пуста' } if cart.cart_items.blank?
 
+    cart_context = resolve_checkout_cart(cart: cart, params: params)
+    return cart_context if cart_context[:error]
+
+    checkout_cart = cart_context[:cart]
+    selections = cart_context[:selections]
+
     passport_input = params[:passport].is_a?(Hash) ? params[:passport] : (params[:passport].to_unsafe_h rescue nil)
     if passport_input.present?
       number = passport_input['passport_number'] || passport_input[:passport_number] || passport_input['number'] || passport_input[:number]
@@ -318,7 +330,7 @@ class CheckoutService
       end
     end
 
-    pricing = CartPricingService.call(cart: cart)
+    pricing = CartPricingService.call(cart: checkout_cart)
 
     unless pricing[:meta][:can_checkout]
       return { error: pricing[:meta][:min_order_error] }
@@ -336,7 +348,7 @@ class CheckoutService
       return { error: "Неподдерживаемый тип доставки", delivery_type: params[:delivery_type], normalized_delivery_type: normalized_delivery_type }
     end
 
-    delivery_options = DeliveryOptionsService.call(cart)
+    delivery_options = DeliveryOptionsService.call(checkout_cart)
     selected_method = delivery_options[:methods].find { |method| method[:code] == normalized_delivery_type }
     if selected_method.nil? || !selected_method[:available]
       return {
@@ -409,7 +421,7 @@ class CheckoutService
       )
 
       if order.save
-        cart.cart_items.each do |cart_item|
+        checkout_cart.cart_items.each do |cart_item|
           price_snapshot = pricing[:items].find { |i| i[:sku] == cart_item.product_sku }
 
           OrderItem.create!(
@@ -420,8 +432,7 @@ class CheckoutService
           )
         end
 
-        cart.cart_items.destroy_all
-        cart.update!(promo_code: nil)
+        clear_cart_after_checkout!(cart: cart, selections: selections)
 
         if passport_changed
           UserPassportService.write!(user: user, passport_hash: passport_input)
@@ -446,7 +457,13 @@ class CheckoutService
     return { error: 'Корзина не найдена' } unless cart
     return { error: 'Корзина пуста' } if cart.cart_items.blank?
 
-    pricing = CartPricingService.call(cart: cart)
+    cart_context = resolve_checkout_cart(cart: cart, params: params)
+    return cart_context if cart_context[:error]
+
+    checkout_cart = cart_context[:cart]
+    selections = cart_context[:selections]
+
+    pricing = CartPricingService.call(cart: checkout_cart)
 
     unless pricing[:meta][:can_checkout]
       return { error: pricing[:meta][:min_order_error] }
@@ -496,7 +513,7 @@ class CheckoutService
       )
 
       if order.save
-        cart.cart_items.each do |cart_item|
+        checkout_cart.cart_items.each do |cart_item|
           price_snapshot = pricing[:items].find { |i| i[:sku] == cart_item.product_sku }
 
           OrderItem.create!(
@@ -507,8 +524,7 @@ class CheckoutService
           )
         end
 
-        cart.cart_items.destroy_all
-        cart.update!(promo_code: nil)
+        clear_cart_after_checkout!(cart: cart, selections: selections)
       else
         raise ActiveRecord::Rollback
       end
@@ -780,6 +796,27 @@ class CheckoutService
     end
 
     { verification_id: verification_id, passport_changed: passport_changed, passport_input: passport_input }
+  end
+
+  def self.resolve_checkout_cart(cart:, params:)
+    selection = CartSelectionService.apply(cart: cart, params: params)
+    return selection if selection[:error]
+
+    effective_cart = selection[:cart]
+    return { error: 'Корзина пуста' } if effective_cart.cart_items.blank?
+
+    { cart: effective_cart, selections: selection[:selections] }
+  end
+
+  def self.clear_cart_after_checkout!(cart:, selections:)
+    if selections.present?
+      CartSelectionService.consume_from_cart!(cart: cart, selections: selections)
+      cart.reload
+      cart.update!(promo_code: nil) if cart.cart_items.blank?
+    else
+      cart.cart_items.destroy_all
+      cart.update!(promo_code: nil)
+    end
   end
 
 end

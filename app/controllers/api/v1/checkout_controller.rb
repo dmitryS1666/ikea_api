@@ -109,7 +109,8 @@ module Api
           services: [],
           pickup_point: {},
           address: {},
-          passport: {}
+          passport: {},
+          items: [:sku, :quantity]
         )
       end
     end
