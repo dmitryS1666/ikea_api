@@ -21,7 +21,19 @@ namespace :seo do
       updated_categories += 1
     end
 
-    Rails.cache.delete_matched("categories_tree_v2_*") if Rails.cache.respond_to?(:delete_matched)
+    if Rails.cache.respond_to?(:delete_matched)
+      begin
+        %w[
+          categories_tree_v1
+          categories_tree_v2_*
+          categories_map_json_v2
+          categories_map_json_v3_*
+        ].each { |pattern| Rails.cache.delete_matched(pattern) }
+        puts "Category caches invalidated."
+      rescue Redis::CommandError, RedisClient::CommandError => e
+        warn "Category caches not invalidated (#{e.class}: #{e.message}). Slug updates are saved."
+      end
+    end
 
     puts "Products updated: #{updated_products}"
     puts "Categories updated: #{updated_categories}"
