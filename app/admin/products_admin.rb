@@ -230,8 +230,22 @@ Trestle.resource(:products, model: Product) do
       limit = params[:limit].presence&.to_i
       limit = nil unless limit&.positive?
 
-      Admin::ProductsXlsxExportService.build!(limit: limit)
-      flash[:notice] = "Файл выгрузки XLSX создан. Скачайте его кнопкой «Скачать выгрузку товаров (XLSX)» в панели выше — при следующей генерации этот файл будет заменён."
+      if Admin::ProductsXlsxExportService.building?
+        flash[:notice] = "Выгрузка XLSX уже выполняется. Обновите страницу через несколько минут — файл появится для скачивания."
+        redirect_to admin.path(:index) and return
+      end
+
+      if limit.present?
+        Admin::ProductsXlsxExportService.build!(limit: limit)
+        flash[:notice] = "Тестовая выгрузка XLSX (#{limit} товаров) создана. Скачайте кнопкой «Скачать выгрузку товаров (XLSX)»."
+      else
+        BuildProductsXlsxJob.perform_later(limit: nil)
+        flash[:notice] = "Полная выгрузка XLSX запущена в фоне (Sidekiq). Обновите страницу через несколько минут — появится кнопка скачивания. Прогресс: grep ProductsXlsxExport в логах приложения."
+      end
+
+      redirect_to admin.path(:index)
+    rescue Admin::ProductsXlsxExportService::AlreadyBuilding
+      flash[:notice] = "Выгрузка XLSX уже выполняется. Подождите завершения."
       redirect_to admin.path(:index)
     rescue StandardError => e
       Rails.logger.error("[build_products_xlsx] #{e.class}: #{e.message}\n#{e.backtrace&.first(15)&.join("\n")}")

@@ -76,6 +76,25 @@ module Products
         nil
       end
 
+      # Для массовых выгрузок (admin XLSX): без полной сборки customer payload.
+      def packaging_weight_kg_for_product_fast(product)
+        return nil unless product.is_a?(Product)
+
+        fa = product.full_attributes
+        if fa.is_a?(Hash) && fa.present?
+          data = deep_stringify(fa)
+          w = extract_packaging_kg(data)
+          return w if w&.positive?
+
+          w = extract_kg(data)
+          return w if w&.positive?
+        end
+
+        parse_weight_to_kg(product.weight, allow_unitless: false)
+      rescue StandardError
+        nil
+      end
+
       def parse_weight_to_kg(value, allow_unitless: false)
         return nil if value.blank?
 

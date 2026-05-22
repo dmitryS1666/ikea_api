@@ -117,6 +117,37 @@ class Delivery
       }
     end
 
+    # Лёгкий расчёт ВГХ для admin XLSX (колонки + JSON без ProductSerializer).
+    def self.export_parcel_metrics(product, weight_kg: nil)
+      return { weight_kg: nil, width_cm: nil, height_cm: nil, depth_cm: nil, volume_m3: nil } unless product
+
+      weight = weight_kg || Products::WeightExtractor.packaging_weight_kg_for_product_fast(product)
+      sides = export_extract_sides(product)
+      width, height, depth = sides || [nil, nil, nil]
+
+      volume_m3 = (product.package_volume.to_f / 1000.0) if product.package_volume.present?
+      volume_m3 = nil if volume_m3.to_f <= 0
+      volume_m3 = (width.to_f * height.to_f * depth.to_f / 1_000_000.0).round(6) if volume_m3.blank? && [width, height, depth].all?(&:present?)
+
+      {
+        weight_kg: weight&.to_f,
+        width_cm: width&.to_f,
+        height_cm: height&.to_f,
+        depth_cm: depth&.to_f,
+        volume_m3: volume_m3
+      }
+    end
+
+    def self.export_extract_sides(product)
+      [product.package_dimensions, product.dimensions].each do |text|
+        normalized = normalize_sides(extract_numbers(text))
+        return normalized if normalized.present?
+      end
+
+      nil
+    end
+    private_class_method :export_extract_sides
+
     def self.extract_sides(product)
       [
         extract_numbers(product.package_dimensions),

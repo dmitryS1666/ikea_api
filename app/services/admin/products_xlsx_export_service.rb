@@ -42,8 +42,26 @@ module Admin
     ].freeze
 
     CALC_SKU_CELL = "B21"
+    BUILD_LOCK = EXPORT_DIR.join(".building.lock")
+
+    class AlreadyBuilding < StandardError; end
 
     class << self
+      def building?
+        return false unless BUILD_LOCK.file?
+
+        File.open(BUILD_LOCK, File::CREAT | File::RDWR) do |lock|
+          if lock.flock(File::LOCK_EX | File::LOCK_NB)
+            lock.flock(File::LOCK_UN)
+            FileUtils.rm_f(BUILD_LOCK)
+            false
+          else
+            true
+          end
+        end
+      rescue StandardError
+        false
+      end
       def export_path
         EXPORT_DIR.join(EXPORT_FILENAME)
       end
@@ -62,16 +80,18 @@ module Admin
         require "caxlsx"
 
         FileUtils.mkdir_p(EXPORT_DIR)
+        lock_fd = nil
+        lock_fd = File.open(BUILD_LOCK, File::CREAT | File::RDWR)
+        unless lock_fd.flock(File::LOCK_EX | File::LOCK_NB)
+          lock_fd.close
+          lock_fd = nil
+          raise AlreadyBuilding, "Выгрузка XLSX уже выполняется"
+        end
+
         remove_previous_exports!
 
         cp_map = last_category_ikea_id_by_product_id
-
-        scope = Product.includes(:category).order(:id)
-        scope = scope.limit(limit) if limit.present? && limit.positive?
-        products = scope.to_a
-
-        ikea_ids = products.map { |p| cp_map[p.id].presence || p.category_id }.compact.uniq
-        categories_by_ikea = Category.where(ikea_id: ikea_ids).index_by(&:ikea_id)
+        categories_by_ikea = Category.all.index_by(&:ikea_id)
 
         pln_rate = ExchangeRate.fetch_or_create("PLN")&.rate_per_unit || 0
         eur_rate = ExchangeRate.fetch_or_create("EUR")&.rate_per_unit
@@ -81,10 +101,22 @@ module Admin
 
         catalog_rows = []
         data_rows = []
+        processed = 0
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-        products.each do |product|
+        scope = Product.select(
+          :id, :sku, :name, :small_desc_name, :price, :delivery_cost, :weight,
+          :package_volume, :package_dimensions, :dimensions, :dimensions_ru, :url,
+          :category_id, :full_attributes
+        ).order(:id)
+        scope = scope.limit(limit) if limit.present? && limit.positive?
+
+        total = scope.count
+        Rails.logger.info("[ProductsXlsxExport] start total=#{total} limit=#{limit.inspect}")
+
+        scope.find_each(batch_size: 300) do |product|
           ikea_id = cp_map[product.id].presence || product.category_id
-          cat = categories_by_ikea[ikea_id] || product.category
+          cat = categories_by_ikea[ikea_id.to_s]
           category_label = cat&.translated_name.presence || cat&.name || "Без категории"
 
           pricing = build_pricing_row(
@@ -98,10 +130,17 @@ module Admin
 
           catalog_rows << pricing.merge(category_label: category_label)
           data_rows << pricing
+          processed += 1
+          if (processed % 500).zero?
+            Rails.logger.info("[ProductsXlsxExport] progress #{processed}/#{total}")
+          end
         end
 
         catalog_rows.sort_by! { |r| [r[:category_label].to_s.downcase, r[:sku].to_s] }
         data_rows.sort_by! { |r| r[:sku].to_s }
+
+        elapsed = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(1)
+        Rails.logger.info("[ProductsXlsxExport] rows=#{processed} elapsed=#{elapsed}s writing xlsx")
 
         package = Axlsx::Package.new
         workbook = package.workbook
@@ -121,7 +160,14 @@ module Admin
 
         path = export_path
         package.serialize(path.to_s)
+        Rails.logger.info("[ProductsXlsxExport] done path=#{path} elapsed=#{(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(1)}s")
         path
+      ensure
+        if lock_fd
+          lock_fd.flock(File::LOCK_UN)
+          lock_fd.close
+        end
+        FileUtils.rm_f(BUILD_LOCK)
       end
 
       def display_name_for(product)
@@ -144,9 +190,9 @@ module Admin
 
       def build_pricing_row(product:, pln_rate:, eur_rate:, buffer:, rate_with_buffer:, vgh_limits:)
         price_zl = product.price.to_f
-        weight_kg = product.packaging_weight_kg.to_f
+        weight_kg = Products::WeightExtractor.packaging_weight_kg_for_product_fast(product).to_f
         delivery_unit_pln = product.delivery_cost.to_f
-        metrics = Delivery::ParcelPackingService.parcel_metrics(product)
+        metrics = Delivery::ParcelPackingService.export_parcel_metrics(product, weight_kg: weight_kg.positive? ? weight_kg : nil)
         max_side_cm = [metrics[:width_cm], metrics[:height_cm], metrics[:depth_cm]].compact.max
 
         breakdown =
@@ -382,6 +428,7 @@ module Admin
 
           sheet.add_row(DATA_HEADERS, style: Array.new(DATA_HEADERS.size, styles[:subheader]))
 
+          row_styles = build_data_row_styles(styles)
           data_rows.each do |r|
             sheet.add_row(
               [
@@ -412,7 +459,7 @@ module Admin
                 r[:vgh_dimension_ok],
                 r[:vgh_status]
               ],
-              style: data_row_styles(styles)
+              style: row_styles
             )
           end
 
@@ -535,7 +582,7 @@ module Admin
         Axlsx.col_ref(index - 1)
       end
 
-      def data_row_styles(styles)
+      def build_data_row_styles(styles)
         [
           styles[:text],
           styles[:text],
