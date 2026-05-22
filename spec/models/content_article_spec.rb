@@ -41,6 +41,22 @@ RSpec.describe ContentArticle, type: :model do
     end
   end
 
+  describe "bold numbered list markers in block content" do
+    it "adds font-weight to li when the whole list item is bold" do
+      article = build(:content_article)
+      article.body_blocks = [
+        {
+          "type" => "text_with_image",
+          "content" => "<ol><li><strong>Пункт</strong></li></ol>"
+        }
+      ]
+
+      article.valid?
+
+      expect(article.body_blocks.first["content"]).to include("font-weight:700")
+    end
+  end
+
   describe "validate_body_block_products" do
     let(:products_grid_block) do
       {

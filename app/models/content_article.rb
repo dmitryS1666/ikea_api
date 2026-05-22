@@ -404,7 +404,7 @@ class ContentArticle < ApplicationRecord
   
     {
       "type" => template[:id],
-      "content" => raw_block&.fetch("content", "").to_s,
+      "content" => ContentArticleHtmlNormalizer.normalize(raw_block&.fetch("content", "").to_s),
       "button_text" => raw_block&.fetch("button_text", "").to_s,
       "button_category_id" => raw_block&.fetch("button_category_id", nil).presence,
       "slider_enabled" => template[:slider_enabled],

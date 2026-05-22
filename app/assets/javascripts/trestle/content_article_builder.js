@@ -174,17 +174,47 @@
           block_formats: 'Текст=p; Заголовок 2=h2; Заголовок 3=h3; Заголовок 4=h4;',
           font_size_formats: '8px 9px 10px 11px 12px 14px 16px 18px 20px 22px 24px 28px 32px 36px',
           fontsize_formats: '8px 9px 10px 11px 12px 14px 16px 18px 20px 22px 24px 28px 32px 36px',
-          content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; } h2 { font-size: 1.5rem; font-weight: bold; } h3 { font-size: 1.25rem; font-weight: bold; } h4 { font-size: 1.1rem; font-weight: bold; }',
+          content_style: [
+            'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; }',
+            'h2 { font-size: 1.5rem; font-weight: bold; } h3 { font-size: 1.25rem; font-weight: bold; } h4 { font-size: 1.1rem; font-weight: bold; }',
+            'ol li:has(> strong:only-child), ol li:has(> b:only-child), ul li:has(> strong:only-child), ul li:has(> b:only-child) { font-weight: 700; }',
+            'ol li[style*="font-weight"], ul li[style*="font-weight"] { font-weight: 700; }'
+          ].join(' '),
           setup: function(editor) {
+            const syncListBoldMarkers = function() {
+              editor.dom.select('ol li, ul li').forEach(function(li) {
+                const elementChildren = Array.from(li.childNodes).filter(function(node) {
+                  return node.nodeType === 1;
+                });
+                const textOutsideBold = Array.from(li.childNodes).some(function(node) {
+                  return node.nodeType === 3 && node.textContent.trim().length > 0;
+                });
+                const onlyBoldChild = elementChildren.length === 1 &&
+                  (elementChildren[0].nodeName === 'STRONG' || elementChildren[0].nodeName === 'B');
+
+                if (onlyBoldChild && !textOutsideBold) {
+                  editor.dom.setStyle(li, 'font-weight', '700');
+                } else if (['700', 'bold'].includes(li.style.fontWeight)) {
+                  editor.dom.setStyle(li, 'font-weight', '');
+                }
+              });
+            };
+
             const syncEditorContent = function() {
               const index = editor.getElement().dataset.blockIndex;
               const content = editor.getContent();
               self.updateBlockContent(parseInt(index), content);
             };
             editor.on('change keyup input undo redo SetContent ExecCommand NodeChange', syncEditorContent);
+            editor.on('ExecCommand', function(e) {
+              if (e.command === 'Bold') {
+                setTimeout(syncListBoldMarkers, 0);
+              }
+            });
             editor.on('init', function() {
               editor.setContent(el.value);
               syncEditorContent();
+              syncListBoldMarkers();
             });
           }
         });
