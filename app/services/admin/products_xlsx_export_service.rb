@@ -48,13 +48,13 @@ module Admin
           category_label = cat&.translated_name.presence || cat&.name || "Без категории"
 
           price_zl = product.price.to_f
-          weight = product.weight.to_f
+          weight_kg = product.packaging_weight_kg.to_f
 
           price_byn =
             if price_zl.positive?
               PriceCalculationService.product_price_byn(
                 price_zl,
-                weight_kg: weight,
+                weight_kg: weight_kg,
                 delivery_pln: product.delivery_cost.to_f,
                 pln_rate: pln_rate,
                 buffer: buffer
@@ -64,9 +64,9 @@ module Admin
             end
 
           customs_total =
-            if price_zl.positive? && weight.positive? && eur_rate.to_f.positive? && pln_rate.positive?
+            if price_zl.positive? && weight_kg.positive? && eur_rate.to_f.positive? && pln_rate.positive?
               price_eur = (price_zl * pln_rate / eur_rate).round(2)
-              CustomsDutyService.calculate(price_eur, weight, eur_rate)[:total_byn]
+              CustomsDutyService.calculate(price_eur, weight_kg, eur_rate)[:total_byn]
             end
 
           {
@@ -74,7 +74,7 @@ module Admin
             sku: product.sku,
             display_name: display_name_for(product),
             dimensions_text: dimensions_display_for(product),
-            weight_kg: product.weight.present? ? product.weight.to_f : nil,
+            weight_kg: weight_kg.positive? ? weight_kg : nil,
             price_pln: price_zl,
             price_byn: price_byn,
             customs_byn: customs_total,
