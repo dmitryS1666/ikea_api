@@ -72,4 +72,27 @@ RSpec.describe Products::WeightExtractor do
       expect(described_class.packaging_weight_kg_for_product(product)).to eq(20.0)
     end
   end
+
+  describe ".packaging_weight_kg_for_product_fast" do
+    it "совпадает с packaging_weight_kg_for_product (customer payload, не сырой jsonb)" do
+      product = create(
+        :product,
+        weight: nil,
+        full_attributes: {
+          "dimensions_map" => {
+            "packaging" => {
+              "details" => [
+                { "weight" => "12 кг", "count" => 1 },
+                { "weight" => "8 кг", "count" => 1 }
+              ]
+            }
+          }
+        }
+      )
+
+      expect(described_class.packaging_weight_kg_for_product_fast(product)).to eq(20.0)
+      expect(described_class.packaging_weight_kg_for_product_fast(product))
+        .to eq(described_class.packaging_weight_kg_for_product(product))
+    end
+  end
 end

@@ -194,9 +194,14 @@ module Admin
 
       def build_pricing_row(product:, pln_rate:, eur_rate:, buffer:, rate_with_buffer:, vgh_limits:)
         price_zl = product.price.to_f
-        weight_kg = Products::WeightExtractor.packaging_weight_kg_for_product_fast(product).to_f
+        customer_payload = ProductSerializer.customer_full_attributes_payload(product)
+        weight_kg = Products::WeightExtractor.extract_packaging_kg_from_customer_payload(customer_payload).to_f
         delivery_unit_pln = product.delivery_cost.to_f
-        metrics = Delivery::ParcelPackingService.export_parcel_metrics(product, weight_kg: weight_kg.positive? ? weight_kg : nil)
+        metrics = Delivery::ParcelPackingService.export_parcel_metrics(
+          product,
+          weight_kg: weight_kg.positive? ? weight_kg : nil,
+          customer_payload: customer_payload
+        )
         max_side_cm = [metrics[:width_cm], metrics[:height_cm], metrics[:depth_cm]].compact.max
 
         breakdown =

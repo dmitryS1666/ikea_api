@@ -76,23 +76,13 @@ module Products
         nil
       end
 
-      # Для массовых выгрузок (admin XLSX): без полной сборки customer payload.
+      # Тот же источник, что и витрина/API: customer payload (dimensions_map, measurements_modal → packages).
       def packaging_weight_kg_for_product_fast(product)
-        return nil unless product.is_a?(Product)
+        packaging_weight_kg_for_product(product)
+      end
 
-        fa = product.full_attributes
-        if fa.is_a?(Hash) && fa.present?
-          data = deep_stringify(fa)
-          w = extract_packaging_kg(data)
-          return w if w&.positive?
-
-          w = extract_kg(data)
-          return w if w&.positive?
-        end
-
-        parse_weight_to_kg(product.weight, allow_unitless: false)
-      rescue StandardError
-        nil
+      def extract_packaging_kg_from_customer_payload(payload)
+        extract_packaging_kg(payload)
       end
 
       def parse_weight_to_kg(value, allow_unitless: false)
@@ -136,6 +126,14 @@ module Products
         return data["size"] if data["size"].is_a?(Hash)
         return data.dig("full_attributes_ru", "size") if data.dig("full_attributes_ru", "size").is_a?(Hash)
         return data.dig("attributes", "full_attributes_ru", "size") if data.dig("attributes", "full_attributes_ru", "size").is_a?(Hash)
+
+        dm = data["dimensions_map"]
+        if dm.is_a?(Hash)
+          size = {}
+          size["packaging"] = dm["packaging"] if dm["packaging"].is_a?(Hash)
+          size["packages"] = dm["packages"] if dm["packages"].is_a?(Array) && dm["packages"].any?
+          return size if size.any?
+        end
 
         data
       end

@@ -118,11 +118,12 @@ class Delivery
     end
 
     # Лёгкий расчёт ВГХ для admin XLSX (колонки + JSON без ProductSerializer).
-    def self.export_parcel_metrics(product, weight_kg: nil)
+    def self.export_parcel_metrics(product, weight_kg: nil, customer_payload: nil)
       return { weight_kg: nil, width_cm: nil, height_cm: nil, depth_cm: nil, volume_m3: nil } unless product
 
-      weight = weight_kg || Products::WeightExtractor.packaging_weight_kg_for_product_fast(product)
-      sides = export_extract_sides(product)
+      payload = customer_payload || customer_full_attributes_payload(product)
+      weight = weight_kg || Products::WeightExtractor.extract_packaging_kg_from_customer_payload(payload)
+      sides = extract_package_sides_from_customer_size(payload["size"]) || export_extract_sides(product)
       width, height, depth = sides || [nil, nil, nil]
 
       volume_m3 = (product.package_volume.to_f / 1000.0) if product.package_volume.present?
@@ -167,7 +168,11 @@ class Delivery
 
     def self.extract_sides_from_customer_payload(product)
       size = customer_full_attributes_payload(product)["size"]
-      return [] unless size.is_a?(Hash)
+      extract_package_sides_from_customer_size(size) || []
+    end
+
+    def self.extract_package_sides_from_customer_size(size)
+      return nil unless size.is_a?(Hash)
 
       extract_sides_from_packaging_details(size) ||
         extract_sides_from_packages(size) ||
