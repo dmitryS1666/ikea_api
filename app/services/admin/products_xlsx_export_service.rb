@@ -141,7 +141,8 @@ module Admin
         ).order(:id)
         scope = scope.limit(limit) if limit.present? && limit.positive?
 
-        total = scope.count
+        # COUNT(*) — не COUNT(select-полей): при .select(...) иначе PG::UndefinedFunction.
+        total = scope.unscope(:select).count
         Rails.logger.info("[ProductsXlsxExport] start total=#{total} limit=#{limit.inspect}")
         write_export_progress!(processed: 0, total: total, phase: "rows")
         clear_export_error!
