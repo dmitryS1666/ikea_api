@@ -255,7 +255,11 @@ Trestle.resource(:products, model: Product) do
 
     def download_products_xlsx
       path = Admin::ProductsXlsxExportService.export_path
-      unless path.file?
+      unless path.file? && path.size.positive?
+        Rails.logger.warn(
+          "[download_products_xlsx] file missing path=#{path} exist=#{File.exist?(path.to_s)} " \
+          "building=#{Admin::ProductsXlsxExportService.building?}"
+        )
         flash[:error] = "Сначала сформируйте выгрузку (кнопка на странице списка товаров)."
         redirect_to admin.path(:index) and return
       end

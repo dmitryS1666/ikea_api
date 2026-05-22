@@ -5,6 +5,7 @@ module Admin
   class ProductsXlsxExportService
     EXPORT_DIR = Rails.root.join("tmp", "trestle_exports", "products_admin").freeze
     EXPORT_FILENAME = "products_by_category.xlsx".freeze
+    EXPORT_TMP_FILENAME = "products_by_category.xlsx.tmp".freeze
 
     CATALOG_SHEET = "Товары"
     DATA_SHEET = "Данные"
@@ -67,7 +68,8 @@ module Admin
       end
 
       def export_ready?
-        export_path.file?
+        path = export_path
+        path.file? && path.size.positive?
       end
 
       def exported_at
@@ -87,8 +89,6 @@ module Admin
           lock_fd = nil
           raise AlreadyBuilding, "Выгрузка XLSX уже выполняется"
         end
-
-        remove_previous_exports!
 
         cp_map = last_category_ikea_id_by_product_id
         categories_by_ikea = Category.all.index_by(&:ikea_id)
@@ -159,8 +159,12 @@ module Admin
         )
 
         path = export_path
-        package.serialize(path.to_s)
-        Rails.logger.info("[ProductsXlsxExport] done path=#{path} elapsed=#{(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(1)}s")
+        tmp_path = EXPORT_DIR.join(EXPORT_TMP_FILENAME)
+        package.serialize(tmp_path.to_s)
+        FileUtils.rm_f(path)
+        FileUtils.mv(tmp_path, path)
+        remove_stale_export_tmp_files!
+        Rails.logger.info("[ProductsXlsxExport] done path=#{path} size=#{path.size} elapsed=#{(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(1)}s")
         path
       ensure
         if lock_fd
@@ -630,8 +634,8 @@ module Admin
         { even: mk.call("FFFFFF"), odd: mk.call("FAFAFA") }
       end
 
-      def remove_previous_exports!
-        Dir.glob(EXPORT_DIR.join("*.xlsx")).each { |f| FileUtils.rm_f(f) }
+      def remove_stale_export_tmp_files!
+        Dir.glob(EXPORT_DIR.join("*.xlsx.tmp")).each { |f| FileUtils.rm_f(f) }
       end
 
       def last_category_ikea_id_by_product_id
