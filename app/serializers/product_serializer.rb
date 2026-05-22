@@ -257,6 +257,26 @@ class ProductSerializer
     end
   end
 
+  # Только size/packages для веса упаковки и ВГХ (admin XLSX, без лишних колонок Product).
+  def self.customer_size_payload_for_product(product)
+    full = product.full_attributes.is_a?(Hash) ? product.full_attributes.deep_stringify_keys : {}
+    detailed_info = full["detailed_info"].is_a?(Hash) ? full["detailed_info"].deep_stringify_keys : {}
+    dimensions_map = full["dimensions_map"].is_a?(Hash) ? full["dimensions_map"].deep_stringify_keys : {}
+    measurements_modal = full["measurements_modal"]
+
+    dimensions_map = dimensions_map.merge(dimensions_map_from_measurements_modal(measurements_modal))
+    if dimensions_map.except("packaging").blank?
+      dimensions_map = dimensions_map.merge(dimensions_map_from_product_column(product.dimensions))
+    end
+
+    size = build_size_block(dimensions_map, detailed_info["Информация об упаковке"])
+    enrich_size_block_from_measurements_modal!(size, measurements_modal, product)
+    size["packages"] = build_packages_for_customer_payload(size, measurements_modal)
+    normalize_size_block_ru!(size)
+
+    { "size" => size }
+  end
+
   def self.build_description_block(full, detailed_info)
     short_description = full["short_description"].presence
 

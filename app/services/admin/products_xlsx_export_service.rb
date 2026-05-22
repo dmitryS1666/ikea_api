@@ -194,7 +194,7 @@ module Admin
 
       def build_pricing_row(product:, pln_rate:, eur_rate:, buffer:, rate_with_buffer:, vgh_limits:)
         price_zl = product.price.to_f
-        customer_payload = ProductSerializer.customer_full_attributes_payload(product)
+        customer_payload = ProductSerializer.customer_size_payload_for_product(product)
         weight_kg = Products::WeightExtractor.extract_packaging_kg_from_customer_payload(customer_payload).to_f
         delivery_unit_pln = product.delivery_cost.to_f
         metrics = Delivery::ParcelPackingService.export_parcel_metrics(
