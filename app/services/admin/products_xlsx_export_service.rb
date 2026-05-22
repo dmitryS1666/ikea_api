@@ -45,6 +45,8 @@ module Admin
     # Лист «Данные»: строка 1 — пояснение, строка 2 — заголовки, с 3 — товары.
     DATA_FIRST_ROW = 3
     BUILD_LOCK = EXPORT_DIR.join(".building.lock")
+    PROGRESS_FILE = EXPORT_DIR.join(".export_progress.json")
+    LAST_ERROR_FILE = EXPORT_DIR.join(".export_last_error.txt")
 
     class AlreadyBuilding < StandardError; end
 
@@ -75,6 +77,33 @@ module Admin
 
       def exported_at
         export_ready? ? export_path.mtime : nil
+      end
+
+      def export_progress
+        return nil unless PROGRESS_FILE.file?
+
+        JSON.parse(PROGRESS_FILE.read)
+      rescue StandardError
+        nil
+      end
+
+      def export_last_error
+        return nil unless LAST_ERROR_FILE.file?
+
+        LAST_ERROR_FILE.read.strip.presence
+      end
+
+      def export_status_label
+        if building?
+          prog = export_progress
+          if prog && prog["total"].to_i.positive?
+            "⏳ Выгрузка: #{prog['processed']}/#{prog['total']} (#{prog['phase']}) — обновите страницу"
+          else
+            "⏳ Выгрузка XLSX выполняется… обновите страницу"
+          end
+        elsif export_last_error.present?
+          "Ошибка последней выгрузки: #{export_last_error}"
+        end
       end
 
       # @param limit [Integer, nil] ограничение количества строк (например 5 для отладки)
@@ -114,6 +143,8 @@ module Admin
 
         total = scope.count
         Rails.logger.info("[ProductsXlsxExport] start total=#{total} limit=#{limit.inspect}")
+        write_export_progress!(processed: 0, total: total, phase: "rows")
+        clear_export_error!
 
         scope.find_each(batch_size: 300) do |product|
           ikea_id = cp_map[product.id].presence || product.category_id
@@ -132,7 +163,8 @@ module Admin
           catalog_rows << pricing.merge(category_label: category_label)
           data_rows << pricing
           processed += 1
-          if (processed % 500).zero?
+          if (processed % 100).zero?
+            write_export_progress!(processed: processed, total: total, phase: "rows")
             Rails.logger.info("[ProductsXlsxExport] progress #{processed}/#{total}")
           end
         end
@@ -141,6 +173,7 @@ module Admin
         data_rows.sort_by! { |r| r[:sku].to_s }
 
         elapsed = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(1)
+        write_export_progress!(processed: total, total: total, phase: "xlsx")
         Rails.logger.info("[ProductsXlsxExport] rows=#{processed} elapsed=#{elapsed}s writing xlsx")
 
         package = Axlsx::Package.new
@@ -167,7 +200,11 @@ module Admin
         remove_stale_export_tmp_files!
         Rails.logger.info("[ProductsXlsxExport] done path=#{path} size=#{path.size} elapsed=#{(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(1)}s")
         path
+      rescue StandardError => e
+        write_export_error!(e)
+        raise
       ensure
+        clear_export_progress!
         if lock_fd
           lock_fd.flock(File::LOCK_UN)
           lock_fd.close
@@ -651,6 +688,31 @@ module Admin
 
       def remove_stale_export_tmp_files!
         Dir.glob(EXPORT_DIR.join("*.xlsx.tmp")).each { |f| FileUtils.rm_f(f) }
+      end
+
+      def write_export_progress!(processed:, total:, phase:)
+        FileUtils.mkdir_p(EXPORT_DIR)
+        PROGRESS_FILE.write(
+          {
+            processed: processed,
+            total: total,
+            phase: phase,
+            at: Time.zone.now.iso8601
+          }.to_json
+        )
+      end
+
+      def clear_export_progress!
+        FileUtils.rm_f(PROGRESS_FILE)
+      end
+
+      def write_export_error!(error)
+        FileUtils.mkdir_p(EXPORT_DIR)
+        LAST_ERROR_FILE.write("#{error.class}: #{error.message}\n")
+      end
+
+      def clear_export_error!
+        FileUtils.rm_f(LAST_ERROR_FILE)
       end
 
       def last_category_ikea_id_by_product_id

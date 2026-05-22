@@ -1,8 +1,9 @@
 <div id="trestle-smart-search-panel" class="card mb-4">
   <div class="card-body">
     <div class="d-flex gap-2 flex-wrap align-items-center">
-      <% if Admin::ProductsXlsxExportService.building? %>
-        <span class="text-warning small">⏳ Выгрузка XLSX выполняется… обновите страницу через 1–3 мин.</span>
+      <% status_label = Admin::ProductsXlsxExportService.export_status_label %>
+      <% if status_label.present? %>
+        <span class="text-warning small"><%= status_label %></span>
       <% elsif Admin::ProductsXlsxExportService.export_ready? %>
         <%= link_to "⬇️ Скачать выгрузку товаров (XLSX)",
                     admin.path(:download_products_xlsx),

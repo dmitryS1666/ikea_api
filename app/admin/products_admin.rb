@@ -240,7 +240,7 @@ Trestle.resource(:products, model: Product) do
         flash[:notice] = "Тестовая выгрузка XLSX (#{limit} товаров) создана. Скачайте кнопкой «Скачать выгрузку товаров (XLSX)»."
       else
         BuildProductsXlsxJob.perform_later(limit: nil)
-        flash[:notice] = "Полная выгрузка XLSX запущена в фоне (Sidekiq). Обновите страницу через несколько минут — появится кнопка скачивания. Прогресс: grep ProductsXlsxExport в логах приложения."
+        flash[:notice] = "Полная выгрузка XLSX запущена в фоне (Sidekiq, очередь parser). Может занять 20–60+ мин — на странице списка товаров обновляйте F5, будет счётчик строк. Логи: grep ProductsXlsxExport."
       end
 
       redirect_to admin.path(:index)

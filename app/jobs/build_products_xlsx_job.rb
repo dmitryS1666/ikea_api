@@ -1,7 +1,10 @@
 # frozen_string_literal: true
 
 class BuildProductsXlsxJob < ApplicationJob
-  queue_as :default
+  # Долгая выгрузка всего каталога — очередь parser, таймаут 2 ч (Sidekiq по умолчанию ~25 с).
+  queue_as :parser
+
+  sidekiq_options retry: 1, timeout: 7200
 
   def perform(limit: nil)
     Rails.logger.info("[BuildProductsXlsxJob] start limit=#{limit.inspect}")
