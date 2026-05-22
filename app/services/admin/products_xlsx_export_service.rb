@@ -42,7 +42,8 @@ module Admin
       "Статус ВГХ"
     ].freeze
 
-    CALC_SKU_CELL = "B21"
+    # Лист «Данные»: строка 1 — пояснение, строка 2 — заголовки, с 3 — товары.
+    DATA_FIRST_ROW = 3
     BUILD_LOCK = EXPORT_DIR.join(".building.lock")
 
     class AlreadyBuilding < StandardError; end
@@ -426,7 +427,7 @@ module Admin
       end
 
       def add_data_worksheet(workbook, styles, data_rows)
-        last_row = 1 + data_rows.size
+        last_row = data_rows.empty? ? DATA_FIRST_ROW : (DATA_FIRST_ROW + data_rows.size - 1)
 
         workbook.add_worksheet(name: DATA_SHEET) do |sheet|
           sheet.add_row(
@@ -438,10 +439,11 @@ module Admin
           sheet.add_row(DATA_HEADERS, style: Array.new(DATA_HEADERS.size, styles[:subheader]))
 
           row_styles = build_data_row_styles(styles)
+          sku_types = [:string] + [nil] * (DATA_HEADERS.size - 1)
           data_rows.each do |r|
             sheet.add_row(
               [
-                r[:sku],
+                r[:sku].to_s,
                 r[:display_name],
                 r[:dimensions_text],
                 r[:weight_kg],
@@ -468,7 +470,8 @@ module Admin
                 r[:vgh_dimension_ok],
                 r[:vgh_status]
               ],
-              style: row_styles
+              style: row_styles,
+              types: sku_types
             )
           end
 
@@ -480,8 +483,7 @@ module Admin
 
       def add_calculator_worksheet(workbook, styles, pln_rate:, buffer:, rate_with_buffer:, vgh_limits:, data_last_row:)
         cheap_threshold = PriceCalculationService.cheap_threshold_pln
-        data_range = "'#{DATA_SHEET}'!$A$2:$A$#{data_last_row}"
-        sku_ref = CALC_SKU_CELL
+        sku_ref = nil
         vgh_warn_dxf = workbook.styles.add_style(bg_color: "FFE6E6", fg_color: "B00000", type: :dxf)
 
         workbook.add_worksheet(name: CALC_SHEET, escape_formulas: false) do |sheet|
@@ -503,21 +505,22 @@ module Admin
           sheet.add_row(["Лимит стороны (см)", vgh_limits[:max_dimension_cm]], style: [styles[:label], styles[:num]])
 
           sheet.add_row([])
-          sheet.add_row(["→ Введите SKU", nil], style: [styles[:label], styles[:input]])
+          sheet.add_row(["→ Введите SKU", ""], style: [styles[:label], styles[:input]], types: [nil, :string])
+          sku_ref = "B#{sheet.rows.size}"
 
           sheet.add_row([])
-          sheet.add_row(["Результат (XLOOKUP → лист «Данные»)"], style: styles[:label])
+          sheet.add_row(["Результат (поиск на листе «Данные»)"], style: styles[:label])
 
-          add_formula_row(sheet, styles, "Название", lookup_formula(sku_ref, data_range, col: 2), text: true)
-          add_formula_row(sheet, styles, "Размеры / упаковка", lookup_formula(sku_ref, data_range, col: 3), text: true)
-          add_formula_row(sheet, styles, "Цена товара (BYN)", lookup_formula(sku_ref, data_range, col: 18))
-          add_formula_row(sheet, styles, "Доставка до Беларуси (BYN)", lookup_formula(sku_ref, data_range, col: 19))
-          add_formula_row(sheet, styles, "Доставка PL в цене (BYN)", lookup_formula(sku_ref, data_range, col: 20))
-          add_formula_row(sheet, styles, "Цена сервиса (BYN)", lookup_formula(sku_ref, data_range, col: 21))
-          add_formula_row(sheet, styles, "Таможенный платёж (BYN)", lookup_formula(sku_ref, data_range, col: 22))
-          add_formula_row(sheet, styles, "Режим цены (cheap/k)", lookup_formula(sku_ref, data_range, col: 9), text: true)
-          add_formula_row(sheet, styles, "Цена IKEA (PLN)", lookup_formula(sku_ref, data_range, col: 7))
-          add_formula_row(sheet, styles, "WC_BY (PLN)", lookup_formula(sku_ref, data_range, col: 13))
+          add_formula_row(sheet, styles, "Название", lookup_formula(sku_ref, data_last_row, col: 2), text: true)
+          add_formula_row(sheet, styles, "Размеры / упаковка", lookup_formula(sku_ref, data_last_row, col: 3), text: true)
+          add_formula_row(sheet, styles, "Цена товара (BYN)", lookup_formula(sku_ref, data_last_row, col: 18))
+          add_formula_row(sheet, styles, "Доставка до Беларуси (BYN)", lookup_formula(sku_ref, data_last_row, col: 19))
+          add_formula_row(sheet, styles, "Доставка PL в цене (BYN)", lookup_formula(sku_ref, data_last_row, col: 20))
+          add_formula_row(sheet, styles, "Цена сервиса (BYN)", lookup_formula(sku_ref, data_last_row, col: 21))
+          add_formula_row(sheet, styles, "Таможенный платёж (BYN)", lookup_formula(sku_ref, data_last_row, col: 22))
+          add_formula_row(sheet, styles, "Режим цены (cheap/k)", lookup_formula(sku_ref, data_last_row, col: 9), text: true)
+          add_formula_row(sheet, styles, "Цена IKEA (PLN)", lookup_formula(sku_ref, data_last_row, col: 7))
+          add_formula_row(sheet, styles, "WC_BY (PLN)", lookup_formula(sku_ref, data_last_row, col: 13))
 
           sheet.add_row([])
           sheet.add_row(["ВГХ (подсветка при превышении лимита)"], style: styles[:label])
@@ -527,7 +530,7 @@ module Admin
             ["Объём (м³)", 5, vgh_limits[:max_volume_m3], "м³"],
             ["Макс. сторона (см)", 6, vgh_limits[:max_dimension_cm], "см"]
           ].each do |label, col, limit, unit|
-            formula = lookup_formula(sku_ref, data_range, col: col)
+            formula = lookup_formula(sku_ref, data_last_row, col: col)
             row = sheet.add_row([label], style: [styles[:label]])
             row.add_cell(formula, escape_formulas: false, style: styles[:formula])
             row.add_cell("лимит", style: styles[:label])
@@ -546,14 +549,14 @@ module Admin
 
           add_formula_row(
             sheet, styles, "Статус ВГХ",
-            lookup_formula(sku_ref, data_range, col: 26),
+            lookup_formula(sku_ref, data_last_row, col: 26),
             text: true,
             value_style: styles[:vgh_ok]
           )
 
           sheet.add_row([])
           sheet.add_row(
-            ["Подсказка", "SKU в #{CALC_SKU_CELL}. Данные — с листа «Данные» (те же товары, что в «Товары»)."],
+            ["Подсказка", "SKU в #{sku_ref}. Таблица — лист «Данные», строки #{DATA_FIRST_ROW}–#{data_last_row} (как в «Товары»)."],
             style: [styles[:label], styles[:text]]
           )
 
@@ -575,16 +578,23 @@ module Admin
           "4) Перевод в BYN: итог PLN × курс PLN→BYN × буфер (по умолчанию 1.05).",
           "5) Таможня: отдельно по стоимости в EUR и весу (CustomsDutyService), в цену сервиса не входит.",
           "6) ВГХ: вес/объём/сторона из упаковки товара; лимиты — настройки europost_max_* (доступность ПВЗ).",
-          "Лист «Данные» — плоская копия расчётных полей; калькулятор подставляет SKU через XLOOKUP."
+          "Лист «Данные» — плоская копия расчётных полей; калькулятор ищет SKU через INDEX/MATCH."
         ]
       end
 
-      def lookup_formula(sku_cell, data_range, col:, text: false)
+      def lookup_formula(sku_cell, data_last_row, col:, text: false)
+        lookup_range, return_range = data_sheet_lookup_ranges(data_last_row, col)
+        sku_key = "TEXT(TRIM(#{sku_cell}),\"0\")"
+        text # reserved
+        "=IF(#{sku_key}=\"\",\"введите SKU\",IFERROR(INDEX(#{return_range},MATCH(#{sku_key},#{lookup_range},0)),\"не найден\"))"
+      end
+
+      def data_sheet_lookup_ranges(data_last_row, col)
+        first = DATA_FIRST_ROW
+        lookup = "'#{DATA_SHEET}'!$A$#{first}:$A$#{data_last_row}"
         return_col = data_col_letter(col)
-        end_row = data_range[/\$A\$\d+:\$A\$(\d+)/, 1]
-        return_range = "'#{DATA_SHEET}'!$#{return_col}$2:$#{return_col}$#{end_row}"
-        text # reserved for future TEXT() wrapping
-        "=IFERROR(XLOOKUP(#{sku_cell},#{data_range},#{return_range},\"не найден\"),\"введите SKU\")"
+        returns = "'#{DATA_SHEET}'!$#{return_col}$#{first}:$#{return_col}$#{data_last_row}"
+        [lookup, returns]
       end
 
       def data_col_letter(index)
