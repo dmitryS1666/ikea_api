@@ -17,7 +17,10 @@ class CartSummaryService
     delivery_options = DeliveryOptionsService.call(effective)
     rules = CartRulesService.call(subtotal_new_byn: totals[:subtotal_new_byn])
 
+    pricing_items = pricing[:items].index_by { |entry| entry[:sku] }
+
     {
+      items: format_items(effective.cart_items, pricing_items),
       items_count: effective.cart_items.sum(&:quantity),
       subtotal_new_byn: format_byn(totals[:subtotal_new_byn]),
       discount_total_byn: format_byn(totals[:discount_total_byn]),
@@ -51,6 +54,35 @@ class CartSummaryService
       total_weight_kg: totals[:total_weight_kg].to_f,
       delivery_to_belarus_byn: format_byn(totals[:delivery_to_belarus_byn]),
       delivery_total_byn: format_byn(totals[:delivery_total_byn])
+    }
+  end
+
+  def self.format_items(cart_items, pricing_items)
+    cart_items.map do |item|
+      line = pricing_items[item.product_sku] || {}
+      format_item(item.product_sku, item.quantity, line)
+    end
+  end
+
+  def self.format_item(sku, quantity, line)
+    qty = quantity.to_i
+    unit_before = line[:unit_price_byn_before_discount]
+    unit_after = line[:unit_price_byn]
+
+    {
+      sku: sku,
+      quantity: qty,
+      pricing: {
+        unit_price_old_byn: format_byn(unit_before),
+        unit_price_new_byn: format_byn(unit_after),
+        unit_discount_byn: format_byn(line[:unit_discount_byn]),
+        line_total_old_byn: format_byn(unit_before.to_f * qty),
+        line_total_new_byn: format_byn(line[:line_total_byn]),
+        line_discount_byn: format_byn(line[:line_discount_byn]),
+        pricing_mode: line[:pricing_mode],
+        promo_applied: line[:promo_applied] || false,
+        promo_code: line[:promo_code]
+      }
     }
   end
 

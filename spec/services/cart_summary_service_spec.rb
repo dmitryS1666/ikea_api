@@ -47,4 +47,14 @@ RSpec.describe CartSummaryService do
     expect(summary[:total_byn].to_f).to be < full[:totals][:total_byn].to_f
     expect(summary[:delivery]).to include(:available_methods, :europost_eligible)
   end
+
+  it "returns per-item pricing with markup for the selected subset" do
+    summary = described_class.call(cart: cart, items: selections)
+    row = summary[:items].find { |i| i[:sku] == product_a.sku }
+
+    expect(row[:quantity]).to eq(1)
+    expect(row[:pricing][:unit_price_new_byn].to_f).to be > 0
+    expect(row[:pricing][:line_total_new_byn].to_f).to eq(summary[:total_byn].to_f)
+    expect(row[:pricing][:unit_price_new_byn].to_f).to eq(row[:pricing][:line_total_new_byn].to_f)
+  end
 end

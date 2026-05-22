@@ -64,10 +64,15 @@ Content-Type: application/json
 
 Ответ (строки BYN в формате `"xx.xx"`):
 
+- **`items[]`** — цены по **выбранным** SKU/qty (с наценкой, как в `GET /cart` → `items[].pricing`):
+  - `sku`, `quantity`
+  - `pricing.unit_price_new_byn`, `pricing.line_total_new_byn`, промо-поля
 - `items_count`, `subtotal_new_byn`, `discount_total_byn`, `customs_total_byn`
 - `delivery_to_belarus_byn`, `delivery_total_byn`, `total_weight_kg`, `total_byn`
 - `delivery.available_methods`, `delivery.europost_eligible`
 - `meta.checkout_allowed`, `meta.min_order_error` — минимальная сумма заказа по **выбранным** позициям
+
+**UI:** цену строки и сумму выбранного берите из `items[].pricing`, не из `subtotal_new_byn` (там база IKEA без наценки). `subtotal_new_byn` — только для логики минималки (`meta`).
 
 Тот же массив `items` передаётся в `POST /checkout` (`draft: true`) и в `POST /checkout/:id/finalize`.
 
