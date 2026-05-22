@@ -15,6 +15,7 @@ module Api
         categories = categories.page(page).per(per_page)
 
         render json: CategorySerializer.new(categories, {
+          params: seo_serialization_params,
           meta: {
             total: categories.total_count,
             page: page,
@@ -27,7 +28,7 @@ module Api
       def show
         category = Category.includes(:seo_meta).with_attached_icon.with_attached_background_image.find_by(ikea_id: params[:id])
         render json: CategorySerializer.new(category, {
-          params: { city: current_city }
+          params: seo_serialization_params
         })
       end
 
@@ -95,26 +96,28 @@ module Api
 
       def custom
         categories = Category.custom.includes(:seo_meta).with_attached_icon.with_attached_background_image
-        render json: CategorySerializer.new(categories)
+        render json: CategorySerializer.new(categories, { params: seo_serialization_params })
       end
       
       def tree
-        tree = Rails.cache.fetch("categories_tree_v1", expires_in: 12.hours) do
+        cache_key = "categories_tree_v2_#{current_city}"
+        tree = Rails.cache.fetch(cache_key, expires_in: 12.hours) do
           categories = Category
             .where(is_deleted: false)
-            .select(:id, :ikea_id, :translated_name, :cached_slug, :parent_ids, :top_position, :root_position)
+            .includes(:seo_meta)
+            .select(:id, :ikea_id, :translated_name, :cached_slug, :parent_ids, :top_position, :root_position, :name)
             .with_attached_icon
             .with_attached_pictogram
-      
-          Categories::TreeBuilder.new(categories).call
+
+          Categories::TreeBuilder.new(categories, city_code: current_city).call
         end
-      
+
         render json: tree
       end
       
       def map
         # Кешируем карту категорий
-        json = Rails.cache.fetch('categories_map_json_v2', expires_in: 1.day) do
+        json = Rails.cache.fetch("categories_map_json_v3_#{current_city}", expires_in: 1.day) do
           categories = Category.active
                               .includes(:products_with_available_stock)
                               .with_attached_icon
@@ -124,6 +127,7 @@ module Api
           
           CategoryMapSerializer.new(categories, {
             include: [],
+            params: seo_serialization_params,
             meta: {
               total: categories.count,
               generated_at: Time.current.iso8601

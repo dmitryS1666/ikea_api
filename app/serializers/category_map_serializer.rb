@@ -6,7 +6,11 @@ class CategoryMapSerializer
   set_id :ikea_id
   
   attributes :ikea_id, :name, :translated_name, :url
-  
+
+  attribute :seo do |category, params|
+    SeoHelper.meta_for(category, params[:city])
+  end
+
   attribute :products do |category|
     category.products_with_available_stock.map do |product|
       {

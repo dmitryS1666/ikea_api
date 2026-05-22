@@ -4,8 +4,9 @@ require "set"
 
 module Categories
   class TreeBuilder
-    def initialize(scope = Category.all)
+    def initialize(scope = Category.all, city_code: nil)
       @scope = scope
+      @city_code = city_code
       @url_helpers = Rails.application.routes.url_helpers
     end
 
@@ -62,7 +63,8 @@ module Categories
           slug: category.slug,
           root_position: safe_root_position(category),
           icon_url: depth == 1 || depth == 2 ? blob_path(category.icon) : nil,
-          pictogram_url: depth == 1 ? blob_path(category.pictogram) : nil
+          pictogram_url: depth == 1 ? blob_path(category.pictogram) : nil,
+          seo: category_seo(category)
         },
         children: children.filter_map do |child|
           serialize_node(child, children_map, depth + 1, visited)
@@ -104,6 +106,14 @@ module Categories
       return nil if ids.empty?
 
       ids.last == category.ikea_id.to_s ? ids[-2].to_s : ids.last.to_s
+    end
+
+    def category_seo(category)
+      return nil unless category.association(:seo_meta).loaded? || category.seo_meta
+
+      SeoHelper.meta_for(category, @city_code)
+    rescue StandardError
+      nil
     end
 
     def blob_path(attachment)

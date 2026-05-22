@@ -8,6 +8,7 @@ module Api
                            .includes(:category, :image_attachment)
 
         global_seo = GlobalSeoSetting.find_by(target_type: 'home')
+        site_url = public_site_url
 
         render json: HomeBannerSerializer.new(banners, {
           meta: {
@@ -16,8 +17,12 @@ module Api
               description: global_seo.description_template,
               keywords: global_seo.keywords_template,
               robots: global_seo.robots,
-              seo_text: global_seo.seo_text
-            } : nil
+              seo_text: global_seo.seo_text,
+              h1: global_seo.h1_template
+            } : nil,
+            structured_data: [
+              Seo::StructuredData::OrganizationBuilder.build(site_url: site_url)
+            ].compact
           }
         })
       end

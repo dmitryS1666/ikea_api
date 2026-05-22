@@ -191,6 +191,19 @@ class ProductSerializer
     SeoHelper.meta_for(product, params[:city])
   end
 
+  attribute :breadcrumbs, if: proc { |_product, params| params && params[:detail] } do |product|
+    Seo::BreadcrumbsBuilder.for_product(product)
+  end
+
+  attribute :local_images_detailed, if: proc { |_product, params| params && params[:detail] } do |product, params|
+    Seo::ImageTagsBuilder.for_product(product, params[:city])
+  end
+
+  attribute :structured_data, if: proc { |_product, params| params && params[:detail] } do |product, params|
+    site_url = params[:site_url].presence || Seo::PublicSiteUrl.resolve
+    Seo::StructuredData::ProductBuilder.build(product, site_url: site_url, city_code: params[:city])
+  end
+
   attribute :tips, if: proc { |_product, params| params && params[:detail] } do |product|
     articles = ContentArticle.visible.tips_ideas.relevant_for_product(product).limit(5)
     ContentArticleTeaserSerializer.new(articles).serializable_hash[:data].map { |a| a[:attributes] }

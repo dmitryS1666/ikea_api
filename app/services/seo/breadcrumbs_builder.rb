@@ -56,13 +56,13 @@ module Seo
 
     def breadcrumb_entry(category)
       {
-        title: category.translated_name,
+        title: category.translated_name.presence || category.name,
         url: category_url(category)
       }
     end
 
     def category_url(category)
-      "/category/#{category.ikea_id}"
+      category.catalog_url.presence || "/category/#{category.ikea_id}"
     end
   end
 end

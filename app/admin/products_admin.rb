@@ -687,6 +687,15 @@ Trestle.resource(:products, model: Product) do
         row do
           col(sm: 12) { seo.tinymce :seo_text, label: "SEO Текст" }
         end
+        row do
+          col(sm: 6) { seo.text_field :h1, label: "H1", help: "Если пусто — из глобального шаблона" }
+        end
+        row do
+          col(sm: 6) { seo.text_field :image_alt, label: "Alt изображений", help: "Для всех фото; шаблоны: {{name}}, {{index}}" }
+        end
+        row do
+          col(sm: 6) { seo.text_field :image_title, label: "Title изображений", help: "Для всех фото; шаблоны: {{name}}, {{index}}" }
+        end
       end
     end
 
@@ -743,7 +752,7 @@ Trestle.resource(:products, model: Product) do
       :full_attributes_json_input,
       :full_attributes_api_override_json_input,
       category_ids: [],
-      seo_meta_attributes: [:id, :title, :description, :keywords, :robots, :seo_text, :_destroy]
+      seo_meta_attributes: [:id, :title, :description, :keywords, :robots, :seo_text, :h1, :image_alt, :image_title, :_destroy]
     )
   
     if raw[:included_products].is_a?(String)

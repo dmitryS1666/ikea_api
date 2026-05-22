@@ -861,6 +861,7 @@ Trestle.resource(:categories, model: Category) do
           col(sm: 6) { seo.text_field :robots, label: "SEO Robots", placeholder: "index, follow" }
         end
         row { col(sm: 12) { seo.tinymce :seo_text, label: "SEO Текст" } }
+        row { col(sm: 12) { seo.text_field :h1, label: "H1", help: "Если пусто — из глобального шаблона категорий" } }
       end
     end
 
@@ -906,7 +907,7 @@ Trestle.resource(:categories, model: Category) do
       :pictogram,
       :background_image,
       :parent_ikea_id,
-      seo_meta_attributes: [:id, :title, :description, :keywords, :robots, :seo_text, :_destroy]
+      seo_meta_attributes: [:id, :title, :description, :keywords, :robots, :seo_text, :h1, :_destroy]
     )
   end
 end

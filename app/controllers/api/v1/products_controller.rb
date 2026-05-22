@@ -42,11 +42,10 @@ module Api
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
         render json: ProductSerializer.new(product, {
           params: serialization_params.merge(
-            detail: true, 
-            city: current_city,
+            detail: true,
             active_promos: promos,
             promo_applicability: get_promo_applicability([product], promos)
-          )
+          ).merge(seo_serialization_params)
         })
       end
       

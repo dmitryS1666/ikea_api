@@ -34,6 +34,14 @@ class ApplicationController < ActionController::API
     Seo::CityMapper.call(current_city)
   end
 
+  def public_site_url
+    Seo::PublicSiteUrl.resolve(request)
+  end
+
+  def seo_serialization_params
+    { city: current_city, site_url: public_site_url }
+  end
+
   def current_user
     @current_user
   end

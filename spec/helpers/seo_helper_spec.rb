@@ -55,5 +55,16 @@ RSpec.describe SeoHelper, type: :helper do
         expect(meta[:title]).to include("в Минске")
       end
     end
+
+    context "city preposition in templates" do
+      it "does not duplicate «в» when template already contains preposition" do
+        GlobalSeoSetting.find_by(target_type: "product").update!(
+          title_template: "{{name}} купить в {{city}} | {{store_name}}"
+        )
+        meta = SeoHelper.meta_for(product, "minsk")
+        expect(meta[:title]).not_to match(/в в/i)
+        expect(meta[:title]).to include("в Минске")
+      end
+    end
   end
 end

@@ -27,7 +27,7 @@ RSpec.describe ProductSerializer do
       serialized = described_class.new(product, params: { detail: true }).serializable_hash
 
       expect(serialized[:data][:attributes][:breadcrumbs]).to eq([
-        { title: category.name, url: "/category/#{category.ikea_id}" }
+        { title: category.name, url: category.catalog_url }
       ])
     end
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_20_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_22_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -335,6 +335,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_20_120000) do
     t.text "seo_text"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "image_alt_template"
+    t.string "image_title_template"
+    t.string "h1_template"
   end
 
   create_table "home_banners", force: :cascade do |t|
@@ -820,6 +823,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_20_120000) do
     t.text "seo_text"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "h1"
+    t.string "image_alt"
+    t.string "image_title"
     t.index ["seoable_type", "seoable_id"], name: "index_seo_meta_on_seoable"
   end
 

@@ -28,8 +28,8 @@ RSpec.describe Seo::BreadcrumbsBuilder do
       BreadcrumbRule.create!(entity_type: "product", rule_type: :by_primary_category_tree, active: true)
 
       expect(described_class.for_product(product)).to eq([
-        { title: root_category.name, url: "/category/#{root_category.ikea_id}" },
-        { title: child_category.name, url: "/category/#{child_category.ikea_id}" }
+        { title: root_category.name, url: root_category.catalog_url },
+        { title: child_category.name, url: child_category.catalog_url }
       ])
     end
 
@@ -37,7 +37,7 @@ RSpec.describe Seo::BreadcrumbsBuilder do
       BreadcrumbRule.create!(entity_type: "product", rule_type: :by_primary_category_only, active: true)
 
       expect(described_class.for_product(product)).to eq([
-        { title: child_category.name, url: "/category/#{child_category.ikea_id}" }
+        { title: child_category.name, url: child_category.catalog_url }
       ])
     end
 

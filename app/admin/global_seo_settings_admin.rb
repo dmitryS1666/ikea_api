@@ -29,9 +29,12 @@ Trestle.resource(:global_seo_settings, model: GlobalSeoSetting) do
       ], label: "Тип страницы"
 
       text_field :title_template, label: "Шаблон Title", help: "Используйте {{name}} для подстановки названия"
+      text_field :h1_template, label: "Шаблон H1", help: "{{name}}, {{city}}"
       text_area :description_template, label: "Шаблон Description"
       text_field :keywords_template, label: "Шаблон Keywords"
       text_field :robots, label: "Robots (индексация)"
+      text_field :image_alt_template, label: "Шаблон alt изображений (товары)", help: "{{name}}, {{index}}, {{city}}"
+      text_field :image_title_template, label: "Шаблон title изображений (товары)", help: "{{name}}, {{index}}"
     end
 
     tab :seo_text, label: "SEO Текст" do

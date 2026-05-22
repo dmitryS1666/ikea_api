@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class SlugifyService
   CYRILLIC_TO_LATIN = {
     "а" => "a",  "б" => "b",   "в" => "v",  "г" => "g",  "д" => "d",
@@ -10,8 +12,9 @@ class SlugifyService
   }.freeze
 
   def self.call(value)
-    transliterated = value.to_s.downcase.chars.map { |ch| CYRILLIC_TO_LATIN.fetch(ch, ch) }.join
-    transliterated
+    mapped = value.to_s.downcase.chars.map { |ch| CYRILLIC_TO_LATIN.fetch(ch, ch) }.join
+    ascii = mapped.unicode_normalize(:nfd).gsub(/\p{M}/, "")
+    ascii
       .gsub(/[^a-z0-9]+/, "-")
       .gsub(/^-+|-+$/, "")
   end
