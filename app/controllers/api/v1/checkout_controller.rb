@@ -2,25 +2,21 @@ module Api
   module V1
     class CheckoutController < ApplicationController
       before_action :authenticate_user
-      before_action :set_draft_order, only: [:update, :finalize, :destroy]
+      before_action :set_draft_order, only: [:show, :update, :finalize, :destroy]
 
       def create
         result = CheckoutService.call(user: current_user, params: checkout_params)
 
         if result[:success]
-          render json: success_payload(result), status: :created
+          status = result[:reused] ? :ok : :created
+          render json: success_payload(result), status: status
         else
           render_error(result)
         end
       end
 
-      def draft
-        order = CheckoutService.find_draft(user: current_user)
-        if order
-          render json: OrderSerializer.new(order, include: [:order_items]).serializable_hash, status: :ok
-        else
-          render json: { error: 'Активный черновик заказа не найден' }, status: :not_found
-        end
+      def show
+        render json: OrderSerializer.new(@draft_order, include: [:order_items]).serializable_hash, status: :ok
       end
 
       def update

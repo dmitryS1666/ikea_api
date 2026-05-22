@@ -234,6 +234,12 @@ class CheckoutService
     end
 
     if order.reload.persisted? && !order.checkout_draft
+      user_cart = user.cart
+      if user_cart
+        consume_selections = CartSelectionService.selections_from_order(order)
+        clear_cart_after_checkout!(cart: user_cart, selections: consume_selections)
+      end
+
       WebpayPaymentLinkService.issue_link!(order)
       OrderNotificationService.call(order)
       { success: true, order: order }
@@ -247,24 +253,11 @@ class CheckoutService
     return { error: 'Черновик заказа не найден', code: 'draft_not_found' } unless order
 
     Order.transaction do
-      cart = user.cart || user.create_cart
-      order.order_items.each do |item|
-        product = Product.with_available_stock.find_by(sku: item.product_sku)
-        next unless product
-
-        ci = cart.cart_items.find_or_initialize_by(product_sku: item.product_sku)
-        ci.quantity = (ci.quantity || 0) + item.quantity
-        ci.save!
-      end
-      cart.update!(promo_code: order.promo_code) if order.promo_code_id.present?
+      order.order_items.destroy_all
       order.update!(status: :cancelled, checkout_draft: false)
     end
 
     { success: true }
-  end
-
-  def self.find_draft(user:)
-    user.orders.find_by(checkout_draft: true)
   end
 
   def self.complete_checkout(user:, params:)
@@ -462,73 +455,50 @@ class CheckoutService
 
     checkout_cart = cart_context[:cart]
     selections = cart_context[:selections]
+    requested_selections = CartSelectionService.normalize_selections(cart: checkout_cart, selections: selections)
+
+    existing = user.orders.find_by(checkout_draft: true)
+    if existing
+      if CartSelectionService.selections_equal?(
+        requested_selections,
+        CartSelectionService.selections_from_order(existing)
+      )
+        order = existing
+        if order.delivery_type.present? && params[:delivery_type].present?
+          update_result = update_draft(user: user, order_id: order.id, params: params)
+          return update_result unless update_result[:success]
+          order = update_result[:order]
+        end
+        return {
+          success: true,
+          order: order,
+          delivery_options: draft_delivery_options_for(order),
+          reused: true
+        }
+      end
+
+      return {
+        error: 'Сначала завершите или отмените оформление заказа в корзине',
+        code: 'checkout_draft_exists',
+        draft_order_id: existing.id
+      }
+    end
+
+    stock_check = validate_stock_for_pricing_items(checkout_cart, params)
+    return stock_check if stock_check[:error]
 
     pricing = CartPricingService.call(cart: checkout_cart)
-
     unless pricing[:meta][:can_checkout]
       return { error: pricing[:meta][:min_order_error] }
     end
 
-    pricing[:items].each do |item|
-      product = Product.find_by(sku: item[:sku])
-      if product && product.quantity.to_i <= 0
-        return { error: "Товара #{product.name} нет в наличии" }
-      end
-    end
-
-    total_amount = pricing[:totals][:total_byn].to_f
-    delivery_price = pricing[:totals][:delivery_total_byn].to_f
-
-    passport_input = params[:passport].is_a?(Hash) ? params[:passport] : (params[:passport].to_unsafe_h rescue nil)
-
-    address_snapshot = (params[:address] || {}).merge(
-      pickup_point_id: params[:pickup_point_id].present? ? params[:pickup_point_id].to_i : nil,
-      services: params[:services],
-      passport_provided: passport_input.present?,
-      weight_kg: pricing[:totals][:total_weight_kg],
-      pln_total: pricing[:totals][:total_pln],
-      checkout_draft: true
+    order = build_draft_order(
+      user: user,
+      cart: cart,
+      checkout_cart: checkout_cart,
+      pricing: pricing,
+      params: params
     )
-
-    order = nil
-    existing = user.orders.find_by(checkout_draft: true)
-
-    Order.transaction do
-      existing&.destroy!
-
-      order = Order.new(
-        user: user,
-        status: :created,
-        checkout_draft: true,
-        total_amount: total_amount.round(2),
-        delivery_price: delivery_price.round(2),
-        discount_amount: pricing[:totals][:discount_total_byn],
-        promo_code: cart.promo_code,
-        full_name: params[:full_name],
-        phone: params[:phone],
-        delivery_type: draft_initial_delivery_type(params),
-        weight: pricing[:totals][:total_weight_kg],
-        payment_method: params[:payment_method],
-        address_json: address_snapshot
-      )
-
-      if order.save
-        checkout_cart.cart_items.each do |cart_item|
-          price_snapshot = pricing[:items].find { |i| i[:sku] == cart_item.product_sku }
-
-          OrderItem.create!(
-            order: order,
-            product_sku: cart_item.product_sku,
-            quantity: cart_item.quantity,
-            price: price_snapshot[:unit_price_byn]
-          )
-        end
-
-        clear_cart_after_checkout!(cart: cart, selections: selections)
-      else
-        raise ActiveRecord::Rollback
-      end
-    end
 
     if order&.persisted?
       if order.delivery_type.present?
@@ -817,6 +787,67 @@ class CheckoutService
       cart.cart_items.destroy_all
       cart.update!(promo_code: nil)
     end
+  end
+
+  def self.validate_stock_for_pricing_items(checkout_cart, params)
+    checkout_cart.cart_items.each do |cart_item|
+      product = Product.find_by(sku: cart_item.product_sku)
+      if product && product.quantity.to_i <= 0
+        return { error: "Товара #{product.name} нет в наличии" }
+      end
+    end
+    { ok: true }
+  end
+
+  def self.build_draft_order(user:, cart:, checkout_cart:, pricing:, params:)
+    total_amount = pricing[:totals][:total_byn].to_f
+    delivery_price = pricing[:totals][:delivery_total_byn].to_f
+    passport_input = params[:passport].is_a?(Hash) ? params[:passport] : (params[:passport].to_unsafe_h rescue nil)
+
+    address_snapshot = (params[:address] || {}).merge(
+      pickup_point_id: params[:pickup_point_id].present? ? params[:pickup_point_id].to_i : nil,
+      services: params[:services],
+      passport_provided: passport_input.present?,
+      weight_kg: pricing[:totals][:total_weight_kg],
+      pln_total: pricing[:totals][:total_pln],
+      checkout_draft: true
+    )
+
+    order = nil
+    Order.transaction do
+      order = Order.new(
+        user: user,
+        status: :created,
+        checkout_draft: true,
+        total_amount: total_amount.round(2),
+        delivery_price: delivery_price.round(2),
+        discount_amount: pricing[:totals][:discount_total_byn],
+        promo_code: cart.promo_code,
+        full_name: params[:full_name],
+        phone: params[:phone],
+        delivery_type: draft_initial_delivery_type(params),
+        weight: pricing[:totals][:total_weight_kg],
+        payment_method: params[:payment_method],
+        address_json: address_snapshot
+      )
+
+      if order.save
+        checkout_cart.cart_items.each do |cart_item|
+          price_snapshot = pricing[:items].find { |i| i[:sku] == cart_item.product_sku }
+
+          OrderItem.create!(
+            order: order,
+            product_sku: cart_item.product_sku,
+            quantity: cart_item.quantity,
+            price: price_snapshot[:unit_price_byn]
+          )
+        end
+      else
+        raise ActiveRecord::Rollback
+      end
+    end
+
+    order&.persisted? ? order : nil
   end
 
 end

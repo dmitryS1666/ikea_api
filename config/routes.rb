@@ -103,8 +103,6 @@ Rails.application.routes.draw do
         collection do
           get :types
           post :calculate
-          get :pickup_points
-          get :pickup_points_search
           get :europost_offices
         end
       end
@@ -163,8 +161,8 @@ Rails.application.routes.draw do
       # Reviews Export (API version)
       get 'reviews/export(.:format)', to: 'reviews_exports#index'
       
-      # Checkout (draft flow: GET draft → PATCH → POST finalize; legacy: POST без draft)
-      get 'checkout/draft', to: 'checkout#draft'
+      # Checkout (draft flow: GET :id → PATCH → POST finalize; legacy: POST без draft)
+      get 'checkout/:id', to: 'checkout#show'
       patch 'checkout/:id', to: 'checkout#update'
       post 'checkout/:id/finalize', to: 'checkout#finalize'
       delete 'checkout/:id', to: 'checkout#destroy'

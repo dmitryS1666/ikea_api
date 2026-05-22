@@ -8,18 +8,30 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
   let!(:product) do
     create(
       :product,
-      sku: "SKU-DRAFT-CHK",
+      sku: "SKU-DRAFT-#{SecureRandom.hex(4)}",
       quantity: 10,
       price: 100.0,
       weight: 10.0,
       package_volume: 0.02,
       package_dimensions: "20 x 30 x 40 cm",
       dimensions: "20 x 30 x 40 cm",
-      full_attributes: {}
+      full_attributes: {
+        "dimensions_map" => {
+          "packaging" => {
+            "details" => [
+              { "weight" => "10 кг", "count" => 1, "width" => "20 см", "height" => "30 см", "length" => "40 см" }
+            ]
+          }
+        }
+      }
     )
   end
 
   before do
+    user.orders.where(checkout_draft: true).find_each do |draft|
+      CheckoutService.cancel_draft(user: user, order_id: draft.id)
+    end
+    cart.cart_items.destroy_all
     create(:cart_item, cart: cart, product_sku: product.sku, quantity: 1)
     allow(EuropostApiService).to receive(:offices_out).and_return(
       [{ "WarehouseId" => "70130010", "WarehouseWeightLimit" => "50" }]
@@ -36,7 +48,7 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(response).to have_http_status(:created)
     order = Order.last
     expect(order.checkout_draft).to be true
-    expect(user.reload.cart.cart_items).to be_empty
+    expect(user.reload.cart.cart_items).not_to be_empty
 
     patch "/api/v1/checkout/#{order.id}", params: {
       delivery_type: "europost_pickup",
@@ -61,6 +73,7 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(order.status).to eq("processing")
     expect(order.payment_url).to be_present
     expect(WebpayPaymentLinkService).to have_received(:issue_link!).once
+    expect(user.reload.cart.cart_items).to be_empty
   end
 
   it "returns delivery options based on draft order VGH" do
@@ -94,19 +107,41 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(json["code"]).to eq("checkout_draft_exists")
   end
 
-  it "replaces old draft and creates a new one when posting draft twice" do
+  it "returns 409 when posting draft with different selection while draft exists" do
     post "/api/v1/checkout", params: { draft: true }, headers: headers
     expect(response).to have_http_status(:created)
     first_id = Order.last.id
 
-    user.create_cart if user.cart.nil?
-    create(:cart_item, cart: user.cart, product_sku: product.sku, quantity: 2)
+    other = create(:product, sku: "SKU-DRAFT-OTHER", quantity: 10, price: 50.0, weight: 5.0,
+                             package_volume: 0.02, package_dimensions: "20 x 30 x 40 cm",
+                             dimensions: "20 x 30 x 40 cm", full_attributes: {})
+    create(:cart_item, cart: cart, product_sku: other.sku, quantity: 1)
+    post "/api/v1/checkout", params: { draft: true, items: [{ sku: other.sku, quantity: 1 }] }, headers: headers
+    expect(response).to have_http_status(:conflict)
+    json = JSON.parse(response.body)
+    expect(json["code"]).to eq("checkout_draft_exists")
+    expect(json["draft_order_id"]).to eq(first_id)
+    expect(Order.find(first_id).checkout_draft).to be true
+  end
+
+  it "returns 200 with same order when posting draft twice with same selection" do
     post "/api/v1/checkout", params: { draft: true }, headers: headers
     expect(response).to have_http_status(:created)
+    first_id = JSON.parse(response.body)["order_id"]
+
+    post "/api/v1/checkout", params: { draft: true }, headers: headers
+    expect(response).to have_http_status(:ok)
     json = JSON.parse(response.body)
-    expect(json["order_id"]).not_to eq(first_id)
-    expect(json["message"]).to eq("Черновик заказа создан")
-    expect(Order.where(id: first_id)).to be_empty
-    expect(Order.find(json["order_id"]).checkout_draft).to be true
+    expect(json["order_id"]).to eq(first_id)
+  end
+
+  it "loads draft via GET /checkout/:id" do
+    post "/api/v1/checkout", params: { draft: true }, headers: headers
+    order_id = JSON.parse(response.body)["order_id"]
+
+    get "/api/v1/checkout/#{order_id}", headers: headers
+    expect(response).to have_http_status(:ok)
+    body = JSON.parse(response.body)
+    expect(body.dig("data", "attributes", "checkout_draft")).to eq(true)
   end
 end

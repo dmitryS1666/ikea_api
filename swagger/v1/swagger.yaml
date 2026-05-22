@@ -1257,48 +1257,6 @@ paths:
                     type: array
                     items: { type: string }
 
-  /api/v1/delivery/pickup_points:
-    get:
-      summary: Список всех активных ПВЗ
-      tags:
-        - Delivery
-      responses:
-        '200':
-          description: Список ПВЗ
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  pickup_points:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/PickupPoint'
-
-  /api/v1/delivery/pickup_points_search:
-    get:
-      summary: Поиск ПВЗ по адресу/городу
-      tags:
-        - Delivery
-      parameters:
-        - name: query
-          in: query
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Результаты поиска
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  pickup_points:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/PickupPoint'
-
   /api/v1/delivery/europost_offices:
     get:
       summary: Получить список отделений Европочты
@@ -1312,12 +1270,24 @@ paths:
             type: integer
             enum: [1, 3, 4]
           description: "Фильтр типа ПВЗ для GET https://api-kassa.evropochta.by/api/external/stores (1 — ОПС, 3 — склад, 4 — ОПС при складе). Нужны EUROPOST_API_TOKEN и корректный EUROPOST_API_BASE_URL (по умолчанию https://api-kassa.evropochta.by)."
-        - name: cart_id
+        - name: order_id
           in: query
           required: false
           schema:
             type: integer
-          description: При передаче cart_id возвращаются только подходящие ПВЗ по ВГХ корзины с ценой и ETA.
+          description: Черновик checkout — фильтрация по составу заказа.
+        - name: cart_token
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Гостевая/пользовательская корзина.
+        - name: items
+          in: query
+          required: false
+          schema:
+            type: string
+          description: JSON-массив [{sku, quantity}] для subset корзины (вместе с cart_token).
       responses:
         '200':
           description: Список отделений Европочты
@@ -1351,6 +1321,8 @@ paths:
                       oneOf:
                         - $ref: '#/components/schemas/EuropostOffice'
                         - $ref: '#/components/schemas/EuropostOfficeForCart'
+        '422':
+          description: Не передан order_id, cart_token или items
 
   /api/v1/delivery/calculate:
     post:
@@ -1363,6 +1335,9 @@ paths:
             schema:
               type: object
               properties:
+                order_id:
+                  type: integer
+                  description: Черновик checkout (приоритет над cart_token)
                 cart_token:
                   type: string
                 delivery_type:

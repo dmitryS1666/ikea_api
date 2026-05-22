@@ -42,29 +42,4 @@ RSpec.describe 'Delivery API', type: :request do
     end
   end
 
-  path '/api/v1/delivery/pickup_points' do
-    get 'List pickup points' do
-      tags 'Delivery'
-      produces 'application/json'
-
-      parameter name: :city, in: :query, type: :string, required: false
-
-      response '200', 'successful' do
-        run_test!
-      end
-    end
-  end
-
-  path '/api/v1/delivery/pickup_points_search' do
-    get 'Search pickup points' do
-      tags 'Delivery'
-      produces 'application/json'
-
-      parameter name: :query, in: :query, type: :string, required: true
-
-      response '200', 'successful' do
-        run_test!
-      end
-    end
-  end
 end

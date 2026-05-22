@@ -15,7 +15,15 @@ RSpec.describe "Checkout with selected cart items", type: :request do
       package_volume: 0.02,
       package_dimensions: "20 x 30 x 40 cm",
       dimensions: "20 x 30 x 40 cm",
-      full_attributes: {}
+      full_attributes: {
+        "dimensions_map" => {
+          "packaging" => {
+            "details" => [
+              { "weight" => "5 кг", "count" => 1, "width" => "20 см", "height" => "30 см", "length" => "40 см" }
+            ]
+          }
+        }
+      }
     )
   end
   let!(:product_b) do
@@ -28,11 +36,22 @@ RSpec.describe "Checkout with selected cart items", type: :request do
       package_volume: 0.03,
       package_dimensions: "20 x 30 x 40 cm",
       dimensions: "20 x 30 x 40 cm",
-      full_attributes: {}
+      full_attributes: {
+        "dimensions_map" => {
+          "packaging" => {
+            "details" => [
+              { "weight" => "8 кг", "count" => 1, "width" => "20 см", "height" => "30 см", "length" => "40 см" }
+            ]
+          }
+        }
+      }
     )
   end
 
   before do
+    user.orders.where(checkout_draft: true).find_each do |draft|
+      CheckoutService.cancel_draft(user: user, order_id: draft.id)
+    end
     create(:cart_item, cart: cart, product_sku: product_a.sku, quantity: 2)
     create(:cart_item, cart: cart, product_sku: product_b.sku, quantity: 1)
     allow(EuropostApiService).to receive(:offices_out).and_return(
@@ -56,7 +75,7 @@ RSpec.describe "Checkout with selected cart items", type: :request do
     expect(response).to have_http_status(:created)
     order = Order.last
     expect(order.order_items.pluck(:product_sku, :quantity)).to eq([[product_a.sku, 1]])
-    expect(user.cart.cart_items.find_by(product_sku: product_a.sku).quantity).to eq(1)
+    expect(user.cart.cart_items.find_by(product_sku: product_a.sku).quantity).to eq(2)
     expect(user.cart.cart_items.find_by(product_sku: product_b.sku).quantity).to eq(1)
   end
 
@@ -93,5 +112,7 @@ RSpec.describe "Checkout with selected cart items", type: :request do
 
     expect(response).to have_http_status(:created)
     expect(order.reload.order_items.sum(:quantity)).to eq(1)
+    expect(user.cart.cart_items.find_by(product_sku: product_a.sku).quantity).to eq(1)
+    expect(user.cart.cart_items.find_by(product_sku: product_b.sku).quantity).to eq(1)
   end
 end

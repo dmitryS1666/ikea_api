@@ -9,10 +9,19 @@ class CartSelectionService
     raw = params[:items]
     return nil if raw.blank?
 
+    if raw.is_a?(String)
+      begin
+        raw = JSON.parse(raw)
+      rescue JSON::ParserError
+        return nil
+      end
+    end
+
     list =
       case raw
       when Array then raw
       when ActionController::Parameters then raw.to_unsafe_a
+      when Hash then raw.values
       else
         []
       end
@@ -90,6 +99,31 @@ class CartSelectionService
         cart_item.update!(quantity: remaining)
       end
     end
+  end
+
+  def self.selections_from_order(order)
+    order.order_items.map do |oi|
+      ItemSelection.new(sku: oi.product_sku, quantity: oi.quantity.to_i)
+    end
+  end
+
+  def self.normalize_selections(cart:, selections:)
+    return selections_from_cart(cart) if selections.blank?
+
+    selections
+  end
+
+  def self.selections_from_cart(cart)
+    cart.cart_items.map do |ci|
+      ItemSelection.new(sku: ci.product_sku, quantity: ci.quantity.to_i)
+    end
+  end
+
+  def self.selections_equal?(left, right)
+    normalize_key = lambda do |list|
+      Array(list).map { |s| [s.sku.to_s, s.quantity.to_i] }.sort
+    end
+    normalize_key.call(left) == normalize_key.call(right)
   end
 
   def self.validate_against_order!(order:, params:)
