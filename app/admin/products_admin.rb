@@ -7,6 +7,7 @@ Trestle.resource(:products, model: Product) do
     get :search, on: :collection
     get :by_category, on: :collection
     post :build_products_xlsx, on: :collection
+    post :reset_products_xlsx_export, on: :collection
     get :download_products_xlsx, on: :collection
     get :export_extended_attrs_input, on: :collection
     post :import_extended_attrs, on: :collection
@@ -224,6 +225,15 @@ Trestle.resource(:products, model: Product) do
 
     def import_recommended_csv
       import_product_flag_csv(:is_recommended, "Рекомендованные")
+    end
+
+    def reset_products_xlsx_export
+      Admin::ProductsXlsxExportService.reset_export_state!
+      flash[:notice] = "Состояние выгрузки XLSX сброшено. Можно запустить снова."
+      redirect_to admin.path(:index)
+    rescue Admin::ProductsXlsxExportService::AlreadyBuilding
+      flash[:notice] = "Выгрузка XLSX всё ещё выполняется — подождите или проверьте Sidekiq."
+      redirect_to admin.path(:index)
     end
 
     def build_products_xlsx

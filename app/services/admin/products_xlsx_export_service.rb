@@ -90,7 +90,21 @@ module Admin
       def export_last_error
         return nil unless LAST_ERROR_FILE.file?
 
-        LAST_ERROR_FILE.read.strip.presence
+        msg = LAST_ERROR_FILE.read.strip.presence
+        return nil if msg.blank?
+        return nil if !building? && msg.start_with?("AlreadyBuilding", "Admin::ProductsXlsxExportService::AlreadyBuilding")
+
+        msg
+      end
+
+      # Сброс lock/прогресса, если выгрузка не идёт (зависший lock после kill Sidekiq).
+      def reset_export_state!
+        raise AlreadyBuilding, "Выгрузка XLSX сейчас выполняется — дождитесь завершения" if building?
+
+        clear_export_progress!
+        clear_export_error!
+        FileUtils.rm_f(BUILD_LOCK)
+        true
       end
 
       def export_status_label
@@ -113,10 +127,12 @@ module Admin
 
         FileUtils.mkdir_p(EXPORT_DIR)
         lock_fd = nil
+        skipped_due_to_lock = false
         lock_fd = File.open(BUILD_LOCK, File::CREAT | File::RDWR)
         unless lock_fd.flock(File::LOCK_EX | File::LOCK_NB)
           lock_fd.close
           lock_fd = nil
+          skipped_due_to_lock = true
           raise AlreadyBuilding, "Выгрузка XLSX уже выполняется"
         end
 
@@ -201,11 +217,14 @@ module Admin
         remove_stale_export_tmp_files!
         Rails.logger.info("[ProductsXlsxExport] done path=#{path} size=#{path.size} elapsed=#{(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(1)}s")
         path
+      rescue AlreadyBuilding
+        skipped_due_to_lock = true
+        raise
       rescue StandardError => e
         write_export_error!(e)
         raise
       ensure
-        clear_export_progress!
+        clear_export_progress! unless skipped_due_to_lock
         if lock_fd
           lock_fd.flock(File::LOCK_UN)
           lock_fd.close

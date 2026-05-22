@@ -23,6 +23,14 @@
                       data: { confirm: "Запустить полную выгрузку в фоне? Предыдущий файл XLSX будет заменён после завершения." } %>
       <% end %>
 
+      <% unless Admin::ProductsXlsxExportService.building? %>
+        <%= form_tag admin.path(:reset_products_xlsx_export), method: :post, class: "d-inline", data: { turbo: false } do %>
+          <%= submit_tag "Сбросить блокировку выгрузки",
+                        class: "btn btn-outline-warning btn-sm",
+                        data: { confirm: "Сбросить lock и сообщения об ошибке? Используйте только если выгрузка зависла (нет прогресса в Sidekiq)." } %>
+        <% end %>
+      <% end %>
+
       <%= form_tag admin.path(:build_products_xlsx), method: :post, class: "d-inline", data: { turbo: false } do %>
         <%= hidden_field_tag :limit, 5 %>
         <%= submit_tag "📊 Тест: XLSX (5 товаров)",
