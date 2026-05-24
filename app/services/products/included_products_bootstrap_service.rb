@@ -55,7 +55,23 @@ module Products
       end
 
       persist_parent_included!(list) if list.any? && list != stored
+      list = reject_parent_articles(list)
       list
+    end
+
+    def reject_parent_articles(list)
+      parent_tokens = [
+        parent.sku,
+        parent.item_no,
+        set_sku_from_pip_url(parent.url)
+      ].compact.flat_map do |value|
+        token = value.to_s.gsub(/[^0-9a-z]/i, "").downcase
+        [token, token.sub(/\As/, "")]
+      end.reject(&:blank?).uniq
+
+      Products::ArticleNumber.normalize_list(list)
+        .reject { |article| parent_tokens.include?(article.to_s.downcase) }
+        .uniq
     end
 
     def fetch_included_articles_from_pl!
