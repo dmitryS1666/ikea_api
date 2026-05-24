@@ -771,19 +771,41 @@ class Products::ExtendedAttributesFetchService
   end
 
   def merge_included_products_attribute!(product, pl_details, attributes)
-    pl_list = normalize_included_articles(pl_details[:included_products])
+    pl_list = reject_product_article_from_included(
+      product,
+      normalize_included_articles(pl_details[:included_products])
+    )
     return if pl_list.empty?
-
+  
     from_modal = pl_details[:included_products_from_modal] || pl_details["included_products_from_modal"]
+  
     if ActiveModel::Type::Boolean.new.cast(from_modal)
       existing = normalize_included_articles(product.included_products)
-      attributes[:included_products] = (existing + pl_list).uniq
+      attributes[:included_products] = reject_product_article_from_included(product, existing + pl_list)
       return
     end
-
+  
     existing = normalize_included_articles(product.included_products)
-    merged = (existing + pl_list + normalize_included_articles(attributes[:included_products])).compact.uniq
-    attributes[:included_products] = merged if merged.any?
+    merged = existing + pl_list + normalize_included_articles(attributes[:included_products])
+    attributes[:included_products] = reject_product_article_from_included(product, merged)
+  end
+  
+  def reject_product_article_from_included(product, list)
+    product_tokens = [
+      product.sku,
+      product.item_no,
+      set_sku_from_pip_url(product.url)
+    ].compact.flat_map do |value|
+      token = value.to_s.gsub(/[^0-9a-z]/i, "").downcase
+      [token, token.sub(/\As/, "")]
+    end.reject(&:blank?).uniq
+  
+    Products::ArticleNumber.normalize_list(list)
+      .reject do |article|
+        token = article.to_s.gsub(/[^0-9a-z]/i, "").downcase
+        product_tokens.include?(token) || product_tokens.include?(token.sub(/\As/, ""))
+      end
+      .uniq
   end
 
   def pl_headless_enabled?
