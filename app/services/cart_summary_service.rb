@@ -13,7 +13,7 @@ class CartSummaryService
     return { error: 'Корзина пуста' } if effective.cart_items.blank?
 
     pricing = CartPricingService.call(cart: effective)
-    totals = pricing[:totals]
+    totals = CartDisplayTotalsService.for_summary(pricing[:totals])
     delivery_options = DeliveryOptionsService.call(effective)
     rules = CartRulesService.call(subtotal_new_byn: totals[:subtotal_new_byn])
 
@@ -29,6 +29,7 @@ class CartSummaryService
       delivery_total_byn: format_byn(totals[:delivery_total_byn]),
       total_weight_kg: totals[:total_weight_kg].to_f,
       total_byn: format_byn(totals[:total_byn]),
+      final_total_byn: format_byn(totals[:final_total_byn]),
       delivery: format_delivery(totals, delivery_options),
       meta: {
         min_order_amount_byn: format_byn(rules[:rules][:min_order_amount_byn]),

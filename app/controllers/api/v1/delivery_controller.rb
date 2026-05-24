@@ -78,6 +78,8 @@ module Api
             total_weight_kg: weight_kg,
             subtotal_byn: sprintf("%.2f", subtotal_byn)
           },
+          delivery_total_byn: sprintf("%.2f", finance[:total_delivery_price_byn]),
+          delivery_to_belarus_byn: sprintf("%.2f", finance[:delivery_to_belarus_price_byn]),
           delivery: {
             type: normalized_delivery_type,
             eta: {
@@ -98,6 +100,8 @@ module Api
             delivery_price_byn: sprintf("%.2f", finance[:delivery_price_byn]),
             delivery_to_belarus_price_byn: sprintf("%.2f", finance[:delivery_to_belarus_price_byn]),
             total_delivery_price_byn: sprintf("%.2f", finance[:total_delivery_price_byn]),
+            delivery_total_byn: sprintf("%.2f", finance[:total_delivery_price_byn]),
+            delivery_to_belarus_byn: sprintf("%.2f", finance[:delivery_to_belarus_price_byn]),
             pricing: delivery_calculate_pricing_json(finance),
             display: {
               title: "Доставка",
@@ -176,35 +180,14 @@ module Api
       end
 
       def calculation_basis(cart)
-        if cart.respond_to?(:id) && cart.is_a?(Cart) && cart.persisted?
-          pricing = CartPricingService.call(cart: cart)
-          subtotal = pricing[:totals][:items_total_byn].to_f
-          weight = cart.cart_items.includes(:product).sum { |ci| ci.product.packaging_weight_kg.to_f * ci.quantity }
-          [weight, 0, subtotal]
-        else
-          weight = cart.cart_items.sum { |ci| ci.product.packaging_weight_kg.to_f * ci.quantity }
-          pln_rate = ExchangeRate.fetch_or_create("PLN")&.rate_per_unit || 0
-          buffer = PriceCalculationService.exchange_rate_buffer
-          pln_rate_with_buffer = pln_rate * buffer
+        pricing = CartPricingService.call(cart: cart)
+        display_totals = CartDisplayTotalsService.for_summary(pricing[:totals])
 
-          total_pln = 0.0
-          cart.cart_items.each do |ci|
-            p = ci.product
-            next unless p
-
-            qty = ci.quantity.to_i
-            line_weight = p.packaging_weight_kg.to_f * qty
-            total_pln += PriceCalculationService.line_total_pln(
-              unit_price_zl: p.price.to_f,
-              quantity: qty,
-              weight_kg: line_weight,
-              delivery_unit_pln: p.delivery_cost.to_f
-            )
-          end
-
-          subtotal_byn = (total_pln * pln_rate_with_buffer).round(2)
-          [weight, 0, subtotal_byn]
-        end
+        [
+          display_totals[:total_weight_kg].to_f,
+          0,
+          display_totals[:subtotal_new_byn].to_f
+        ]
       end
 
       def pickup_point_evaluation(pickup_point_id, parcels, weight_kg)

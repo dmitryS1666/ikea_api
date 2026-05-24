@@ -57,4 +57,16 @@ RSpec.describe CartSummaryService do
     expect(row[:pricing][:line_total_new_byn].to_f).to eq(summary[:total_byn].to_f)
     expect(row[:pricing][:unit_price_new_byn].to_f).to eq(row[:pricing][:line_total_new_byn].to_f)
   end
+
+  it "returns frontend-compatible totals where total equals visible summary rows" do
+    summary = described_class.call(cart: cart, items: selections)
+
+    visible_total = summary[:subtotal_new_byn].to_f +
+                    summary[:delivery_total_byn].to_f -
+                    summary[:discount_total_byn].to_f
+
+    expect(visible_total.round(2)).to eq(summary[:total_byn].to_f)
+    expect(summary[:final_total_byn]).to eq(summary[:total_byn])
+  end
+
 end

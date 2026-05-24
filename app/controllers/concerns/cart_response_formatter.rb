@@ -3,7 +3,7 @@ module CartResponseFormatter
 
   def cart_response_payload(cart, token)
     pricing = CartPricingService.call(cart: cart)
-    totals = pricing[:totals]
+    totals = CartDisplayTotalsService.for_summary(pricing[:totals])
     rules_data = CartRulesService.call(subtotal_new_byn: totals[:subtotal_new_byn])
     pricing_map = pricing[:items].index_by { |entry| entry[:sku] }
     cart_items = cart.cart_items.includes(:product)
@@ -166,6 +166,7 @@ module CartResponseFormatter
       delivery_poland_byn: format_byn(totals[:delivery_poland_byn]),
       delivery_to_belarus_byn: format_byn(totals[:delivery_to_belarus_byn]),
       total_byn: format_byn(totals[:total_byn]),
+      final_total_byn: format_byn(totals[:final_total_byn] || totals[:total_byn]),
       subtotal_old_byn: format_byn(subtotal_old),
       subtotal_new_byn: format_byn(totals[:subtotal_new_byn]),
       discount_total_byn: format_byn(totals[:discount_total_byn]),
