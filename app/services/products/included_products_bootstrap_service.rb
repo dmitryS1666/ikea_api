@@ -77,14 +77,34 @@ module Products
     end
 
     def parent_pl_pip_url
-      article = Products::ArticleNumber.normalize(parent.item_no) ||
-                Products::ArticleNumber.normalize(parent.sku)
-      return "https://www.ikea.com/pl/pl/p/-#{article}/" if article.present?
+      sku_token = pip_url_token(parent.sku)
+      url_set_token = set_sku_from_pip_url(parent.url)
+      item_token = pip_url_token(parent.item_no)
+
+      # IKEA combo/set pages require the leading `s` in the PIP URL
+      # (example: /p/-s29545213/). ArticleNumber.normalize intentionally
+      # strips that prefix, so do not use it for URL construction here.
+      return "https://www.ikea.com/pl/pl/p/-#{sku_token}/" if set_sku_token?(sku_token)
+      return "https://www.ikea.com/pl/pl/p/-#{url_set_token}/" if set_sku_token?(url_set_token)
+      return "https://www.ikea.com/pl/pl/p/-#{item_token}/" if item_token.present?
+      return "https://www.ikea.com/pl/pl/p/-#{sku_token}/" if sku_token.present?
 
       u = parent.url.to_s
       return u if u.include?("/pl/pl/")
 
       u.gsub(%r{/lt/ru/}, "/pl/pl/").presence
+    end
+
+    def pip_url_token(value)
+      value.to_s.gsub(/[^0-9a-z]/i, "").downcase.presence
+    end
+
+    def set_sku_token?(token)
+      token.to_s.match?(/\As\d{8}\z/)
+    end
+
+    def set_sku_from_pip_url(url)
+      url.to_s.downcase[/-(s\d{8})(?:[\/?#]|$)/, 1].presence
     end
 
     def persist_parent_included!(list)

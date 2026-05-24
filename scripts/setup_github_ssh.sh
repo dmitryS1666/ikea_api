@@ -3,13 +3,18 @@
 
 set -e
 
-SERVER="deploy@45.135.234.22"
+SSH_PORT="${SSH_PORT:-22}"
+SERVER="${SERVER:-deploy@45.135.234.22}"
+SSH_OPTS=()
+if [ "$SSH_PORT" != "22" ]; then
+  SSH_OPTS=(-p "$SSH_PORT")
+fi
 
 echo "🔑 Настройка SSH ключа для GitHub..."
 
 # Проверка существующих ключей
 echo "🔍 Проверка существующих SSH ключей..."
-ssh $SERVER << 'EOF'
+ssh "${SSH_OPTS[@]}" "$SERVER" << 'EOF'
 # Проверить существующие ключи
 if [ -f ~/.ssh/id_ed25519.pub ]; then
     echo "✅ Найден ключ id_ed25519"
@@ -36,9 +41,9 @@ echo "   - Вставьте публичный ключ"
 echo "   - Нажмите 'Add SSH key'"
 echo ""
 echo "3. Проверьте подключение:"
-echo "   ssh deploy@45.135.234.22 'ssh -T git@github.com'"
+echo "   ssh ${SSH_OPTS[*]} $SERVER 'ssh -T git@github.com'"
 echo ""
 echo "4. Если нужно скопировать ключ вручную:"
-echo "   ssh deploy@45.135.234.22 'cat ~/.ssh/id_ed25519.pub'"
+echo "   ssh ${SSH_OPTS[*]} $SERVER 'cat ~/.ssh/id_ed25519.pub'"
 echo ""
 

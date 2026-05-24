@@ -27,10 +27,8 @@ namespace :deploy do
         with rails_env: fetch(:rails_env, :production) do
           env_file = "#{shared_path}/.env"
           release_dir = release_path
-          # Загружаем asdf, переменные из .env и выполняем миграции
-          # Используем bash -c для правильной загрузки переменных и asdf
-          # Явно переходим в release_path перед выполнением bundle exec
-          execute "bash -c 'cd #{release_dir} && export PATH=\"$HOME/.asdf/shims:$HOME/.asdf/bin:$PATH\" && source $HOME/.asdf/asdf.sh 2>/dev/null || true && set -a && source #{env_file} 2>/dev/null || true && set +a && bundle exec rake db:migrate'"
+          ruby_prefix = fetch(:ruby_env_prefix)
+          execute "bash -c 'cd #{release_dir} && #{ruby_prefix} && set -a && source #{env_file} 2>/dev/null || true && set +a && bundle exec rake db:migrate'"
         end
       end
     end
@@ -44,8 +42,8 @@ namespace :deploy do
         with rails_env: fetch(:rails_env, :production) do
           env_file = "#{shared_path}/.env"
           release_dir = release_path
-          # Загружаем asdf, переменные из .env и выполняем seed
-          execute "bash -c 'cd #{release_dir} && export PATH=\"$HOME/.asdf/shims:$HOME/.asdf/bin:$PATH\" && source $HOME/.asdf/asdf.sh 2>/dev/null || true && set -a && source #{env_file} 2>/dev/null || true && set +a && bundle exec rake db:seed'"
+          ruby_prefix = fetch(:ruby_env_prefix)
+          execute "bash -c 'cd #{release_dir} && #{ruby_prefix} && set -a && source #{env_file} 2>/dev/null || true && set +a && bundle exec rake db:seed'"
         end
       end
     end

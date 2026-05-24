@@ -108,6 +108,41 @@ RSpec.describe Products::IncludedProductsBootstrapService do
       expect(Product.find_by(sku: "29537072").id).not_to eq(component.id)
     end
 
+    it "keeps leading s for parent set SKU when fetching included products from PL" do
+      parent.update!(sku: "s29545213", item_no: "29545213", included_products: [])
+
+      allow(PlDetailsFetcher).to receive(:fetch_included_articles).and_return(%w[60489549])
+      allow(Products::ExtendedAttributesFetchService).to receive(:fetch_for_product).and_return({ updated: true })
+      allow(ImageDownloader).to receive(:sync_product_images)
+
+      described_class.ensure!(parent)
+
+      expect(PlDetailsFetcher).to have_received(:fetch_included_articles).with(
+        "https://www.ikea.com/pl/pl/p/-s29545213/",
+        scope_sku: "s29545213"
+      )
+    end
+
+    it "uses leading s from original IKEA URL when parent DB SKU lost it" do
+      parent.update!(
+        sku: "29545213",
+        item_no: "29545213",
+        url: "https://www.ikea.com/lt/ru/p/vimle-3-mestnyy-divan-krovat-s-kozetkoy-s-shirokimi-podlokotnikami-gunnared-bezhevyy-s29545213/",
+        included_products: []
+      )
+
+      allow(PlDetailsFetcher).to receive(:fetch_included_articles).and_return(%w[60489549])
+      allow(Products::ExtendedAttributesFetchService).to receive(:fetch_for_product).and_return({ updated: true })
+      allow(ImageDownloader).to receive(:sync_product_images)
+
+      described_class.ensure!(parent)
+
+      expect(PlDetailsFetcher).to have_received(:fetch_included_articles).with(
+        "https://www.ikea.com/pl/pl/p/-s29545213/",
+        scope_sku: "29545213"
+      )
+    end
+
     it "creates children from PL fetch when parent included_products was empty" do
       parent.update!(included_products: [])
       allow(PlDetailsFetcher).to receive(:fetch_included_articles).and_return(%w[60489549 00417621])

@@ -3,6 +3,33 @@
 require "rails_helper"
 
 RSpec.describe Products::ExtendedAttributesFetchService do
+  describe "#pl_product_url" do
+    let(:service) { described_class.new }
+
+    it "keeps leading s for IKEA set/combo SKU URLs" do
+      product = build(:product, sku: "s29545213", item_no: "29545213")
+
+      expect(service.send(:pl_product_url, product)).to eq("https://www.ikea.com/pl/pl/p/-s29545213/")
+    end
+
+    it "uses leading s from original IKEA URL when DB SKU lost it" do
+      product = build(
+        :product,
+        sku: "29545213",
+        item_no: "29545213",
+        url: "https://www.ikea.com/lt/ru/p/vimle-3-mestnyy-divan-krovat-s-kozetkoy-s-shirokimi-podlokotnikami-gunnared-bezhevyy-s29545213/"
+      )
+
+      expect(service.send(:pl_product_url, product)).to eq("https://www.ikea.com/pl/pl/p/-s29545213/")
+    end
+
+    it "uses plain item number for regular component URLs" do
+      product = build(:product, sku: "s60489549", item_no: "60489549")
+
+      expect(service.send(:pl_product_url, product)).to eq("https://www.ikea.com/pl/pl/p/-60489549/")
+    end
+  end
+
   describe "#fetch_details_with_optional_headless" do
     let(:service) { described_class.new }
     let(:url) { "https://www.ikea.com/pl/pl/p/x-s29545213/" }

@@ -21,12 +21,13 @@ append :linked_dirs, "log", "tmp/pids", "tmp/cache", "tmp/sockets", "tmp/trestle
 # НЕ линкуем public/assets - они должны компилироваться в каждом release
 # append :linked_dirs, "public/assets"
 
-# Ruby version (asdf)
-# asdf автоматически управляет PATH через shims
+# Ruby version manager: :asdf (staging) или :rbenv (production)
+set :ruby_version_manager, :asdf
 set :asdf_ruby_version, "3.3.0"
 set :asdf_path, "$HOME/.asdf"
+set :ruby_env_prefix, 'export PATH="$HOME/.asdf/shims:$HOME/.asdf/bin:$PATH" && source $HOME/.asdf/asdf.sh 2>/dev/null || true'
 
-# Настройка PATH для asdf
+# Настройка PATH для asdf (переопределяется в production.rb для rbenv)
 set :default_env, {
   'PATH' => "$HOME/.asdf/shims:$HOME/.asdf/bin:$PATH"
 }

@@ -439,12 +439,33 @@ class Products::ExtendedAttributesFetchService
   end
 
   def pl_product_url(product)
-    article = product.item_no.to_s.gsub(/[^0-9a-z]/i, "").presence
-    return "https://www.ikea.com/pl/pl/p/-#{article}/" if article.present?
+    sku_token = pip_url_token(product.sku)
+    url_set_token = set_sku_from_pip_url(product.url)
+    item_token = pip_url_token(product.item_no)
+
+    # Combo/set SKUs must keep the leading `s` in IKEA PIP URLs.
+    # Example: /p/-s29545213/. Article-only URLs like /p/-29545213/
+    # may open the wrong page or miss the full included-products modal.
+    return "https://www.ikea.com/pl/pl/p/-#{sku_token}/" if set_sku_token?(sku_token)
+    return "https://www.ikea.com/pl/pl/p/-#{url_set_token}/" if set_sku_token?(url_set_token)
+    return "https://www.ikea.com/pl/pl/p/-#{item_token}/" if item_token.present?
+    return "https://www.ikea.com/pl/pl/p/-#{sku_token}/" if sku_token.present?
 
     u = product.url.to_s
     return u if u.include?("/pl/pl/")
     u.gsub(%r{/lt/ru/}, "/pl/pl/").presence
+  end
+
+  def pip_url_token(value)
+    value.to_s.gsub(/[^0-9a-z]/i, "").downcase.presence
+  end
+
+  def set_sku_token?(token)
+    token.to_s.match?(/\As\d{8}\z/)
+  end
+
+  def set_sku_from_pip_url(url)
+    url.to_s.downcase[/-(s\d{8})(?:[\/?#]|$)/, 1].presence
   end
 
   def lt_product_url(product)
