@@ -1281,7 +1281,10 @@ class ProductSerializer
   end
 
   attribute :included_products do |product|
-    # Состав набора: все артикулы из карточки, без фильтра по quantity (комплектующие часто без остатка).
-    Products::ArticleNumber.normalize_list(product.included_products)
+    if product.respond_to?(:reject_self_from_article_list)
+      product.reject_self_from_article_list(product.included_products)
+    else
+      Products::ArticleNumber.normalize_list(product.included_products)
+    end
   end
 end

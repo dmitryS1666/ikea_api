@@ -739,14 +739,12 @@ class Product < ApplicationRecord
   end
 
   def normalize_included_products!
-    self.included_products =
+    normalized =
       case included_products
-      when nil
-        []
       when Array
         included_products
       when String
-        if included_products.strip.start_with?('[')
+        if included_products.strip.start_with?("[")
           begin
             JSON.parse(included_products)
           rescue JSON::ParserError
@@ -758,9 +756,26 @@ class Product < ApplicationRecord
       else
         Array(included_products)
       end
-        .flatten
-        .filter_map { |item| Products::ArticleNumber.normalize(item) }
-        .uniq
+  
+    self.included_products = reject_self_from_article_list(normalized)
+  end
+  
+  def reject_self_from_article_list(list)
+    self_tokens = [
+      sku,
+      item_no,
+      url.to_s.downcase[/-(s\d{8})(?:[\/?#]|$)/, 1]
+    ].compact.flat_map do |value|
+      token = value.to_s.gsub(/[^0-9a-z]/i, "").downcase
+      [token, token.sub(/\As/, "")]
+    end.reject(&:blank?).uniq
+  
+    Products::ArticleNumber.normalize_list(list)
+      .reject do |article|
+        token = article.to_s.gsub(/[^0-9a-z]/i, "").downcase
+        self_tokens.include?(token) || self_tokens.include?(token.sub(/\As/, ""))
+      end
+      .uniq
   end
 
   def apply_full_attributes_json_input
