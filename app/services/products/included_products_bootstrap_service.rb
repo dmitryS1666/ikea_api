@@ -137,7 +137,7 @@ module Products
     end
 
     def create_child!(article)
-      listing_sku = "s#{article}"
+      listing_sku = article
       url = "https://www.ikea.com/pl/pl/p/-#{article}/"
 
       child = Product.create!(
