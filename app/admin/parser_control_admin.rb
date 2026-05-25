@@ -99,7 +99,7 @@ Trestle.resource :parser_control, model: ParserControl do
             payload[:process_related] = rc[:process_related] unless rc[:process_related].nil?
           end
 
-          if task_type == "category_filters_one"
+          if task_type == "category_filters_one" || task_type == "category_filters_tree"
             rc = parse_category_filters_one_extra(extra_data)
             if rc[:ikea_id].blank?
               flash[:error] = "Укажите ikea_id категории для переиндексации фильтров (номер или JSON, например {\"ikea_id\":\"20515\"} или с выборочными фильтрами: {\"ikea_id\":\"20515\",\"parameters\":[\"f-series\"]})"
@@ -109,6 +109,15 @@ Trestle.resource :parser_control, model: ParserControl do
             payload[:ikea_id] = rc[:ikea_id]
             payload[:parameters] = rc[:parameters] if rc[:parameters].present?
             payload[:product_id] = rc[:product_id] if rc[:product_id].present?
+            payload[:include_descendants] = params[:filters_tree_include_descendants].to_s != "0" if task_type == "category_filters_tree"
+          end
+
+          if task_type == "refresh_category_filters_lt"
+            rc = parse_category_filters_one_extra(extra_data)
+            payload[:ikea_id] = rc[:ikea_id]
+            payload[:include_descendants] = params[:filters_include_descendants].to_s != "0"
+            payload[:reindex] = params[:filters_refresh_reindex].to_s != "0"
+            payload[:ensure_series] = params[:filters_refresh_ensure_series].to_s != "0"
           end
 
           if task_type == "merge_parent_category_filters"
@@ -206,6 +215,21 @@ Trestle.resource :parser_control, model: ParserControl do
                     task_id: task.id,
                     parameters: payload[:parameters],
                     product_id: payload[:product_id]
+                  )
+                elsif task_type == 'category_filters_tree'
+                  job_class.perform_later(
+                    payload[:ikea_id].to_s,
+                    task_id: task.id,
+                    include_descendants: payload.fetch(:include_descendants, true),
+                    parameters: payload[:parameters]
+                  )
+                elsif task_type == 'refresh_category_filters_lt'
+                  job_class.perform_later(
+                    payload[:ikea_id].presence,
+                    task_id: task.id,
+                    include_descendants: payload.fetch(:include_descendants, true),
+                    reindex: payload.fetch(:reindex, false),
+                    ensure_series: payload.fetch(:ensure_series, true)
                   )
                 elsif task_type == 'merge_parent_category_filters'
                   job_class.perform_later(
@@ -684,6 +708,10 @@ Trestle.resource :parser_control, model: ParserControl do
         HarvestCategoryRelatedProductsJob
       when 'category_filters_one'
         ReindexCategoryFiltersJob
+      when 'category_filters_tree'
+        ReindexCategoryTreeFiltersJob
+      when 'refresh_category_filters_lt'
+        RefreshCategoryAvailableFiltersFromLtJob
       when 'merge_parent_category_filters'
         MergeParentCategoryFiltersJob
       when 'rebuild_category_fseries_filters'
@@ -724,6 +752,8 @@ Trestle.resource :parser_control, model: ParserControl do
         'currency_rates' => 'Курсы валют',
         'category_filters' => 'Переиндексация фильтров категорий',
         'category_filters_one' => 'Переиндексация фильтров одной категории',
+        'category_filters_tree' => 'Переиндексация фильтров ветки категории',
+        'refresh_category_filters_lt' => 'Актуализация фильтров категорий из LT',
         'merge_parent_category_filters' => 'Слияние фильтров потомков в родителя',
         'rebuild_category_fseries_filters' => 'Сбор серий (f-series) из товаров категории',
         'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)',
