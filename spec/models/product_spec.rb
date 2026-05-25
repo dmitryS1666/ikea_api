@@ -36,6 +36,15 @@ RSpec.describe Product, type: :model do
       expect(product.normalized_variants_for_api).to be_nil
     end
 
+    it "drops variant items without a sale price" do
+      Product.find_by(sku: "s11111111")&.update!(price: nil)
+
+      out = product.normalized_variants_for_api
+      expect(out).to be_a(Array)
+      skus = out.first[:data].map { |v| v.dig(:item, :sku) }
+      expect(skus).to eq(["s29545213"])
+    end
+
     it "puts current SKU first and uses nil price_byn when price is missing" do
       out = product.normalized_variants_for_api
       expect(out).to be_a(Array)

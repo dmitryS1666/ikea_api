@@ -3,6 +3,19 @@
 require "rails_helper"
 
 RSpec.describe Products::StockAvailability do
+  describe ".sale_price?" do
+    it "is true for price >= 1" do
+      expect(described_class.sale_price?(1)).to be(true)
+      expect(described_class.sale_price?("39.99")).to be(true)
+    end
+
+    it "is false for nil, zero, and sub-unit prices" do
+      expect(described_class.sale_price?(nil)).to be(false)
+      expect(described_class.sale_price?(0)).to be(false)
+      expect(described_class.sale_price?(0.5)).to be(false)
+    end
+  end
+
   describe ".in_stock_quantity?" do
     it "is true for quantity >= 1" do
       expect(described_class.in_stock_quantity?(1)).to be(true)

@@ -4,6 +4,7 @@ module Products
   # Единые правила «товар в наличии» для витрины и API.
   module StockAvailability
     MIN_QUANTITY = 1
+    MIN_SALE_PRICE = 1
 
     module_function
 
@@ -11,8 +12,16 @@ module Products
       quantity.to_i >= MIN_QUANTITY
     end
 
+    def sale_price?(price)
+      price.present? && price.to_f >= MIN_SALE_PRICE
+    end
+
     def product_in_stock?(product)
       product.present? && in_stock_quantity?(product.quantity)
+    end
+
+    def product_available_for_listing?(product)
+      product_in_stock?(product) && sale_price?(product&.price)
     end
 
     def find_in_stock_product(raw_sku)

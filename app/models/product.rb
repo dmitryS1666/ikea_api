@@ -40,8 +40,12 @@ class Product < ApplicationRecord
 
   # Scopes
   scope :active, -> { all }
-  # Публичные списки: quantity < 1 не показываем на витрине
+  # Публичные списки: quantity < 1 и price < 1 (или null) не показываем на витрине
   scope :with_available_stock, -> { where('products.quantity >= ?', Products::StockAvailability::MIN_QUANTITY) }
+  scope :with_listing_price, lambda {
+    where.not(price: nil).where("products.price >= ?", Products::StockAvailability::MIN_SALE_PRICE)
+  }
+  scope :available_for_listing, -> { with_available_stock.merge(with_listing_price) }
 
   def available_in_stock?
     Products::StockAvailability.product_in_stock?(self)
@@ -179,7 +183,7 @@ class Product < ApplicationRecord
   end
 
   def variant_products_in_stock
-    variant_products.merge(Product.with_available_stock)
+    variant_products.merge(Product.available_for_listing)
   end
 
   # Синхронизация колонки `variants` у всех карточек группы (полный граф между SKU в БД).
@@ -448,7 +452,7 @@ class Product < ApplicationRecord
               sku_v = item[:sku].presence || item["sku"].presence
               rec = sku_v.present? ? resolve_variant_record(sku_v, variants_by_sku) : nil
               rec = nil if rec.present? && !same_variant_sku?(rec.sku, sku_v)
-              variant_entry_in_stock?(rec, item)
+              variant_entry_available?(rec, item)
             end.sort_by.with_index do |variant, idx|
               sku_v = variant.dig(:item, :sku).to_s.downcase
               mine = sku_v == sku.to_s.downcase ? 0 : 1
@@ -477,7 +481,7 @@ class Product < ApplicationRecord
       case type
       when "color"
         products.filter_map do |product|
-          next unless product.available_in_stock?
+          next unless variant_product_available?(product)
 
           label = product.variant_label_for(COLOR_PARAM)
           next if label.blank?
@@ -489,7 +493,7 @@ class Product < ApplicationRecord
         end
       when "size"
         products.filter_map do |product|
-          next unless product.available_in_stock?
+          next unless variant_product_available?(product)
           label =
             product.variant_label_for("f-measurement-buckets") ||
             product.variant_label_for("f-shape") ||
@@ -615,12 +619,17 @@ class Product < ApplicationRecord
     (aa & bb).any?
   end
 
-  def variant_entry_in_stock?(record, item)
-    return record.available_in_stock? if record.present?
+  def variant_entry_available?(record, item)
+    if record.present?
+      return variant_product_available?(record)
+    end
 
-    Products::StockAvailability.in_stock_quantity?(
-      item["quantity"] || item[:quantity]
-    )
+    Products::StockAvailability.in_stock_quantity?(item["quantity"] || item[:quantity]) &&
+      Products::StockAvailability.sale_price?(item["price"] || item[:price])
+  end
+
+  def variant_product_available?(product)
+    Products::StockAvailability.product_available_for_listing?(product)
   end
 
   def normalized_color_label(raw_label, small_desc)
