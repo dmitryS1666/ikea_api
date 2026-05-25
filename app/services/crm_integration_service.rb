@@ -366,7 +366,7 @@ class CrmIntegrationService
     if (services = order.address_json['services']).present?
       lead_payload[:custom_fields_values] << {
         field_id: contact_field_id('SERVICES'),
-        values: [{ value: services.join(", ") }]
+        values: [{ value: OrderServicesFormatter.labels_joined(services) }]
       }
     end
 

@@ -87,12 +87,15 @@ class OrderNotificationService
     items_html = order.order_items.map { |item| "<li>#{item.product_sku} x#{item.quantity}</li>" }.join
     admin_order_url = "#{ENV.fetch('API_BASE_URL', '').to_s.sub(%r{/\z}, '')}/admin/orders/#{order.id}"
 
+    services_html = admin_services_html_block(order)
+
     <<~HTML
       <h2>Новый заказ №#{order.id}</h2>
       <p>Имя клиента: #{order.full_name || "—"}</p>
       <p>Телефон: #{order.phone || "—"}</p>
       <p>Email: #{order.user&.email || "—"}</p>
       <p>Сумма: #{order.total_amount || "—"} BYN</p>
+      #{services_html}
       <p>Список товаров:</p>
       <ul>#{items_html.presence || "<li>Товары отсутствуют</li>"}</ul>
       <p>Ссылка в админку: #{admin_order_url}</p>
@@ -103,16 +106,22 @@ class OrderNotificationService
     items = order.order_items.map { |item| "- #{item.product_sku} x#{item.quantity}" }
     admin_order_url = "#{ENV.fetch('API_BASE_URL', '').to_s.sub(%r{/\z}, '')}/admin/orders/#{order.id}"
 
-    [
+    lines = [
       "Новый заказ №#{order.id}",
       "Имя клиента: #{order.full_name || '—'}",
       "Телефон: #{order.phone || '—'}",
       "Email: #{order.user&.email || '—'}",
-      "Сумма: #{order.total_amount || '—'} BYN",
-      "Список товаров:",
-      (items.presence || ["- Товары отсутствуют"]).join("\n"),
-      "Ссылка в админку: #{admin_order_url}"
-    ].join("\n")
+      "Сумма: #{order.total_amount || '—'} BYN"
+    ]
+    lines.concat(admin_services_text_lines(order))
+    lines.concat(
+      [
+        "Список товаров:",
+        (items.presence || ["- Товары отсутствуют"]).join("\n"),
+        "Ссылка в админку: #{admin_order_url}"
+      ]
+    )
+    lines.join("\n")
   end
 
   def self.send_telegram_manager_notification(order)
@@ -123,14 +132,29 @@ class OrderNotificationService
     message += "🚚 Доставка: #{order.delivery_type}\n"
     message += "💳 Оплата: #{order.payment_method}\n"
     
-    if order.address_json['services'].present?
+    if (service_labels = OrderServicesFormatter.labels(order.address_json["services"])).present?
       message += "\n🛠 <b>Доп. услуги:</b>\n"
-      order.address_json['services'].each { |s| message += "- #{s}\n" }
+      service_labels.each { |label| message += "- <b>#{label}</b>\n" }
     end
 
     message += "\n<i>Менеджеру необходимо связаться с клиентом в течение 30 минут.</i>"
     
     TelegramService.send_message(message)
+  end
+
+  def self.admin_services_html_block(order)
+    labels = OrderServicesFormatter.labels(order.address_json["services"])
+    return "" if labels.blank?
+
+    items = labels.map { |label| "<li><strong>#{label}</strong></li>" }.join
+    "<p><strong>Доп. услуги:</strong></p><ul>#{items}</ul>\n"
+  end
+
+  def self.admin_services_text_lines(order)
+    labels = OrderServicesFormatter.labels(order.address_json["services"])
+    return [] if labels.blank?
+
+    ["Доп. услуги:", *labels.map { |label| "- #{label}" }]
   end
 
   def self.send_telegram_status_notification(order)

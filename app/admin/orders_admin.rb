@@ -109,6 +109,12 @@ Trestle.resource(:orders) do
           "#{addr['city']}, #{addr['street']}, д. #{addr['house']}#{addr['apartment'] ? ', кв. ' + addr['apartment'] : ''}"
         end
       end
+
+      if (service_labels = OrderServicesFormatter.labels(order.address_json&.dig("services"))).present?
+        static_field :checkout_services, label: "Доп. услуги" do
+          safe_join(service_labels.map { |label| status_tag(label, :info) }, tag.br)
+        end
+      end
     end
 
     tab :items, label: "Товары" do

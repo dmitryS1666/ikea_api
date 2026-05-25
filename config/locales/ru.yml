@@ -356,6 +356,9 @@ ru:
         phone: "Телефон"
         delivery_price: "Стоимость доставки"
         discount_amount: "Скидка"
+        services:
+          furniture_delivery: "Доставка мебели"
+          furniture_assembly: "Сборка мебели"
       user:
         username: "Логин"
         phone: "Телефон"
