@@ -16,6 +16,7 @@ module Products
       "f-type" => ["Typ", "Rodzaj", "Тип", "Вид"],
       "f-function" => ["Funkcja", "Funkcje", "Функция", "Функции"],
       "f-feature" => ["Właściwości", "Cechy", "Funkcje", "Свойства", "Характеристики", "Особенности", "Функции"],
+      "f-firmness" => ["Tvirtumas", "Kietumas", "Firmness", "Жесткость", "Жёсткость", "Жесткость матраса", "Жёсткость матраса"],
       "f-series" => ["Seria", "Serie", "Kolekcja", "Kolekcje", "Collection", "Серия", "Коллекция"],
       "f-energy-labels" => ["Etykieta energetyczna", "Klasa energetyczna", "Энергетическая этикетка", "Класс энергопотребления", "Энергетический класс"],
       "f-number-of-cooking-zones" => ["Liczba pól grzewczych", "Liczba stref grzewczych", "Liczba pół grzewczych", "Количество конфорок", "Количество зон нагрева", "Количество варочных зон"],
@@ -218,7 +219,7 @@ module Products
           match_series(results, parameter, values, product)
         when "f-number-of-cooking-zones", "f-number-of-doors", "f-number-of-drawers", "f-number-of-shelves", "f-number-of-seats"
           match_number_of_zones(results, parameter, values, product)
-        when "f-energy-labels"
+        when "f-energy-labels", "f-firmness"
           match_textual_parameter(results, parameter, values, product, PARAMETER_KEYS[parameter])
         when "f-type", "f-feature", "f-function", "f-colors", "f-material", "f-materials", "f-style", "f-room", "f-pattern",
              "f-shape", "f-brand", "f-size", "f-length", "f-width", "f-height", "f-depth"
