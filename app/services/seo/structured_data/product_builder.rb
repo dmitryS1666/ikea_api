@@ -45,9 +45,7 @@ module Seo
       attr_reader :product, :site_url, :city_code
 
       def product_page_url
-        core = product.sku.to_s.sub(/\As/i, "")
-        slug = product.slug.presence || core
-        "#{site_url}/product/#{slug}-#{core}/"
+        Products::PublicProductUrl.url(product, site_url: site_url)
       end
 
       def offer_price_byn

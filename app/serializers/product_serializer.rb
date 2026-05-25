@@ -118,6 +118,16 @@ class ProductSerializer
     product.slug
   end
 
+  # Публичный артикул для URL: без listing-префикса `s`.
+  # Сам `sku` не меняем, чтобы не ломать корзину/избранное/заказы и связи вариантов.
+  attribute :url_sku do |product|
+    Products::PublicProductUrl.sku_core(product.sku)
+  end
+
+  attribute :product_path do |product|
+    Products::PublicProductUrl.path(product)
+  end
+
   attribute :variants do |product|
     product.normalized_variants_for_api
   end

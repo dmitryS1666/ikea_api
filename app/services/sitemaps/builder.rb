@@ -43,7 +43,7 @@ module Sitemaps
       Product.active.with_available_stock.find_each do |product|
         add_url(
           xml,
-          "/product/#{product.sku}",
+          Products::PublicProductUrl.path(product),
           priority: 0.6,
           changefreq: "weekly",
           lastmod: product.updated_at

@@ -24,4 +24,14 @@ RSpec.describe Seo::StructuredData::ProductBuilder do
     expect(payload["url"]).to include("30566134")
     expect(payload.dig("offers", "priceCurrency")).to eq("BYN")
   end
+
+  it "builds public URL without listing s-prefix" do
+    prefixed = create(:product, sku: "s79578593", name: "SALTSJÖBADEN", price: 100, quantity: 5)
+
+    payload = described_class.build(prefixed, site_url: "https://ikeya.by")
+
+    expect(payload["sku"]).to eq("s79578593")
+    expect(payload["url"]).to end_with("/product/saltsjobaden-79578593/")
+    expect(payload.dig("offers", "url")).to end_with("/product/saltsjobaden-79578593/")
+  end
 end
