@@ -42,6 +42,7 @@ Trestle.resource(:orders) do
   form do |order|
     tab :basic, label: "Основное" do
       row do
+        col(sm: 4) { static_field :public_uid, label: "Номер заказа" }
         col(sm: 4) { static_field :id, label: "ID заказа" }
         col(sm: 4) do
           static_field :status, label: "Текущий статус" do
@@ -67,6 +68,8 @@ Trestle.resource(:orders) do
             end
           end
         end
+      end
+      row do
         col(sm: 4) { static_field :created_at, label: "Дата создания" }
       end
       
@@ -103,10 +106,9 @@ Trestle.resource(:orders) do
         static_field :payment_expires_at, label: "Ссылка действует до"
       end
       
-      if order.address_json.present?
-        static_field :address, label: "Адрес" do
-          addr = order.address_json
-          "#{addr['city']}, #{addr['street']}, д. #{addr['house']}#{addr['apartment'] ? ', кв. ' + addr['apartment'] : ''}"
+      if (delivery_address = OrderAddressFormatter.display(order)).present?
+        static_field :address, label: "Адрес доставки" do
+          delivery_address
         end
       end
 
@@ -134,6 +136,7 @@ Trestle.resource(:orders) do
       end
 
       form_group :meta, label: "Метаданные" do
+        static_field :public_uid, label: "Номер заказа"
         static_field :id, label: "ID заказа"
         static_field :created_at, label: "Дата создания"
         static_field :updated_at, label: "Дата изменения"
