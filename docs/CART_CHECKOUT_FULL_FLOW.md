@@ -339,9 +339,9 @@ Content-Type: application/json
 |----------|------|------|
 | Нет черновика | 201 | новый `order_id` |
 | Тот же `items`, что в активном черновике | 200 | тот же `order_id` (идемпотентность) |
-| Другой набор `items` | 409 | `code: checkout_draft_exists`, `draft_order_id` |
+| Другой набор `items` | 201 | старый черновик отменён, новый `order_id`, суммы пересчитаны |
 
-**Фронт:** при 409 — модалка «Продолжить оформление» / «Отменить черновик» (`DELETE /checkout/:id`).
+**Фронт:** сохранить новый `order_id` из ответа; старый id черновика больше не активен.
 
 ---
 
@@ -674,7 +674,7 @@ Authorization: Bearer <jwt>
 | F1 | Перед checkout — логин + merge гостевой корзины |
 | F2 | Хранить `checkoutSelection` (`items`) и `order_id` после draft |
 | F3 | На checkout: `order_id` + `items`, **без** `cart_token` в delivery |
-| F4 | После F5: при 409 — продолжить или `DELETE` черновика |
+| F4 | После draft: при смене `items` — сохранять новый `order_id` из **201** (старый черновик отменяется на бэке) |
 | F5 | При mount checkout — `GET /checkout/:id` + при смене доставки `PATCH` или повторный calculate |
 | F6 | Минимальный заказ для чекбоксов — из `cart/summary.meta`, не из полного `GET /cart` |
 | F7 | A1: `/api/v1/a1/request` + `/a1/verify` + поле `last4` |
@@ -690,7 +690,7 @@ Authorization: Bearer <jwt>
 | `items_required` | summary/checkout без items (когда обязательны) | Подсветить выбор |
 | `item_not_in_cart` | SKU не в корзине | Сбросить чекбокс |
 | `items_mismatch` | finalize items ≠ черновик | Взять items из `GET /checkout/:id` |
-| `checkout_draft_exists` | новый draft при активном другом | Продолжить / отменить |
+| `checkout_draft_exists` | одношаговый checkout при активном черновике | Завершить / отменить черновик |
 | `draft_not_found` | неверный order_id | Начать с корзины |
 | 422 delivery | тип недоступен | fallback `ikeya_delivery` или смена способа |
 | `passport_verification_required` | паспорт | A1 flow |

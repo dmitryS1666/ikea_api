@@ -107,7 +107,7 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(json["code"]).to eq("checkout_draft_exists")
   end
 
-  it "returns 409 when posting draft with different selection while draft exists" do
+  it "replaces draft when posting draft with different selection while draft exists" do
     post "/api/v1/checkout", params: { draft: true }, headers: headers
     expect(response).to have_http_status(:created)
     first_id = Order.last.id
@@ -117,11 +117,15 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
                              dimensions: "20 x 30 x 40 cm", full_attributes: {})
     create(:cart_item, cart: cart, product_sku: other.sku, quantity: 1)
     post "/api/v1/checkout", params: { draft: true, items: [{ sku: other.sku, quantity: 1 }] }, headers: headers
-    expect(response).to have_http_status(:conflict)
+    expect(response).to have_http_status(:created)
     json = JSON.parse(response.body)
-    expect(json["code"]).to eq("checkout_draft_exists")
-    expect(json["draft_order_id"]).to eq(first_id)
-    expect(Order.find(first_id).checkout_draft).to be true
+    second_id = json["order_id"]
+    expect(second_id).not_to eq(first_id)
+
+    expect(Order.find(first_id).checkout_draft).to be false
+    expect(Order.find(first_id).status).to eq("cancelled")
+    expect(Order.find(second_id).checkout_draft).to be true
+    expect(Order.find(second_id).order_items.pluck(:product_sku, :quantity)).to eq([[other.sku, 1]])
   end
 
   it "returns 200 with same order when posting draft twice with same selection" do

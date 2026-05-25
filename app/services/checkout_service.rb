@@ -477,11 +477,8 @@ class CheckoutService
         }
       end
 
-      return {
-        error: 'Сначала завершите или отмените оформление заказа в корзине',
-        code: 'checkout_draft_exists',
-        draft_order_id: existing.id
-      }
+      cancel_result = cancel_draft(user: user, order_id: existing.id)
+      return cancel_result unless cancel_result[:success]
     end
 
     stock_check = validate_stock_for_pricing_items(checkout_cart, params)
