@@ -39,19 +39,24 @@ RSpec.describe Product, type: :model do
     it "drops variant items without a sale price" do
       Product.find_by(sku: "s11111111")&.update!(price: nil)
 
-      out = product.normalized_variants_for_api
-      expect(out).to be_a(Array)
-      skus = out.first[:data].map { |v| v.dig(:item, :sku) }
-      expect(skus).to eq(["s29545213"])
+      expect(product.normalized_variants_for_api).to be_nil
     end
 
-    it "puts current SKU first and uses nil price_byn when price is missing" do
+    it "puts current SKU first and syncs price from DB when payload price is missing" do
       out = product.normalized_variants_for_api
       expect(out).to be_a(Array)
       data = out.first[:data]
       expect(data.first.dig(:item, :sku)).to eq("s29545213")
-      expect(data.last.dig(:item, :price_byn)).to be_nil
+      expect(data.last.dig(:item, :sku)).to eq("s11111111")
+      expect(data.last.dig(:item, :price)).to eq("100.0")
+      expect(data.last.dig(:item, :price_byn)).to be_present
       expect(data.first.dig(:item, :price_byn)).to be_present
+    end
+
+    it "drops payload-only variants without price and stock in DB" do
+      Product.find_by(sku: "s11111111")&.destroy
+
+      expect(product.normalized_variants_for_api).to be_nil
     end
 
     it "treats variant payload prices as PLN even for LT urls" do
@@ -62,7 +67,7 @@ RSpec.describe Product, type: :model do
       expect(PriceCalculationService).to have_received(:product_price_byn).with(
         100.0,
         hash_including(pln_rate: 3.5, buffer: 0, weight_kg: product.packaging_weight_kg.to_f, delivery_pln: product.delivery_cost.to_f)
-      )
+      ).at_least(:once)
     end
 
     it "normalizes Polish color labels and armrest phrase to Russian" do

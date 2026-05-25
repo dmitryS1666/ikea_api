@@ -359,7 +359,6 @@ class Product < ApplicationRecord
             item = variant[:item]
         
             incoming_small_desc = item[:small_desc_name].presence || item["small_desc_name"].presence
-            original_price = item[:price].to_f
             sku_v = item[:sku].presence || item["sku"].presence
         
             rec = sku_v.present? ? resolve_variant_record(sku_v, variants_by_sku) : nil
@@ -384,6 +383,9 @@ class Product < ApplicationRecord
               item[:name_ru] = rec_payload[:name_ru].presence || item[:name_ru]
               item[:small_desc_name] = rec_payload[:small_desc_name].presence || item[:small_desc_name]
               item[:quantity] = rec_payload[:quantity].presence || item[:quantity]
+              item[:price] = rec_payload[:price].presence || item[:price]
+              item["price"] = item[:price]
+              item["quantity"] = item[:quantity]
         
               rec_local_images =
                 ProductLocalImages.normalize_api_image_array(rec.local_images)
@@ -417,6 +419,8 @@ class Product < ApplicationRecord
             end
         
             item[:small_desc_name] = normalize_variant_small_desc_label(item[:small_desc_name] || incoming_small_desc)
+
+            original_price = variant_item_price(rec, item).to_f
         
             if original_price > 0
               price_byn = PriceCalculationService.product_price_byn(
@@ -620,12 +624,16 @@ class Product < ApplicationRecord
   end
 
   def variant_entry_available?(record, item)
-    if record.present?
-      return variant_product_available?(record)
-    end
+    Products::StockAvailability.in_stock_quantity?(variant_item_quantity(record, item)) &&
+      Products::StockAvailability.sale_price?(variant_item_price(record, item))
+  end
 
-    Products::StockAvailability.in_stock_quantity?(item["quantity"] || item[:quantity]) &&
-      Products::StockAvailability.sale_price?(item["price"] || item[:price])
+  def variant_item_quantity(record, item)
+    record&.quantity || item["quantity"] || item[:quantity]
+  end
+
+  def variant_item_price(record, item)
+    record&.price || item["price"] || item[:price]
   end
 
   def variant_product_available?(product)
