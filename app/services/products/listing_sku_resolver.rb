@@ -38,37 +38,13 @@ module Products
       end
     end
 
-    # Возвращает набор SKU-кандидатов для поиска Product.
-    #
-    # Внутренние API-вызовы обычно передают `79578593` или `s79578593`,
-    # а публичная карточка/Next route может передать весь slug: `saltsjobaden-79578593`
-    # или ошибочный старый вариант `saltsjobaden-s79578593`. Поэтому дополнительно
-    # достаём последний 8-значный артикул из публичного идентификатора.
     def aliases(raw)
       coerced = coerce_listing_identifier(raw)
       s = coerced.to_s.strip
       return [] if s.blank?
 
-      candidates = [s]
-
-      public_core = article_core_from_public_identifier(s)
-      candidates << public_core if public_core.present?
-
-      candidates.flat_map do |candidate|
-        core = candidate.to_s.strip.sub(/\As/i, "")
-        [candidate.to_s.strip, core, "s#{core}"]
-      end.reject(&:blank?).uniq
-    end
-
-    def article_core_from_public_identifier(raw)
-      token = raw.to_s.strip.split(/[?#]/, 2).first.to_s.split("/").reject(&:blank?).last.to_s
-      return nil if token.blank?
-
-      # Поддерживаем оба публичных варианта:
-      #   saltsjobaden-79578593
-      #   saltsjobaden-s79578593
-      match = token.match(/(?:^|[-_])s?(\d{8})\z/i)
-      match && match[1]
+      core = s.sub(/\As/i, "")
+      [s, core, "s#{core}"].uniq
     end
 
     def find_product(raw)
