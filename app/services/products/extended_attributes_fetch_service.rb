@@ -117,6 +117,9 @@ class Products::ExtendedAttributesFetchService
 
     mirror_ru_for_lt_text!(attributes)
     apply_russian_translations_for_polish_fields!(product, attributes, force: force_ai_translation)
+    translate_polish_in_stored_product_details_modal!(attributes, force: force_ai_translation)
+    sync_materials_and_care_from_product_details_modal!(attributes)
+    apply_russian_translations_for_polish_fields!(product, attributes, force: force_ai_translation)
 
     # ВАЖНО:
     # Название серии/товара IKEA не переводим.
@@ -960,5 +963,136 @@ class Products::ExtendedAttributesFetchService
   # Совместимость с RecoverBrokenProductTranslationsJob и force_ai_translation.
   def translate_all_fields_via_ai!(product, attributes)
     apply_russian_translations_for_polish_fields!(product, attributes, force: true)
+  end
+
+  # API «Материал и уход» читает product_details_modal в full_attributes — переводим снимок PL.
+  def translate_polish_in_stored_product_details_modal!(attributes, force: false)
+    fa = attributes[:full_attributes]
+    return unless fa.is_a?(Hash)
+
+    pdm = fa["product_details_modal"] || fa[:product_details_modal]
+    return if pdm.blank?
+
+    pdm = pdm.deep_dup.deep_stringify_keys
+    changed = false
+
+    Array(pdm["intro_paragraphs"]).map! do |para|
+      t = translate_polish_fragment(para, force: force, context: "modal_intro")
+      changed = true if t != para.to_s
+      t
+    end
+
+    sec = material_and_care_section(pdm)
+    if sec.present?
+      Array(sec["material_blocks"]).each do |blk|
+        next unless blk.is_a?(Hash)
+
+        if blk["subheader"].present?
+          old = blk["subheader"].to_s
+          blk["subheader"] = translate_polish_fragment(old, force: force, context: "modal_material_subheader")
+          changed = true if blk["subheader"] != old
+        end
+
+        Array(blk["pairs"]).each do |pair|
+          next unless pair.is_a?(Hash)
+
+          %w[term definition].each do |key|
+            next if pair[key].blank?
+
+            old = pair[key].to_s
+            pair[key] = translate_polish_fragment(old, force: force, context: "modal_material_#{key}")
+            changed = true if pair[key] != old
+          end
+        end
+      end
+
+      Array(sec["care_blocks"]).each do |blk|
+        next unless blk.is_a?(Hash)
+
+        if blk["header"].present?
+          old = blk["header"].to_s
+          blk["header"] = translate_polish_fragment(old, force: force, context: "modal_care_header")
+          changed = true if blk["header"] != old
+        end
+
+        blk["lines"] = Array(blk["lines"]).map do |ln|
+          old = ln.to_s
+          t = translate_polish_fragment(old, force: force, context: "modal_care_line")
+          changed = true if t != old
+          t
+        end
+      end
+    end
+
+    return unless changed
+
+    base = fa.deep_dup.deep_stringify_keys
+    base["product_details_modal"] = pdm
+    attributes[:full_attributes] = base
+    attributes[:translated] = true
+    attributes[:ai_translated] = true
+  end
+
+  def sync_materials_and_care_from_product_details_modal!(attributes)
+    fa = attributes[:full_attributes]
+    return unless fa.is_a?(Hash)
+
+    pdm = fa["product_details_modal"] || fa[:product_details_modal]
+    return if pdm.blank?
+
+    h = ProductSerializer.materials_hash_from_product_details_modal(pdm)
+    if h.present?
+      joined = h.map { |k, v| "#{k}: #{v}".strip }.reject(&:blank?).join("\n")
+      if joined.present?
+        attributes[:materials] = joined
+        assign_translated_column_mirror!(:materials, joined, attributes)
+      end
+    end
+
+    care_text = care_instructions_text_from_product_details_modal(pdm)
+    return if care_text.blank?
+
+    attributes[:care_instructions] = care_text
+    assign_translated_column_mirror!(:care_instructions, care_text, attributes)
+  end
+
+  def material_and_care_section(pdm)
+    Array(pdm["accordion_sections"]).find do |s|
+      s.is_a?(Hash) && s["id"].to_s.include?("material-and-care")
+    end
+  end
+
+  def care_instructions_text_from_product_details_modal(pdm)
+    sec = material_and_care_section(pdm.is_a?(Hash) ? pdm.deep_stringify_keys : pdm)
+    return nil unless sec
+
+    lines = []
+    Array(sec["care_blocks"]).each do |blk|
+      next unless blk.is_a?(Hash)
+
+      Array(blk["lines"]).each do |ln|
+        s = ln.to_s.strip
+        lines << s if s.present?
+      end
+    end
+    lines.join("\n").presence
+  end
+
+  def translate_polish_fragment(text, force:, context:)
+    s = text.to_s
+    return s if s.blank?
+
+    needs = force ? !TranslationService.predominantly_russian?(s) : TranslationService.needs_polish_to_russian_translation?(s)
+    return s unless needs
+
+    translated = TranslationService.translate(s, context: context)
+    return s if translated.blank? || TranslationService.invalid_translation?(translated, s)
+
+    translated
+  end
+
+  def assign_translated_column_mirror!(field, value, attributes)
+    ru_key = "#{field}_ru".to_sym
+    attributes[ru_key] = value if Product.column_names.include?(ru_key.to_s)
   end
 end

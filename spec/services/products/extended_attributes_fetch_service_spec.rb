@@ -102,6 +102,41 @@ RSpec.describe Products::ExtendedAttributesFetchService do
       expect(attributes[:small_desc_name]).to eq("Szafka z 5 półkami, beżowy/pomarańczowy")
     end
 
+    it "translates Polish material-and-care blocks in product_details_modal" do
+      service = described_class.new
+      modal = {
+        "accordion_sections" => [
+          {
+            "id" => "material-and-care",
+            "material_blocks" => [
+              { "pairs" => [{ "term" => "Rama:", "definition" => "Stal" }] }
+            ],
+            "care_blocks" => [
+              { "header" => "Pielęgnacja", "lines" => ["Odkurzać miękką szczotką"] }
+            ]
+          }
+        ]
+      }
+      attributes = { full_attributes: { "product_details_modal" => modal } }
+
+      translations = {
+        "Rama:" => "Рама:",
+        "Stal" => "Сталь",
+        "Pielęgnacja" => "Уход",
+        "Odkurzać miękką szczotką" => "Пылесосить мягкой щёткой"
+      }
+      allow(TranslationService).to receive(:needs_polish_to_russian_translation?).and_call_original
+      allow(TranslationService).to receive(:translate) { |text, **_opts| translations[text] || text }
+
+      service.send(:translate_polish_in_stored_product_details_modal!, attributes)
+      service.send(:sync_materials_and_care_from_product_details_modal!, attributes)
+
+      sec = attributes[:full_attributes]["product_details_modal"]["accordion_sections"].first
+      expect(sec["material_blocks"].first["pairs"].first["definition"]).to eq("Сталь")
+      expect(attributes[:materials]).to include("Сталь")
+      expect(attributes[:care_instructions]).to include("щёткой")
+    end
+
     it "translates Polish small_desc_name to Russian in attributes" do
       service = described_class.new
       product = build(:product, small_desc_name: nil)

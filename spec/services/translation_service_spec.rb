@@ -15,6 +15,11 @@ RSpec.describe TranslationService do
     it "returns false for IKEA latin names" do
       expect(described_class.needs_polish_to_russian_translation?("BESTÅ")).to be(false)
     end
+
+    it "detects Polish materials without diacritics" do
+      expect(described_class.needs_polish_to_russian_translation?("Rama: Stal")).to be(true)
+      expect(described_class.needs_polish_to_russian_translation?("Odkurzać miękką szczotką")).to be(true)
+    end
   end
 
   describe ".translate" do

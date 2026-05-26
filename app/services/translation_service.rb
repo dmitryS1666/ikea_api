@@ -155,6 +155,13 @@ class TranslationService
     false
   end
 
+  # Короткие фрагменты модалки («Rama: Stal») без диакритик, но с типичными польскими словами.
+  SHORT_PL_PRODUCT_MARKERS = %w[
+    rama stal drewno szkło szklo metal tkanina powłoka powloka polki półka
+    odkurzać odkurzac prać pranie pielęgnacja materiał materiały skład obicia
+    nóżki podłokietnik wymiary waga szafka zestaw elementów instrukcja montażu
+  ].freeze
+
   # Короткие подписи (small_desc_name) и длинные блоки: польский → нужен перевод на русский.
   def self.needs_polish_to_russian_translation?(text)
     s = text.to_s.strip
@@ -162,6 +169,9 @@ class TranslationService
     return false if predominantly_russian?(s)
 
     return true if s.match?(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/)
+
+    low = s.downcase
+    return true if SHORT_PL_PRODUCT_MARKERS.any? { |word| low.include?(word) }
 
     Products::SuspectedPolishInCustomerPayload.likely_polish_not_russian?(s)
   end
