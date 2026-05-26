@@ -162,6 +162,14 @@ class Product < ApplicationRecord
     Array(raw).filter_map { |s| s.to_s.strip.presence }
   end
 
+  def self.public_sku(sku)
+    sku.to_s.sub(/\As(?=\d+\z)/i, "")
+  end
+  
+  def public_sku
+    self.class.public_sku(sku)
+  end
+
   def normalized_variant_skus
     skus = []
     Array(variants).each do |variant|
@@ -307,7 +315,7 @@ class Product < ApplicationRecord
     images = ProductLocalImages.expand_paths(local_images)
 
     {
-      sku: sku,
+      sku: public_sku,
       # Ключ `name_ru` в payload вариантов — контракт с фронтом; значение как у ProductSerializer: полное имя с витрины.
       name_ru: name.to_s.presence,
       small_desc_name: small_desc_name,
@@ -436,7 +444,7 @@ class Product < ApplicationRecord
               item[:price_byn] = nil
             end
         
-            item[:sku] = sku_v.to_s if sku_v.present?
+            item[:sku] = Product.public_sku(sku_v) if sku_v.present?
             item["sku"] = item[:sku]
         
             item[:images] = normalize_variant_item_images(item[:images] || item["images"])

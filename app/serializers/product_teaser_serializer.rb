@@ -1,8 +1,7 @@
 class ProductTeaserSerializer
   include FastJsonapi::ObjectSerializer
 
-  attributes :sku,
-             :small_desc_name,
+  attributes :small_desc_name,
              :slug,
              :price, 
              :price_pln,
@@ -128,5 +127,13 @@ class ProductTeaserSerializer
 
   def self.safe_product_weight_kg(product)
     Products::WeightExtractor.packaging_weight_kg_for_product(product)
+  end
+
+  def self.public_sku(sku)
+    sku.to_s.sub(/\As(?=\d+\z)/i, "")
+  end
+  
+  attribute :sku do |product|
+    public_sku(product.sku)
   end
 end

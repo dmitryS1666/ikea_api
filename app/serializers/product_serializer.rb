@@ -1,8 +1,7 @@
 class ProductSerializer
   include FastJsonapi::ObjectSerializer
 
-  attributes :sku,
-             :small_desc_name,
+  attributes :small_desc_name,
              :slug,
              :price,
              :price_pln,
@@ -1278,6 +1277,14 @@ class ProductSerializer
         ProductLocalImages.expand_path(s) || s
       end
     end
+  end
+
+  def self.public_sku(sku)
+    sku.to_s.sub(/\As(?=\d+\z)/i, "")
+  end
+
+  attribute :sku do |product|
+    public_sku(product.sku)
   end
 
   attribute :included_products do |product|
