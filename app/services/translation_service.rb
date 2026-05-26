@@ -5,14 +5,18 @@ class TranslationService
   MYMEMORY_API_URL = 'https://api.mymemory.translated.net/get'
   INVALID_TRANSLATIONS = ['translatedText', 'PLEASE SELECT TWO DISTINCT LANGUAGES'].freeze
   
-  # Универсальный метод перевода (для продуктов)
-  # Использует каскад: MyMemory → LibreTranslate → Google Translate
+  # Универсальный метод перевода (для продуктов).
+  # Польский текст → AI, при сбое MyMemory → LibreTranslate. Google Translate не используется.
   def self.translate(text, target_lang: 'ru', source_lang: 'pl', force: false, skip_mymemory: false, skip_google: false, context: nil)
     return '' if text.blank?
     debug = ENV['TRANSLATION_DEBUG'].to_s == '1'
-    
+
     context_info = context ? "[#{context}] " : ""
-    
+
+    unless needs_polish_to_russian_translation?(text)
+      return text.to_s.strip
+    end
+
     # Кэширование переводов
     cached = TranslationCache.find_by(
       text: text.strip,
@@ -23,59 +27,40 @@ class TranslationService
       return cached.translated_text unless invalid_translation?(cached.translated_text, text)
       cached.destroy
     end
-    
-    # Пробуем сервисы по очереди (только для товаров)
+
     translated = nil
     provider = nil
-    
-    # 0. AI Translation (OpenAI / DeepSeek)
-    if translated.blank? || invalid_translation?(translated, text)
-      begin
-        Rails.logger.info("TranslationService: #{context_info}translating via AI: #{text.to_s.truncate(50)}")
-        # По умолчанию используем OpenAI, так как ключ был передан
-        translated = AiTranslationService.translate(text, target_lang: target_lang, source_lang: source_lang)
-        provider = 'ai' if translated.present? && !invalid_translation?(translated, text)
-      rescue => e_ai
-        Rails.logger.warn("AI Translation failed: #{e_ai.message}")
-      end
+
+    begin
+      Rails.logger.info("TranslationService: #{context_info}translating via AI: #{text.to_s.truncate(50)}")
+      translated = AiTranslationService.translate(text, target_lang: target_lang, source_lang: source_lang)
+      provider = 'ai' if translated.present? && !invalid_translation?(translated, text)
+    rescue StandardError => e_ai
+      Rails.logger.warn("AI Translation failed: #{e_ai.message}")
     end
 
-    # 1. Google Translate (теперь первый приоритет)
-    unless skip_google || ENV['GCLOUD_PROJECT'].blank? || ENV['GOOGLE_APPLICATION_CREDENTIALS'].blank?
-      begin
-        Rails.logger.info("TranslationService: #{context_info}translating via Google: #{text.to_s.truncate(50)}")
-        translated = GoogleTranslateService.translate(text, target_lang: target_lang)
-        provider = 'google' if translated.present? && !invalid_translation?(translated, text)
-      rescue => e
-        Rails.logger.warn("Google Translate failed: #{e.message}")
-      end
-    end
-
-    # 2. MyMemory (если не отключен)
     if translated.blank? || invalid_translation?(translated, text)
       unless skip_mymemory || ENV['MYMEMORY_DISABLED'].to_s == '1'
         begin
           Rails.logger.info("TranslationService: #{context_info}translating via MyMemory: #{text.to_s.truncate(50)}")
           translated = translate_with_my_memory(text, target_lang: target_lang, source_lang: source_lang, force: force)
           provider = 'mymemory' if translated.present? && !invalid_translation?(translated, text)
-        rescue => e2
+        rescue StandardError => e2
           Rails.logger.warn("MyMemory failed: #{e2.message}")
         end
       end
     end
 
-    # 3. LibreTranslate
     if translated.blank? || invalid_translation?(translated, text)
       begin
         Rails.logger.info("TranslationService: #{context_info}translating via LibreTranslate: #{text.to_s.truncate(50)}")
         translated = LibreTranslateService.translate(text, target_lang: target_lang, source_lang: source_lang)
         provider = 'libretranslate' if translated.present? && !invalid_translation?(translated, text)
-      rescue => e3
+      rescue StandardError => e3
         Rails.logger.warn("LibreTranslate failed: #{e3.message}")
       end
     end
 
-    # 4. Fallback (оригинал)
     if translated.blank? || invalid_translation?(translated, text)
       Rails.logger.warn("All translation services failed, returning original text")
       translated = text
@@ -168,6 +153,28 @@ class TranslationService
     return true if translated_text.to_s.strip == original_text.to_s.strip
 
     false
+  end
+
+  # Короткие подписи (small_desc_name) и длинные блоки: польский → нужен перевод на русский.
+  def self.needs_polish_to_russian_translation?(text)
+    s = text.to_s.strip
+    return false if s.blank?
+    return false if predominantly_russian?(s)
+
+    return true if s.match?(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/)
+
+    Products::SuspectedPolishInCustomerPayload.likely_polish_not_russian?(s)
+  end
+
+  def self.predominantly_russian?(text)
+    s = text.to_s
+    cyr = s.scan(/[а-яА-ЯёЁ]/).size
+    return true if cyr >= 8
+
+    lat = s.scan(/[A-Za-zÀ-ÿ]/).size
+    return false if lat < 4
+
+    cyr.positive? && (cyr.to_f / (cyr + lat)) >= 0.25
   end
 end
 

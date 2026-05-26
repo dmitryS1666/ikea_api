@@ -92,6 +92,31 @@ RSpec.describe Products::ExtendedAttributesFetchService do
       expect(result[:included_products]).to eq(%w[60489549 00417621 30489490 80498114 10568638])
     end
 
+    it "copies small_desc_name from pl_details in apply_pl_descriptive" do
+      service = described_class.new
+      attributes = {}
+      pl_details = { small_desc_name: "Szafka z 5 półkami, beżowy/pomarańczowy" }
+
+      service.send(:apply_pl_descriptive, pl_details, attributes)
+
+      expect(attributes[:small_desc_name]).to eq("Szafka z 5 półkami, beżowy/pomarańczowy")
+    end
+
+    it "translates Polish small_desc_name to Russian in attributes" do
+      service = described_class.new
+      product = build(:product, small_desc_name: nil)
+      attributes = { small_desc_name: "Szafka z 5 półkami, beżowy/pomarańczowy" }
+
+      allow(TranslationService).to receive(:needs_polish_to_russian_translation?).and_call_original
+      allow(TranslationService).to receive(:translate)
+        .with(attributes[:small_desc_name], context: "product_small_desc_name")
+        .and_return("Шкаф с 5 полками, бежевый/оранжевый")
+
+      service.send(:apply_russian_translations_for_polish_fields!, product, attributes)
+
+      expect(attributes[:small_desc_name]).to eq("Шкаф с 5 полками, бежевый/оранжевый")
+    end
+
     it "retries with headless when materials are missing" do
       incomplete = { materials: nil, care_instructions: "Odkurzać", included_sheet_needs_headless: false }
       headless = { materials: "Rama", care_instructions: "Odkurzać" }

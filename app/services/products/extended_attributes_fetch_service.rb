@@ -104,9 +104,6 @@ class Products::ExtendedAttributesFetchService
       merge_pl_with_lt_priority(product, pl_details, attributes)
     else
       merge_pl_structural_and_commerce(product, pl_details, attributes)
-      if force_ai_translation
-        translate_all_fields_via_ai!(product, attributes)
-      end
     end
 
     supplement_materials_from_lt_modal!(lt_details, attributes) if use_lt_descriptive && lt_details.present?
@@ -119,7 +116,7 @@ class Products::ExtendedAttributesFetchService
     assign_inferred_variant_type!(product, pl_details, attributes)
 
     mirror_ru_for_lt_text!(attributes)
-    translate_remaining_fields(product, attributes)
+    apply_russian_translations_for_polish_fields!(product, attributes, force: force_ai_translation)
 
     # ВАЖНО:
     # Название серии/товара IKEA не переводим.
@@ -436,6 +433,10 @@ class Products::ExtendedAttributesFetchService
     if pl_details[:assembly_documents].present? && attributes[:assembly_documents].blank?
       attributes[:assembly_documents] = download_documents(pl_details[:assembly_documents], product.sku)
     end
+
+    if attributes[:small_desc_name].blank? && pl_details[:small_desc_name].present?
+      attributes[:small_desc_name] = pl_details[:small_desc_name]
+    end
   end
 
   def pl_product_url(product)
@@ -571,6 +572,9 @@ class Products::ExtendedAttributesFetchService
     attributes[:designer] = pl_details[:designer] if pl_details[:designer].present? && attributes[:designer].blank?
     attributes[:safety_info] = pl_details[:safety_info] if pl_details[:safety_info].present? && attributes[:safety_info].blank?
     attributes[:good_to_know] = pl_details[:good_to_know] if pl_details[:good_to_know].present? && attributes[:good_to_know].blank?
+    if pl_details[:small_desc_name].present? && attributes[:small_desc_name].blank?
+      attributes[:small_desc_name] = pl_details[:small_desc_name]
+    end
   end
 
   def merge_pl_structural_and_commerce(product, pl_details, attributes)
@@ -907,54 +911,54 @@ class Products::ExtendedAttributesFetchService
     end
   end
 
-  def translate_all_fields_via_ai!(product, attributes)
-    fields = %i[short_description content materials features care_instructions environmental_info designer safety_info good_to_know]
-    
-    fields.each do |field|
-      field_ru = "#{field}_ru".to_sym
-      source_text = attributes[field] || product.read_attribute(field)
+  POLISH_TRANSLATABLE_FIELDS = %i[
+    small_desc_name short_description content materials features
+    care_instructions environmental_info designer safety_info good_to_know
+  ].freeze
+
+  # Польский текст → русский в основной колонке (как с LT) и в *_ru при наличии.
+  def apply_russian_translations_for_polish_fields!(product, attributes, force: false)
+    translate_name_ru_if_needed!(product, attributes)
+
+    POLISH_TRANSLATABLE_FIELDS.each do |field|
+      next unless Product.column_names.include?(field.to_s)
+
+      source_text = attributes[field].presence || product.read_attribute(field)
       next if source_text.blank?
-      
-      # Если текст уже на русском (содержит кириллицу), не переводим его через AI
-      if source_text.match?(/[а-яА-Я]/)
-        attributes[field_ru] = source_text
-        attributes[:translated] = true
-        next
-      end
-      
-      # Принудительный перевод через AI (OpenAI/DeepSeek)
-      Rails.logger.info("ExtendedAttributesFetchService: translating #{field} via AI: #{source_text.to_s.truncate(50)}")
-      translated = AiTranslationService.translate(source_text.is_a?(Array) ? source_text.join("\n") : source_text)
-      if translated.present?
-        attributes[field_ru] = translated
-        attributes[:translated] = true
-        attributes[:ai_translated] = true
-        # Обновляем продукт, если мы работаем с существующим объектом
-        product.update_columns(field_ru => translated, translated: true, ai_translated: true) if product.persisted?
-      end
+
+      plain = source_text.is_a?(Array) ? source_text.join("\n") : source_text.to_s
+      needs_translation = force ? !TranslationService.predominantly_russian?(plain) : TranslationService.needs_polish_to_russian_translation?(plain)
+      next unless needs_translation
+
+      translated = TranslationService.translate(plain, context: "product_#{field}")
+      next if translated.blank? || TranslationService.invalid_translation?(translated, plain)
+
+      attributes[field] = translated
+      field_ru = "#{field}_ru".to_sym
+      attributes[field_ru] = translated if Product.column_names.include?(field_ru.to_s)
+      attributes[:translated] = true
+      attributes[:ai_translated] = true
     end
   end
 
-  def translate_remaining_fields(product, attributes)
-    # Полное имя: если осталось латиница/польский (LT не отдал), пробуем слой TranslationService; иначе RU с LT уже в `name`.
-    if Product.column_names.include?("name_ru")
-      src_name = (attributes[:name] || product.name).to_s
-      if src_name.present? && src_name !~ /[а-яА-ЯЁё]/ && (attributes[:name_ru].blank? && product.read_attribute(:name_ru).blank?)
-        t = TranslationService.translate(src_name)
-        attributes[:name_ru] = t if t.present? && !TranslationService.invalid_translation?(t, src_name)
-      end
-    end
+  def translate_name_ru_if_needed!(product, attributes)
+    return unless Product.column_names.include?("name_ru")
 
-    fields = %i[short_description content materials features care_instructions environmental_info designer safety_info good_to_know]
+    src_name = (attributes[:name] || product.name).to_s.strip
+    return if src_name.blank?
+    return if src_name.match?(/[а-яА-ЯЁё]/)
 
-    fields.each do |field|
-      field_ru = "#{field}_ru".to_sym
-      source_text = attributes[field] || product.read_attribute(field)
-      next if source_text.blank?
-      next unless attributes[field_ru].blank? && (product.read_attribute(field_ru).blank? || product.read_attribute(field_ru) == product.read_attribute(field))
+    existing_ru = attributes[:name_ru].presence || product.read_attribute(:name_ru).to_s
+    return if existing_ru.present? && existing_ru.match?(/[а-яА-ЯЁё]/)
+    return unless attributes[:name_ru].blank? && product.read_attribute(:name_ru).blank?
+    return unless TranslationService.needs_polish_to_russian_translation?(src_name)
 
-      translated = TranslationService.translate(source_text.is_a?(Array) ? source_text.join("\n") : source_text)
-      attributes[field_ru] = translated if translated.present? && !TranslationService.invalid_translation?(translated, source_text)
-    end
+    t = TranslationService.translate(src_name, context: "product_name")
+    attributes[:name_ru] = t if t.present? && !TranslationService.invalid_translation?(t, src_name)
+  end
+
+  # Совместимость с RecoverBrokenProductTranslationsJob и force_ai_translation.
+  def translate_all_fields_via_ai!(product, attributes)
+    apply_russian_translations_for_polish_fields!(product, attributes, force: true)
   end
 end
