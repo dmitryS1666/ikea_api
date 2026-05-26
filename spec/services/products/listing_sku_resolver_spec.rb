@@ -43,6 +43,20 @@ RSpec.describe Products::ListingSkuResolver do
       expect(described_class.sku_core("s79578593")).to eq("79578593")
       expect(described_class.sku_core("79578593")).to eq("79578593")
     end
+
+    it "collapses repeated slug tokens for public URL" do
+      product = build(:product, sku: "s39491276", name: "LANDSKRONA")
+      allow(product).to receive(:cached_slug).and_return(((["landskrona"] * 120) + ["s39491276"]).join("-"))
+
+      expect(described_class.public_slug(product)).to eq("landskrona-s39491276")
+      expect(described_class.path(product)).to eq("/product/landskrona-s39491276-39491276/")
+    end
+
+    it "limits very long public slugs" do
+      product = build(:product, sku: "79578593", name: "Very long sofa bed with many extra words and repeated commercial description for frontend card")
+
+      expect(described_class.public_slug(product).length).to be <= described_class::MAX_SLUG_LENGTH
+    end
   end
 
   describe ".find_product" do
