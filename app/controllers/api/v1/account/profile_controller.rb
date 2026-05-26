@@ -16,21 +16,8 @@ module Api
             EmailVerificationService.send_code(current_user, params[:email])
           end
 
-          # Handle passport update separately
-          passport_input = params[:passport]
-          if passport_input.present? && (passport_input.is_a?(Hash) || passport_input.is_a?(ActionController::Parameters))
-            passport_input = passport_input.to_unsafe_h if passport_input.respond_to?(:to_unsafe_h)
-            current_passport = current_user.passport_data
-            
-            if !UserPassportService.same?(passport_input, current_passport)
-              begin
-                UserPassportService.write!(user: current_user, passport_hash: passport_input)
-                current_user.update!(passport_verified_at: nil, a1_verification_id: nil) # Reset verification when changed
-              rescue ArgumentError => e
-                return render json: { error: e.message }, status: :unprocessable_entity
-              end
-            end
-          end
+          passport_error = save_passport_if_verified
+          return passport_error if passport_error
 
           if current_user.update(profile_params)
             # Передача данных в CRM теперь через callback в модели User
@@ -98,14 +85,66 @@ module Api
 
         def profile_params
           params.permit(
-            :username, :email, :phone, :country_code, 
+            :username, :email, :phone, :country_code,
             :gdpr_consent, :newsletter_consent,
-            :dob, :gender, :address, 
+            :dob, :gender, :address,
             :telegram_marketing, :email_marketing,
             :first_name, :last_name, :middle_name,
-            :region, :city, :postcode, :street, :house, :building, :apartment,
-            :a1_verification_id
+            :region, :city, :postcode, :street, :house, :building, :apartment
           )
+        end
+
+        def save_passport_if_verified
+          passport_input = extract_passport_input
+          return nil if passport_input.blank?
+
+          current_passport = current_user.passport_data
+          passport_unchanged = UserPassportService.same?(passport_input, current_passport)
+          return nil if passport_unchanged && current_user.passport_verified?
+
+          verification_id = params[:verification_id].presence || params[:a1_verification_id].presence
+          code = params[:code].presence || params[:last4].presence
+
+          if verification_id.blank? || code.blank?
+            return render json: {
+              error: 'Для сохранения паспорта требуется подтверждение по звонку',
+              code: 'passport_verification_required'
+            }, status: :unprocessable_entity
+          end
+
+          begin
+            UserPassportService.validate_passport_number!(passport_input)
+          rescue ArgumentError => e
+            return render json: { error: e.message }, status: :unprocessable_entity
+          end
+
+          verification = VerificationCode.find_by(id: verification_id, code: code)
+          unless verification&.expires_at&.> Time.current
+            return render json: {
+              error: 'Неверный или просроченный код',
+              code: 'invalid_verification_code'
+            }, status: :unauthorized
+          end
+
+          verified_phone = verification.phone
+          verification.destroy!
+
+          UserPassportService.write!(user: current_user, passport_hash: passport_input) unless passport_unchanged
+          current_user.update!(
+            passport_verified_at: Time.current,
+            a1_verification_id: verification_id.to_s,
+            phone: verified_phone
+          )
+          nil
+        end
+
+        def extract_passport_input
+          passport_input = params[:passport]
+          return nil unless passport_input.present?
+          return nil unless passport_input.is_a?(Hash) || passport_input.is_a?(ActionController::Parameters)
+
+          passport_input = passport_input.to_unsafe_h if passport_input.respond_to?(:to_unsafe_h)
+          passport_input
         end
 
         def user_payload(user)

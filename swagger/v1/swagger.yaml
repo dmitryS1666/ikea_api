@@ -12,10 +12,10 @@ info:
     
     ## Верификация паспортных данных
     Процесс верификации паспортных данных включает следующие этапы:
-    1. **Предоставление данных:** Пользователь отправляет свои паспортные данные через эндпоинт `PATCH /api/v1/account/profile`. При изменении данных статус верификации сбрасывается.
-    2. **Проверка в админке:** Администратор или менеджер просматривает предоставленные данные в панели управления (раздел "Пользователи", вкладка "Паспортные данные") и вручную подтверждает их, устанавливая дату верификации.
-    3. **Проверка статуса:** Текущий статус верификации возвращается в объекте профиля пользователя (`GET /api/v1/account/profile`) в поле `passport_verified`.
-    4. **Верификация при оформлении заказа:** При оформлении заказа (`POST /api/v1/checkout`), если паспортные данные были изменены, требуется дополнительное подтверждение через сервис A1 (обратный звонок). Эндпоинты: `/api/v1/a1/request` и `/api/v1/a1/verify`.
+    1. **Запрос звонка:** `POST /api/v1/a1/request` — пользователь получает `verification_id`.
+    2. **Сохранение с подтверждением:** `PATCH /api/v1/account/profile` с полями `passport`, `verification_id` и `code` (последние 4 цифры входящего номера). Паспорт сохраняется в БД только при верном коде; при неверном коде данные не записываются.
+    3. **Проверка статуса:** `GET /api/v1/account/profile` — поле `passport_verified`.
+    4. **Верификация при оформлении заказа:** `POST /api/v1/checkout` — при изменении паспорта в заказе требуется подтверждение через A1 (см. параметры checkout).
     
     **Публичные эндпоинты (Без токена):**
     - `GET /api/v1/products` — Список товаров
@@ -1814,6 +1814,9 @@ paths:
                 $ref: '#/components/schemas/UserProfile'
     patch:
       summary: Обновить профиль пользователя
+      description: |
+        При изменении паспортных данных (`passport`) обязательны `verification_id` (из `POST /api/v1/a1/request`)
+        и `code` (последние 4 цифры входящего номера). Без успешной проверки кода паспорт не сохраняется.
       tags:
         - Account
       security:
@@ -1830,6 +1833,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: Неверный или просроченный код подтверждения паспорта
+        '422':
+          description: Нет кода подтверждения или ошибка валидации паспорта
 
   /api/v1/account/profile/change_phone_request:
     post:
@@ -3026,7 +3033,15 @@ components:
         newsletter_consent: { type: boolean }
         passport:
           $ref: '#/components/schemas/PassportData'
-        a1_verification_id: { type: string }
+        verification_id:
+          type: integer
+          description: ID из ответа POST /api/v1/a1/request (алиас a1_verification_id)
+        a1_verification_id:
+          type: integer
+          description: Синоним verification_id
+        code:
+          type: string
+          description: Последние 4 цифры входящего номера (алиас last4)
 
     UserDeliveryAddress:
       type: object

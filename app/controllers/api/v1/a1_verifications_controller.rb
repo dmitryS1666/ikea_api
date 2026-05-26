@@ -63,18 +63,7 @@ module Api
         end
 
         if verification && verification.expires_at > Time.current
-          phone = verification.phone
           verification.destroy!
-          
-          # Если это паспортное подтверждение и есть пользователь
-          if current_user
-            current_user.update!(
-              passport_verified_at: Time.current, 
-              phone: phone,
-              a1_verification_id: verification.id
-            )
-          end
-
           render json: { success: true }
         else
           render json: { success: false, error: 'invalid_code_or_expired' }, status: :unprocessable_entity
