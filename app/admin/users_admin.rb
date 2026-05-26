@@ -95,7 +95,7 @@ Trestle.resource(:users, model: User) do
       end
       row do
         col(sm: 6) { date_field :dob, label: "Дата рождения" }
-        col(sm: 6) { select :gender, [['Мужской', 'Male'], ['Женский', 'Female']], label: "Пол" }
+        col(sm: 6) { select :gender, User::GENDER_OPTIONS, label: "Пол" }
       end
       
       row do
@@ -223,5 +223,14 @@ Trestle.resource(:users, model: User) do
         col(sm: 12) { static_field :updated_at, label: "Последнее обновление" }
       end
     end
+  end
+
+  params do |params|
+    params.require(:user).permit(
+      :last_name, :first_name, :middle_name, :username, :email, :phone, :country_code,
+      :dob, :gender, :region, :city, :postcode, :street, :house, :building, :apartment,
+      :address, :email_marketing, :telegram_marketing, :newsletter_consent, :gdpr_consent,
+      :password, :password_confirmation, :role, :is_active
+    )
   end
 end

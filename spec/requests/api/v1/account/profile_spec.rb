@@ -82,5 +82,16 @@ RSpec.describe "Account Profile API", type: :request do
       expect(response).to have_http_status(:ok)
       expect(user.reload.first_name).to eq("Иван")
     end
+
+    it "normalizes gender from the storefront format" do
+      patch "/api/v1/account/profile",
+            params: { gender: "female" },
+            headers: headers
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["gender"]).to eq("Female")
+      expect(user.reload.read_attribute(:gender)).to eq("Female")
+    end
   end
 end

@@ -1,7 +1,24 @@
 class User < ApplicationRecord
   include Trestle::Auth::ModelMethods
   include Trestle::Auth::ModelMethods::Rememberable
-  
+
+  CANONICAL_GENDERS = %w[Male Female].freeze
+  GENDER_OPTIONS = [["Мужской", "Male"], ["Женский", "Female"]].freeze
+  GENDER_ALIASES = {
+    "male" => "Male",
+    "m" => "Male",
+    "man" => "Male",
+    "мужской" => "Male",
+    "мужчина" => "Male",
+    "м" => "Male",
+    "female" => "Female",
+    "f" => "Female",
+    "woman" => "Female",
+    "женский" => "Female",
+    "женщина" => "Female",
+    "ж" => "Female"
+  }.freeze
+
   has_secure_password(validations: false)
   
   validates :username, presence: true
@@ -9,6 +26,7 @@ class User < ApplicationRecord
   validates :email, uniqueness: true, allow_nil: true, allow_blank: true
   validates :role, inclusion: { in: %w[user admin manager] }
   validates :country_code, inclusion: { in: %w[RB РФ РК] }, allow_blank: true
+  validates :gender, inclusion: { in: CANONICAL_GENDERS }, allow_blank: true
   validates :password, presence: true, on: :create, if: -> { role == 'admin' || role == 'manager' }
   
   scope :active, -> { where(is_active: true) }
@@ -54,6 +72,24 @@ class User < ApplicationRecord
 
   def passport_verified?
     passport_verified_at.present?
+  end
+
+  def self.normalize_gender(value)
+    return nil if value.blank?
+
+    str = value.to_s.strip
+    return str if CANONICAL_GENDERS.include?(str)
+
+    GENDER_ALIASES[str.downcase]
+  end
+
+  def gender
+    self.class.normalize_gender(self[:gender]) || self[:gender]
+  end
+
+  def gender=(value)
+    normalized = self.class.normalize_gender(value)
+    super(normalized.nil? && value.present? ? value.to_s.strip : normalized)
   end
 
   after_commit :sync_with_crm, on: [:create, :update], if: :should_sync_crm?
