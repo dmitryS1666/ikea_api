@@ -898,14 +898,26 @@ class ProductSerializer
       return block
     end
 
-    if product.materials.present?
-      block["materials"] = { "Материалы и уход" => product.materials }
+    column_materials = product.materials.to_s.strip.presence
+    if column_materials.present? && !polish_materials_text?(column_materials)
+      block["materials"] = { "Материалы и уход" => column_materials }
       return block
     end
 
     text = materials_text_from_product_details_modal(product_details_modal)
-    block["materials"] = { "Материалы и уход" => text } if text.present?
+    if text.present?
+      block["materials"] = { "Материалы и уход" => text }
+      return block
+    end
+
+    block["materials"] = { "Материалы и уход" => column_materials } if column_materials.present?
     block
+  end
+
+  def self.polish_materials_text?(text)
+    TranslationService.needs_polish_to_russian_translation?(text)
+  rescue StandardError
+    false
   end
 
   MODAL_MATERIAL_DEFAULT_KEY = "Состав"

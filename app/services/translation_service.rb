@@ -160,20 +160,25 @@ class TranslationService
     rama stal drewno szkło szklo metal tkanina powłoka powloka polki półka
     odkurzać odkurzac prać pranie pielęgnacja materiał materiały skład obicia
     nóżki podłokietnik wymiary waga szafka zestaw elementów instrukcja montażu
+    poliester recyklingu wybielać suszarce bębnowej prasować chemicznie
   ].freeze
 
   # Короткие подписи (small_desc_name) и длинные блоки: польский → нужен перевод на русский.
+  # Важно: «Состав:/Уход:» + польское тело — сначала ловим PL-маркеры, не отсекаем по 8 кириллицам в метках.
   def self.needs_polish_to_russian_translation?(text)
     s = text.to_s.strip
     return false if s.blank?
-    return false if predominantly_russian?(s)
 
     return true if s.match?(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/)
 
     low = s.downcase
     return true if SHORT_PL_PRODUCT_MARKERS.any? { |word| low.include?(word) }
 
-    Products::SuspectedPolishInCustomerPayload.likely_polish_not_russian?(s)
+    return true if Products::SuspectedPolishInCustomerPayload.likely_polish_not_russian?(s)
+
+    return false if predominantly_russian?(s)
+
+    false
   end
 
   def self.predominantly_russian?(text)

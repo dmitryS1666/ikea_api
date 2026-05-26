@@ -20,6 +20,20 @@ RSpec.describe TranslationService do
       expect(described_class.needs_polish_to_russian_translation?("Rama: Stal")).to be(true)
       expect(described_class.needs_polish_to_russian_translation?("Odkurzać miękką szczotką")).to be(true)
     end
+
+    it "detects Polish care blob with Russian Состав/Уход labels" do
+      blob = <<~TEXT.strip
+        Состав: 100% poliester (min. 90% z recyklingu)
+        Уход: Prać ręcznie w temperaturze maks. 40°C.
+        Nie wybielać.
+        Nie suszyć w suszarce bębnowej.
+        Nie prasować.
+        Nie prać chemicznie.
+      TEXT
+
+      expect(described_class.needs_polish_to_russian_translation?(blob)).to be(true)
+      expect(described_class.predominantly_russian?(blob)).to be(true)
+    end
   end
 
   describe ".translate" do

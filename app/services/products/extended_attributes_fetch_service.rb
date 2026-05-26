@@ -119,6 +119,7 @@ class Products::ExtendedAttributesFetchService
     apply_russian_translations_for_polish_fields!(product, attributes, force: force_ai_translation)
     translate_polish_in_stored_product_details_modal!(attributes, force: force_ai_translation)
     sync_materials_and_care_from_product_details_modal!(attributes)
+    translate_polish_in_detailed_info!(attributes, force: force_ai_translation)
     apply_russian_translations_for_polish_fields!(product, attributes, force: force_ai_translation)
 
     # ВАЖНО:
@@ -1028,6 +1029,40 @@ class Products::ExtendedAttributesFetchService
 
     base = fa.deep_dup.deep_stringify_keys
     base["product_details_modal"] = pdm
+    attributes[:full_attributes] = base
+    attributes[:translated] = true
+    attributes[:ai_translated] = true
+  end
+
+  def translate_polish_in_detailed_info!(attributes, force: false)
+    fa = attributes[:full_attributes]
+    return unless fa.is_a?(Hash)
+
+    di = fa["detailed_info"] || fa[:detailed_info]
+    return unless di.is_a?(Hash)
+
+    base = fa.deep_dup.deep_stringify_keys
+    info = (base["detailed_info"] || {}).deep_stringify_keys
+    changed = false
+
+    raw = info["Материал и уход"]
+    if raw.is_a?(Hash)
+      info["Материал и уход"] = raw.transform_values do |v|
+        t = translate_polish_fragment(v, force: force, context: "detailed_info_materials")
+        changed = true if t != v.to_s
+        t
+      end
+    elsif raw.present?
+      t = translate_polish_fragment(raw, force: force, context: "detailed_info_materials")
+      if t != raw.to_s
+        info["Материал и уход"] = t
+        changed = true
+      end
+    end
+
+    return unless changed
+
+    base["detailed_info"] = info
     attributes[:full_attributes] = base
     attributes[:translated] = true
     attributes[:ai_translated] = true
