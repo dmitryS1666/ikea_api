@@ -308,6 +308,10 @@ class Product < ApplicationRecord
 
     {
       sku: sku,
+      # Публичные URL-поля нужны вариантам, потому что фронт часто строит ссылку
+      # именно из variants[].item. Внутренний sku сохраняем без изменений.
+      url_sku: Products::PublicProductUrl.sku_core(sku),
+      product_path: Products::PublicProductUrl.path(self),
       # Ключ `name_ru` в payload вариантов — контракт с фронтом; значение как у ProductSerializer: полное имя с витрины.
       name_ru: name.to_s.presence,
       small_desc_name: small_desc_name,
@@ -384,8 +388,12 @@ class Product < ApplicationRecord
               item[:small_desc_name] = rec_payload[:small_desc_name].presence || item[:small_desc_name]
               item[:quantity] = rec_payload[:quantity].presence || item[:quantity]
               item[:price] = rec_payload[:price].presence || item[:price]
+              item[:url_sku] = rec_payload[:url_sku].presence || item[:url_sku]
+              item[:product_path] = rec_payload[:product_path].presence || item[:product_path]
               item["price"] = item[:price]
               item["quantity"] = item[:quantity]
+              item["url_sku"] = item[:url_sku]
+              item["product_path"] = item[:product_path]
         
               rec_local_images =
                 ProductLocalImages.normalize_api_image_array(rec.local_images)
@@ -438,6 +446,10 @@ class Product < ApplicationRecord
         
             item[:sku] = sku_v.to_s if sku_v.present?
             item["sku"] = item[:sku]
+
+            item[:url_sku] ||= Products::PublicProductUrl.sku_core(item[:sku]) if item[:sku].present?
+            item["url_sku"] = item[:url_sku] if item[:url_sku].present?
+            item["product_path"] = item[:product_path] if item[:product_path].present?
         
             item[:images] = normalize_variant_item_images(item[:images] || item["images"])
             item["images"] = item[:images]

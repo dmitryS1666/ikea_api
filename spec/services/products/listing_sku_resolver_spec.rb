@@ -28,6 +28,14 @@ RSpec.describe Products::ListingSkuResolver do
       expect(described_class.aliases("s29545213")).to contain_exactly("s29545213", "29545213")
       expect(described_class.aliases("29545213")).to contain_exactly("29545213", "s29545213")
     end
+
+    it "extracts article from public product slug with s-prefixed sku" do
+      expect(described_class.aliases("saltsjobaden-s79578593")).to include("s79578593", "79578593")
+    end
+
+    it "extracts article from canonical public product slug" do
+      expect(described_class.aliases("saltsjobaden-79578593")).to include("s79578593", "79578593")
+    end
   end
 
   describe Products::PublicProductUrl do
@@ -46,6 +54,16 @@ RSpec.describe Products::ListingSkuResolver do
     it "finds by listing sku when DB stores with s prefix" do
       p = create(:product, sku: "s29545213")
       expect(described_class.find_product("29545213")).to eq(p)
+    end
+
+    it "finds product by public slug with s-prefixed article" do
+      p = create(:product, sku: "s79578593", name: "SALTSJÖBADEN")
+      expect(described_class.find_product("saltsjobaden-s79578593")).to eq(p)
+    end
+
+    it "finds product by canonical public slug without s prefix" do
+      p = create(:product, sku: "s79578593", name: "SALTSJÖBADEN")
+      expect(described_class.find_product("saltsjobaden-79578593")).to eq(p)
     end
   end
 end
