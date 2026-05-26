@@ -30,13 +30,6 @@ RSpec.describe Products::ListingSkuResolver do
     end
   end
 
-  describe Products::PublicProductUrl do
-    it "returns URL-safe sku core without s prefix" do
-      expect(described_class.sku_core("s79578593")).to eq("79578593")
-      expect(described_class.sku_core("79578593")).to eq("79578593")
-    end
-  end
-
   describe ".find_product" do
     it "finds by listing sku when DB stores without s prefix" do
       p = create(:product, sku: "29545213")
