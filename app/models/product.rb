@@ -737,7 +737,8 @@ class Product < ApplicationRecord
   end
 
   def generate_slug
-    Products::PublicProductUrl.public_slug(self) || SlugifyService.call(sku)
+    source = name_ru.presence || name.presence || sku
+    SlugifyService.call(source)
   end
 
   def calculate_delivery

@@ -115,7 +115,7 @@ class ProductTeaserSerializer
   end
 
   attribute :slug do |product|
-    Products::PublicProductUrl.public_slug(product)
+    product.slug
   end
 
   # Публичный артикул для URL: без listing-префикса `s`.
