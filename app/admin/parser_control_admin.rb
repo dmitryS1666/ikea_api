@@ -129,6 +129,14 @@ Trestle.resource :parser_control, model: ParserControl do
             payload[:propagate_to_descendants] = params[:rebuild_fseries_propagate].to_s != "0"
           end
 
+          if task_type == "refresh_category_filters_lt"
+            rc = parse_category_filters_one_extra(extra_data)
+            payload[:ikea_id] = rc[:ikea_id]
+            payload[:include_descendants] = params[:lt_filters_include_descendants].to_s != "0"
+            payload[:reindex] = params[:lt_filters_reindex].to_s != "0"
+            payload[:ensure_series] = params[:lt_filters_ensure_series].to_s != "0"
+          end
+
           if task_type == "recover_missing_weights"
             # hidden "0" + checkbox "1": без галочки уходит только "0"
             payload[:only_missing_weight] = params[:only_missing_weight].to_s != "0"
@@ -219,6 +227,14 @@ Trestle.resource :parser_control, model: ParserControl do
                     task_id: task.id,
                     reindex: payload.fetch(:reindex, true),
                     propagate_to_descendants: payload.fetch(:propagate_to_descendants, true)
+                  )
+                elsif task_type == 'refresh_category_filters_lt'
+                  job_class.perform_later(
+                    payload[:ikea_id].presence,
+                    task_id: task.id,
+                    include_descendants: payload.fetch(:include_descendants, true),
+                    reindex: payload.fetch(:reindex, true),
+                    ensure_series: payload.fetch(:ensure_series, true)
                   )
                 elsif task_type == 'pl_prices_stock'
                   job_class.perform_later(task_id: task.id, threads: threads, sku: payload[:sku])
@@ -688,6 +704,8 @@ Trestle.resource :parser_control, model: ParserControl do
         MergeParentCategoryFiltersJob
       when 'rebuild_category_fseries_filters'
         RebuildCategoryFseriesFiltersJob
+      when 'refresh_category_filters_lt'
+        RefreshCategoryAvailableFiltersFromLtJob
       when 'pl_prices_stock'
         RefreshPlPricesAndStockJob
       when 'count_broken_packaging_dimensions'
@@ -726,6 +744,7 @@ Trestle.resource :parser_control, model: ParserControl do
         'category_filters_one' => 'Переиндексация фильтров одной категории',
         'merge_parent_category_filters' => 'Слияние фильтров потомков в родителя',
         'rebuild_category_fseries_filters' => 'Сбор серий (f-series) из товаров категории',
+        'refresh_category_filters_lt' => 'Фильтры с LT (категория + потомки)',
         'extended_attrs_import' => 'Импорт расширенных атрибутов (JSON)',
         'fix_missing_images' => 'Проверка и докачка отсутствующих картинок',
         'extended_attributes_by_skus' => 'Загрузка атрибутов по списку SKU',
