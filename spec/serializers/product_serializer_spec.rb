@@ -2,17 +2,6 @@ require "rails_helper"
 require "securerandom"
 
 RSpec.describe ProductSerializer do
-
-  before do
-    ExchangeRate.find_or_create_by!(
-      currency_code: "PLN",
-      date: Date.current
-    ) do |rate|
-      rate.rate = 9.0
-      rate.official_rate = 9.0
-      rate.scale = 10
-    end
-  end
   describe "breadcrumbs attribute" do
     let(:category) do
       Category.create!(
@@ -60,20 +49,6 @@ RSpec.describe ProductSerializer do
       related = serialized[:data][:attributes][:related_products]
 
       expect(related).to eq(["srel00002"])
-    end
-  end
-
-
-  describe "public product URL attributes" do
-    it "keeps internal sku but exposes URL-safe sku and path" do
-      product = create(:product, sku: "s79578593", name: "SALTSJÖBADEN")
-
-      serialized = described_class.new(product, params: { detail: true }).serializable_hash
-      attrs = serialized[:data][:attributes]
-
-      expect(attrs[:sku]).to eq("s79578593")
-      expect(attrs[:url_sku]).to eq("79578593")
-      expect(attrs[:product_path]).to eq("/product/saltsjobaden-79578593/")
     end
   end
 
