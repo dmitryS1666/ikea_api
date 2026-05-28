@@ -134,7 +134,7 @@ RSpec.describe ContentArticle, type: :model do
 
       expect(serialized_blocks.length).to eq(1)
       expect(serialized_blocks.first["images"].first["url"]).to include("/rails/active_storage/blobs")
-      expect(serialized_blocks.first["button_category"]["ikea_id"]).to eq(category.ikea_id)
+      expect(serialized_blocks.first["button_category"]["ikea_id"]).to eq(category.slug)
       expect(serialized_blocks.first["button_category"]["name"]).to eq(category.name)
       expect(serialized_blocks.first["button_category"]["slug"]).to eq(category.slug)
       expect(serialized_blocks.first["button_category"]["url"]).to eq(category.catalog_url)
@@ -163,6 +163,8 @@ RSpec.describe ContentArticle, type: :model do
       button_category = ContentArticleSerializer.new(article).serializable_hash[:data][:attributes][:body_blocks].first["button_category"]
 
       expect(button_category["url"]).to eq("/catalog/mebel-dlya-hraneniya/vstroennye-shkafy/")
+      expect(button_category["ikea_id"]).to eq("vstroennye-shkafy")
+      expect(button_category["slug"]).to eq("vstroennye-shkafy")
     end
 
     it "exposes slug and catalog url for slider category" do
@@ -179,7 +181,7 @@ RSpec.describe ContentArticle, type: :model do
       block = ContentArticleSerializer.new(article).serializable_hash[:data][:attributes][:body_blocks].first
 
       expect(block["slider_category"]).to eq(
-        "ikea_id" => "bm001",
+        "ikea_id" => "budilniki",
         "name" => "Łóżka i materace",
         "slug" => "budilniki",
         "url" => "/catalog/budilniki/"

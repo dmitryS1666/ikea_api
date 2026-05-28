@@ -460,10 +460,12 @@ class ContentArticle < ApplicationRecord
   def category_payload(category, categories_index = nil)
     return nil unless category
 
+    slug_value = category.slug.to_s.presence
+
     {
-      "ikea_id" => category.ikea_id,
+      "ikea_id" => slug_value || category.ikea_id.to_s,
       "name" => category.name,
-      "slug" => category.slug.to_s,
+      "slug" => slug_value.to_s,
       "url" => category.catalog_url(categories_index)
     }
   end
