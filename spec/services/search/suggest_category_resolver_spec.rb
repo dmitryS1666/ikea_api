@@ -62,5 +62,20 @@ RSpec.describe Search::SuggestCategoryResolver do
       result = described_class.new("нераскладные").call
       expect(result.map { |row| row[:id].to_s }).to include(parent.ikea_id.to_s)
     end
+
+    it "puts non-folding categories at the bottom when query is about folding" do
+      folding = Category.create!(
+        ikea_id: "10663",
+        name: "Sofy rozkładane",
+        translated_name: "Раскладные диваны",
+        parent_ids: [parent.ikea_id]
+      )
+
+      result = described_class.new("раскладные").call
+      ids = result.map { |row| row[:id].to_s }
+
+      expect(ids).to include(folding.ikea_id.to_s, child.ikea_id.to_s)
+      expect(ids.index(child.ikea_id.to_s)).to be > ids.index(folding.ikea_id.to_s)
+    end
   end
 end

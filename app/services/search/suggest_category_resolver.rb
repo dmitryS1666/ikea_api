@@ -7,6 +7,8 @@ module Search
   class SuggestCategoryResolver
     CATEGORY_LIMIT = 10
     PRODUCT_CATEGORY_SAMPLE = 50
+    # Подстрока «расклад» в «нерасклад*» даёт ложное совпадение — опускаем вниз, если запрос не про нерасклад.
+    NON_FOLDING_NAME_MARKERS = %w[нерасклад нерозклад nierozkład nierozklad].freeze
 
     def initialize(query, products: [], products_scope: nil)
       @query = query.to_s.strip
@@ -162,8 +164,26 @@ module Search
           end
 
         depth = -Category.normalize_parent_ids(category.parent_ids).size
-        [priority, depth, name]
+        non_folding_tail = non_folding_false_positive?(name, lower_query) ? 1 : 0
+
+        [priority, non_folding_tail, depth, name]
       end
+    end
+
+    def non_folding_false_positive?(name, lower_query)
+      return false if query_about_non_folding?(lower_query)
+      return false unless non_folding_category_name?(name)
+
+      # «раскладные» попадает в «нераскладные» только как подстрока, не как отдельное слово.
+      lower_query.present? && name.include?(lower_query) && !name.start_with?(lower_query)
+    end
+
+    def query_about_non_folding?(lower_query)
+      NON_FOLDING_NAME_MARKERS.any? { |marker| lower_query.include?(marker) }
+    end
+
+    def non_folding_category_name?(name)
+      NON_FOLDING_NAME_MARKERS.any? { |marker| name.include?(marker) }
     end
 
     def serialize_category(category)
