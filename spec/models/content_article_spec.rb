@@ -140,6 +140,31 @@ RSpec.describe ContentArticle, type: :model do
       expect(serialized_blocks.first["button_category"]["url"]).to eq(category.catalog_url)
     end
 
+    it "builds nested catalog url for button category" do
+      parent = create(:category, ikea_id: "parent-btn", name: "Хранение", cached_slug: "mebel-dlya-hraneniya", parent_ids: [])
+      child = create(
+        :category,
+        ikea_id: "child-btn",
+        name: "Встроенные шкафы",
+        cached_slug: "vstroennye-shkafy",
+        parent_ids: [parent.ikea_id]
+      )
+      template = ContentArticle::BODY_BLOCK_TEMPLATES.find { |tpl| tpl[:button_enabled] }
+
+      article = create(:content_article, body_blocks: [
+        {
+          "type" => template[:id],
+          "content" => "<p>Текст</p>",
+          "button_text" => "В каталог",
+          "button_category_id" => child.ikea_id
+        }
+      ])
+
+      button_category = ContentArticleSerializer.new(article).serializable_hash[:data][:attributes][:body_blocks].first["button_category"]
+
+      expect(button_category["url"]).to eq("/catalog/mebel-dlya-hraneniya/vstroennye-shkafy/")
+    end
+
     it "exposes slug and catalog url for slider category" do
       category = create(:category, ikea_id: "bm001", name: "Łóżka i materace", cached_slug: "budilniki")
 

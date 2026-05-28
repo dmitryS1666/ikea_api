@@ -100,4 +100,25 @@ RSpec.describe Category, type: :model do
       expect(series_filter["values"].first["id"]).to eq("FJALLBO_SHORT")
     end
   end
+
+  describe "#catalog_url" do
+    it "returns a slug-based path for a root category" do
+      category = create(:category, ikea_id: "root-1", name: "Мебель", cached_slug: "mebel", parent_ids: [])
+
+      expect(category.catalog_url).to eq("/catalog/mebel/")
+    end
+
+    it "includes ancestor slugs for nested categories" do
+      parent = create(:category, ikea_id: "parent-1", name: "Хранение", cached_slug: "mebel-dlya-hraneniya", parent_ids: [])
+      child = create(
+        :category,
+        ikea_id: "child-1",
+        name: "Встроенные шкафы",
+        cached_slug: "vstroennye-shkafy",
+        parent_ids: [parent.ikea_id]
+      )
+
+      expect(child.catalog_url).to eq("/catalog/mebel-dlya-hraneniya/vstroennye-shkafy/")
+    end
+  end
 end

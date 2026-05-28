@@ -847,9 +847,27 @@
       select.addEventListener("change", event => {
         this.blocks[index].button_category_id = event.target.value || null;
         this.syncHiddenField();
+        updateUrlPreview();
       });
       selectWrapper.appendChild(select);
       container.appendChild(selectWrapper);
+
+      const urlPreview = document.createElement("div");
+      urlPreview.className = "text-muted block-button-url-preview";
+      urlPreview.style.fontSize = "12px";
+      urlPreview.style.marginTop = "6px";
+      container.appendChild(urlPreview);
+
+      const updateUrlPreview = () => {
+        const selectedId = this.blocks[index].button_category_id;
+        const category = this.categories.find(ctg => String(ctg.ikea_id) === String(selectedId));
+        if (category && category.url) {
+          urlPreview.textContent = `Ссылка: ${category.url}`;
+        } else {
+          urlPreview.textContent = selectedId ? "Ссылка недоступна (нет slug у категории)" : "";
+        }
+      };
+      updateUrlPreview();
 
       return container;
     }

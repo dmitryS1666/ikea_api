@@ -1,6 +1,14 @@
 <% block_templates = ContentArticle::BODY_BLOCK_TEMPLATES %>
-<% button_categories = Category.active.top_level.order(:translated_name).map do |ctg|
-  { name: "#{(ctg.translated_name.presence || ctg.name)} (#{ctg.ikea_id})", ikea_id: ctg.ikea_id }
+<% active_categories = Category.active.to_a %>
+<% categories_by_ikea_id = active_categories.index_by { |ctg| ctg.ikea_id.to_s } %>
+<% button_categories = active_categories.sort_by { |ctg| ctg.translated_name.presence || ctg.name.to_s }.map do |ctg|
+  depth = Category.normalize_parent_ids(ctg.parent_ids).size
+  prefix = depth.positive? ? ("— " * depth) : ""
+  {
+    name: "#{prefix}#{(ctg.translated_name.presence || ctg.name)} (#{ctg.ikea_id})",
+    ikea_id: ctg.ikea_id,
+    url: ctg.catalog_url(categories_by_ikea_id)
+  }
 end %>
 
 <% if article.errors[:body_blocks].present? %>

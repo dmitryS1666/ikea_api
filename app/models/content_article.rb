@@ -279,6 +279,10 @@ class ContentArticle < ApplicationRecord
   def serialized_body_blocks(products_map: {}, product_serializer_params: {}, **_)
     all_category_ids = (button_category_ids + slider_category_ids + grid_category_ids).compact.uniq
     categories = Category.where(ikea_id: all_category_ids).index_by(&:ikea_id)
+    ancestor_ids = categories.values.flat_map { |category| Category.normalize_parent_ids(category.parent_ids) }
+    categories_index = Category
+      .where(ikea_id: (all_category_ids + ancestor_ids).uniq)
+      .index_by { |category| category.ikea_id.to_s }
   
     body_blocks.map do |block|
       block_data = decorate_block(block, include_preview: true)
@@ -288,9 +292,9 @@ class ContentArticle < ApplicationRecord
       slider_id = block_data["slider_category_id"]
       g_category_ids = Array.wrap(block_data["grid_category_ids"])
   
-      block_data["button_category"] = category_payload(categories[button_id])
-      block_data["slider_category"] = category_payload(categories[slider_id])
-      block_data["grid_categories"] = g_category_ids.map { |id| category_payload(categories[id]) }.compact
+      block_data["button_category"] = category_payload(categories[button_id], categories_index)
+      block_data["slider_category"] = category_payload(categories[slider_id], categories_index)
+      block_data["grid_categories"] = g_category_ids.map { |id| category_payload(categories[id], categories_index) }.compact
   
       # ✅ гарантируем тип массива (на случай старых записей)
       block_data["slider_product_skus"] = Array.wrap(block_data["slider_product_skus"]).map(&:to_s)
@@ -453,14 +457,14 @@ class ContentArticle < ApplicationRecord
     payload
   end
 
-  def category_payload(category)
+  def category_payload(category, categories_index = nil)
     return nil unless category
 
     {
       "ikea_id" => category.ikea_id,
       "name" => category.name,
       "slug" => category.slug.to_s,
-      "url" => category.catalog_url
+      "url" => category.catalog_url(categories_index)
     }
   end
 

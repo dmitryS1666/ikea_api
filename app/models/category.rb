@@ -65,11 +65,29 @@ class Category < ApplicationRecord
     cached_slug || generate_slug
   end
 
-  def catalog_url
-    slug_value = slug.to_s.presence
-    return if slug_value.blank?
+  def catalog_url(categories_index = nil)
+    segments = catalog_slug_path_segments(categories_index)
+    return if segments.blank?
 
-    "/catalog/#{slug_value}/"
+    "/catalog/#{segments.join('/')}/"
+  end
+
+  def catalog_slug_path_segments(categories_index = nil)
+    ancestor_ids = self.class.normalize_parent_ids(parent_ids)
+    segments = []
+
+    if ancestor_ids.present?
+      index = categories_index || self.class.where(ikea_id: ancestor_ids).index_by { |category| category.ikea_id.to_s }
+      ancestor_ids.each do |ikea_id|
+        slug_value = index[ikea_id.to_s]&.slug.presence
+        segments << slug_value if slug_value.present?
+      end
+    end
+
+    own_slug = slug.to_s.presence
+    segments << own_slug if own_slug.present?
+
+    segments.compact.uniq
   end
 
   def display_filters
