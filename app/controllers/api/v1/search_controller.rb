@@ -20,14 +20,18 @@ module Api
                              .page(page)
                              .per(per_page)
 
-        matched_categories = first_page ? matching_categories(query) : Category.none
-        combined_categories =
+        suggest_categories =
           if first_page
-            product_categories = get_product_categories(display_products)
-            (matched_categories.to_a + product_categories.to_a).uniq(&:ikea_id)
+            Search::SuggestCategoryResolver.new(
+              query,
+              products: display_products,
+              products_scope: all_matching_products_scope
+            ).call
           else
             []
           end
+
+        combined_categories = categories_from_suggest_payload(suggest_categories)
 
         available_filters = first_page ? aggregate_filters_for(all_matching_products_scope, combined_categories) : []
 
@@ -50,7 +54,7 @@ module Api
 
         render json: {
           suggestions: suggestions,
-          categories: serialized_category_tree(combined_categories, query: query, matched_categories: matched_categories),
+          categories: suggest_categories,
           products: ProductTeaserSerializer.new(display_products, {
             params: {
               favorite_skus: current_favorite_skus,
@@ -79,86 +83,12 @@ module Api
         query.to_s.gsub(/[^[:alnum:]]/, '')
       end
 
-      def serialized_category_tree(categories, query: nil, matched_categories: [])
-        categories = Array(categories).compact
-        return [] if categories.blank?
-      
-        categories_for_tree = expand_categories_with_ancestors(categories)
-        tree_nodes = Category.build_tree(categories_for_tree, sort_roots_by_position: true)
-      
-        if query.present?
-          matched_ids = matched_categories.map { |c| c.ikea_id.to_s }.to_set
-          tree_nodes = sort_nodes_by_relevance(tree_nodes, query, matched_ids)
-        end
+      def categories_from_suggest_payload(suggest_categories)
+        ids = Array(suggest_categories).filter_map { |entry| entry[:id] || entry["id"] }.map(&:to_s).uniq
+        return [] if ids.blank?
 
-        serialize_category_tree_nodes(tree_nodes)
-      end
-
-      def sort_nodes_by_relevance(nodes, query, matched_ids)
-        lower_query = query.to_s.downcase
-
-        nodes.sort_by do |node|
-          category = node[:category]
-          name = (category.translated_name.presence || category.name).to_s.downcase
-          
-          # Оценка совпадения текущего узла
-          node_priority = 
-            if name.start_with?(lower_query)
-              0
-            elsif name.include?(lower_query)
-              1
-            else
-              2
-            end
-
-          # Оценка совпадения дочерних узлов
-          child_priority = any_node_matches?(node, matched_ids) ? 0 : 1
-
-          [node_priority, child_priority]
-        end.map do |node|
-          node[:children] = sort_nodes_by_relevance(node[:children], query, matched_ids) if node[:children].any?
-          node
-        end
-      end
-
-      def any_node_matches?(node, matched_ids)
-        return true if matched_ids.include?(node[:category].ikea_id.to_s)
-        node[:children].any? { |child| any_node_matches?(child, matched_ids) }
-      end
-      
-      def expand_categories_with_ancestors(categories)
-        result = {}
-        queue = categories.compact.uniq { |category| category.ikea_id.to_s }
-      
-        queue.each do |category|
-          result[category.ikea_id.to_s] = category
-        end
-      
-        queue.each do |category|
-          Category.normalize_parent_ids(category.parent_ids).each do |parent_id|
-            next if parent_id.to_s == category.ikea_id.to_s
-            next if result.key?(parent_id.to_s)
-      
-            parent = Category.find_by(ikea_id: parent_id)
-            result[parent.ikea_id.to_s] = parent if parent
-          end
-        end
-      
-        result.values
-      end
-      
-      def serialize_category_tree_nodes(nodes)
-        nodes.map do |node|
-          category = node[:category]
-      
-          {
-            id: category.ikea_id,
-            slug: category.slug,
-            translated_name: category.translated_name,
-            local_image_path: category.local_image_path,
-            children: serialize_category_tree_nodes(node[:children] || [])
-          }
-        end
+        by_id = Category.active.where(ikea_id: ids).index_by { |c| c.ikea_id.to_s }
+        ids.filter_map { |ikea_id| by_id[ikea_id] }
       end
 
       def normalized_page
@@ -219,12 +149,6 @@ module Api
         scope.order(
           Arel.sql("#{exact_sku_sql}, products.id DESC")
         )
-      end
-
-      def get_product_categories(products)
-        return [] if products.blank?
-
-        products.flat_map { |p| p.categories.to_a + [p.category].compact }.uniq
       end
 
       def aggregate_filters_for(products_scope, categories)
@@ -340,23 +264,6 @@ module Api
            .map { |s| s[:name] }
 
         (query_suggestions + product_suggestions).uniq.first(5)
-      end
-
-      def matching_categories(query)
-        return Category.none if query.blank?
-
-        term = "%#{query}%"
-        starts_with_term = "#{query}%"
-        sanitized_pattern = Category.connection.quote(starts_with_term)
-
-        Category.active
-                .where("name ILIKE :term OR translated_name ILIKE :term", term: term)
-                .order(Arel.sql("CASE 
-                  WHEN translated_name ILIKE #{sanitized_pattern} THEN 0 
-                  WHEN name ILIKE #{sanitized_pattern} THEN 1
-                  ELSE 2 
-                END"))
-                .limit(5)
       end
 
       def log_search(query, results_count)
