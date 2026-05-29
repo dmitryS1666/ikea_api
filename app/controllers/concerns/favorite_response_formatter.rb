@@ -33,7 +33,7 @@ module FavoriteResponseFormatter
       name: product.name,
       name_ru: product.name.to_s.presence,
       price_byn: format_byn(
-        PriceCalculationService.product_price_byn(
+        PriceCalculationService.product_storefront_price_byn(
           product.price,
           weight_kg: product.packaging_weight_kg.to_f,
           delivery_pln: product.delivery_cost.to_f

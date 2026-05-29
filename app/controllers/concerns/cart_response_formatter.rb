@@ -75,7 +75,7 @@ module CartResponseFormatter
       sku: product.sku,
       name: product.name,
       price_byn: format_byn(
-        PriceCalculationService.product_price_byn(
+        PriceCalculationService.product_storefront_price_byn(
           product.price,
           weight_kg: product.packaging_weight_kg.to_f,
           delivery_pln: product.delivery_cost.to_f
@@ -97,7 +97,7 @@ module CartResponseFormatter
         sku: similar.sku,
         name: similar.name,
         price_byn: format_byn(
-          PriceCalculationService.product_price_byn(
+          PriceCalculationService.product_storefront_price_byn(
             similar.price,
             weight_kg: similar.packaging_weight_kg.to_f,
             delivery_pln: similar.delivery_cost.to_f
@@ -131,7 +131,7 @@ module CartResponseFormatter
       sku: product.sku,
       name: product.name,
       price_byn: format_byn(
-        PriceCalculationService.product_price_byn(
+        PriceCalculationService.product_storefront_price_byn(
           product.price,
           weight_kg: product.packaging_weight_kg.to_f,
           delivery_pln: product.delivery_cost.to_f

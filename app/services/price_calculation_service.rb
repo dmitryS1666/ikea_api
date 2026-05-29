@@ -89,28 +89,79 @@ class PriceCalculationService
     }
   end
 
-  # Итоговая цена в BYN для карточки / выгрузок: полный PLN-стек → курс НБ × буфер
-  # @param weight_kg [Float, nil] если nil или 0 — WC_BY=0
-  # @param delivery_pln [Float, nil] если nil — доставка в PLN не добавляется
-  def self.product_price_byn(product_price_zl, weight_kg: nil, delivery_pln: nil, pln_rate: nil, buffer: nil, date: nil)
-    product_price_zl = product_price_zl.to_f
-    return 0.0 if product_price_zl <= 0
+  # Компоненты строки в BYN: товар с наценкой, доставка PL, доставка в РБ, итого.
+  def self.line_byn_components(unit_price_zl:, quantity: 1, weight_kg: nil, delivery_unit_pln: 0, pln_rate: nil, buffer: nil, date: nil)
+    unit_price_zl = unit_price_zl.to_f
+    return empty_line_byn_components if unit_price_zl <= 0
 
-    wt = weight_kg.nil? ? 0.0 : weight_kg.to_f
-    del = delivery_pln.nil? ? 0.0 : delivery_pln.to_f
-
-    total_pln = line_total_pln(
-      unit_price_zl: product_price_zl,
-      quantity: 1,
-      weight_kg: wt,
-      delivery_unit_pln: del
+    breakdown = line_breakdown_pln(
+      unit_price_zl: unit_price_zl,
+      quantity: quantity,
+      weight_kg: weight_kg.to_f,
+      delivery_unit_pln: delivery_unit_pln.to_f
     )
 
     date ||= Date.today
     pln_rate ||= ExchangeRate.fetch_or_create('PLN', date)&.rate_per_unit || 0
     buffer ||= exchange_rate_buffer
+    rate = pln_rate * buffer
 
-    (total_pln * pln_rate * buffer).round(2)
+    if breakdown[:mode] == :cheap
+      multiplier = CHEAP_MULTIPLIER
+      {
+        goods_byn: (breakdown[:goods_pln] * multiplier * rate).round(2),
+        delivery_poland_byn: (breakdown[:delivery_pln] * multiplier * rate).round(2),
+        delivery_belarus_byn: (breakdown[:wc_by_pln] * multiplier * rate).round(2),
+        total_byn: (breakdown[:total_pln] * rate).round(2)
+      }
+    else
+      markup_k = breakdown[:markup_k]
+      {
+        goods_byn: (breakdown[:goods_pln] * (1 + markup_k) * rate).round(2),
+        delivery_poland_byn: (breakdown[:delivery_pln] * rate).round(2),
+        delivery_belarus_byn: (breakdown[:wc_by_pln] * rate).round(2),
+        total_byn: (breakdown[:total_pln] * rate).round(2)
+      }
+    end
+  end
+
+  def self.empty_line_byn_components
+    {
+      goods_byn: 0.0,
+      delivery_poland_byn: 0.0,
+      delivery_belarus_byn: 0.0,
+      total_byn: 0.0
+    }
+  end
+
+  # Витринная цена для карточки/каталога: без доставки в Беларусь (как «Стоимость товаров» в корзине).
+  def self.product_storefront_price_byn(product_price_zl, weight_kg: nil, delivery_pln: nil, pln_rate: nil, buffer: nil, date: nil)
+    components = line_byn_components(
+      unit_price_zl: product_price_zl,
+      quantity: 1,
+      weight_kg: weight_kg,
+      delivery_unit_pln: delivery_pln.nil? ? 0.0 : delivery_pln.to_f,
+      pln_rate: pln_rate,
+      buffer: buffer,
+      date: date
+    )
+
+    (components[:goods_byn] + components[:delivery_poland_byn]).round(2)
+  end
+
+  # Полная цена строки в BYN (товар + вся логистика).
+  # @param weight_kg [Float, nil] если nil или 0 — WC_BY=0
+  # @param delivery_pln [Float, nil] если nil — доставка в PLN не добавляется
+  def self.product_price_byn(product_price_zl, weight_kg: nil, delivery_pln: nil, pln_rate: nil, buffer: nil, date: nil)
+    line_byn_components(
+      unit_price_zl: product_price_zl,
+      quantity: 1,
+      weight_kg: weight_kg,
+      delivery_unit_pln: delivery_pln.nil? ? 0.0 : delivery_pln.to_f,
+      pln_rate: pln_rate,
+      buffer: buffer,
+      date: date
+    )[:total_byn]
   end
 
   # Расчет итоговой цены товара для админ-калькулятора

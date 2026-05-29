@@ -33,7 +33,7 @@ module Products
     end
 
     # На витрине и в Category#display_filters_for_api цена отдается в BYN
-    # через PriceCalculationService.product_price_byn(..., weight_kg: packaging_weight_kg).
+    # через PriceCalculationService.product_storefront_price_byn(..., weight_kg: packaging_weight_kg).
     # Поэтому min_price/max_price сравниваем с той же формулой, а не с products.price в PLN.
     def filter_by_display_price
       min_price, max_price = effective_price_bounds
@@ -81,7 +81,7 @@ module Products
       pln_rate ||= ExchangeRate.fetch_or_create("PLN")&.rate_per_unit
       buffer ||= CalculatorSetting.get("exchange_rate_buffer") || PriceCalculationService.exchange_rate_buffer
 
-      PriceCalculationService.product_price_byn(
+      PriceCalculationService.product_storefront_price_byn(
         product.price.to_f,
         weight_kg: product.packaging_weight_kg.to_f,
         delivery_pln: product.delivery_cost.to_f,

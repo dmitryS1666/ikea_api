@@ -431,7 +431,7 @@ class Product < ApplicationRecord
             original_price = variant_item_price(rec, item).to_f
         
             if original_price > 0
-              price_byn = PriceCalculationService.product_price_byn(
+              price_byn = PriceCalculationService.product_storefront_price_byn(
                 original_price,
                 weight_kg: w_kg,
                 delivery_pln: d_pln,

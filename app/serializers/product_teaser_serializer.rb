@@ -95,7 +95,7 @@ class ProductTeaserSerializer
       settings = params[:calculator_settings] || {}
       buffer = settings['exchange_rate_buffer'] || PriceCalculationService.exchange_rate_buffer
   
-      price = PriceCalculationService.product_price_byn(
+      price = PriceCalculationService.product_storefront_price_byn(
         pln_price,
         weight_kg: product.packaging_weight_kg.to_f,
         delivery_pln: product.delivery_cost.to_f,

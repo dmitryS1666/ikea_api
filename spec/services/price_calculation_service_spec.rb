@@ -74,6 +74,24 @@ RSpec.describe PriceCalculationService do
     end
   end
 
+  describe '.product_storefront_price_byn' do
+    it 'исключает доставку в Беларусь из витринной цены' do
+      total = described_class.product_price_byn(500.0, weight_kg: 15.0, delivery_pln: 50.0, pln_rate: pln_rate, buffer: 1.05)
+      storefront = described_class.product_storefront_price_byn(500.0, weight_kg: 15.0, delivery_pln: 50.0, pln_rate: pln_rate, buffer: 1.05)
+      components = described_class.line_byn_components(
+        unit_price_zl: 500.0,
+        weight_kg: 15.0,
+        delivery_unit_pln: 50.0,
+        pln_rate: pln_rate,
+        buffer: 1.05
+      )
+
+      expect(storefront).to eq((components[:goods_byn] + components[:delivery_poland_byn]).round(2))
+      expect(storefront).to be < total
+      expect(storefront + components[:delivery_belarus_byn]).to eq(total)
+    end
+  end
+
   describe '.calculate' do
     it 'возвращает режим и итоговую сумму по новой формуле' do
       result = described_class.calculate(500.0, 15.0, delivery_pln: 50.0, date: date)

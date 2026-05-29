@@ -126,7 +126,7 @@ class Category < ApplicationRecord
         pln_price = product.price.to_f
         next if pln_price <= 0
 
-        prices_byn << PriceCalculationService.product_price_byn(
+        prices_byn << PriceCalculationService.product_storefront_price_byn(
           pln_price,
           weight_kg: product.packaging_weight_kg.to_f,
           delivery_pln: product.delivery_cost.to_f,

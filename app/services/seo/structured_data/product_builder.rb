@@ -57,7 +57,7 @@ module Seo
         pln_rate = ExchangeRate.fetch_or_create("PLN")&.rate_per_unit.to_f
         return nil unless pln_rate.positive?
 
-        PriceCalculationService.product_price_byn(
+        PriceCalculationService.product_storefront_price_byn(
           pln,
           weight_kg: product.packaging_weight_kg.to_f,
           delivery_pln: product.delivery_cost.to_f,

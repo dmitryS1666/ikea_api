@@ -24,7 +24,7 @@ RSpec.describe Product, type: :model do
     before do
       allow(ExchangeRate).to receive(:fetch_or_create).and_return(instance_double(ExchangeRate, rate_per_unit: 3.5))
       allow(PriceCalculationService).to receive(:exchange_rate_buffer).and_return(0)
-      allow(PriceCalculationService).to receive(:product_price_byn).and_return(350.0)
+      allow(PriceCalculationService).to receive(:product_storefront_price_byn).and_return(350.0)
 
       create(:product, sku: "s11111111", quantity: 5)
       create(:product, sku: "s29545213", quantity: 5)
@@ -64,7 +64,7 @@ RSpec.describe Product, type: :model do
 
       product.normalized_variants_for_api
 
-      expect(PriceCalculationService).to have_received(:product_price_byn).with(
+      expect(PriceCalculationService).to have_received(:product_storefront_price_byn).with(
         100.0,
         hash_including(pln_rate: 3.5, buffer: 0, weight_kg: product.packaging_weight_kg.to_f, delivery_pln: product.delivery_cost.to_f)
       ).at_least(:once)
