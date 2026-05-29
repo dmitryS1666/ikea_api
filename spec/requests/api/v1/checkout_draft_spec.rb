@@ -46,9 +46,20 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
   it "creates draft, updates delivery, finalizes with Webpay link and clears checkout_draft" do
     post "/api/v1/checkout", params: { draft: true }, headers: headers
     expect(response).to have_http_status(:created)
+    body = JSON.parse(response.body)
     order = Order.last
     expect(order.checkout_draft).to be true
     expect(user.reload.cart.cart_items).not_to be_empty
+    expect(body["pricing"]).to be_present
+    expect(body.dig("pricing", "items", 0, "pricing", "unit_price_new_byn")).to be_present
+    totals = body["pricing"]["totals"]
+    expect(totals["subtotal_new_byn"]).to be_present
+    expect(totals["delivery_to_belarus_byn"]).to be_present
+    if totals["delivery_to_belarus_byn"].to_f.positive?
+      expect(totals["subtotal_new_byn"].to_f + totals["delivery_to_belarus_byn"].to_f).to be_within(0.02).of(
+        totals["total_byn"].to_f + totals["discount_total_byn"].to_f
+      )
+    end
 
     patch "/api/v1/checkout/#{order.id}", params: {
       delivery_type: "europost_pickup",

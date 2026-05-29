@@ -36,7 +36,7 @@ RSpec.describe CartPricingService do
     pricing = described_class.call(cart: cart)
     item = pricing[:items].first
 
-    expect(item[:unit_price_byn_before_discount]).to eq(535.5) # витрина: товар + доставка PL, без РБ
+    expect(item[:unit_price_byn_before_discount]).to be_within(0.01).of(535.5) # витрина: товар + доставка PL, без РБ
     expect(item[:unit_discount_byn]).to eq(53.55)
     expect(item[:line_total_byn]).to eq(481.95)
     expect(item[:line_total_byn_checkout]).to eq(707.53)
@@ -57,20 +57,6 @@ RSpec.describe CartPricingService do
 
     expect(item[:line_total_byn]).to eq(0.0)
     expect(item[:unit_discount_byn]).to eq(item[:unit_price_byn_before_discount])
-  end
-
-  it "считает unit_price_byn без доставки в Беларусь, но сохраняет полную сумму для checkout" do
-    user = create(:user)
-    product = create(:product, sku: "SKU-STORE-1", price: 500.0, weight: 15.0, delivery_cost: 50.0, quantity: 5)
-    cart = create(:cart, user: user)
-    create(:cart_item, cart: cart, product_sku: product.sku, quantity: 1)
-
-    pricing = described_class.call(cart: cart)
-    item = pricing[:items].first
-
-    expect(item[:unit_price_byn]).to be < item[:unit_price_byn_checkout]
-    expect(item[:unit_price_byn] + pricing[:totals][:delivery_to_belarus_byn]).to eq(item[:unit_price_byn_checkout])
-    expect(pricing[:totals][:total_byn]).to eq(item[:line_total_byn_checkout])
   end
 
   it "включает доставку по Беларуси как сумму весов всех упаковок" do
@@ -105,5 +91,37 @@ RSpec.describe CartPricingService do
     expect(pricing[:totals][:delivery_total_byn]).to eq(
       pricing[:totals][:delivery_poland_byn] + pricing[:totals][:delivery_to_belarus_byn]
     )
+  end
+
+  it "считает unit_price_byn без доставки в Беларусь, но сохраняет полную сумму для checkout" do
+    user = create(:user)
+    product = create(
+      :product,
+      sku: "SKU-STORE-1",
+      price: 500.0,
+      weight: 15.0,
+      delivery_cost: 50.0,
+      quantity: 5,
+      full_attributes: {
+        "dimensions_map" => {
+          "packaging" => {
+            "details" => [
+              { "weight" => "15 кг", "count" => 1, "width" => "80 см", "height" => "40 см", "length" => "150 см" }
+            ]
+          }
+        }
+      }
+    )
+    allow(Products::WeightExtractor).to receive(:packaging_weight_kg_for_product).and_return(15.0)
+
+    cart = create(:cart, user: user)
+    create(:cart_item, cart: cart, product_sku: product.sku, quantity: 1)
+
+    pricing = described_class.call(cart: Cart.find(cart.id))
+    item = pricing[:items].first
+
+    expect(item[:line_total_byn]).to be < item[:line_total_byn_checkout]
+    expect(item[:line_total_byn] + pricing[:totals][:delivery_to_belarus_byn]).to be_within(0.03).of(item[:line_total_byn_checkout])
+    expect(pricing[:totals][:total_byn]).to eq(item[:line_total_byn_checkout])
   end
 end

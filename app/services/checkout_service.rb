@@ -106,7 +106,7 @@ class CheckoutService
     end
 
     if order.save
-      { success: true, order: order.reload }
+      { success: true, order: order.reload, pricing: CheckoutPricingPresenter.for_order(order.reload, pricing: pricing) }
     else
       { error: order.errors.full_messages.join(', ') }
     end
@@ -473,6 +473,7 @@ class CheckoutService
           success: true,
           order: order,
           delivery_options: draft_delivery_options_for(order),
+          pricing: CheckoutPricingPresenter.for_order(order),
           reused: true
         }
       end
@@ -503,7 +504,12 @@ class CheckoutService
         return update_result unless update_result[:success]
         order = update_result[:order]
       end
-      { success: true, order: order, delivery_options: draft_delivery_options_for(order) }
+      {
+        success: true,
+        order: order,
+        delivery_options: draft_delivery_options_for(order),
+        pricing: CheckoutPricingPresenter.for_order(order, pricing: pricing)
+      }
     else
       { error: order&.errors&.full_messages&.join(', ') || 'Ошибка создания черновика заказа' }
     end
@@ -797,8 +803,9 @@ class CheckoutService
   end
 
   def self.build_draft_order(user:, cart:, checkout_cart:, pricing:, params:)
-    total_amount = pricing[:totals][:total_byn].to_f
-    delivery_price = pricing[:totals][:delivery_total_byn].to_f
+    display_totals = CartDisplayTotalsService.for_summary(pricing[:totals])
+    total_amount = display_totals[:total_byn].to_f
+    delivery_price = display_totals[:delivery_to_belarus_byn].to_f
     passport_input = params[:passport].is_a?(Hash) ? params[:passport] : (params[:passport].to_unsafe_h rescue nil)
 
     address_snapshot = (params[:address] || {}).merge(

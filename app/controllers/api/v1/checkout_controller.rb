@@ -16,14 +16,14 @@ module Api
       end
 
       def show
-        render json: OrderSerializer.new(@draft_order, include: [:order_items]).serializable_hash, status: :ok
+        render json: checkout_order_payload(@draft_order), status: :ok
       end
 
       def update
         result = CheckoutService.update_draft(user: current_user, order_id: @draft_order.id, params: checkout_params)
 
         if result[:success]
-          render json: OrderSerializer.new(result[:order], include: [:order_items]).serializable_hash, status: :ok
+          render json: checkout_order_payload(result[:order], pricing: result[:pricing]), status: :ok
         else
           render_error(result)
         end
@@ -71,6 +71,20 @@ module Api
 
         if order.checkout_draft && result[:delivery_options].present?
           payload[:delivery_options] = result[:delivery_options]
+        end
+
+        if order.checkout_draft
+          payload[:pricing] = result[:pricing] || CheckoutPricingPresenter.for_order(order)
+        end
+
+        payload
+      end
+
+      def checkout_order_payload(order, pricing: nil)
+        payload = OrderSerializer.new(order, include: [:order_items]).serializable_hash
+
+        if order.checkout_draft?
+          payload[:pricing] = pricing || CheckoutPricingPresenter.for_order(order)
         end
 
         payload
