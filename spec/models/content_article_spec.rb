@@ -207,5 +207,24 @@ RSpec.describe ContentArticle, type: :model do
       expect(block["html"]).to eq("<h2>Подборка</h2>")
       expect(block["grid_products"].first[:sku]).to eq(product.sku)
     end
+
+    it "serializes linked_products with ProductTeaserSerializer on detail" do
+      product = create(:product, sku: "LINK-SKU", name: "Linked product", price: 99.0)
+      article = create(:content_article, content_type: :news)
+      article.content_article_products.create!(product_sku: product.sku, position: 0)
+
+      serialized = ContentArticleSerializer.new(article, params: {
+        detail: true,
+        linked_products_ordered: article.content_article_products.order(:position),
+        linked_products_map: { product.sku => product },
+        product_serializer_params: { favorite_skus: [], rates: {}, calculator_settings: {} }
+      }).serializable_hash
+
+      linked = serialized[:data][:attributes][:linked_products]
+      expect(linked.length).to eq(1)
+      expect(linked.first[:sku]).to eq(product.sku)
+      expect(linked.first[:name_ru]).to eq("Linked product")
+      expect(linked.first).to include(:slug, :price, :local_images, :type)
+    end
   end
 end

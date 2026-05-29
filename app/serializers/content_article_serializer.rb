@@ -18,18 +18,11 @@ class ContentArticleSerializer
     ordered_associations = params[:linked_products_ordered] || article.content_article_products.order(:position)
     products_map = params[:linked_products_map] || {}
 
-    ordered_associations.map do |assoc|
-      product = products_map[assoc.product_sku]
-      next unless product
+    products = ordered_associations.filter_map do |assoc|
+      products_map[assoc.product_sku]
+    end
 
-      {
-        sku: product.sku,
-        name: product.name,
-        price: product.price,
-        images: product.images || [],
-        local_images: product.local_images || []
-      }
-    end.compact
+    article.serialize_product_teasers(products, params[:product_serializer_params])
   end
 
   attribute :linked_categories, if: Proc.new { |_record, params| params&.dig(:detail) } do |article, params|

@@ -31,9 +31,13 @@ module Api
           article_products = article.content_article_products.order(:position)
           article_categories = article.content_article_categories.order(:position)
 
-          linked_products_map = Product.with_available_stock.where(sku: article_products.pluck(:product_sku)).index_by(&:sku)
+          linked_products_map = Product.with_available_stock
+            .where(sku: article_products.pluck(:product_sku))
+            .includes(:category, :category_products, :seo_meta)
+            .index_by(&:sku)
           body_block_products_map = preload_body_block_products_for_articles([article])
           categories_map = Category.where(ikea_id: article_categories.pluck(:category_id)).index_by(&:ikea_id)
+          teaser_products = (body_block_products_map.values + linked_products_map.values).uniq(&:sku)
 
           render json: ContentArticleSerializer.new(article, {
             params: {
@@ -43,7 +47,7 @@ module Api
               linked_categories_ordered: article_categories,
               linked_categories_map: categories_map,
               body_block_products_map: body_block_products_map,
-              product_serializer_params: product_teaser_serialization_params(body_block_products_map.values)
+              product_serializer_params: product_teaser_serialization_params(teaser_products)
             }
           })
         end

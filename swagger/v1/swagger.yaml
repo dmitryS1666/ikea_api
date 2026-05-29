@@ -3397,22 +3397,7 @@ components:
             linked_products:
               type: array
               items:
-                type: object
-                properties:
-                  sku:
-                    type: string
-                  name:
-                    type: string
-                  price:
-                    type: number
-                  images:
-                    type: array
-                    items:
-                      type: string
-                  local_images:
-                    type: array
-                    items:
-                      type: string
+                $ref: '#/components/schemas/ProductTeaser'
               nullable: true
             linked_categories:
               type: array

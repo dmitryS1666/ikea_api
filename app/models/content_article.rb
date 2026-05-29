@@ -303,7 +303,7 @@ class ContentArticle < ApplicationRecord
         grid_products = block_data["slider_product_skus"].filter_map do |sku|
           products_map[sku.to_s]
         end
-        block_data["grid_products"] = serialized_product_teasers(grid_products, product_serializer_params)
+        block_data["grid_products"] = serialize_product_teasers(grid_products, product_serializer_params)
       else
         block_data["grid_products"] = []
       end
@@ -470,7 +470,7 @@ class ContentArticle < ApplicationRecord
     }
   end
 
-  def serialized_product_teasers(products, product_serializer_params)
+  def serialize_product_teasers(products, product_serializer_params = {})
     products = Array.wrap(products).compact
     return [] if products.empty?
 
