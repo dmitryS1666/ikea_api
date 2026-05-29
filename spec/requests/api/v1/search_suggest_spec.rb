@@ -104,6 +104,27 @@ RSpec.describe "Api::V1::Search", type: :request do
       expect(skus).not_to include(other.sku.sub(/\As/i, ""))
     end
 
+    it "returns products for plural query when only singular appears in product title" do
+      create(
+        :product,
+        sku: "WARD-SPEC-1",
+        name: "PAKS",
+        name_ru: "ПАКС",
+        small_desc_name: "Шкаф, белый",
+        price: 120,
+        quantity: 5,
+        category_id: category.ikea_id
+      )
+
+      get "/api/v1/search/suggest", params: { q: "шкафы" }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body.dig("meta", "total")).to be_positive
+      names = body.dig("products", "data").map { |row| row.dig("attributes", "small_desc_name") }
+      expect(names).to include("Шкаф, белый")
+    end
+
     it "omits suggestions and categories on page 2" do
       get "/api/v1/search/suggest", params: { q: "шкаф", page: 2, per_page: 1 }
 

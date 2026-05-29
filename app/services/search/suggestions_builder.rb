@@ -25,13 +25,15 @@ module Search
 
       return query_suggestions.uniq.first(SUGGESTION_LIMIT) if query_suggestions.size >= SUGGESTION_LIMIT
 
-      term = "%#{@query}%"
+      terms = QueryTerms.for(@query)
       top_matching_categories = Category.active.where("translated_name ILIKE ?", "#{@query}%").pluck(:ikea_id).map(&:to_s)
 
-      products = Product.with_available_stock.where(
-        "name ILIKE :term OR name_ru ILIKE :term OR small_desc_name ILIKE :term",
-        term: term
-      ).limit(100)
+      clauses = terms.each_with_index.map do |term, index|
+        "name ILIKE :term_#{index} OR name_ru ILIKE :term_#{index} OR small_desc_name ILIKE :term_#{index}"
+      end
+      binds = terms.each_with_index.to_h { |term, index| [:"term_#{index}", "%#{term}%"] }
+
+      products = Product.with_available_stock.where(clauses.join(" OR "), binds).limit(100)
 
       product_suggestions = products.filter_map do |product|
         display_name = product.small_desc_name.presence || product.name_ru.presence || product.name.presence
