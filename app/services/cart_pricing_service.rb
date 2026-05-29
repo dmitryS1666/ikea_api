@@ -28,9 +28,8 @@ class CartPricingService
     discount_total_byn = 0.0
     total_weight = 0.0
     total_items_cost_eur = 0.0
-    logistics_pln = 0.0
-    logistics_poland_pln = 0.0
-    logistics_belarus_pln = 0.0
+    delivery_poland_byn = 0.0
+    delivery_to_belarus_byn = 0.0
 
     # Pre-calculate promo applicability for all items at once
     promos = promo_valid ? [promo] : []
@@ -62,12 +61,20 @@ class CartPricingService
         weight_kg: line_weight,
         delivery_unit_pln: delivery_unit_pln
       )
-      line_total_pln_before_discount = line_breakdown[:total_pln]
-      line_total_byn_before_discount = (line_total_pln_before_discount * pln_rate_with_buffer).round(2)
-      unit_price_byn_before_discount = quantity.positive? ? (line_total_byn_before_discount / quantity).round(2) : 0.0
+      line_byn = PriceCalculationService.line_byn_components(
+        unit_price_zl: product_pln,
+        quantity: quantity,
+        weight_kg: line_weight,
+        delivery_unit_pln: delivery_unit_pln,
+        pln_rate: pln_rate,
+        buffer: buffer
+      )
 
-      # Используем предосчитанную применимость промокода.
-      # Промо применяется к финальной BYN-цене, которую видит пользователь.
+      storefront_line_byn_before_discount = (line_byn[:goods_byn] + line_byn[:delivery_poland_byn]).round(2)
+      full_line_byn_before_discount = line_byn[:total_byn]
+      unit_price_byn_before_discount = quantity.positive? ? (storefront_line_byn_before_discount / quantity).round(2) : 0.0
+
+      # Промо применяется к витринной цене позиции (без доставки в Беларусь).
       promo_applied = promo_valid && promo_applicability[item.product_sku]&.any?
       unit_discount_byn = promo_applied ? calculate_unit_discount_byn(promo, unit_price_byn_before_discount, pln_rate, buffer) : 0.0
       unit_discount_byn = [unit_discount_byn, unit_price_byn_before_discount].min.round(2)
@@ -82,18 +89,19 @@ class CartPricingService
       discount_total_pln += unit_discount_pln * quantity
       discount_total_byn += line_discount_byn
 
-      line_total_byn = [line_total_byn_before_discount - line_discount_byn, 0.0].max.round(2)
+      line_total_byn = [storefront_line_byn_before_discount - line_discount_byn, 0.0].max.round(2)
+      line_total_byn_checkout = [full_line_byn_before_discount - line_discount_byn, 0.0].max.round(2)
       line_total_pln = if pln_rate_with_buffer.positive?
-                         (line_total_byn / pln_rate_with_buffer).round(2)
+                         (line_total_byn_checkout / pln_rate_with_buffer).round(2)
                        else
                          0.0
                        end
       unit_price_byn = quantity.positive? ? (line_total_byn / quantity).round(2) : 0.0
+      unit_price_byn_checkout = quantity.positive? ? (line_total_byn_checkout / quantity).round(2) : 0.0
 
       items_goods_pln += line_breakdown[:goods_pln]
-      logistics_poland_pln += line_breakdown[:delivery_pln]
-      logistics_belarus_pln += line_breakdown[:wc_by_pln]
-      logistics_pln += line_breakdown[:delivery_pln] + line_breakdown[:wc_by_pln]
+      delivery_poland_byn += line_byn[:delivery_poland_byn]
+      delivery_to_belarus_byn += line_byn[:delivery_belarus_byn]
 
       markup_k = line_breakdown[:markup_k]
 
@@ -109,7 +117,9 @@ class CartPricingService
         quantity: quantity,
         unit_price_pln: product_pln,
         unit_price_byn: unit_price_byn,
+        unit_price_byn_checkout: unit_price_byn_checkout,
         unit_price_byn_before_discount: unit_price_byn_before_discount,
+        line_total_byn_checkout: line_total_byn_checkout,
         unit_discount_byn: unit_discount_byn,
         unit_discount_pln: unit_discount_pln,
         line_total_pln: line_total_pln.round(2),
@@ -127,14 +137,11 @@ class CartPricingService
     # Расчет пошлины для всей корзины
     cart_customs = CustomsDutyService.calculate(total_items_cost_eur, total_weight, eur_rate)
 
-    # Итого в PLN и BYN: сумма строк (как в регламенте по каждой позиции)
+    # Итого в PLN и BYN: полная сумма строк (с доставкой в РБ) для checkout.
     total_pln = items.sum { |i| i[:line_total_pln].to_f }
-    total_byn = items.sum { |i| i[:line_total_byn].to_f }.round(2)
+    total_byn = items.sum { |i| i[:line_total_byn_checkout].to_f }.round(2)
 
-    logistics_byn = (logistics_pln * pln_rate_with_buffer).round(2)
-    delivery_poland_byn = (logistics_poland_pln * pln_rate_with_buffer).round(2)
-    delivery_to_belarus_byn = (logistics_belarus_pln * pln_rate_with_buffer).round(2)
-    delivery_total_byn = logistics_byn
+    delivery_total_byn = (delivery_poland_byn + delivery_to_belarus_byn).round(2)
 
     # Для правил — только товары с наценкой (без доставки и WC_BY)
     items_total_byn = (items_goods_pln * pln_rate_with_buffer).round(2)

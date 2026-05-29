@@ -54,8 +54,11 @@ RSpec.describe CartSummaryService do
 
     expect(row[:quantity]).to eq(1)
     expect(row[:pricing][:unit_price_new_byn].to_f).to be > 0
-    expect(row[:pricing][:line_total_new_byn].to_f).to eq(summary[:total_byn].to_f)
-    expect(row[:pricing][:unit_price_new_byn].to_f).to eq(row[:pricing][:line_total_new_byn].to_f)
+    expect(row[:pricing][:line_total_new_byn].to_f).to eq(row[:pricing][:unit_price_new_byn].to_f)
+    expect(row[:pricing][:line_total_new_byn].to_f).to be < summary[:total_byn].to_f
+    expect(row[:pricing][:line_total_new_byn].to_f + summary[:delivery_to_belarus_byn].to_f).to be_within(0.02).of(
+      summary[:total_byn].to_f + summary[:discount_total_byn].to_f
+    )
   end
 
   it "returns frontend-compatible totals where total equals visible summary rows" do

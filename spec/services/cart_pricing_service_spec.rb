@@ -36,10 +36,13 @@ RSpec.describe CartPricingService do
     pricing = described_class.call(cart: cart)
     item = pricing[:items].first
 
-    expect(item[:unit_price_byn_before_discount]).to eq(761.08) # 852.75 PLN * 0.85 * 1.05
-    expect(item[:unit_discount_byn]).to eq(76.11)
-    expect(item[:line_total_byn]).to eq(684.97)
-    expect(pricing[:totals][:discount_total_byn]).to eq(76.11)
+    expect(item[:unit_price_byn_before_discount]).to eq(535.5) # витрина: товар + доставка PL, без РБ
+    expect(item[:unit_discount_byn]).to eq(53.55)
+    expect(item[:line_total_byn]).to eq(481.95)
+    expect(item[:line_total_byn_checkout]).to eq(707.53)
+    expect(item[:unit_price_byn_checkout]).to eq(707.53)
+    expect(pricing[:totals][:discount_total_byn]).to eq(53.55)
+    expect(pricing[:totals][:total_byn]).to eq(707.53)
   end
 
   it "ограничивает fixed_byn скидку ценой позиции после всех наценок" do
@@ -54,6 +57,20 @@ RSpec.describe CartPricingService do
 
     expect(item[:line_total_byn]).to eq(0.0)
     expect(item[:unit_discount_byn]).to eq(item[:unit_price_byn_before_discount])
+  end
+
+  it "считает unit_price_byn без доставки в Беларусь, но сохраняет полную сумму для checkout" do
+    user = create(:user)
+    product = create(:product, sku: "SKU-STORE-1", price: 500.0, weight: 15.0, delivery_cost: 50.0, quantity: 5)
+    cart = create(:cart, user: user)
+    create(:cart_item, cart: cart, product_sku: product.sku, quantity: 1)
+
+    pricing = described_class.call(cart: cart)
+    item = pricing[:items].first
+
+    expect(item[:unit_price_byn]).to be < item[:unit_price_byn_checkout]
+    expect(item[:unit_price_byn] + pricing[:totals][:delivery_to_belarus_byn]).to eq(item[:unit_price_byn_checkout])
+    expect(pricing[:totals][:total_byn]).to eq(item[:line_total_byn_checkout])
   end
 
   it "включает доставку по Беларуси как сумму весов всех упаковок" do
