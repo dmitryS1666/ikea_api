@@ -217,7 +217,11 @@ RSpec.describe ContentArticle, type: :model do
         detail: true,
         linked_products_ordered: article.content_article_products.order(:position),
         linked_products_map: { product.sku => product },
-        product_serializer_params: { favorite_skus: [], rates: {}, calculator_settings: {} }
+        product_serializer_params: {
+          favorite_skus: [],
+          rates: { pln: 3.5, eur: 3.7 },
+          calculator_settings: { 'default_delivery_days' => 30, 'exchange_rate_buffer' => 1.05 }
+        }
       }).serializable_hash
 
       linked = serialized[:data][:attributes][:linked_products]

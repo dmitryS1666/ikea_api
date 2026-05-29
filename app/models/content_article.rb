@@ -340,6 +340,16 @@ class ContentArticle < ApplicationRecord
     save!
   end
 
+  def serialize_product_teasers(products, product_serializer_params = {})
+    products = Array.wrap(products).compact
+    return [] if products.empty?
+
+    ProductTeaserSerializer
+      .new(products, params: product_serializer_params || {})
+      .serializable_hash[:data]
+      .map { |item| item[:attributes].merge(id: item[:id], type: item[:type]) }
+  end
+
   private
 
   def normalize_slug
@@ -468,16 +478,6 @@ class ContentArticle < ApplicationRecord
       "slug" => slug_value.to_s,
       "url" => category.catalog_url(categories_index)
     }
-  end
-
-  def serialize_product_teasers(products, product_serializer_params = {})
-    products = Array.wrap(products).compact
-    return [] if products.empty?
-
-    ProductTeaserSerializer
-      .new(products, params: product_serializer_params || {})
-      .serializable_hash[:data]
-      .map { |item| item[:attributes].merge(id: item[:id], type: item[:type]) }
   end
 
   def normalize_array_value(value)
