@@ -10,10 +10,11 @@ module Search
     # Подстрока «расклад» в «нерасклад*» даёт ложное совпадение — опускаем вниз, если запрос не про нерасклад.
     NON_FOLDING_NAME_MARKERS = %w[нерасклад нерозклад nierozkład nierozklad].freeze
 
-    def initialize(query, products: [], products_scope: nil)
+    def initialize(query, products: [], products_scope: nil, limit: CATEGORY_LIMIT)
       @query = query.to_s.strip
       @products = Array(products)
       @products_scope = products_scope
+      @limit = limit.to_i.positive? ? limit.to_i : CATEGORY_LIMIT
     end
 
     def call
@@ -24,7 +25,7 @@ module Search
       combined = deepest_categories_only(matched + from_products)
 
       sort_categories(combined, matched_ids: matched.map { |c| c.ikea_id.to_s }.to_set)
-        .first(CATEGORY_LIMIT)
+        .first(@limit)
         .map { |category| serialize_category(category) }
     end
 

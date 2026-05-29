@@ -136,6 +136,38 @@ RSpec.describe Products::SearchService do
       end
     end
 
+    context 'with base_scope (global search)' do
+      let!(:scoped_product) { create(:product, sku: "SCOPE-001", name: "Scoped chair", price: 150, quantity: 5) }
+      let!(:other_product) { create(:product, sku: "OTHER-001", name: "Other table", price: 80, quantity: 5) }
+
+      before do
+        create(:product_filter_value,
+               product: scoped_product,
+               category_id: category.ikea_id,
+               parameter: "f-color",
+               value_id: "1")
+      end
+
+      it 'filters within the provided scope only' do
+        base = Product.where(id: scoped_product.id)
+        service = described_class.new(nil, { filters: { "f-color" => "1" } }, base_scope: base)
+        expect(service.call).to contain_exactly(scoped_product)
+      end
+
+      it 'filters by min_price within base scope' do
+        base = Product.where(id: [scoped_product.id, other_product.id])
+        threshold = display_price_byn(other_product) + 0.01
+        service = described_class.new(nil, { min_price: threshold }, base_scope: base)
+        expect(service.call).to contain_exactly(scoped_product)
+      end
+
+      it 'keeps relevance order when default_sort is relevance' do
+        base = Product.in_order_of(:id, [other_product.id, scoped_product.id])
+        service = described_class.new(nil, {}, base_scope: base, default_sort: "relevance")
+        expect(service.call.pluck(:id)).to eq([other_product.id, scoped_product.id])
+      end
+    end
+
     context 'parent category includes products from descendant categories' do
       let!(:parent_category) { create(:category, ikea_id: 'root_parent') }
       let!(:child_category) do

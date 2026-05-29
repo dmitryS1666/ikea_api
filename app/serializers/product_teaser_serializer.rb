@@ -21,8 +21,22 @@ class ProductTeaserSerializer
              :promo,
              :customs_duty
 
-  attribute :name_ru do |product|
+  attribute :name do |product|
     product.name.to_s.presence
+  end
+
+  attribute :name_ru do |product|
+    product.name_ru.to_s.presence || product.name.to_s.presence
+  end
+
+  attribute :breadcrumbs, if: proc { |_product, params| params[:search_context] } do |product|
+    Seo::BreadcrumbsBuilder.for_product(product)
+  end
+
+  attribute :images, if: proc { |_product, params| params[:search_context] } do |product, params|
+    site_url = params[:site_url].to_s.chomp("/")
+    paths = ProductLocalImages.expand_paths(product.local_images)
+    paths.map { |path| absolute_image_url(path, site_url) }
   end
 
   attribute :promo do |product, params|
@@ -132,7 +146,18 @@ class ProductTeaserSerializer
   def self.public_sku(sku)
     sku.to_s.sub(/\As(?=\d+\z)/i, "")
   end
-  
+
+  def self.absolute_image_url(path, site_url)
+    path = path.to_s.strip
+    return path if path.blank?
+    return path if path.match?(%r{\Ahttps?://}i)
+
+    base = site_url.to_s.chomp("/")
+    return path if base.blank?
+
+    path.start_with?("/") ? "#{base}#{path}" : "#{base}/#{path}"
+  end
+
   attribute :sku do |product|
     public_sku(product.sku)
   end

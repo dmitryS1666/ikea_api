@@ -1,15 +1,18 @@
 module Products
   class SearchService
     EXCLUDED_FILTER_PARAMETERS = %w[f-type].freeze
+    SKIPPED_FILTER_PARAMETERS = %w[f-availability f-price-buckets].freeze
 
-    def initialize(category, params = {})
+    def initialize(category, params = {}, base_scope: nil, default_sort: nil)
       @category = category
       @params = params || {}
+      @base_scope = base_scope
+      @default_sort = default_sort
       @scope = initial_scope
     end
 
     def call
-      @scope = @scope.merge(Product.with_available_stock)
+      @scope = @scope.merge(Product.with_available_stock) unless @base_scope
       filter_by_display_price
       filter_by_attributes
       sort_results
@@ -20,16 +23,18 @@ module Products
     private
 
     def initial_scope
-      if @category&.ikea_id.present?
+      if @base_scope
+        @base_scope
+      elsif @category&.ikea_id.present?
         ikea_ids = @category.self_and_descendant_ikea_ids
         Product.in_categories_ikea_ids(ikea_ids).active.with_available_stock
       else
         Product.active
       end
     rescue NoMethodError
-      @category&.products&.active || Product.active
+      @base_scope || @category&.products&.active || Product.active
     rescue StandardError
-      Product.active
+      @base_scope || Product.active
     end
 
     # На витрине и в Category#display_filters_for_api цена отдается в BYN
@@ -100,14 +105,11 @@ module Products
     def filter_by_attributes
       filters = @params[:filters]
       return unless filters.present? && (filters.is_a?(Hash) || filters.is_a?(ActionController::Parameters))
-      return unless @category&.ikea_id
-
-      category_ikea_ids = @category.self_and_descendant_ikea_ids
 
       filters.each do |filter_param, values|
         filter_param = filter_param.to_s
         next if filter_param.blank?
-        next if filter_param == "f-availability"
+        next if SKIPPED_FILTER_PARAMETERS.include?(filter_param)
         next if EXCLUDED_FILTER_PARAMETERS.include?(filter_param)
 
         if filter_param == "f-price-buckets" && (values.is_a?(Hash) || values.is_a?(ActionController::Parameters))
@@ -118,29 +120,48 @@ module Products
         value_ids -= ["PRICE_RANGE"]
         next if value_ids.empty?
 
-        subquery = ProductFilterValue
-                     .where(category_id: category_ikea_ids, parameter: filter_param, value_id: value_ids)
-                     .select(:product_id)
-
+        subquery = filter_values_subquery(filter_param, value_ids)
         @scope = @scope.where(id: subquery)
       end
     end
 
+    def filter_values_subquery(filter_param, value_ids)
+      if @category&.ikea_id.present?
+        category_ikea_ids = @category.self_and_descendant_ikea_ids
+        ProductFilterValue
+          .where(category_id: category_ikea_ids, parameter: filter_param, value_id: value_ids)
+      else
+        ProductFilterValue
+          .where(product_id: @scope.select(:id), parameter: filter_param, value_id: value_ids)
+      end.select(:product_id)
+    end
+
     def sort_results
-      sort_option = @params[:sort] || @category.try(:default_sort) || 'popular'
+      sort_option = @params[:sort].presence || @default_sort || @category.try(:default_sort) || "popular"
 
       case sort_option.to_s
-      when 'cheapest'
+      when "relevance"
+        preserve_scope_order(@scope)
+      when "cheapest"
         @scope = sort_by_display_price(direction: :asc)
-      when 'expensive'
+      when "expensive"
         @scope = sort_by_display_price(direction: :desc)
-      when 'newest'
-        @scope = @scope.order('products.created_at DESC')
-      when 'popular'
-        @scope = @scope.order(Arel.sql('products.popularity_score DESC, products.rating_weighted DESC, products.views_count DESC'))
+      when "newest"
+        @scope = @scope.order("products.created_at DESC")
+      when "popular"
+        @scope = @scope.order(Arel.sql("products.popularity_score DESC, products.rating_weighted DESC, products.views_count DESC"))
       else
-        @scope = @scope.order('products.id DESC')
+        @scope = @scope.order("products.id DESC")
       end
+    end
+
+    def preserve_scope_order(scope)
+      return scope if scope.order_values.present?
+
+      ordered_ids = scope.pluck(:id)
+      return scope.none if ordered_ids.empty?
+
+      scope.in_order_of(:id, ordered_ids)
     end
 
     def sort_by_display_price(direction:)

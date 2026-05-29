@@ -3,8 +3,9 @@ class CategoryTeaserSerializer
   
   set_id :ikea_id
 
-  attributes :translated_name, 
-             :local_image_path
+  attributes :translated_name,
+             :local_image_path,
+             :name
 
   attribute :slug do |category|
     category.slug
