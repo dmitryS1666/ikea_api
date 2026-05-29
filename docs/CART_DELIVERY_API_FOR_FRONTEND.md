@@ -92,7 +92,7 @@ Content-Type: application/json
 ## Оформление (без изменений контракта)
 
 1. Показать способы из `cart.delivery.available_methods` (или повторить логику после обновления корзины).
-2. Для **Европочты**: `GET /delivery/europost_offices?order_id=...` (на checkout) или `?cart_token=...` (+ `items` для subset на корзине) — список ПВЗ с ценами (если `europost_eligible`). Без контекста — **422**.
+2. Для **Европочты**: `GET /delivery/europost_offices?order_id=...` (на checkout) или `?cart_token=...` (+ `items` для subset на корзине) — список ПВЗ с ценами (если `europost_eligible`). Без контекста — полный публичный каталог (страница `/pvz`, ЛК), без цен доставки.
 3. Для выбранного типа: `POST /delivery/calculate` с `delivery_type` и при ПВЗ — `pickup_point_id`.
    - Крупногабарит: **`ikeya_delivery`**, не `pickup` / `europost_pickup`.
    - При недоступном типе — **422** (это нормально на checkout).

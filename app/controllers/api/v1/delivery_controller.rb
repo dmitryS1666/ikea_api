@@ -116,13 +116,11 @@ module Api
       end
 
       # GET /api/v1/delivery/europost_offices
-      # Requires order_id, cart_token and/or items (filtered list with prices).
+      # Without order_id / cart_token / items: public catalog for /pvz (all offices, no cart prices).
+      # With delivery context: offices filtered by cart VGH + per-cart delivery prices.
       def europost_offices
         unless DeliveryCartContext.context_required?(params)
-          return render json: {
-            error: "Укажите order_id, cart_token или items",
-            code: "delivery_context_required"
-          }, status: :unprocessable_entity
+          return render_public_europost_offices
         end
 
         cart = resolve_delivery_cart
@@ -201,6 +199,12 @@ module Api
         payload[:eligible] = eligible
         payload[:reasons] = eligible ? [] : ["max_weight_exceeded"]
         payload
+      end
+
+      def render_public_europost_offices
+        api_offices = DeliveryOptionsService.europost_offices(europost_store_type: europost_store_type_param)
+        offices = api_offices.map { |office| europost_office_payload(office) }
+        render json: { offices: offices }
       end
 
       def render_filtered_europost_offices_for_cart(cart)

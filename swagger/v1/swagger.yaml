@@ -1288,6 +1288,9 @@ paths:
           schema:
             type: string
           description: JSON-массив [{sku, quantity}] для subset корзины (вместе с cart_token).
+      description: |
+        Без order_id / cart_token / items — публичный каталог всех ПВЗ (страница /pvz, карта в ЛК).
+        С контекстом корзины или черновика — только подходящие по ВГХ офисы с ценами доставки.
       responses:
         '200':
           description: Список отделений Европочты
@@ -1321,8 +1324,6 @@ paths:
                       oneOf:
                         - $ref: '#/components/schemas/EuropostOffice'
                         - $ref: '#/components/schemas/EuropostOfficeForCart'
-        '422':
-          description: Не передан order_id, cart_token или items
 
   /api/v1/delivery/calculate:
     post:

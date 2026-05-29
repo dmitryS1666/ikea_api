@@ -9,12 +9,31 @@ RSpec.describe "Delivery Europost offices", type: :request do
       allow(PriceCalculationService).to receive(:exchange_rate_buffer).and_return(1.0)
     end
 
-    it "returns 422 without delivery context" do
+    it "returns public office catalog without delivery context" do
+      allow(EuropostApiService).to receive(:offices_out).and_return(
+        [{
+          "WarehouseId" => "70130010",
+          "WarehouseName" => "ПВЗ Минск-1",
+          "Address7Name" => "Минск",
+          "Address5Name" => "ул. Примерная",
+          "Address4Name" => "1",
+          "Latitude" => "53.9",
+          "Longitude" => "27.5",
+          "WarehouseWeightLimit" => "50"
+        }]
+      )
+
       get "/api/v1/delivery/europost_offices"
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:ok)
       body = JSON.parse(response.body)
-      expect(body["code"]).to eq("delivery_context_required")
+      expect(body["offices"].size).to eq(1)
+      office = body["offices"].first
+      expect(office["id"]).to eq("70130010")
+      expect(office["city"]).to eq("Минск")
+      expect(office["max_weight_kg"]).to eq(50.0)
+      expect(office).not_to have_key("available_for_cart")
+      expect(office).not_to have_key("delivery_price_byn")
     end
 
     it "filters offices by cart_token" do
