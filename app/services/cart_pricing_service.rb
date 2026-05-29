@@ -23,7 +23,6 @@ class CartPricingService
     buffer = PriceCalculationService.exchange_rate_buffer
     pln_rate_with_buffer = pln_rate * buffer
 
-    items_goods_pln = 0.0
     discount_total_pln = 0.0
     discount_total_byn = 0.0
     total_weight = 0.0
@@ -99,7 +98,6 @@ class CartPricingService
       unit_price_byn = quantity.positive? ? (line_total_byn / quantity).round(2) : 0.0
       unit_price_byn_checkout = quantity.positive? ? (line_total_byn_checkout / quantity).round(2) : 0.0
 
-      items_goods_pln += line_breakdown[:goods_pln]
       delivery_poland_byn += line_byn[:delivery_poland_byn]
       delivery_to_belarus_byn += line_byn[:delivery_belarus_byn]
 
@@ -143,26 +141,23 @@ class CartPricingService
 
     delivery_total_byn = (delivery_poland_byn + delivery_to_belarus_byn).round(2)
 
-    # Для правил — только товары с наценкой (без доставки и WC_BY)
-    items_total_byn = (items_goods_pln * pln_rate_with_buffer).round(2)
-    rules = CartRulesService.call(subtotal_new_byn: items_total_byn)
+    totals = CartDisplayTotalsService.for_summary(
+      total_byn: total_byn,
+      discount_total_byn: discount_total_byn.round(2),
+      delivery_to_belarus_byn: delivery_to_belarus_byn,
+      delivery_poland_byn: delivery_poland_byn,
+      delivery_total_byn: delivery_total_byn,
+      total_pln: total_pln.round(2),
+      total_weight_kg: total_weight.to_f,
+      customs_total_byn: cart_customs[:total_byn],
+      customs_duty_byn: cart_customs[:duty_byn],
+      customs_fee_byn: cart_customs[:fee_byn]
+    )
+    rules = CartRulesService.call(subtotal_new_byn: totals[:subtotal_new_byn])
 
     {
       items: items,
-      totals: {
-        subtotal_new_byn: items_total_byn, # Для совместимости с CheckoutService
-        items_total_byn: items_total_byn,
-        total_pln: total_pln.round(2),
-        delivery_total_byn: delivery_total_byn,
-        delivery_poland_byn: delivery_poland_byn,
-        delivery_to_belarus_byn: delivery_to_belarus_byn,
-        total_byn: total_byn,
-        discount_total_byn: discount_total_byn.round(2),
-        total_weight_kg: total_weight.to_f,
-        customs_total_byn: cart_customs[:total_byn],
-        customs_duty_byn: cart_customs[:duty_byn],
-        customs_fee_byn: cart_customs[:fee_byn]
-      },
+      totals: totals,
       promo: {
         code: promo&.code,
         valid: promo_valid

@@ -74,7 +74,7 @@ Content-Type: application/json
 - `delivery.available_methods`, `delivery.europost_eligible`
 - `meta.checkout_allowed`, `meta.min_order_error` — минимальная сумма заказа по **выбранным** позициям
 
-**UI:** цену строки и сумму выбранного берите из `items[].pricing`, не из `subtotal_new_byn` (там база IKEA без наценки). `subtotal_new_byn` — только для логики минималки (`meta`).
+**UI:** цену строки берите из `items[].pricing`. `subtotal_new_byn` — витринная «Стоимость товаров» (без доставки в РБ), та же сумма для `meta.checkout_allowed` и минимального заказа.
 
 Тот же массив `items` передаётся в `POST /checkout` (`draft: true`) и в `POST /checkout/:id/finalize`.
 

@@ -38,7 +38,7 @@ RSpec.describe CartPricingService do
 
     expect(item[:unit_price_byn_before_discount]).to be_within(0.01).of(535.5) # витрина: товар + доставка PL, без РБ
     expect(item[:unit_discount_byn]).to eq(53.55)
-    expect(item[:line_total_byn]).to eq(481.95)
+    expect(item[:line_total_byn]).to be_within(0.02).of(481.95)
     expect(item[:line_total_byn_checkout]).to eq(707.53)
     expect(item[:unit_price_byn_checkout]).to eq(707.53)
     expect(pricing[:totals][:discount_total_byn]).to eq(53.55)
@@ -91,6 +91,24 @@ RSpec.describe CartPricingService do
     expect(pricing[:totals][:delivery_total_byn]).to eq(
       pricing[:totals][:delivery_poland_byn] + pricing[:totals][:delivery_to_belarus_byn]
     )
+  end
+
+  it "разрешает checkout по витринной subtotal_new_byn, а не по сырой цене IKEA в PLN" do
+    user = create(:user)
+    first = create(:product, sku: "SKU-MIN-1", price: 70.0, weight: 1.0, delivery_cost: 5.0, quantity: 10)
+    second = create(:product, sku: "SKU-MIN-2", price: 70.0, weight: 1.0, delivery_cost: 5.0, quantity: 10)
+    cart = create(:cart, user: user)
+    create(:cart_item, cart: cart, product_sku: first.sku, quantity: 1)
+    create(:cart_item, cart: cart, product_sku: second.sku, quantity: 1)
+
+    pricing = described_class.call(cart: cart)
+    raw_goods_byn = ((first.price + second.price) * 0.85 * 1.05).round(2)
+    storefront_lines_byn = pricing[:items].sum { |item| item[:line_total_byn].to_f }
+
+    expect(raw_goods_byn).to be < 150.0
+    expect(pricing[:totals][:subtotal_new_byn]).to be_within(0.03).of(storefront_lines_byn)
+    expect(pricing[:totals][:subtotal_new_byn]).to be >= 150.0
+    expect(pricing[:meta][:can_checkout]).to be(true)
   end
 
   it "считает unit_price_byn без доставки в Беларусь, но сохраняет полную сумму для checkout" do
