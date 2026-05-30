@@ -74,6 +74,56 @@ RSpec.describe "Account Profile API", type: :request do
       expect(VerificationCode.exists?(verification.id)).to be false
     end
 
+    it "does not save passport with a valid code for another phone" do
+      verification = VerificationCode.create!(
+        phone: "375291119999",
+        code: "1234",
+        expires_at: 10.minutes.from_now
+      )
+
+      patch "/api/v1/account/profile",
+            params: {
+              passport: passport_payload,
+              verification_id: verification.id,
+              code: "1234"
+            },
+            headers: headers
+
+      expect(response).to have_http_status(:unauthorized)
+      body = JSON.parse(response.body)
+      expect(body["code"]).to eq("invalid_verification_code")
+      expect(user.reload.passport_data).to be_nil
+      expect(VerificationCode.exists?(verification.id)).to be true
+    end
+
+    it "allows checking the call code before saving passport" do
+      verification = VerificationCode.create!(
+        phone: user.phone,
+        code: "1234",
+        expires_at: 10.minutes.from_now
+      )
+
+      post "/api/v1/a1/verify",
+           params: { verification_id: verification.id, last4: "1234" },
+           headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["success"]).to be true
+      expect(VerificationCode.exists?(verification.id)).to be true
+
+      patch "/api/v1/account/profile",
+            params: {
+              passport: passport_payload,
+              verification_id: verification.id,
+              code: "1234"
+            },
+            headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(user.reload.passport_data).to include("passport_number" => "MP1234567")
+      expect(VerificationCode.exists?(verification.id)).to be false
+    end
+
     it "updates other profile fields without passport verification" do
       patch "/api/v1/account/profile",
             params: { first_name: "Иван" },

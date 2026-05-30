@@ -118,7 +118,8 @@ module Api
             return render json: { error: e.message }, status: :unprocessable_entity
           end
 
-          verification = VerificationCode.find_by(id: verification_id, code: code)
+          expected_phone = current_user.phone.to_s.gsub(/\D/, '')
+          verification = VerificationCode.find_by(id: verification_id, phone: expected_phone, code: code)
           unless verification&.expires_at&.> Time.current
             return render json: {
               error: 'Неверный или просроченный код',

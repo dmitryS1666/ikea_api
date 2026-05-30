@@ -63,8 +63,7 @@ module Api
         end
 
         if verification && verification.expires_at > Time.current
-          verification.destroy!
-          render json: { success: true }
+          render json: { success: true, verification_id: verification.id, expires_at: verification.expires_at.iso8601 }
         else
           render json: { success: false, error: 'invalid_code_or_expired' }, status: :unprocessable_entity
         end

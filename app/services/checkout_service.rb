@@ -300,27 +300,19 @@ class CheckoutService
 
     verification_id = nil
     if passport_changed
-      skip_verification = user.passport_verified? &&
-                          params[:a1_verification_id].present? &&
-                          params[:a1_verification_id].to_s == user.a1_verification_id.to_s
+      last4 = params[:a1_verification_last4] || params[:verification_code]
+      verification = VerificationCode.valid_code(user.phone.to_s.gsub(/\D/, ''), last4).first
 
-      if skip_verification
-        verification_id = user.a1_verification_id
-      else
-        last4 = params[:a1_verification_last4] || params[:verification_code]
-        verification = VerificationCode.valid_code(user.phone.to_s.gsub(/\D/, ''), last4).first
-
-        if verification.nil?
-          return {
-            error: 'Требуется подтверждение паспорта через звонок',
-            code: 'passport_verification_required',
-            passport_data: user.passport_data,
-            a1_verification_id: user.a1_verification_id
-          }
-        end
-        verification_id = verification.id
-        verification.destroy!
+      if verification.nil?
+        return {
+          error: 'Требуется подтверждение паспорта через звонок',
+          code: 'passport_verification_required',
+          passport_data: user.passport_data,
+          a1_verification_id: user.a1_verification_id
+        }
       end
+      verification_id = verification.id
+      verification.destroy!
     end
 
     pricing = CartPricingService.call(cart: checkout_cart)
@@ -745,27 +737,19 @@ class CheckoutService
 
     verification_id = nil
     if passport_changed
-      skip_verification = user.passport_verified? &&
-                          params[:a1_verification_id].present? &&
-                          params[:a1_verification_id].to_s == user.a1_verification_id.to_s
+      last4 = params[:a1_verification_last4] || params[:verification_code]
+      verification = VerificationCode.valid_code(user.phone.to_s.gsub(/\D/, ''), last4).first
 
-      if skip_verification
-        verification_id = user.a1_verification_id
-      else
-        last4 = params[:a1_verification_last4] || params[:verification_code]
-        verification = VerificationCode.valid_code(user.phone.to_s.gsub(/\D/, ''), last4).first
-
-        if verification.nil?
-          return {
-            error: 'Требуется подтверждение паспорта через звонок',
-            code: 'passport_verification_required',
-            passport_data: user.passport_data,
-            a1_verification_id: user.a1_verification_id
-          }
-        end
-        verification_id = verification.id
-        verification.destroy!
+      if verification.nil?
+        return {
+          error: 'Требуется подтверждение паспорта через звонок',
+          code: 'passport_verification_required',
+          passport_data: user.passport_data,
+          a1_verification_id: user.a1_verification_id
+        }
       end
+      verification_id = verification.id
+      verification.destroy!
     end
 
     { verification_id: verification_id, passport_changed: passport_changed, passport_input: passport_input }
