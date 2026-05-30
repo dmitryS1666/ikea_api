@@ -13,6 +13,12 @@ RSpec.describe "Delivery Europost Offices API", type: :request do
                 description: "JSON [{sku, quantity}] для subset корзины."
       parameter name: :type, in: :query, type: :integer, required: false,
                 description: "Фильтр типа ПВЗ (1 / 3 / 4) для REST stores."
+      parameter name: :city, in: :query, type: :string, required: false,
+                description: "Фильтр/поиск по городу ПВЗ. Точное совпадение по городу имеет приоритет над совпадениями по области/адресу."
+      parameter name: :q, in: :query, type: :string, required: false,
+                description: "Алиас city для поиска ПВЗ."
+      parameter name: :search, in: :query, type: :string, required: false,
+                description: "Алиас city для поиска ПВЗ."
 
       response "200", "public catalog without delivery context" do
         run_test!

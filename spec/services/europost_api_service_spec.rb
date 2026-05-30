@@ -34,8 +34,8 @@ RSpec.describe EuropostApiService do
         "is_relabeling" => true,
         "is_oversize" => "false",
         "is_completeness_check" => 1,
-        "packing_payer" => "sender",
-        "shipment_payer" => "recipient"
+        "packing_payer" => 0,
+        "shipment_payer" => 1
       }
     end
 
@@ -77,7 +77,7 @@ RSpec.describe EuropostApiService do
     end
 
     it "validates new optional fields" do
-      invalid_payload = payload.merge("packing_payer" => "warehouse")
+      invalid_payload = payload.merge("packing_payer" => "sender")
 
       expect {
         described_class.postal_create(data: invalid_payload)

@@ -36,6 +36,51 @@ RSpec.describe "Delivery Europost offices", type: :request do
       expect(office).not_to have_key("delivery_price_byn")
     end
 
+
+    it "filters public offices by exact city first instead of matching region names" do
+      allow(EuropostApiService).to receive(:offices_out).and_return(
+        [
+          {
+            "WarehouseId" => "gomel-city",
+            "WarehouseName" => "ПВЗ Гомель",
+            "Address7Name" => "Гомель",
+            "Address5Name" => "ул. Советская",
+            "Address4Name" => "1",
+            "WarehouseWeightLimit" => "50"
+          },
+          {
+            "WarehouseId" => "kalinkovichi",
+            "WarehouseName" => "ПВЗ Калинковичи, Гомельская область",
+            "Address7Name" => "Калинковичи",
+            "Address5Name" => "ул. Ленина",
+            "Address4Name" => "2",
+            "WarehouseWeightLimit" => "50"
+          }
+        ]
+      )
+
+      get "/api/v1/delivery/europost_offices", params: { city: "Гомель" }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["offices"].map { |office| office["id"] }).to eq(["gomel-city"])
+    end
+
+    it "supports q/search aliases for city lookup" do
+      allow(EuropostApiService).to receive(:offices_out).and_return(
+        [
+          { "WarehouseId" => "gomel", "WarehouseName" => "ПВЗ Гомель", "Address7Name" => "Гомель" },
+          { "WarehouseId" => "kalinkovichi", "WarehouseName" => "ПВЗ Калинковичи", "Address7Name" => "Калинковичи" }
+        ]
+      )
+
+      get "/api/v1/delivery/europost_offices", params: { q: "Калинковичи" }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["offices"].map { |office| office["id"] }).to eq(["kalinkovichi"])
+    end
+
     it "filters offices by cart_token" do
       cart = create(:cart)
       product = create(:product, sku: "SKU-EP-4", quantity: 10, weight: 5, package_volume: 0.02,
@@ -78,7 +123,9 @@ RSpec.describe "Delivery Europost offices", type: :request do
       get "/api/v1/delivery/europost_offices",
           params: {
             cart_token: cart.guest_token,
-            items: [{ sku: light.sku, quantity: 1 }]
+            # GET query params do not preserve nested arrays consistently across Rack/Rails versions.
+            # Send items as JSON, which is also supported by CartSelectionService.parse_items_param.
+            items: [{ sku: light.sku, quantity: 1 }].to_json
           }
 
       expect(response).to have_http_status(:ok)

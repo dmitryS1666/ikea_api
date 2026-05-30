@@ -203,6 +203,7 @@ module Api
 
       def render_public_europost_offices
         api_offices = DeliveryOptionsService.europost_offices(europost_store_type: europost_store_type_param)
+        api_offices = filter_and_order_europost_offices(api_offices, europost_office_search_query)
         offices = api_offices.map { |office| europost_office_payload(office) }
         render json: { offices: offices }
       end
@@ -224,6 +225,7 @@ module Api
         )
 
         api_offices = DeliveryOptionsService.europost_offices(europost_store_type: europost_store_type_param)
+        api_offices = filter_and_order_europost_offices(api_offices, europost_office_search_query)
         offices = api_offices.filter_map do |office|
           available_for_cart = cart_vgh[:eligible_for_europost] &&
                                DeliveryOptionsService.europost_office_supports_parcels?(office: office, parcels: parcels)
@@ -240,6 +242,55 @@ module Api
         end
 
         render json: { offices: offices }
+      end
+
+
+      def europost_office_search_query
+        params[:city].presence || params[:q].presence || params[:search].presence
+      end
+
+      def filter_and_order_europost_offices(offices, query)
+        q = normalize_europost_search_text(query)
+        return offices if q.blank?
+
+        exact_city_matches = offices.select { |office| normalize_europost_city(office) == q }
+        scope = exact_city_matches.any? ? exact_city_matches : offices.select { |office| europost_office_relevance_score(office, q) < 100 }
+
+        scope.sort_by do |office|
+          [
+            europost_office_relevance_score(office, q),
+            normalize_europost_city(office),
+            normalize_europost_search_text(office["WarehouseName"] || office[:WarehouseName]),
+            office["WarehouseId"].to_s
+          ]
+        end
+      end
+
+      def europost_office_relevance_score(office, normalized_query)
+        city = normalize_europost_city(office)
+        return 0 if city == normalized_query
+        return 10 if city.start_with?(normalized_query)
+        return 20 if city.include?(normalized_query)
+
+        name = normalize_europost_search_text(office["WarehouseName"] || office[:WarehouseName])
+        address = normalize_europost_search_text(europost_address(office))
+        return 30 if name.include?(normalized_query)
+        return 40 if address.include?(normalized_query)
+
+        100
+      end
+
+      def normalize_europost_city(office)
+        normalize_europost_search_text(office["Address7Name"] || office[:Address7Name] || office["city"] || office[:city])
+      end
+
+      def normalize_europost_search_text(value)
+        value.to_s
+             .downcase
+             .tr("ё", "е")
+             .gsub(/[.,;:\-]+/, " ")
+             .gsub(/\b(г|город|д|деревня|п|поселок|посёлок|аг|агрогородок)\b/u, " ")
+             .squish
       end
 
       def delivery_calculate_pricing_json(finance)

@@ -1,0 +1,15 @@
+diff --git a/spec/requests/api/v1/delivery_europost_offices_spec.rb b/spec/requests/api/v1/delivery_europost_offices_spec.rb
+index 3140331..02ae590 100644
+--- a/spec/requests/api/v1/delivery_europost_offices_spec.rb
++++ b/spec/requests/api/v1/delivery_europost_offices_spec.rb
+@@ -123,7 +123,9 @@ RSpec.describe "Delivery Europost offices", type: :request do
+       get "/api/v1/delivery/europost_offices",
+           params: {
+             cart_token: cart.guest_token,
+-            items: [{ sku: light.sku, quantity: 1 }]
++            # GET query params do not preserve nested arrays consistently across Rack/Rails versions.
++            # Send items as JSON, which is also supported by CartSelectionService.parse_items_param.
++            items: [{ sku: light.sku, quantity: 1 }].to_json
+           }
+ 
+       expect(response).to have_http_status(:ok)

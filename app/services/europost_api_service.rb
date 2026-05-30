@@ -420,10 +420,10 @@ class EuropostApiService
     return unless payload.key?(key)
 
     value = payload[key]
-    valid_values = %w[sender recipient]
-    return if valid_values.include?(value.to_s)
+    valid_values = [0, 1, "0", "1"]
+    return if valid_values.include?(value)
 
-    raise ValidationError, "#{key} must be one of: #{valid_values.join(', ')}"
+    raise ValidationError, "#{key} must be 0 (sender) or 1 (recipient)"
   end
   private_class_method :validate_optional_payer!
 end
