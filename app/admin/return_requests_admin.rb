@@ -60,21 +60,13 @@ Trestle.resource(:return_requests, model: ReturnRequest) do
 
         col(sm: 4) do
           static_field :user, label: "Пользователь" do
-            if rr.user
-              link_to rr.user.full_name, Trestle.lookup(:users).path(:show, id: rr.user_id)
-            else
-              "—"
-            end
+            rr.user&.full_name || "—"
           end
         end
 
         col(sm: 4) do
           static_field :order, label: "Заказ" do
-            if rr.order
-              link_to "Заказ ##{rr.order_id}", Trestle.lookup(:orders).path(:show, id: rr.order_id)
-            else
-              "—"
-            end
+            rr.order ? "Заказ ##{rr.order_id}" : "—"
           end
         end
       end
@@ -126,26 +118,38 @@ Trestle.resource(:return_requests, model: ReturnRequest) do
           safe_join(
             rr.attachments.map.with_index(1) do |attachment, index|
               blob = attachment.blob
-
-              content_tag(:div, class: "return-request-attachment", style: "display:inline-block; vertical-align:top; margin:0 12px 12px 0; padding:10px; border:1px solid #ddd; border-radius:6px; max-width:180px;") do
+              attachment_path = Rails.application.routes.url_helpers.rails_blob_path(
+                attachment,
+                only_path: true
+              )
+      
+              content_tag(
+                :div,
+                class: "return-request-attachment",
+                style: "display:inline-block; vertical-align:top; margin:0 12px 12px 0; padding:10px; border:1px solid #ddd; border-radius:6px; max-width:180px;"
+              ) do
                 preview =
                   if blob.content_type.to_s.start_with?("image/")
-                    link_to url_for(attachment), target: "_blank", rel: "noopener" do
+                    link_to attachment_path, target: "_blank", rel: "noopener" do
                       image_tag(
-                        url_for(attachment),
+                        attachment_path,
                         style: "display:block; width:160px; max-height:160px; object-fit:cover; border-radius:4px; margin-bottom:8px;"
                       )
                     end
                   else
-                    content_tag(:div, "Файл", style: "width:160px; height:80px; display:flex; align-items:center; justify-content:center; background:#f5f5f5; border-radius:4px; margin-bottom:8px;")
+                    content_tag(
+                      :div,
+                      "Файл",
+                      style: "width:160px; height:80px; display:flex; align-items:center; justify-content:center; background:#f5f5f5; border-radius:4px; margin-bottom:8px;"
+                    )
                   end
-
+      
                 title = content_tag(
                   :div,
                   "Файл #{index}",
                   style: "font-weight:600; margin-bottom:4px;"
                 )
-
+      
                 meta = content_tag(
                   :div,
                   [
@@ -155,15 +159,15 @@ Trestle.resource(:return_requests, model: ReturnRequest) do
                   ].compact.join("<br>").html_safe,
                   style: "font-size:12px; color:#666; word-break:break-word; margin-bottom:8px;"
                 )
-
+      
                 open_link = link_to(
                   "Открыть",
-                  url_for(attachment),
+                  attachment_path,
                   target: "_blank",
                   rel: "noopener",
                   class: "btn btn-default btn-xs"
                 )
-
+      
                 preview + title + meta + open_link
               end
             end

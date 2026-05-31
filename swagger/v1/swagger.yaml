@@ -1967,125 +1967,81 @@ paths:
                       $ref: '#/components/schemas/OrderReceipts'
 
   /api/v1/account/returns:
-    get:
-      summary: Список запросов на возврат
-      description: |
-        Возвращает заявки на возврат текущего пользователя, отсортированные по дате создания (сначала новые).
-
-        **Авторизация:** заголовок `Authorization: Bearer <JWT>` (тот же токен, что для личного кабинета).
-
-        **Пагинация:** параметры `page` и `per_page` (по умолчанию 10 записей на страницу).
-      tags:
-        - Account
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: page
-          in: query
-          description: Номер страницы (начиная с 1)
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: per_page
-          in: query
-          description: Количество заявок на страницу
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 10
-      responses:
-        '200':
-          description: Список заявок и метаданные пагинации
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ReturnRequestsListResponse'
-        '401':
-          description: Не передан или невалиден JWT
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
     post:
-      summary: Создать запрос на возврат
-      description: |
-        Форма возврата в личном кабинете: создаёт заявку по **своему** заказу (`order_id` должен принадлежать текущему пользователю).
-
-        **Обязательные поля:** `order_id`, `reason`. Поле `comment` необязательно.
-
-        **Файлы:** можно передать одно или несколько вложений в поле `attachments` (массив файлов). Для загрузки файлов используйте `Content-Type: multipart/form-data`. Если файлов нет, допустим JSON (`application/json`) с теми же полями.
-
-        **После создания:** на сервере ставится фоновая задача синхронизации с AmoCRM; успешный ответ `201` означает только сохранение заявки в базе приложения, не гарантирует мгновенную доставку в CRM.
-
-        **Статусы заявки** (`status` в ответе): `new`, `in_review`, `approved`, `rejected`, `completed` — дальнейшая обработка в админке / CRM.
+      summary: Создание возврата
       tags:
-        - Account
+        - Return Requests
       security:
-        - BearerAuth: []
+        - bearerAuth: []
+      consumes:
+        - multipart/form-data
+      produces:
+        - application/json
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
               type: object
-              required: [order_id, reason]
+              required:
+                - order_id
+                - last_name
+                - first_name
+                - phone
+                - email
+                - reason
+                - compensation_type
               properties:
                 order_id:
-                  type: integer
-                  description: Идентификатор заказа пользователя
+                  type: string
+                  description: Номер заказа, 6–10 цифр
+                  example: "4940891"
+                last_name:
+                  type: string
+                  example: "Тест"
+                first_name:
+                  type: string
+                  example: "Тест"
+                patronymic:
+                  type: string
+                  nullable: true
+                  example: "Тестович"
+                phone:
+                  type: string
+                  example: "+375259340284"
+                email:
+                  type: string
+                  format: email
+                  example: "dsuschinsky@gmail.com"
                 reason:
                   type: string
-                  description: Причина возврата (текст с формы)
-                comment:
-                  type: string
-                  description: Дополнительный комментарий
-                attachments:
-                  type: array
-                  description: Файлы (фото чека, упаковки и т.п.) — несколько полей с одним именем или массив в клиенте
-                  items:
-                    type: string
-                    format: binary
-          application/json:
-            schema:
-              type: object
-              required: [order_id, reason]
-              properties:
-                order_id:
-                  type: integer
-                  description: Идентификатор заказа пользователя
-                reason:
-                  type: string
+                  enum: [damaged, wrong, quality, description, other]
+                  example: "wrong"
                   description: Причина возврата
                 comment:
                   type: string
-                  description: Дополнительный комментарий
+                  nullable: true
+                  example: "текст комментария"
+                  description: Только комментарий клиента
+                compensation_type:
+                  type: string
+                  enum: [refund, exchange]
+                  example: "exchange"
+                attachments[]:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: Фото до 5 файлов (.avif, .heic, .heif, .webp, .jpeg, .png)
       responses:
         '201':
-          description: Заявка создана
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ReturnRequestCreateResponse'
+          description: Возврат создан
         '401':
-          description: Не передан или невалиден JWT
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
+          description: Не авторизован
         '404':
-          description: Заказ с указанным `order_id` не найден или не принадлежит текущему пользователю
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
+          description: Заказ не найден
         '422':
-          description: Ошибка валидации (например, пустая причина)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationErrors'
+          description: Ошибка валидации
 
   /api/v1/cooperation_requests:
     post:
