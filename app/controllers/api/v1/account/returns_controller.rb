@@ -4,8 +4,7 @@ module Api
       class ReturnsController < ApplicationController
         include ReturnRequestResponse
 
-        before_action :authenticate_user, only: [:index]
-        before_action :authenticate_user_optional, only: [:create]
+        before_action :authenticate_user, only: [:index, :create]
 
         # GET /api/v1/account/returns
         def index
@@ -19,7 +18,6 @@ module Api
         end
 
         # POST /api/v1/account/returns
-        # JWT optional: storefront return modal posts here without Authorization.
         # Content-Type: multipart/form-data is supported for attachments[]
         def create
           result = ReturnRequests::CreateService.call(params: params, user: current_user)

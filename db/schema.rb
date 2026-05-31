@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_29_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_31_181825) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -758,6 +758,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_29_120000) do
     t.string "phone"
     t.string "email"
     t.string "compensation_type"
+    t.string "last_name"
     t.index ["order_id"], name: "index_return_requests_on_order_id"
     t.index ["order_number"], name: "index_return_requests_on_order_number"
     t.index ["status", "created_at"], name: "index_return_requests_on_status_and_created_at"
