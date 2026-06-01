@@ -42,6 +42,8 @@ cd ~/apps/ikea_front
 
 > Хост `172.17.0.1` — адрес Docker-хоста. Puma должна прослушивать `0.0.0.0` или `tcp://0.0.0.0:3001`.
 
+**WebPay:** возврат после оплаты обрабатывает Rails на `GET /api/v1/payment/success` (уже попадает под location `/api`). Не указывайте `WEBPAY_RETURN_URL` на `/payment/success` без префикса `/api` — этот путь отдаёт SPA и даст 404. После обработки API редиректит на витрину (`WEBPAY_SUCCESS_REDIRECT_URL`, по умолчанию `https://ikeya.by/payment/success`).
+
 ---
 
 ## 3. Rails production

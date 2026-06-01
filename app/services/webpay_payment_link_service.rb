@@ -60,13 +60,11 @@ class WebpayPaymentLinkService
         fields['wsb_email'] = order.user.email
       end
 
-      if webpay_config.return_url.present?
-        fields['wsb_return_url'] = webpay_config.return_url
-      end
+      return_url = effective_return_url
+      fields['wsb_return_url'] = return_url if return_url.present?
 
-      if webpay_config.cancel_url.present?
-        fields['wsb_cancel_return_url'] = webpay_config.cancel_url
-      end
+      cancel_url = effective_cancel_url
+      fields['wsb_cancel_return_url'] = cancel_url if cancel_url.present?
 
       notify = effective_notify_url
       fields['wsb_notify_url'] = notify if notify.present?
@@ -125,10 +123,51 @@ class WebpayPaymentLinkService
         return nil
       end
 
-      base = webpay_config.link_base_url.to_s.strip.chomp('/')
-      return nil if base.blank?
+      api_base = webpay_config.link_base_url.to_s.strip.chomp('/')
+      return nil if api_base.blank?
 
-      "#{base}/api/v1/webhooks/webpay"
+      "#{api_base}/api/v1/webhooks/webpay"
+    end
+
+    # WebPay return URL must hit Rails (e.g. /api/v1/payment/success behind NPM), not the SPA.
+    def effective_return_url
+      configured = webpay_config.return_url.to_s.strip
+      api_base = webpay_config.link_base_url.to_s.strip.chomp('/')
+      api_success = api_base.present? ? "#{api_base}/api/v1/payment/success" : nil
+
+      if configured.blank?
+        return api_success
+      end
+
+      # Legacy: WEBPAY_RETURN_URL pointed at storefront /payment/success (NPM serves SPA → 404).
+      if api_success.present? && storefront_payment_success_path?(configured)
+        return api_success
+      end
+
+      configured
+    end
+
+    def storefront_payment_success_path?(url)
+      uri = URI.parse(url)
+      uri.path.to_s.delete_suffix('/').casecmp?('/payment/success')
+    rescue URI::InvalidURIError
+      false
+    end
+
+    def effective_cancel_url
+      configured = webpay_config.cancel_url.to_s.strip
+      return configured if configured.present?
+
+      site = public_site_url
+      return nil if site.blank?
+
+      "#{site}/payment/cancel"
+    end
+
+    def public_site_url
+      Seo::PublicSiteUrl.resolve.to_s.strip.chomp('/')
+    rescue NameError, NoMethodError
+      nil
     end
 
     def webpay_config

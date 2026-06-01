@@ -169,6 +169,8 @@ Rails.application.routes.draw do
       post 'checkout', to: 'checkout#create'
 
       resources :payment_links, only: [:show]
+      # WebPay user return (must live under /api — NPM proxies only /api to Rails)
+      get 'payment/success', to: '/payment#success'
 
       # Debug & Integration (AmoCRM)
       namespace :debug do
