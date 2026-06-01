@@ -50,7 +50,7 @@ RSpec.configure do |config|
       },
       paths: {},
       servers: [
-        { url: 'https://test.ikeya.by', description: 'Production server (IP)' },
+        { url: 'https://ikeya.by', description: 'Production server (IP)' },
         { url: 'http://localhost:3000', description: 'Development server' }
       ]
     }

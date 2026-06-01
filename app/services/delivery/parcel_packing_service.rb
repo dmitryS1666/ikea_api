@@ -191,13 +191,13 @@ class Delivery
       Array(size.dig("packaging", "details")).each do |detail|
         next unless detail.is_a?(Hash)
 
-        sides = [
-          detail["width"],
-          detail["height"],
-          detail["length"] || detail["depth"]
-        ].flat_map { |value| extract_numbers(value) }
-
-        normalized = normalize_sides(sides)
+        normalized = build_parcel_sides(
+          width: detail["width"],
+          height: detail["height"],
+          length: detail["length"],
+          depth: detail["depth"],
+          diameter: detail["diameter"]
+        )
         return normalized if normalized.present?
       end
 
@@ -210,16 +210,22 @@ class Delivery
         by_name = measurements.each_with_object({}) do |row, memo|
           next unless row.is_a?(Hash)
 
-          memo[row["name"].to_s.downcase] = row["measure"]
+          label =
+            if defined?(ProductSerializer) && ProductSerializer.respond_to?(:translate_measurement_label_for_api)
+              ProductSerializer.translate_measurement_label_for_api(row["name"] || row[:name]).to_s.downcase
+            else
+              row["name"].to_s.downcase
+            end
+          memo[label] = row["measure"] || row[:measure]
         end
 
-        sides = [
-          by_name["ширина"],
-          by_name["высота"],
-          by_name["длина"] || by_name["глубина"]
-        ].flat_map { |value| extract_numbers(value) }
-
-        normalized = normalize_sides(sides)
+        normalized = build_parcel_sides(
+          width: by_name["ширина"],
+          height: by_name["высота"],
+          length: by_name["длина"],
+          depth: by_name["глубина"],
+          diameter: by_name["диаметр"]
+        )
         return normalized if normalized.present?
       end
 
@@ -227,13 +233,36 @@ class Delivery
     end
 
     def self.extract_sides_from_size_block(size)
-      sides = [
-        size["Ширина"] || size["width"],
-        size["Высота"] || size["height"],
-        size["Длина"] || size["Глубина"] || size["length"] || size["depth"]
-      ].flat_map { |value| extract_numbers(value) }
+      build_parcel_sides(
+        width: size["Ширина"] || size["width"],
+        height: size["Высота"] || size["height"],
+        length: size["Длина"] || size["length"],
+        depth: size["Глубина"] || size["depth"],
+        diameter: size["Диаметр"] || size["diameter"]
+      )
+    end
 
-      normalize_sides(sides)
+    # IKEA часто указывает для рулонных/цилиндрических упаковок «Диаметр» + «Длина» без ширины/высоты.
+    # Для расчёта посылки считаем короб: ширина = высота = диаметр (если не заданы отдельно).
+    def self.build_parcel_sides(width: nil, height: nil, length: nil, depth: nil, diameter: nil)
+      width_cm = first_extracted_cm(width)
+      height_cm = first_extracted_cm(height)
+      length_cm = first_extracted_cm(length) || first_extracted_cm(depth)
+      diameter_cm = first_extracted_cm(diameter)
+
+      if width_cm.blank? && diameter_cm.present?
+        width_cm = diameter_cm
+      end
+      if height_cm.blank? && diameter_cm.present?
+        height_cm = diameter_cm
+      end
+
+      normalize_sides([width_cm, height_cm, length_cm])
+    end
+
+    def self.first_extracted_cm(value)
+      nums = extract_numbers(value)
+      nums.first if nums.any?
     end
 
     def self.normalize_sides(values)

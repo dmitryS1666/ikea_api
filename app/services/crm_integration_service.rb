@@ -515,7 +515,7 @@ class CrmIntegrationService
     return nil if raw_url.blank?
 
     host = ENV["HOST_URL"].to_s.strip
-    host = "https://test.ikeay.by" if host.blank?
+    host = "https://ikeay.by" if host.blank?
     host = host.sub(%r{/\z}, "")
 
     return raw_url if raw_url.match?(/\Ahttps?:\/\//i)

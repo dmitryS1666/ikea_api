@@ -4,7 +4,7 @@ require "stringio"
 RSpec.describe ContentArticle, type: :model do
   around do |example|
     original_host = Rails.application.routes.default_url_options[:host]
-    Rails.application.routes.default_url_options[:host] = "http://test.host"
+    Rails.application.routes.default_url_options[:host] = "http://host"
     example.run
     Rails.application.routes.default_url_options[:host] = original_host
   end

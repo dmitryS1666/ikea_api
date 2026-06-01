@@ -99,6 +99,40 @@ RSpec.describe Delivery::ParcelPackingService do
     expect(result[:total_weight_kg]).to eq(0.33)
   end
 
+  it "uses package diameter as width and height when width is missing (rolled IKEA packaging)" do
+    product = create(
+      :product,
+      weight: 0.46,
+      package_volume: nil,
+      package_dimensions: nil,
+      dimensions: "130 × 170 cm",
+      full_attributes: {
+        "measurements_modal" => {
+          "packages" => [
+            {
+              "measurements" => [
+                { "name" => "Длина", "measure" => "29 см" },
+                { "name" => "Диаметр", "measure" => "12 см" },
+                { "name" => "Вес", "measure" => "0.46 кг" },
+                { "name" => "Упаковка(-и)", "measure" => "1" }
+              ]
+            }
+          ]
+        }
+      }
+    )
+    add_item(product, quantity: 1)
+
+    result = described_class.call(cart)
+
+    expect(result[:eligible_for_europost]).to be(true)
+    expect(result[:max_dimension_cm]).to eq(29.0)
+    parcel = result[:parcels].first
+    expect(parcel[:width_cm]).to eq(12.0)
+    expect(parcel[:height_cm]).to eq(12.0)
+    expect(parcel[:depth_cm]).to eq(29.0)
+  end
+
   it "uses structured package dimensions instead of arbitrary numbers from full attributes" do
     product = create(
       :product,

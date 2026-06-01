@@ -42,9 +42,8 @@ Trestle.resource(:orders) do
   form do |order|
     tab :basic, label: "Основное" do
       row do
-        col(sm: 4) { static_field :public_uid, label: "Номер заказа" }
-        col(sm: 4) { static_field :id, label: "ID заказа" }
-        col(sm: 4) do
+        col(sm: 6) { static_field :public_uid, label: "Номер заказа" }
+        col(sm: 6) do
           static_field :status, label: "Текущий статус" do
             if order.status
               status_text = I18n.t("activerecord.attributes.order.statuses.#{order.status}")
@@ -79,7 +78,17 @@ Trestle.resource(:orders) do
         col(sm: 6) { text_field :phone, label: "Телефон" }
       end
       
-      static_field :customer_name, label: "Покупатель"
+      static_field :customer_name, label: "Покупатель" do
+        if order.user
+          link_to(
+            order.customer_name,
+            Trestle.lookup(:users).path(:show, id: order.user.id),
+            data: { turbo: false }
+          )
+        else
+          order.customer_name
+        end
+      end
     end
 
     tab :payment_delivery, label: "Оплата и доставка" do
@@ -121,7 +130,17 @@ Trestle.resource(:orders) do
 
     tab :items, label: "Товары" do
       table order.order_items, label: "Товары в заказе" do
-        column :product_sku, label: "SKU"
+        column :product_sku, label: "SKU" do |oi|
+          if oi.product
+            link_to(
+              oi.product_sku,
+              Trestle.lookup(:products).path(:show, id: oi.product.id),
+              data: { turbo: false }
+            )
+          else
+            oi.product_sku.presence || "—"
+          end
+        end
         column :quantity, label: "Кол-во"
         column :price, label: "Цена" do |oi|
           sprintf('%.2f', oi.price.to_f)

@@ -60,13 +60,29 @@ Trestle.resource(:return_requests, model: ReturnRequest) do
 
         col(sm: 4) do
           static_field :user, label: "Пользователь" do
-            rr.user&.full_name || "—"
+            if rr.user
+              link_to(
+                rr.user.full_name,
+                Trestle.lookup(:users).path(:show, id: rr.user.id),
+                data: { turbo: false }
+              )
+            else
+              "—"
+            end
           end
         end
 
         col(sm: 4) do
           static_field :order, label: "Заказ" do
-            rr.order ? "Заказ ##{rr.order_id}" : "—"
+            if rr.order
+              link_to(
+                "Заказ ##{rr.order_id}",
+                Trestle.lookup(:orders).path(:show, id: rr.order_id),
+                data: { turbo: false }
+              )
+            else
+              "—"
+            end
           end
         end
       end

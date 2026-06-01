@@ -72,49 +72,110 @@
           <p class="text-muted mb-0">Режимы cheap/k + доставка PL + весовая логистика РБ → сумма PLN → BYN (курс × <%= @params_info[:buffer] %>)</p>
         </div>
         <div class="card-body">
-          <%= form_tag admin.instance_path(PriceCalculator.new(id: 'show')), method: :get, data: { turbo: false } do %>
-            <div class="form-group mb-3">
-              <%= label_tag :product_price, "Цена товара (PLN)", class: "form-label" %>
-              <%= number_field_tag :product_price, params[:product_price], 
-                  class: "form-control", step: 0.01, min: 0, required: true, placeholder: "0.00" %>
-              <small class="form-text text-muted">
-                Брутто цена на сайте IKEA Poland в злотых (PLN)
-              </small>
-            </div>
-            
-            <div class="form-group mb-3">
-              <%= label_tag :weight, "Вес товара (кг)", class: "form-label" %>
-              <%= number_field_tag :weight, params[:weight], 
-                  class: "form-control", step: 0.01, min: 0, required: true, placeholder: "0.00" %>
-              <small class="form-text text-muted">
-                Вес товара в килограммах
-              </small>
-            </div>
-            
-            <div class="form-group mb-3">
-              <%= label_tag :delivery_pln, "Доставка (PLN), опционально", class: "form-label" %>
-              <%= number_field_tag :delivery_pln, params[:delivery_pln],
-                  class: "form-control", step: 0.01, min: 0, placeholder: "оставьте пустым — тариф по Польше" %>
-              <small class="form-text text-muted">
-                Как поле <code>delivery_cost</code> у товара. Если пусто — берётся ступенчатый тариф из <code>poland_delivery_rates</code> (и опция GLS ниже).
-              </small>
-            </div>
+          <% active_mode = @calc_mode.to_s %>
+          <ul class="nav nav-tabs mb-3" role="tablist">
+            <li class="nav-item">
+              <a class="nav-link <%= 'active' if active_mode == 'manual' %>" data-bs-toggle="tab" href="#calc-tab-manual" role="tab">Вручную</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link <%= 'active' if active_mode == 'sku' %>" data-bs-toggle="tab" href="#calc-tab-sku" role="tab">По SKU</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link <%= 'active' if active_mode == 'cart' %>" data-bs-toggle="tab" href="#calc-tab-cart" role="tab">Корзина</a>
+            </li>
+          </ul>
 
-            <div class="form-group mb-3">
-              <%= label_tag :use_gls, class: "form-check-label" do %>
-                <%= check_box_tag :use_gls, '1', params[:use_gls] == '1', class: "form-check-input" %>
-                Использовать пункт отбора GLS (бесплатно до 30 кг) — только если доставка PLN не задана вручную
+          <div class="tab-content">
+            <div class="tab-pane fade <%= 'show active' if active_mode == 'manual' %>" id="calc-tab-manual" role="tabpanel">
+              <%= form_tag admin.instance_path(PriceCalculator.new(id: 'show')), method: :get, data: { turbo: false } do %>
+                <%= hidden_field_tag :mode, 'manual' %>
+                <%= hidden_field_tag :calculate, '1' %>
+                <div class="form-group mb-3">
+                  <%= label_tag :product_price, "Цена товара (PLN)", class: "form-label" %>
+                  <%= number_field_tag :product_price, params[:product_price],
+                      class: "form-control", step: 0.01, min: 0, required: true, placeholder: "0.00" %>
+                  <small class="form-text text-muted">Брутто цена IKEA Poland (PLN)</small>
+                </div>
+                <div class="form-group mb-3">
+                  <%= label_tag :weight, "Вес товара (кг)", class: "form-label" %>
+                  <%= number_field_tag :weight, params[:weight],
+                      class: "form-control", step: 0.01, min: 0, required: true, placeholder: "0.00" %>
+                </div>
+                <div class="form-group mb-3">
+                  <%= label_tag :delivery_pln, "Доставка (PLN), опционально", class: "form-label" %>
+                  <%= number_field_tag :delivery_pln, params[:delivery_pln],
+                      class: "form-control", step: 0.01, min: 0, placeholder: "тариф poland_delivery_rates" %>
+                </div>
+                <div class="form-group mb-3">
+                  <%= label_tag :use_gls, class: "form-check-label" do %>
+                    <%= check_box_tag :use_gls, '1', params[:use_gls] == '1', class: "form-check-input" %>
+                    GLS (бесплатно до 30 кг), если доставка PLN не задана
+                  <% end %>
+                </div>
+                <div class="form-group mb-3">
+                  <%= label_tag :date, "Дата курсов", class: "form-label" %>
+                  <%= date_field_tag :date, params[:date] || Date.today, class: "form-control" %>
+                </div>
+                <%= submit_tag "Рассчитать", class: "btn btn-primary btn-lg w-100" %>
               <% end %>
             </div>
-            
-            <div class="form-group mb-3">
-              <%= label_tag :date, "Дата курсов валют", class: "form-label" %>
-              <%= date_field_tag :date, params[:date] || Date.today, class: "form-control" %>
+
+            <div class="tab-pane fade <%= 'show active' if active_mode == 'sku' %>" id="calc-tab-sku" role="tabpanel">
+              <%= form_tag admin.instance_path(PriceCalculator.new(id: 'show')), method: :get, data: { turbo: false } do %>
+                <%= hidden_field_tag :mode, 'sku' %>
+                <%= hidden_field_tag :calculate, '1' %>
+                <div class="form-group mb-3">
+                  <%= label_tag :sku, "SKU товара", class: "form-label" %>
+                  <%= text_field_tag :sku, params[:sku], class: "form-control", required: true,
+                      placeholder: "80598646 или s80598646", autocomplete: "off" %>
+                  <small class="form-text text-muted">Данные из БД: цена PLN, вес упаковки, delivery_cost</small>
+                </div>
+                <div class="form-group mb-3">
+                  <%= label_tag :quantity, "Количество", class: "form-label" %>
+                  <%= number_field_tag :quantity, params[:quantity].presence || 1,
+                      class: "form-control", min: 1, step: 1, required: true %>
+                </div>
+                <div class="form-group mb-3">
+                  <%= label_tag :delivery_pln, "Доставка PLN (переопределить)", class: "form-label" %>
+                  <%= number_field_tag :delivery_pln, params[:delivery_pln],
+                      class: "form-control", step: 0.01, min: 0, placeholder: "пусто — из товара или тариф PL" %>
+                </div>
+                <div class="form-group mb-3">
+                  <%= label_tag :use_gls, class: "form-check-label" do %>
+                    <%= check_box_tag :use_gls, '1', params[:use_gls] == '1', class: "form-check-input" %>
+                    GLS, если нет delivery_cost у товара
+                  <% end %>
+                </div>
+                <div class="form-group mb-3">
+                  <%= label_tag :date, "Дата курсов", class: "form-label" %>
+                  <%= date_field_tag :date, params[:date] || Date.today, class: "form-control" %>
+                </div>
+                <%= submit_tag "Рассчитать по SKU", class: "btn btn-primary btn-lg w-100" %>
+              <% end %>
             </div>
-            
-            <%= hidden_field_tag :calculate, '1' %>
-            <%= submit_tag "Рассчитать", class: "btn btn-primary btn-lg w-100" %>
-          <% end %>
+
+            <div class="tab-pane fade <%= 'show active' if active_mode == 'cart' %>" id="calc-tab-cart" role="tabpanel">
+              <%= form_tag admin.instance_path(PriceCalculator.new(id: 'show')), method: :get, data: { turbo: false } do %>
+                <%= hidden_field_tag :mode, 'cart' %>
+                <%= hidden_field_tag :calculate, '1' %>
+                <div class="form-group mb-3">
+                  <%= label_tag :cart_lines, "Позиции корзины", class: "form-label" %>
+                  <%= text_area_tag :cart_lines, params[:cart_lines],
+                      class: "form-control font-monospace", rows: 8, required: true,
+                      placeholder: "80598646 8\n90205097 2\n# SKU и количество через пробел или двоеточие" %>
+                  <small class="form-text text-muted">
+                    Одна строка — одна позиция. Формат: <code>SKU количество</code> или <code>SKU:количество</code>.
+                    Расчёт как в <code>CartPricingService</code> (сумма строк + ВГХ для ПВЗ).
+                  </small>
+                </div>
+                <div class="form-group mb-3">
+                  <%= label_tag :date, "Дата курсов", class: "form-label" %>
+                  <%= date_field_tag :date, params[:date] || Date.today, class: "form-control" %>
+                </div>
+                <%= submit_tag "Рассчитать корзину", class: "btn btn-primary btn-lg w-100" %>
+              <% end %>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -169,10 +230,114 @@
         </div>
       <% end %>
       
+      <% if @sku_calculation %>
+        <% sc = @sku_calculation %>
+        <% p = sc[:product] %>
+        <% bd = sc[:breakdown] %>
+        <% byn = sc[:byn] %>
+        <div class="card mb-4">
+          <div class="card-header bg-success text-white">
+            <h3 class="mb-0">Расчёт по SKU (×<%= sc[:quantity] %>)</h3>
+          </div>
+          <div class="card-body">
+            <table class="table table-sm table-bordered mb-3">
+              <tr><td>SKU</td><td><strong><%= p[:sku] %></strong></td></tr>
+              <tr><td>Название</td><td><%= p[:name] %></td></tr>
+              <tr><td>Цена IKEA (PLN)</td><td class="text-right"><%= number_with_precision(p[:price_pln], precision: 2) %></td></tr>
+              <tr><td>delivery_cost (PLN/ед.)</td><td class="text-right"><%= number_with_precision(p[:delivery_cost_pln], precision: 2) %></td></tr>
+              <tr><td>Вес упаковки (кг/ед.)</td><td class="text-right"><%= sc[:unit_weight_kg] %></td></tr>
+              <tr><td>Вес строки (кг)</td><td class="text-right"><%= sc[:line_weight_kg] %></td></tr>
+              <tr><td>Режим</td><td><strong><%= bd[:mode] %></strong></td></tr>
+            </table>
+            <div class="alert alert-success text-center">
+              <h4 class="alert-heading">Итого checkout (BYN)</h4>
+              <h1 class="mb-0 text-primary"><strong><%= number_to_currency(byn[:total_byn], unit: 'BYN', format: '%n %u', precision: 2) %></strong></h1>
+              <div class="text-muted mt-2">≈ <%= number_with_precision(bd[:total_pln], precision: 2) %> PLN</div>
+            </div>
+            <table class="table table-sm table-bordered">
+              <tr><td>Товары (BYN)</td><td class="text-right"><%= number_to_currency(byn[:goods_byn], unit: 'BYN', format: '%n %u', precision: 2) %></td></tr>
+              <tr><td>Доставка PL (BYN)</td><td class="text-right"><%= number_to_currency(byn[:delivery_poland_byn], unit: 'BYN', format: '%n %u', precision: 2) %></td></tr>
+              <tr><td>Логистика РБ (BYN)</td><td class="text-right"><%= number_to_currency(byn[:delivery_belarus_byn], unit: 'BYN', format: '%n %u', precision: 2) %></td></tr>
+              <tr class="table-info"><td><strong>Итого PLN</strong></td><td class="text-right"><strong><%= number_with_precision(bd[:total_pln], precision: 2) %> PLN</strong></td></tr>
+            </table>
+            <% if sc[:customs] %>
+              <p class="small text-muted mb-0">Таможня (справочно): <%= number_to_currency(sc[:customs][:total_byn], unit: 'BYN', format: '%n %u', precision: 2) %> — не в итоге цены.</p>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <% if @cart_calculation %>
+        <% cc = @cart_calculation %>
+        <% t = cc[:totals] %>
+        <% d = cc[:delivery] %>
+        <div class="card mb-4">
+          <div class="card-header bg-success text-white">
+            <h3 class="mb-0">Расчёт корзины (<%= cc[:items].size %> поз.)</h3>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-success text-center mb-4">
+              <h4 class="alert-heading">Итого (BYN), как checkout</h4>
+              <h1 class="mb-0 text-primary"><strong><%= number_to_currency(t[:total_byn], unit: 'BYN', format: '%n %u', precision: 2) %></strong></h1>
+              <div class="text-muted mt-2">
+                Товары: <%= number_to_currency(t[:subtotal_new_byn], unit: 'BYN', format: '%n %u', precision: 2) %>
+                · Доставка в РБ: <%= number_to_currency(t[:delivery_to_belarus_byn], unit: 'BYN', format: '%n %u', precision: 2) %>
+              </div>
+            </div>
+            <table class="table table-sm table-bordered mb-4">
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th class="text-right">Кол-во</th>
+                  <th class="text-right">PLN/ед.</th>
+                  <th class="text-right">Витрина BYN/ед.</th>
+                  <th class="text-right">Checkout BYN/ед.</th>
+                  <th class="text-right">Строка BYN</th>
+                  <th>Режим</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% cc[:items].each do |row| %>
+                  <tr>
+                    <td><code><%= row[:sku] %></code></td>
+                    <td class="text-right"><%= row[:quantity] %></td>
+                    <td class="text-right"><%= number_with_precision(row[:unit_price_pln], precision: 2) %></td>
+                    <td class="text-right"><%= number_to_currency(row[:unit_price_byn], unit: 'BYN', format: '%n %u', precision: 2) %></td>
+                    <td class="text-right"><%= number_to_currency(row[:unit_price_byn_checkout], unit: 'BYN', format: '%n %u', precision: 2) %></td>
+                    <td class="text-right"><strong><%= number_to_currency(row[:line_total_byn_checkout], unit: 'BYN', format: '%n %u', precision: 2) %></strong></td>
+                    <td><%= row[:pricing_mode] %></td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+            <h5>ВГХ и ПВЗ (Европочта)</h5>
+            <table class="table table-sm table-bordered">
+              <tr><td>Суммарный вес</td><td class="text-right"><%= number_with_precision(d[:total_weight_kg], precision: 3) %> кг</td></tr>
+              <tr><td>Посылок (шт.)</td><td class="text-right"><%= d[:parcels_count] %></td></tr>
+              <tr>
+                <td>Доступен europost_pickup</td>
+                <td class="text-right">
+                  <% if d[:europost_eligible] %>
+                    <span class="text-success"><strong>да</strong></span>
+                  <% else %>
+                    <span class="text-danger"><strong>нет</strong> (<%= d[:ineligible_reason] %>)</span>
+                  <% end %>
+                </td>
+              </tr>
+              <tr><td>delivery_poland_byn (в корзине)</td><td class="text-right"><%= number_to_currency(d[:delivery_poland_byn], unit: 'BYN', format: '%n %u', precision: 2) %></td></tr>
+              <tr><td>delivery_to_belarus_byn</td><td class="text-right"><%= number_to_currency(d[:delivery_to_belarus_byn], unit: 'BYN', format: '%n %u', precision: 2) %></td></tr>
+            </table>
+            <p class="small text-muted mb-0">
+              На checkout цена доставки до ПВЗ пересчитывается через <code>POST /delivery/calculate</code> (Европочта + РБ).
+            </p>
+          </div>
+        </div>
+      <% end %>
+
       <% if @calculation %>
         <div class="card">
           <div class="card-header bg-primary text-white">
-            <h3 class="mb-0">Результат расчета</h3>
+            <h3 class="mb-0">Результат расчета (вручную)</h3>
           </div>
           <div class="card-body">
             <div class="alert alert-success mb-4 text-center">
