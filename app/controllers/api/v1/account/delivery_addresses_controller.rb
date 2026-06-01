@@ -2,6 +2,8 @@ module Api
   module V1
     module Account
       class DeliveryAddressesController < ApplicationController
+        include ApiValidationErrors
+
         before_action :authenticate_user
         before_action :set_delivery_address, only: [:update, :destroy]
 
@@ -16,7 +18,7 @@ module Api
           if address.save
             render json: UserDeliveryAddressSerializer.new(address).serializable_hash, status: :created
           else
-            render json: { errors: address.errors.full_messages }, status: :unprocessable_entity
+            render_validation_errors(address, summary: "Не удалось сохранить адрес доставки")
           end
         end
 
@@ -24,7 +26,7 @@ module Api
           if @delivery_address.update(delivery_address_params)
             render json: UserDeliveryAddressSerializer.new(@delivery_address).serializable_hash
           else
-            render json: { errors: @delivery_address.errors.full_messages }, status: :unprocessable_entity
+            render_validation_errors(@delivery_address, summary: "Не удалось обновить адрес доставки")
           end
         end
 

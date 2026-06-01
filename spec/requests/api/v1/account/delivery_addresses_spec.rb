@@ -37,6 +37,25 @@ RSpec.describe "Account Delivery Addresses API", type: :request do
       expect(user.user_delivery_addresses.alive.count).to eq(1)
     end
 
+    it "returns readable errors when street and house are blank" do
+      post "/api/v1/account/delivery_addresses", params: {
+        city: "Минск",
+        street: "",
+        house: "",
+        lat: 53.902284,
+        lng: 27.561831
+      }, headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      body = JSON.parse(response.body)
+      expect(body["error"]).to eq("Не удалось сохранить адрес доставки")
+      expect(body["errors"]).to contain_exactly("Укажите улицу", "Укажите номер дома")
+      expect(body["field_errors"]).to contain_exactly(
+        { "field" => "street", "message" => "Укажите улицу" },
+        { "field" => "house", "message" => "Укажите номер дома" }
+      )
+    end
+
     it "clears apartment fields for private house" do
       post "/api/v1/account/delivery_addresses", params: {
         city: "Минск",

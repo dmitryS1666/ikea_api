@@ -289,6 +289,22 @@ ru:
       user:
         one: "Пользователь"
         other: "Пользователи"
+      user_delivery_address:
+        one: "Адрес доставки"
+        other: "Адреса доставки"
+    errors:
+      models:
+        user_delivery_address:
+          attributes:
+            city:
+              blank: "Укажите город"
+            street:
+              blank: "Укажите улицу"
+            house:
+              blank: "Укажите номер дома"
+      messages:
+        blank: "не может быть пустым"
+        record_invalid: "Проверьте введённые данные"
     attributes:
       home_banner:
         section: "Секция"
@@ -301,6 +317,20 @@ ru:
         image: "Изображение"
         created_at: "Создан"
         updated_at: "Обновлен"
+      user_delivery_address:
+        city: "Город"
+        street: "Улица"
+        house: "Дом"
+        building: "Корпус"
+        apartment: "Квартира"
+        entrance: "Подъезд"
+        floor: "Этаж"
+        has_elevator: "Лифт"
+        intercom: "Домофон"
+        is_private_house: "Частный дом"
+        lat: "Широта"
+        lng: "Долгота"
+        comment: "Комментарий"
       product:
         sku: "Артикул"
         name_ru: "Название"

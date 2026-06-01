@@ -5,9 +5,9 @@ class UserDeliveryAddress < ApplicationRecord
 
   before_validation :normalize_private_house_fields
 
-  validates :city, presence: true
-  validates :street, presence: true
-  validates :house, presence: true
+  validates :city, presence: { message: "Укажите город" }
+  validates :street, presence: { message: "Укажите улицу" }
+  validates :house, presence: { message: "Укажите номер дома" }
 
   def formatted_address
     chunks = [
