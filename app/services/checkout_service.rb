@@ -50,7 +50,8 @@ class CheckoutService
         user: user,
         params: params,
         delivery_type: normalized_delivery_type,
-        delivery_options: delivery_options
+        delivery_options: delivery_options,
+        require_address: false
       )
       return delivery_context if delivery_context[:error]
 
@@ -62,7 +63,8 @@ class CheckoutService
         weight_kg: pricing[:totals][:total_weight_kg],
         delivery_type: normalized_delivery_type,
         parcels: delivery_options[:parcels],
-        pickup_point_id: params[:pickup_point_id]
+        pickup_point_id: params[:pickup_point_id],
+        address: delivery_context[:address_snapshot]
       )
       total_amount = pricing[:totals][:total_byn].to_f - pricing[:totals][:delivery_total_byn].to_f + prices[:total_delivery_price_byn]
 
@@ -176,7 +178,8 @@ class CheckoutService
       weight_kg: pricing[:totals][:total_weight_kg],
       delivery_type: normalized_delivery_type,
       parcels: delivery_options[:parcels],
-      pickup_point_id: merged[:pickup_point_id]
+      pickup_point_id: merged[:pickup_point_id],
+      address: delivery_context[:address_snapshot]
     )
     total_amount = pricing[:totals][:total_byn].to_f - pricing[:totals][:delivery_total_byn].to_f + prices[:total_delivery_price_byn]
 
@@ -361,7 +364,8 @@ class CheckoutService
       weight_kg: pricing[:totals][:total_weight_kg],
       delivery_type: normalized_delivery_type,
       parcels: delivery_options[:parcels],
-      pickup_point_id: params[:pickup_point_id]
+      pickup_point_id: params[:pickup_point_id],
+      address: delivery_context[:address_snapshot]
     )
     total_amount = pricing[:totals][:total_byn].to_f - pricing[:totals][:delivery_total_byn].to_f + prices[:total_delivery_price_byn]
 
@@ -507,7 +511,7 @@ class CheckoutService
     end
   end
 
-  def self.resolve_delivery_context(user:, params:, delivery_type:, delivery_options: nil)
+  def self.resolve_delivery_context(user:, params:, delivery_type:, delivery_options: nil, require_address: true)
     case delivery_type
     when DeliveryTypeNormalizer::EUROPOST_PICKUP
       pickup_payload = params[:pickup_point].respond_to?(:to_unsafe_h) ? params[:pickup_point].to_unsafe_h : params[:pickup_point]
@@ -567,7 +571,14 @@ class CheckoutService
         address_payload.to_h
       end
 
-      return { error: "Для #{delivery_type} требуется delivery_address_id или address payload" } if address_snapshot.blank?
+      if address_snapshot.blank?
+        if require_address
+          return { error: "Для #{delivery_type} требуется delivery_address_id или address payload" }
+        end
+
+        return { pickup_point_snapshot: nil, address_snapshot: nil }
+      end
+
       { pickup_point_snapshot: nil, address_snapshot: address_snapshot }
     else
       { error: "Неподдерживаемый тип доставки" }
@@ -609,7 +620,7 @@ class CheckoutService
     EuropostWorkingHoursFormatter.summary_for_payload(office)
   end
 
-  def self.delivery_prices_for(weight_kg:, delivery_type:, parcels: nil, pickup_point_id: nil)
+  def self.delivery_prices_for(weight_kg:, delivery_type:, parcels: nil, pickup_point_id: nil, address: nil)
     pln_rate = ExchangeRate.fetch_or_create("PLN")&.rate_per_unit || 0
     buffer = PriceCalculationService.exchange_rate_buffer
     rate = pln_rate * buffer
@@ -619,7 +630,8 @@ class CheckoutService
       weight_kg: weight_kg,
       pln_rate_with_buffer: rate,
       parcels: parcels,
-      pickup_point_id: pickup_point_id
+      pickup_point_id: pickup_point_id,
+      address: address
     )
 
     {
@@ -640,16 +652,53 @@ class CheckoutService
 
   def self.draft_delivery_options_for(order)
     cart_like = CartPricingService.order_as_cart(order)
-    DeliveryOptionsService.call(cart_like)
+    options = DeliveryOptionsService.call(cart_like)
+    enrich_delivery_methods_with_prices!(options, order)
   rescue StandardError => e
     Rails.logger.error("CheckoutService: failed to build draft delivery options for order=#{order&.id}: #{e.class} #{e.message}")
     nil
   end
 
+  def self.enrich_delivery_methods_with_prices!(options, order)
+    return options unless options.is_a?(Hash)
+
+    weight_kg = options.dig(:cart_vgh, :weight_kg).to_f
+    parcels = options[:parcels]
+    aj = order.address_json.is_a?(Hash) ? order.address_json.stringify_keys : {}
+    pickup_point_id = aj["pickup_point_id"]
+    saved_address = order.address_json.dig("delivery", "address")
+
+    methods = Array(options[:methods]).map do |method|
+      next method unless method[:available]
+
+      address =
+        if method[:code] == DeliveryTypeNormalizer::COURIER || method[:code] == DeliveryTypeNormalizer::IKEYA_DELIVERY
+          saved_address
+        end
+
+      prices = delivery_prices_for(
+        weight_kg: weight_kg,
+        delivery_type: method[:code],
+        parcels: parcels,
+        pickup_point_id: method[:code] == DeliveryTypeNormalizer::EUROPOST_PICKUP ? pickup_point_id : nil,
+        address: address
+      )
+
+      method.merge(
+        delivery_price_byn: prices[:delivery_price_byn],
+        delivery_to_belarus_price_byn: prices[:delivery_to_belarus_price_byn],
+        total_delivery_price_byn: prices[:total_delivery_price_byn]
+      )
+    end
+
+    options.merge(methods: methods)
+  end
+  private_class_method :enrich_delivery_methods_with_prices!
+
   def self.build_delivery_snapshot(normalized_delivery_type:, eta:, prices:, pickup_point_snapshot:, address_snapshot:)
     {
       type: normalized_delivery_type,
-      provider: normalized_delivery_type == DeliveryTypeNormalizer::EUROPOST_PICKUP ? "europost" : nil,
+      provider: [DeliveryTypeNormalizer::EUROPOST_PICKUP, DeliveryTypeNormalizer::COURIER].include?(normalized_delivery_type) ? "europost" : nil,
       delivery_date: eta[:delivery_date],
       storage_until: eta[:storage_until],
       prices: {

@@ -67,7 +67,8 @@ module Api
           weight_kg: weight_kg,
           pln_rate_with_buffer: pln_rate_with_buffer,
           parcels: options[:parcels],
-          pickup_point_id: params[:pickup_point_id]
+          pickup_point_id: params[:pickup_point_id],
+          address: delivery_calculate_address_param
         )
 
         rules = CartRulesService.call(subtotal_new_byn: subtotal_byn)
@@ -291,6 +292,13 @@ module Api
              .gsub(/[.,;:\-]+/, " ")
              .gsub(/\b(г|город|д|деревня|п|поселок|посёлок|аг|агрогородок)\b/u, " ")
              .squish
+      end
+
+      def delivery_calculate_address_param
+        raw = params[:address]
+        return nil if raw.blank?
+
+        raw.respond_to?(:to_unsafe_h) ? raw.to_unsafe_h : raw
       end
 
       def delivery_calculate_pricing_json(finance)

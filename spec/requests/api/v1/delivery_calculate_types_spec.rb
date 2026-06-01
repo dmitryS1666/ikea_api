@@ -66,7 +66,39 @@ RSpec.describe "Delivery calculate types", type: :request do
     expect(body["delivery"]["available"]).to be(true)
     expect(body["delivery"]["delivery_price_byn"].to_f).to be > 0
     expect(body["delivery"]["total_delivery_price_byn"].to_f).to be > 0
-    expect(body["delivery"]["pricing"]["source"]).to eq("internal_weight_tables")
+    expect(body["delivery"]["pricing"]["source"]).to be_in(%w[europost_api internal_europost_fallback internal_europost_token_missing])
+  end
+
+  it "uses Europost API segment for courier when postal quote succeeds" do
+    prev = ENV["EUROPOST_API_TOKEN"]
+    ENV["EUROPOST_API_TOKEN"] = "tok"
+    allow(EuropostPostalPaymentQuote).to receive(:call).and_return(
+      success: true,
+      reason: nil,
+      error: nil,
+      postal_total_byn: 12.0,
+      currency: "BYN",
+      payload: { "delivery_type" => 2, "weight" => 20.0 },
+      raw: { "total" => 12.0 }
+    )
+
+    post "/api/v1/delivery/calculate",
+         params: {
+           cart_token: cart.guest_token,
+           delivery_type: "courier",
+           address: { city: "Минск", street: "Ленина", house: "10" }
+         }
+
+    expect(response).to have_http_status(:ok)
+    body = JSON.parse(response.body)
+    expect(body["delivery"]["pricing"]["source"]).to eq("europost_api")
+    expect(body["delivery"]["delivery_price_byn"]).to eq("12.00")
+  ensure
+    if prev
+      ENV["EUROPOST_API_TOKEN"] = prev
+    else
+      ENV.delete("EUROPOST_API_TOKEN")
+    end
   end
 
   it "uses Europost API segment when postal quote succeeds" do

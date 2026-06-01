@@ -74,6 +74,34 @@ RSpec.describe EuropostPostalPaymentQuote do
       end
     end
 
+    it "builds courier payload with delivery_type 2 without store_id_finish" do
+      with_env(
+        "EUROPOST_API_TOKEN" => "tok",
+        "EUROPOST_STORE_ID_START" => "70130090",
+        "EUROPOST_COURIER_DELIVERY_TYPE" => nil,
+        "EUROPOST_DELIVERY_TYPE" => "1"
+      ) do
+        allow(EuropostApiService).to receive(:postal_payment_calculate)
+          .and_return({ "sender_pays" => 8.0 })
+
+        r = described_class.call(
+          weight_kg: 5.0,
+          pln_rate_with_buffer: pln_rate_with_buffer,
+          delivery_kind: :courier,
+          address: { europost_address_id: "90001" }
+        )
+
+        expect(r[:success]).to be(true)
+        expect(r[:payload]).to include(
+          "delivery_type" => 2,
+          "store_id_start" => 70130090,
+          "address_id" => 90001,
+          "weight" => 5.0
+        )
+        expect(r[:payload]).not_to have_key("store_id_finish")
+      end
+    end
+
     it "converts PLN total to BYN when legacy total/currency response is used" do
       with_env(
         "EUROPOST_API_TOKEN" => "tok",

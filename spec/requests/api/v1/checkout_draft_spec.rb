@@ -150,6 +150,34 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(json["order_id"]).to eq(first_id)
   end
 
+  it "updates draft with courier delivery_type without address and recalculates delivery" do
+    post "/api/v1/checkout", params: { draft: true }, headers: headers
+    expect(response).to have_http_status(:created)
+    order_id = JSON.parse(response.body)["order_id"]
+
+    allow(EuropostPostalPaymentQuote).to receive(:call).and_return(
+      success: true,
+      postal_total_byn: 9.5,
+      currency: "BYN",
+      payload: { "delivery_type" => 2 },
+      raw: { "sender_pays" => 9.5 }
+    )
+
+    patch "/api/v1/checkout/#{order_id}", params: {
+      delivery_type: "courier",
+      payment_method: "card"
+    }, headers: headers
+
+    expect(response).to have_http_status(:ok)
+    body = JSON.parse(response.body)
+    order = Order.find(order_id)
+    expect(order.delivery_type).to eq("courier")
+    expect(order.delivery_price.to_f).to be > 0
+    expect(body.dig("pricing", "delivery", "type")).to eq("courier")
+    expect(body.dig("pricing", "delivery", "title")).to eq("Курьерская доставка")
+    expect(body.dig("pricing", "totals", "delivery_total_byn")).to eq(format("%.2f", order.delivery_price))
+  end
+
   it "loads draft via GET /checkout/:id" do
     post "/api/v1/checkout", params: { draft: true }, headers: headers
     order_id = JSON.parse(response.body)["order_id"]

@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 # POST /api/external/postal/payment/calculate — предварительный тариф Европочты.
-# API Европочты v1.8.2 не принимает произвольный payload: для доставки до ОПС
-# обязательны is_juristic, delivery_type, store_id_start, store_id_finish и weight.
+# API Европочты v1.8.2: для ОПС→ОПС — delivery_type 1, store_id_start/finish;
+# для ОПС→дверь (курьер) — delivery_type 2 (EUROPOST_COURIER_DELIVERY_TYPE), store_id_start, опционально address_id.
 class EuropostPostalPaymentQuote
   TOP_LEVEL_AMOUNT_KEYS = %w[total amount price cost sum Total Amount Price Cost Sum].freeze
   RESPONSE_PRICE_KEYS = %w[
@@ -10,12 +10,13 @@ class EuropostPostalPaymentQuote
     oversize_price relabeling_price shipment_price receiver_pays sender_pays
   ].freeze
 
-  def self.call(weight_kg:, pln_rate_with_buffer:, parcels: nil, pickup_point_id: nil)
+  # delivery_kind: :pickup (ОПС→ОПС) или :courier (ОПС→дверь, delivery_type 2 по умолчанию).
+  def self.call(weight_kg:, pln_rate_with_buffer:, parcels: nil, pickup_point_id: nil, delivery_kind: :pickup, address: nil)
     if ENV["EUROPOST_API_TOKEN"].to_s.strip.blank?
       return build_result(success: false, reason: "europost_token_missing", postal_total_byn: nil, currency: nil, payload: nil, raw: nil)
     end
 
-    payload = build_request_payload(weight_kg, parcels, pickup_point_id)
+    payload = build_request_payload(weight_kg, parcels, pickup_point_id, delivery_kind, address)
     unless payload[:ok]
       return build_result(
         success: false,
@@ -58,15 +59,14 @@ class EuropostPostalPaymentQuote
     build_result(success: false, reason: "europost_api_error", error: e.message, postal_total_byn: nil, currency: nil, payload: defined?(payload) && payload.is_a?(Hash) ? payload[:payload] : nil, raw: nil)
   end
 
-  def self.build_request_payload(weight_kg, _parcels, pickup_point_id)
+  def self.build_request_payload(weight_kg, _parcels, pickup_point_id, delivery_kind, address)
+    kind = delivery_kind.to_sym
     start_store_id = integer_env("EUROPOST_STORE_ID_START")
-    finish_store_id = integer_value(pickup_point_id) || integer_env("EUROPOST_STORE_ID_FINISH")
 
     payload = {
       "is_juristic" => boolean_env("EUROPOST_IS_JURISTIC", true),
-      "delivery_type" => integer_env("EUROPOST_DELIVERY_TYPE", 1),
+      "delivery_type" => europost_delivery_type_for(kind),
       "store_id_start" => start_store_id,
-      "store_id_finish" => finish_store_id,
       "weight" => weight_kg.to_f.round(3),
       "shipment_payer" => integer_env("EUROPOST_SHIPMENT_PAYER", 0),
       "cash_on_delivery_payer" => integer_env("EUROPOST_CASH_ON_DELIVERY_PAYER", 1)
@@ -82,8 +82,15 @@ class EuropostPostalPaymentQuote
 
     missing = []
     missing << "EUROPOST_STORE_ID_START" if start_store_id.blank?
-    missing << "pickup_point_id/EUROPOST_STORE_ID_FINISH" if finish_store_id.blank?
     missing << "weight" unless payload["weight"].positive?
+
+    if kind == :pickup
+      finish_store_id = integer_value(pickup_point_id) || integer_env("EUROPOST_STORE_ID_FINISH")
+      payload["store_id_finish"] = finish_store_id
+      missing << "pickup_point_id/EUROPOST_STORE_ID_FINISH" if finish_store_id.blank?
+    else
+      merge_courier_address_fields!(payload, address)
+    end
 
     return { ok: true, payload: payload.compact } if missing.empty?
 
@@ -94,6 +101,34 @@ class EuropostPostalPaymentQuote
       payload: payload.compact
     }
   end
+
+  def self.europost_delivery_type_for(kind)
+    case kind
+    when :courier
+      integer_env("EUROPOST_COURIER_DELIVERY_TYPE", 2)
+    else
+      integer_env("EUROPOST_DELIVERY_TYPE", 1)
+    end
+  end
+  private_class_method :europost_delivery_type_for
+
+  def self.merge_courier_address_fields!(payload, address)
+    address_id = courier_address_id_from(address) || integer_env("EUROPOST_COURIER_QUOTE_ADDRESS_ID")
+    payload["address_id"] = address_id if address_id.present?
+  end
+  private_class_method :merge_courier_address_fields!
+
+  def self.courier_address_id_from(address)
+    return nil unless address.is_a?(Hash)
+
+    %w[europost_address_id address_id address1_id adress1_id_reciever].each do |key|
+      value = integer_value(address[key] || address[key.to_sym])
+      return value if value.present?
+    end
+
+    nil
+  end
+  private_class_method :courier_address_id_from
   private_class_method :build_request_payload
 
   def self.extract_amount_and_currency(raw)

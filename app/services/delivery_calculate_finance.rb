@@ -4,7 +4,7 @@
 # Для europost_pickup сегмент «до Беларуси» при успешном ответе Европочты берётся из
 # postal/payment/calculate; логистика по РБ (wc) остаётся по внутренним таблицам.
 class DeliveryCalculateFinance
-  def self.call(normalized_delivery_type:, weight_kg:, pln_rate_with_buffer:, parcels: nil, pickup_point_id: nil)
+  def self.call(normalized_delivery_type:, weight_kg:, pln_rate_with_buffer:, parcels: nil, pickup_point_id: nil, address: nil)
     poland_pln = PolandDeliveryService.calculate(weight_kg)
     belarus_pln = BelarusDeliveryService.calculate(weight_kg)
     poland_byn = (poland_pln * pln_rate_with_buffer).round(2)
@@ -22,7 +22,17 @@ class DeliveryCalculateFinance
           weight_kg: weight_kg,
           pln_rate_with_buffer: pln_rate_with_buffer,
           parcels: parcels,
-          pickup_point_id: pickup_point_id
+          pickup_point_id: pickup_point_id,
+          delivery_kind: :pickup
+        )
+        europost_quote[:success] ? europost_quote[:postal_total_byn].to_f : poland_byn
+      when DeliveryTypeNormalizer::COURIER
+        europost_quote = EuropostPostalPaymentQuote.call(
+          weight_kg: weight_kg,
+          pln_rate_with_buffer: pln_rate_with_buffer,
+          parcels: parcels,
+          delivery_kind: :courier,
+          address: address
         )
         europost_quote[:success] ? europost_quote[:postal_total_byn].to_f : poland_byn
       else
@@ -51,7 +61,7 @@ class DeliveryCalculateFinance
     case normalized_delivery_type
     when DeliveryTypeNormalizer::IKEYA_DELIVERY
       "internal_ikeya_poland_zero"
-    when DeliveryTypeNormalizer::EUROPOST_PICKUP
+    when DeliveryTypeNormalizer::EUROPOST_PICKUP, DeliveryTypeNormalizer::COURIER
       if europost_quote&.dig(:success)
         "europost_api"
       elsif europost_quote&.dig(:reason) == "europost_token_missing"

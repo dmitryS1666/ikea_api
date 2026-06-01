@@ -11,7 +11,10 @@
 - Добавлены сохраненные ПВЗ пользователя:
   - `GET/POST/DELETE /api/v1/account/pickup_points`.
 - `POST /api/v1/delivery/calculate` теперь отдает дату доставки, хранение, цены и `display` блок.
-- В ответе `delivery` добавлено поле **`pricing`**: `source` (откуда взята сумма сегмента «почта/Польша»), блок `internal` (таблицы `PolandDeliveryService` + `BelarusDeliveryService`) и при попытке расчёта Европочты — `europost` (успех/ошибка, `postal_total_byn`, `request_payload`). Для `europost_pickup` при заданном `EUROPOST_API_TOKEN` сегмент `delivery_price_byn` берётся из **`POST /api/external/postal/payment/calculate`**, при ошибке API или без токена — внутренний тариф Польши (fallback).
+- В ответе `delivery` добавлено поле **`pricing`**: `source` (откуда взята сумма сегмента «почта/Польша»), блок `internal` (таблицы `PolandDeliveryService` + `BelarusDeliveryService`) и при попытке расчёта Европочты — `europost` (успех/ошибка, `postal_total_byn`, `request_payload`). Для `europost_pickup` и **`courier`** при заданном `EUROPOST_API_TOKEN` сегмент `delivery_price_byn` берётся из **`POST /api/external/postal/payment/calculate`** (для курьера — `delivery_type` 2, `EUROPOST_COURIER_DELIVERY_TYPE`), при ошибке API или без токена — внутренний тариф Польши (fallback).
+- **Черновик checkout:** выбор `courier` через `PATCH /checkout/:id` **без адреса** сохраняет тип и пересчитывает доставку; адрес обязателен на `finalize`.
+- **`pricing.delivery`** в ответе checkout: тип, название, разбивка `delivery_price_byn` / `delivery_to_belarus_price_byn` / `total_delivery_price_byn`.
+- **`delivery_options.methods[]`**: для доступных способов — оценочные `total_delivery_price_byn` (ПВЗ vs курьер).
 - `POST /api/v1/checkout` сохраняет расширенный delivery snapshot в `order.address_json` (старые ключи сохранены).
 - `autolight` деактивирован/удален из активных API (routes/controller/swagger/providers).
 - Legacy-read для старых заказов сохранен: сериализация заказа не падает, даже если в исторических данных встречаются старые значения.
