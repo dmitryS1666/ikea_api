@@ -5,6 +5,7 @@ RSpec.describe 'POST /api/v1/webhooks/webpay', type: :request do
 
   before do
     allow(WebpayGetTransactionService).to receive(:billing_configured?).and_return(false)
+    allow(WebpayGetTransactionService).to receive(:fetch)
     allow(CrmSyncJob).to receive(:perform_later)
   end
 
@@ -93,5 +94,39 @@ RSpec.describe 'POST /api/v1/webhooks/webpay', type: :request do
     expect(response).to have_http_status(:ok)
     expect(order.reload.webpay_transaction_id).to eq('858578103')
     expect(CrmSyncJob).to have_received(:perform_later).with('Order', order.id).once
+  end
+
+  context 'when Billing API get_transaction fails' do
+    before do
+      allow(WebpayGetTransactionService).to receive(:billing_configured?).and_return(true)
+      allow(WebpayGetTransactionService).to receive(:fetch).and_return(
+        WebpayGetTransactionService::Result.new(ok: false, fields: {}, raw_xml: nil, error: 'http_500')
+      )
+    end
+
+    it 'still marks order paid from signed notify' do
+      order = create(:order,
+                     status: :created,
+                     total_amount: 25.00,
+                     payment_order_number: 'ORDER-SPEC-BILLING-FAIL',
+                     payment_method: 'card')
+
+      body = notify_params(
+        'batch_timestamp' => '1562591640',
+        'currency_id' => 'BYN',
+        'amount' => '25.00',
+        'payment_method' => 'cc',
+        'order_id' => '999004',
+        'site_order_id' => order.payment_order_number,
+        'transaction_id' => '858578104',
+        'payment_type' => '4',
+        'rrn' => '786755995455'
+      )
+
+      post '/api/v1/webhooks/webpay', params: body
+
+      expect(response).to have_http_status(:ok)
+      expect(order.reload).to be_paid
+    end
   end
 end

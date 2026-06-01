@@ -129,29 +129,8 @@ class WebpayPaymentLinkService
       "#{api_base}/api/v1/webhooks/webpay"
     end
 
-    # WebPay return URL must hit Rails (e.g. /api/v1/payment/success behind NPM), not the SPA.
     def effective_return_url
-      configured = webpay_config.return_url.to_s.strip
-      api_base = webpay_config.link_base_url.to_s.strip.chomp('/')
-      api_success = api_base.present? ? "#{api_base}/api/v1/payment/success" : nil
-
-      if configured.blank?
-        return api_success
-      end
-
-      # Legacy: WEBPAY_RETURN_URL pointed at storefront /payment/success (NPM serves SPA → 404).
-      if api_success.present? && storefront_payment_success_path?(configured)
-        return api_success
-      end
-
-      configured
-    end
-
-    def storefront_payment_success_path?(url)
-      uri = URI.parse(url)
-      uri.path.to_s.delete_suffix('/').casecmp?('/payment/success')
-    rescue URI::InvalidURIError
-      false
+      WebpayReturnUrl.normalize(webpay_config.return_url, api_base: webpay_config.link_base_url)
     end
 
     def effective_cancel_url

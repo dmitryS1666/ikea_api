@@ -46,13 +46,7 @@ class WebpayPaymentCompletionService
       return :currency_mismatch
     end
 
-    if WebpayGetTransactionService.billing_configured?
-      res = WebpayGetTransactionService.fetch(p['transaction_id'])
-      unless res.ok && verify_get_transaction_fields!(res.fields, order, p['transaction_id'])
-        Rails.logger.warn("[Webpay notify] get_transaction verification failed: #{res.error}")
-        return :remote_verify_failed
-      end
-    end
+    verify_notify_via_billing_api!(order, p['transaction_id'])
 
     apply_paid!(order, p['transaction_id'].to_s)
   end
@@ -88,6 +82,19 @@ class WebpayPaymentCompletionService
   end
 
   private
+
+  # Signed server notify is authoritative; Billing API is an extra check when available.
+  def verify_notify_via_billing_api!(order, transaction_id)
+    return unless WebpayGetTransactionService.billing_configured?
+
+    res = WebpayGetTransactionService.fetch(transaction_id)
+    unless res.ok && verify_get_transaction_fields!(res.fields, order, transaction_id)
+      Rails.logger.warn(
+        "[Webpay notify] get_transaction verification failed: #{res.error} " \
+        '(payment will still be accepted from signed notify)'
+      )
+    end
+  end
 
   def verify_get_transaction_fields!(fields, order, expected_transaction_id)
     return false unless WebpaySignatureService.get_transaction_signature_valid?(fields, webpay_config.secret_key)

@@ -39,10 +39,20 @@ cd ~/apps/ikea_front
 | `/api-docs` | `http` | `172.17.0.1` | `3001` | Swagger UI |
 | `/assets` | `http` | `172.17.0.1` | `3001` | статика Trestle |
 | `/images` | `http` | `172.17.0.1` | `3001` | изображения товаров |
+| `/payment/success` | `http` | `172.17.0.1` | `3001` | WebPay return (если в кабинете WebPay указан путь без `/api`) |
+| `/payment/cancel` | `http` | `172.17.0.1` | `3001` | WebPay cancel return (опционально) |
 
 > Хост `172.17.0.1` — адрес Docker-хоста. Puma должна прослушивать `0.0.0.0` или `tcp://0.0.0.0:3001`.
 
-**WebPay:** возврат после оплаты обрабатывает Rails на `GET /api/v1/payment/success` (уже попадает под location `/api`). Не указывайте `WEBPAY_RETURN_URL` на `/payment/success` без префикса `/api` — этот путь отдаёт SPA и даст 404. После обработки API редиректит на витрину (`WEBPAY_SUCCESS_REDIRECT_URL`, по умолчанию `https://ikeya.by/payment/success`).
+**WebPay (env на проде):**
+
+```bash
+WEBPAY_LINK_BASE_URL=https://ikeya.by
+WEBPAY_RETURN_URL=https://ikeya.by/api/v1/payment/success
+WEBPAY_SUCCESS_REDIRECT_URL=https://ikeya.by/account/orders
+```
+
+Значение `WEBPAY_RETURN_URL=https://ikeya.by/payment/success` при старте приложения автоматически заменяется на API-URL. Если в личном кабинете WebPay зашит старый return URL без `/api`, добавьте NPM location `/payment/success` → Rails (см. таблицу выше). Страницы `/payment/success` на Next.js нет — финальный редирект идёт на `/account/orders`.
 
 ---
 

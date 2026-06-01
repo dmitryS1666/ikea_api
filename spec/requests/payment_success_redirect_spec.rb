@@ -9,7 +9,7 @@ RSpec.describe 'WebPay payment success redirect', type: :request do
     ENV['WEBPAY_SUCCESS_REDIRECT_URL'] = old_success
   end
 
-  let(:redirect_target) { 'https://ikeya.by/payment/success' }
+  let(:redirect_target) { 'https://ikeya.by/account/orders' }
   let(:completion_result) { :paid }
 
   before do
@@ -22,7 +22,7 @@ RSpec.describe 'WebPay payment success redirect', type: :request do
       get path, params: { wsb_order_num: '12345', wsb_tid: 'abc' }
 
       expect(response).to have_http_status(:found)
-      expect(response).to redirect_to('https://ikeya.by/payment/success?wsb_order_num=12345&wsb_tid=abc')
+      expect(response).to redirect_to('https://ikeya.by/account/orders?wsb_order_num=12345&wsb_tid=abc')
     end
 
     it 'confirms webpay payment when required params are present' do

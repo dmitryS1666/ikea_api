@@ -1,6 +1,8 @@
 class PaymentController < ApplicationController
+  skip_before_action :authenticate_user
+
   # WebPay returns user here after payment completion (route: /api/v1/payment/success).
-  # Marks order paid when possible, then redirects to the storefront success page.
+  # Marks order paid when possible, then redirects to the storefront orders page.
   def success
     result = process_webpay_return!
     Rails.logger.info("[Payment success] completion=#{result}") if result
@@ -31,7 +33,7 @@ class PaymentController < ApplicationController
     return explicit if explicit.present?
 
     site = Seo::PublicSiteUrl.resolve.to_s.strip.chomp('/')
-    "#{site}/payment/success"
+    "#{site}/account/orders"
   end
 
   def build_redirect_url(target)
