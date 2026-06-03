@@ -42,12 +42,11 @@ class CartSelectionService
   def self.build_subset_cart(cart:, selections:)
     return { error: 'Не указаны товары для оформления', code: 'items_required' } if selections.blank?
 
-    cart_items_by_sku = cart.cart_items.index_by(&:product_sku)
     subset = Cart.new(user: cart.user, promo_code: cart.promo_code)
     resolved = []
 
     selections.each do |sel|
-      cart_item = cart_items_by_sku[sel.sku]
+      cart_item = find_cart_item_by_public_sku(cart, sel.sku)
       unless cart_item
         return { error: "Товар #{sel.sku} отсутствует в корзине", code: 'item_not_in_cart', sku: sel.sku }
       end
@@ -57,8 +56,8 @@ class CartSelectionService
         return { error: "Некорректное количество для #{sel.sku}", code: 'invalid_quantity', sku: sel.sku }
       end
 
-      subset.cart_items.build(product_sku: sel.sku, quantity: qty)
-      resolved << ItemSelection.new(sku: sel.sku, quantity: qty)
+      subset.cart_items.build(product_sku: cart_item.product_sku, quantity: qty)
+      resolved << ItemSelection.new(sku: cart_item.product_sku, quantity: qty)
     end
 
     if subset.cart_items.blank?
@@ -89,7 +88,7 @@ class CartSelectionService
     return if selections.blank?
 
     selections.each do |sel|
-      cart_item = cart.cart_items.find_by(product_sku: sel.sku)
+      cart_item = find_cart_item_by_public_sku(cart, sel.sku)
       next unless cart_item
 
       remaining = cart_item.quantity.to_i - sel.quantity.to_i
@@ -119,6 +118,14 @@ class CartSelectionService
     end
   end
 
+  def self.find_cart_item_by_public_sku(cart, sku)
+    cart.cart_items.find { |item| sku_aliases(sku).include?(item.product_sku.to_s) }
+  end
+
+  def self.sku_aliases(sku)
+    Products::ListingSkuResolver.aliases(sku)
+  end
+
   def self.selections_equal?(left, right)
     normalize_key = lambda do |list|
       Array(list).map { |s| [s.sku.to_s, s.quantity.to_i] }.sort
@@ -133,7 +140,8 @@ class CartSelectionService
     order_qty = order.order_items.group_by(&:product_sku).transform_values { |rows| rows.sum(&:quantity) }
 
     selections.each do |sel|
-      expected = order_qty[sel.sku]
+      matched_sku = sku_aliases(sel.sku).find { |alias_sku| order_qty.key?(alias_sku) }
+      expected = order_qty[matched_sku]
       unless expected
         return { error: "Товар #{sel.sku} отсутствует в черновике заказа", code: 'item_not_in_draft', sku: sel.sku }
       end

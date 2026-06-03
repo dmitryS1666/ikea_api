@@ -7,9 +7,9 @@ module Api
         cart, token, _ = CartTokenResolver.call(request: request, params: params)
         sku = params.require(:sku)
         quantity = params.require(:quantity).to_i
-        Product.with_available_stock.find_by!(sku: sku)
+        product = find_available_product_by_public_sku!(sku)
 
-        cart_item = cart.cart_items.find_or_initialize_by(product_sku: sku)
+        cart_item = cart.cart_items.find_or_initialize_by(product_sku: product.sku)
         if cart_item.new_record?
           cart_item.quantity = quantity
         else
@@ -25,7 +25,7 @@ module Api
         cart, token, _ = CartTokenResolver.call(request: request, params: params)
         sku = params[:sku]
         quantity = params.require(:quantity).to_i
-        cart_item = cart.cart_items.find_by!(product_sku: sku)
+        cart_item = find_cart_item_by_public_sku!(cart, sku)
 
         if quantity <= 0
           cart_item.destroy!
@@ -40,7 +40,7 @@ module Api
       def destroy
         cart, token, _ = CartTokenResolver.call(request: request, params: params)
         sku = params[:sku]
-        cart_item = cart.cart_items.find_by!(product_sku: sku)
+        cart_item = find_cart_item_by_public_sku!(cart, sku)
         cart_item.destroy!
 
         cart.touch_expiration!
@@ -59,11 +59,28 @@ module Api
           skus = Array(params[:skus]).map(&:to_s).map(&:strip).reject(&:empty?)
           return render json: { error: 'skus is required' }, status: :unprocessable_entity if skus.empty?
 
-          cart.cart_items.where(product_sku: skus).destroy_all
+          cart.cart_items.where(product_sku: sku_aliases_for_cart(skus)).destroy_all
         end
 
         cart.touch_expiration!
         render json: cart_response_payload(cart, token)
+      end
+
+      private
+
+      def find_available_product_by_public_sku!(sku)
+        product = Products::ListingSkuResolver.find_product(sku)
+        raise ActiveRecord::RecordNotFound, "Couldn't find Product" unless product&.available_in_stock?
+
+        product
+      end
+
+      def find_cart_item_by_public_sku!(cart, sku)
+        cart.cart_items.find_by!(product_sku: sku_aliases_for_cart(sku))
+      end
+
+      def sku_aliases_for_cart(skus)
+        Array(skus).flat_map { |value| Products::ListingSkuResolver.aliases(value) }.uniq
       end
     end
   end

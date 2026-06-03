@@ -36,7 +36,7 @@ module CartResponseFormatter
       pricing_line = pricing_map[item.product_sku] || {}
 
       {
-        sku: item.product_sku,
+        sku: public_sku(item.product_sku),
         quantity: item.quantity,
         available: available,
         issue_reason: issue_reason,
@@ -72,7 +72,7 @@ module CartResponseFormatter
     return nil unless product
 
     {
-      sku: product.sku,
+      sku: public_sku(product.sku),
       name: product.name,
       price_byn: format_byn(
         PriceCalculationService.product_storefront_price_byn(
@@ -94,7 +94,7 @@ module CartResponseFormatter
   def build_similar_products(product)
     SimilarProductsService.for(product: product, limit: 8).map do |similar|
       {
-        sku: similar.sku,
+        sku: public_sku(similar.sku),
         name: similar.name,
         price_byn: format_byn(
           PriceCalculationService.product_storefront_price_byn(
@@ -128,7 +128,7 @@ module CartResponseFormatter
   
   def recommendation_payload(product)
     {
-      sku: product.sku,
+      sku: public_sku(product.sku),
       name: product.name,
       price_byn: format_byn(
         PriceCalculationService.product_storefront_price_byn(
@@ -213,6 +213,10 @@ module CartResponseFormatter
       free_delivery_eligible: flags[:free_delivery_eligible],
       free_delivery_missing_byn: format_byn(flags[:free_delivery_missing_byn])
     }
+  end
+
+  def public_sku(sku)
+    Product.public_sku(sku)
   end
 
   def format_byn(value)

@@ -18,7 +18,7 @@ module FavoriteResponseFormatter
     favorite_items.map do |item|
       product = item.product
       {
-        sku: item.product_sku,
+        sku: public_sku(item.product_sku),
         added_at: item.created_at.iso8601,
         product: product_payload(product)
       }
@@ -29,7 +29,7 @@ module FavoriteResponseFormatter
     return nil unless product
 
     {
-      sku: product.sku,
+      sku: public_sku(product.sku),
       name: product.name,
       name_ru: product.name.to_s.presence,
       price_byn: format_byn(
@@ -59,6 +59,10 @@ module FavoriteResponseFormatter
     else
       Array(images)
     end
+  end
+
+  def public_sku(sku)
+    Product.public_sku(sku)
   end
 
   def format_byn(value)
