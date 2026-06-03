@@ -49,10 +49,10 @@ cd ~/apps/ikea_front
 ```bash
 WEBPAY_LINK_BASE_URL=https://ikeya.by
 WEBPAY_RETURN_URL=https://ikeya.by/api/v1/payment/success
-WEBPAY_SUCCESS_REDIRECT_URL=https://ikeya.by/account/orders
+WEBPAY_SUCCESS_REDIRECT_URL=https://ikeya.by/profile/orders
 ```
 
-Значение `WEBPAY_RETURN_URL=https://ikeya.by/payment/success` при старте приложения автоматически заменяется на API-URL. Если в личном кабинете WebPay зашит старый return URL без `/api`, добавьте NPM location `/payment/success` → Rails (см. таблицу выше). Страницы `/payment/success` на Next.js нет — финальный редирект идёт на `/account/orders`.
+Значение `WEBPAY_RETURN_URL=https://ikeya.by/payment/success` при старте приложения автоматически заменяется на API-URL. Если в личном кабинете WebPay зашит старый return URL без `/api`, добавьте NPM location `/payment/success` → Rails (см. таблицу выше). Страницы `/payment/success` на Next.js нет — финальный редирект идёт на `/profile/orders`.
 
 ---
 

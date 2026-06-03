@@ -30,10 +30,24 @@ class PaymentController < ApplicationController
 
   def success_redirect_target
     explicit = ENV['WEBPAY_SUCCESS_REDIRECT_URL'].to_s.strip
-    return explicit if explicit.present?
+    return normalize_storefront_success_url(explicit) if explicit.present?
 
     site = Seo::PublicSiteUrl.resolve.to_s.strip.chomp('/')
-    "#{site}/account/orders"
+    "#{site}/profile/orders"
+  end
+
+  def normalize_storefront_success_url(target)
+    uri = URI.parse(target)
+    path = uri.path.to_s.delete_suffix('/')
+
+    if path.casecmp?('/account/orders')
+      uri.path = '/profile/orders'
+      uri.to_s
+    else
+      target
+    end
+  rescue URI::InvalidURIError
+    target
   end
 
   def build_redirect_url(target)
@@ -43,7 +57,7 @@ class PaymentController < ApplicationController
     separator = uri.query.present? ? '&' : '?'
     "#{target}#{separator}#{request.query_string}"
   rescue URI::InvalidURIError
-    fallback = '/account/orders'
+    fallback = '/profile/orders'
     return fallback if request.query_string.blank?
 
     "#{fallback}?#{request.query_string}"

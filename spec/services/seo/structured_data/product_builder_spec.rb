@@ -24,4 +24,12 @@ RSpec.describe Seo::StructuredData::ProductBuilder do
     expect(payload["url"]).to include("30566134")
     expect(payload.dig("offers", "priceCurrency")).to eq("BYN")
   end
+  it "uses full product name in Product schema" do
+    product.update!(name: "PAX", name_ru: "PAX", small_desc_name: "Гардероб, комбинация")
+
+    payload = described_class.build(product.reload, site_url: "https://ikeya.by", city_code: "minsk")
+
+    expect(payload["name"]).to eq("PAX Гардероб, комбинация")
+  end
+
 end

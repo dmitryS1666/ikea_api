@@ -32,18 +32,44 @@ module SeoHelper
   def self.render_template(template_string, record, city_in)
     return nil if template_string.blank?
 
-    name = record_name(record)
+    template = template_string.to_s
+    replacements = template_replacements(record, template, city_in)
 
-    sanitize_meta(
-      template_string.to_s
-        .gsub('{{name}}', name.to_s)
-        .gsub('{{city}}', city_in.to_s)
-        .gsub('{{store_name}}', "Интернет-магазин IKEYA")
-        .then { |text| normalize_city_preposition(text) }
-    )
+    rendered = replacements.reduce(template) do |text, (token, value)|
+      key = Regexp.escape(token.to_s.delete_prefix("{{").delete_suffix("}}"))
+      text.gsub(/{{\s*#{key}\s*}}/, value.to_s)
+    end
+
+    sanitize_meta(normalize_city_preposition(rendered))
   end
 
-  def self.record_name(record)
+  def self.template_replacements(record, template, city_in)
+    base_name = record_base_name(record)
+    small_desc_name = record_small_desc_name(record)
+    full_name = record_full_name(record)
+
+    # Если в шаблоне явно указан {{small_desc_name}} или {{full_name}},
+    # {{name}} оставляем базовым названием, чтобы не получить дубль вида
+    # "PAX Гардероб, комбинация Гардероб, комбинация".
+    # Для старых шаблонов только с {{name}} подставляем полное товарное имя.
+    name = if record.is_a?(Product) && template.match?(/{{\s*(small_desc_name|full_name)\s*}}/)
+             base_name
+           else
+             full_name
+           end
+
+    {
+      '{{name}}' => name,
+      '{{base_name}}' => base_name,
+      '{{product_name}}' => base_name,
+      '{{small_desc_name}}' => small_desc_name,
+      '{{full_name}}' => full_name,
+      '{{city}}' => city_in,
+      '{{store_name}}' => "Интернет-магазин IKEYA"
+    }
+  end
+
+  def self.record_base_name(record)
     if record.is_a?(Product)
       record.name_ru.presence || record.name
     elsif record.is_a?(Category)
@@ -51,6 +77,21 @@ module SeoHelper
     else
       record.respond_to?(:translated_name) ? record.translated_name : (record.respond_to?(:title) ? record.title : record.name)
     end
+  end
+
+  def self.record_small_desc_name(record)
+    return "" unless record.respond_to?(:small_desc_name)
+
+    record.small_desc_name.to_s.strip
+  end
+
+  def self.record_full_name(record)
+    base_name = record_base_name(record).to_s.strip
+    small_desc_name = record_small_desc_name(record)
+    return base_name if small_desc_name.blank?
+    return base_name if base_name.downcase.include?(small_desc_name.downcase)
+
+    [base_name, small_desc_name].reject(&:blank?).join(" ")
   end
 
   # Шаблоны вида «купить в {{city}}», где {{city}} уже «в Минске» → «в в Минске».

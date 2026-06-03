@@ -12,6 +12,14 @@ RSpec.describe WebpayReturnUrl do
       expect(result).to eq('https://ikeya.by/api/v1/payment/success')
     end
 
+    it 'rewrites storefront account orders URL to API handler' do
+      result = described_class.normalize(
+        'https://ikeya.by/account/orders',
+        api_base: 'https://ikeya.by'
+      )
+      expect(result).to eq('https://ikeya.by/api/v1/payment/success')
+    end
+
     it 'keeps explicit API return URL' do
       url = 'https://ikeya.by/api/v1/payment/success'
       expect(described_class.normalize(url, api_base: 'https://ikeya.by')).to eq(url)

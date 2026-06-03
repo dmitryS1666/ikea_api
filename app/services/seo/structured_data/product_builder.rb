@@ -23,7 +23,7 @@ module Seo
         {
           "@context" => "https://schema.org",
           "@type" => "Product",
-          "name" => product.name.to_s.presence || product.sku,
+          "name" => SeoHelper.render_template_string("{{full_name}}", product, city_code).presence || product.name.to_s.presence || product.sku,
           "description" => meta[:description],
           "sku" => product.sku,
           "mpn" => product.item_no.presence || product.sku,

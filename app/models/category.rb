@@ -48,8 +48,8 @@ class Category < ApplicationRecord
   }
 
   scope :with_numeric_id, -> { where("ikea_id ~ '^[0-9]+$'") }
-  scope :top, -> { where(is_top: true).order(top_position: :asc) }
-  scope :popular, -> { where(is_popular: true) }
+  scope :top, -> { where(is_top: true).order(top_position: :asc, translated_name: :asc, name: :asc) }
+  scope :popular, -> { where(is_popular: true).order(popular_position: :asc, translated_name: :asc, name: :asc) }
   scope :custom, -> { where(is_custom: true) }
   scope :active, -> { where(is_deleted: [false, nil]) }
   scope :not_deleted, -> { where(is_deleted: [false, nil]) }

@@ -41,5 +41,15 @@ RSpec.describe WebpayPaymentLinkService do
         expect(form.fields['wsb_return_url']).to eq('https://ikeya.by/api/v1/payment/success')
       end
     end
+
+
+    context 'when WEBPAY_RETURN_URL is accidentally configured as storefront orders page' do
+      let(:return_url_env) { 'https://ikeya.by/account/orders/' }
+
+      it 'still uses the API success handler' do
+        form = described_class.build_form(order: order)
+        expect(form.fields['wsb_return_url']).to eq('https://ikeya.by/api/v1/payment/success')
+      end
+    end
   end
 end

@@ -1,0 +1,263 @@
+diff --git a/app/controllers/api/v1/a1_verifications_controller.rb b/app/controllers/api/v1/a1_verifications_controller.rb
+index 4255600..c1d3e17 100644
+--- a/app/controllers/api/v1/a1_verifications_controller.rb
++++ b/app/controllers/api/v1/a1_verifications_controller.rb
+@@ -10,16 +10,6 @@ module Api
+         phone = params.require(:phone)
+         context = params[:context].presence || 'passport_update'
+ 
+-        # Throttle: 30 seconds between requests
+-        last_request = PhoneVerificationRequest.where(phone: phone.gsub(/\D/, '')).order(id: :desc).first
+-        if last_request && last_request.created_at > 30.seconds.ago
+-          seconds_left = (last_request.created_at + 30.seconds - Time.current).to_i
+-          return render json: { 
+-            error: "Повторный запрос звонка возможен через #{seconds_left} сек.",
+-            seconds_left: seconds_left
+-          }, status: :too_many_requests
+-        end
+-
+         result = PhoneAuthService.send_code(
+           phone: phone, 
+           metadata: { 
+diff --git a/app/controllers/payment_controller.rb b/app/controllers/payment_controller.rb
+index a750587..c944bb1 100644
+--- a/app/controllers/payment_controller.rb
++++ b/app/controllers/payment_controller.rb
+@@ -30,10 +30,24 @@ class PaymentController < ApplicationController
+ 
+   def success_redirect_target
+     explicit = ENV['WEBPAY_SUCCESS_REDIRECT_URL'].to_s.strip
+-    return explicit if explicit.present?
++    return normalize_storefront_success_url(explicit) if explicit.present?
+ 
+     site = Seo::PublicSiteUrl.resolve.to_s.strip.chomp('/')
+-    "#{site}/account/orders"
++    "#{site}/profile/orders"
++  end
++
++  def normalize_storefront_success_url(target)
++    uri = URI.parse(target)
++    path = uri.path.to_s.delete_suffix('/')
++
++    if path.casecmp?('/account/orders')
++      uri.path = '/profile/orders'
++      uri.to_s
++    else
++      target
++    end
++  rescue URI::InvalidURIError
++    target
+   end
+ 
+   def build_redirect_url(target)
+@@ -43,7 +57,7 @@ class PaymentController < ApplicationController
+     separator = uri.query.present? ? '&' : '?'
+     "#{target}#{separator}#{request.query_string}"
+   rescue URI::InvalidURIError
+-    fallback = '/account/orders'
++    fallback = '/profile/orders'
+     return fallback if request.query_string.blank?
+ 
+     "#{fallback}?#{request.query_string}"
+diff --git a/config/initializers/webpay_return_url.rb b/config/initializers/webpay_return_url.rb
+index c0011f3..5ece5c2 100644
+--- a/config/initializers/webpay_return_url.rb
++++ b/config/initializers/webpay_return_url.rb
+@@ -1,16 +1,27 @@
+ # frozen_string_literal: true
+ 
+-# Normalize WebPay return URL at boot so wsb_return_url always targets Rails (under /api or /payment).
++# Normalize WebPay return URL at boot so wsb_return_url always targets Rails.
++#
++# WebPay returns only browser parameters (wsb_order_num/wsb_tid), so the safe
++# place for wsb_return_url is the backend handler. The storefront redirect is a
++# separate setting: WEBPAY_SUCCESS_REDIRECT_URL.
+ module WebpayReturnUrl
+   module_function
+ 
+   def normalize(url, api_base:)
+-    raw = url.to_s.strip
+     api = api_payment_success_url(api_base)
++    return api if api.blank?
++
++    raw = url.to_s.strip
+     return api if raw.blank?
+-    return api if storefront_payment_success_path?(raw) && api.present?
++    return api if api_payment_success_url?(raw)
+ 
+-    raw
++    Rails.logger.warn(
++      "[WebPay] WEBPAY_RETURN_URL=#{raw.inspect} points outside API success handler; " \
++      "using #{api.inspect} instead. Set WEBPAY_SUCCESS_REDIRECT_URL for the storefront page."
++    ) if defined?(Rails)
++
++    api
+   end
+ 
+   def api_payment_success_url(api_base)
+@@ -20,6 +31,14 @@ module WebpayReturnUrl
+     "#{base}/api/v1/payment/success"
+   end
+ 
++  def api_payment_success_url?(url)
++    uri = URI.parse(url)
++    uri.path.to_s.delete_suffix('/').casecmp?('/api/v1/payment/success')
++  rescue URI::InvalidURIError
++    false
++  end
++
++  # Kept for backwards compatibility with old specs/extensions.
+   def storefront_payment_success_path?(url)
+     uri = URI.parse(url)
+     uri.path.to_s.delete_suffix('/').casecmp?('/payment/success')
+diff --git a/docs/AMO_CRM_INTEGRATION.md b/docs/AMO_CRM_INTEGRATION.md
+index 6f8b325..62d6b07 100644
+--- a/docs/AMO_CRM_INTEGRATION.md
++++ b/docs/AMO_CRM_INTEGRATION.md
+@@ -25,7 +25,7 @@
+ 
+ ## 3. Особенности реализации
+ 
+-- **Таймер A1**: Повторный запрос звонка для верификации (`/api/v1/a1/request`) ограничен интервалом в 30 секунд. При слишком частом обращении возвращается статус `429 Too Many Requests`.
++- **Таймер A1**: Повторный запрос звонка для верификации (`/api/v1/a1/request`) не ограничен тайм-аутом; повторный запрос сразу создаёт новый код/звонок.
+ - **Последний вход**: При успешной авторизации по телефону автоматически обновляется поле `LAST_LOGIN` в карточке контакта AmoCRM.
+ - **Возвраты**: При оформлении возврата создается задача (Task) в AmoCRM для менеджера.
+ - **Статусы**: Вебхук эндпоинт `/api/v1/webhooks/amo_crm` готов к приему обновлений статусов сделок.
+diff --git a/docs/DEPLOY_GUIDE.md b/docs/DEPLOY_GUIDE.md
+index 25b65b6..b855f02 100644
+--- a/docs/DEPLOY_GUIDE.md
++++ b/docs/DEPLOY_GUIDE.md
+@@ -49,10 +49,10 @@ cd ~/apps/ikea_front
+ ```bash
+ WEBPAY_LINK_BASE_URL=https://ikeya.by
+ WEBPAY_RETURN_URL=https://ikeya.by/api/v1/payment/success
+-WEBPAY_SUCCESS_REDIRECT_URL=https://ikeya.by/account/orders
++WEBPAY_SUCCESS_REDIRECT_URL=https://ikeya.by/profile/orders
+ ```
+ 
+-Значение `WEBPAY_RETURN_URL=https://ikeya.by/payment/success` при старте приложения автоматически заменяется на API-URL. Если в личном кабинете WebPay зашит старый return URL без `/api`, добавьте NPM location `/payment/success` → Rails (см. таблицу выше). Страницы `/payment/success` на Next.js нет — финальный редирект идёт на `/account/orders`.
++Значение `WEBPAY_RETURN_URL=https://ikeya.by/payment/success` при старте приложения автоматически заменяется на API-URL. Если в личном кабинете WebPay зашит старый return URL без `/api`, добавьте NPM location `/payment/success` → Rails (см. таблицу выше). Страницы `/payment/success` на Next.js нет — финальный редирект идёт на `/profile/orders`.
+ 
+ ---
+ 
+diff --git a/spec/lib/webpay_return_url_spec.rb b/spec/lib/webpay_return_url_spec.rb
+index ddfa6fb..6839079 100644
+--- a/spec/lib/webpay_return_url_spec.rb
++++ b/spec/lib/webpay_return_url_spec.rb
+@@ -12,6 +12,14 @@ RSpec.describe WebpayReturnUrl do
+       expect(result).to eq('https://ikeya.by/api/v1/payment/success')
+     end
+ 
++    it 'rewrites storefront account orders URL to API handler' do
++      result = described_class.normalize(
++        'https://ikeya.by/account/orders',
++        api_base: 'https://ikeya.by'
++      )
++      expect(result).to eq('https://ikeya.by/api/v1/payment/success')
++    end
++
+     it 'keeps explicit API return URL' do
+       url = 'https://ikeya.by/api/v1/payment/success'
+       expect(described_class.normalize(url, api_base: 'https://ikeya.by')).to eq(url)
+diff --git a/spec/requests/api/v1/a1_verifications_spec.rb b/spec/requests/api/v1/a1_verifications_spec.rb
+new file mode 100644
+index 0000000..4ff6750
+--- /dev/null
++++ b/spec/requests/api/v1/a1_verifications_spec.rb
+@@ -0,0 +1,28 @@
++require 'rails_helper'
++
++RSpec.describe 'A1 verifications', type: :request do
++  describe 'POST /api/v1/a1/request' do
++    let(:phone) { '+375291112233' }
++
++    before do
++      allow(PhoneAuthService).to receive(:send_code) do |phone:, metadata:|
++        VerificationCode.create!(phone: phone.gsub(/\D/, ''), code: '1234', expires_at: 10.minutes.from_now)
++        { success: true, message: 'Ожидайте звонок. Введите последние 4 цифры номера.' }
++      end
++    end
++
++    it 'does not throttle repeated call requests' do
++      PhoneVerificationRequest.create!(
++        phone: phone.gsub(/\D/, ''),
++        status: 'success',
++        context: 'passport_update',
++        created_at: Time.current
++      )
++
++      post '/api/v1/a1/request', params: { phone: phone, context: 'passport_update' }
++
++      expect(response).to have_http_status(:created)
++      expect(PhoneAuthService).to have_received(:send_code).once
++    end
++  end
++end
+diff --git a/spec/requests/payment_success_redirect_spec.rb b/spec/requests/payment_success_redirect_spec.rb
+index b7c8b00..9f20e30 100644
+--- a/spec/requests/payment_success_redirect_spec.rb
++++ b/spec/requests/payment_success_redirect_spec.rb
+@@ -9,7 +9,7 @@ RSpec.describe 'WebPay payment success redirect', type: :request do
+     ENV['WEBPAY_SUCCESS_REDIRECT_URL'] = old_success
+   end
+ 
+-  let(:redirect_target) { 'https://ikeya.by/account/orders' }
++  let(:redirect_target) { 'https://ikeya.by/profile/orders' }
+   let(:completion_result) { :paid }
+ 
+   before do
+@@ -22,7 +22,7 @@ RSpec.describe 'WebPay payment success redirect', type: :request do
+       get path, params: { wsb_order_num: '12345', wsb_tid: 'abc' }
+ 
+       expect(response).to have_http_status(:found)
+-      expect(response).to redirect_to('https://ikeya.by/account/orders?wsb_order_num=12345&wsb_tid=abc')
++      expect(response).to redirect_to('https://ikeya.by/profile/orders?wsb_order_num=12345&wsb_tid=abc')
+     end
+ 
+     it 'confirms webpay payment when required params are present' do
+@@ -37,12 +37,23 @@ RSpec.describe 'WebPay payment success redirect', type: :request do
+     end
+ 
+     context 'when redirect target already has query params' do
+-      let(:redirect_target) { 'https://ikeya.by/account/orders?tab=active' }
++      let(:redirect_target) { 'https://ikeya.by/profile/orders?tab=active' }
+ 
+       it 'appends webpay params with ampersand' do
+         get path, params: { wsb_tid: 'abc' }
+ 
+-        expect(response).to redirect_to('https://ikeya.by/account/orders?tab=active&wsb_tid=abc')
++        expect(response).to redirect_to('https://ikeya.by/profile/orders?tab=active&wsb_tid=abc')
++      end
++    end
++
++
++    context 'when legacy WEBPAY_SUCCESS_REDIRECT_URL points to removed /account/orders route' do
++      let(:redirect_target) { 'https://ikeya.by/account/orders' }
++
++      it 'rewrites redirect to current storefront profile orders route' do
++        get path, params: { wsb_tid: 'abc' }
++
++        expect(response).to redirect_to('https://ikeya.by/profile/orders?wsb_tid=abc')
+       end
+     end
+   end
+diff --git a/spec/services/webpay_payment_link_service_spec.rb b/spec/services/webpay_payment_link_service_spec.rb
+index 5af838e..2ff878a 100644
+--- a/spec/services/webpay_payment_link_service_spec.rb
++++ b/spec/services/webpay_payment_link_service_spec.rb
+@@ -41,5 +41,15 @@ RSpec.describe WebpayPaymentLinkService do
+         expect(form.fields['wsb_return_url']).to eq('https://ikeya.by/api/v1/payment/success')
+       end
+     end
++
++
++    context 'when WEBPAY_RETURN_URL is accidentally configured as storefront orders page' do
++      let(:return_url_env) { 'https://ikeya.by/account/orders/' }
++
++      it 'still uses the API success handler' do
++        form = described_class.build_form(order: order)
++        expect(form.fields['wsb_return_url']).to eq('https://ikeya.by/api/v1/payment/success')
++      end
++    end
+   end
+ end

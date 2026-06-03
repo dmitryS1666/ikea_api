@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_31_181825) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_03_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -114,6 +114,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_31_181825) do
     t.jsonb "available_filters_ru"
     t.string "cached_slug"
     t.integer "root_position"
+    t.integer "popular_position", default: 0, null: false
     t.index "to_tsvector('simple'::regconfig, COALESCE(parent_ids, ''::text))", name: "index_categories_on_parent_ids_text", where: "((parent_ids IS NOT NULL) AND (parent_ids <> '[]'::text) AND (parent_ids <> ''::text))", using: :gin
     t.index ["cached_slug"], name: "index_categories_on_cached_slug"
     t.index ["default_sort"], name: "index_categories_on_default_sort"
@@ -121,6 +122,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_31_181825) do
     t.index ["is_popular"], name: "index_categories_on_is_popular"
     t.index ["name"], name: "index_categories_on_name_trgm", opclass: :gist_trgm_ops, using: :gist
     t.index ["parent_ids"], name: "index_categories_on_parent_ids_btree", where: "((parent_ids IS NOT NULL) AND (parent_ids <> '[]'::text) AND (parent_ids <> ''::text))"
+    t.index ["popular_position"], name: "index_categories_on_popular_position"
     t.index ["translated_name"], name: "index_categories_on_translated_name_trgm", opclass: :gist_trgm_ops, using: :gist
     t.index ["unique_id"], name: "index_categories_on_unique_id", unique: true, where: "(unique_id IS NOT NULL)"
   end

@@ -12,6 +12,7 @@ class CategorySerializer
              :is_deleted,
              :is_important,
              :is_popular,
+             :popular_position,
              :is_top,
              :top_position,
              :is_custom,

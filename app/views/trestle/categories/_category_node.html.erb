@@ -54,7 +54,7 @@
           <span class="badge badge-custom">Кастомная</span>
         <% end %>
         <% if category.is_popular? %>
-          <span class="badge badge-popular">Популярная</span>
+          <span class="badge badge-popular" title="Позиция: <%= category.popular_position %>">Популярная</span>
         <% end %>
         <% if category.is_deleted? %>
           <span class="badge badge-disabled">Отключена</span>

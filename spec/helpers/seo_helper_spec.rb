@@ -40,6 +40,39 @@ RSpec.describe SeoHelper, type: :helper do
         meta = SeoHelper.meta_for(product, 'minsk')
         expect(meta[:title]).to eq("Шкаф белый купить в Минске | Интернет-магазин IKEYA")
       end
+
+      it "uses full product name for legacy {{name}} templates" do
+        product.update!(name_ru: "PAX", small_desc_name: "Гардероб, комбинация")
+        GlobalSeoSetting.find_by(target_type: "product").update!(
+          title_template: "{{name}} купить {{city}} | {{store_name}}"
+        )
+
+        meta = SeoHelper.meta_for(product.reload, "minsk")
+
+        expect(meta[:title]).to eq("PAX Гардероб, комбинация купить в Минске | Интернет-магазин IKEYA")
+      end
+
+      it "supports explicit {{small_desc_name}} without duplicating {{name}}" do
+        product.update!(name_ru: "PAX", small_desc_name: "Гардероб, комбинация")
+        GlobalSeoSetting.find_by(target_type: "product").update!(
+          title_template: "{{name}} {{small_desc_name}} купить {{city}} | {{store_name}}"
+        )
+
+        meta = SeoHelper.meta_for(product.reload, "minsk")
+
+        expect(meta[:title]).to eq("PAX Гардероб, комбинация купить в Минске | Интернет-магазин IKEYA")
+      end
+
+      it "supports {{full_name}} in product SEO templates" do
+        product.update!(name_ru: "PAX", small_desc_name: "Гардероб, комбинация")
+        GlobalSeoSetting.find_by(target_type: "product").update!(
+          title_template: "{{ full_name }} купить {{city}} | {{store_name}}"
+        )
+
+        meta = SeoHelper.meta_for(product.reload, "minsk")
+
+        expect(meta[:title]).to eq("PAX Гардероб, комбинация купить в Минске | Интернет-магазин IKEYA")
+      end
     end
 
     context "for category" do

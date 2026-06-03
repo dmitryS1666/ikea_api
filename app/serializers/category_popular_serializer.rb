@@ -6,6 +6,7 @@ class CategoryPopularSerializer
   attributes :name, 
              :translated_name, 
              :is_popular,
+             :popular_position,
              :local_image_path,
              :icon_url,
              :pictogram_url

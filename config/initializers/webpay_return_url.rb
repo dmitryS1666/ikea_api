@@ -1,16 +1,27 @@
 # frozen_string_literal: true
 
-# Normalize WebPay return URL at boot so wsb_return_url always targets Rails (under /api or /payment).
+# Normalize WebPay return URL at boot so wsb_return_url always targets Rails.
+#
+# WebPay returns only browser parameters (wsb_order_num/wsb_tid), so the safe
+# place for wsb_return_url is the backend handler. The storefront redirect is a
+# separate setting: WEBPAY_SUCCESS_REDIRECT_URL.
 module WebpayReturnUrl
   module_function
 
   def normalize(url, api_base:)
-    raw = url.to_s.strip
     api = api_payment_success_url(api_base)
-    return api if raw.blank?
-    return api if storefront_payment_success_path?(raw) && api.present?
+    return api if api.blank?
 
-    raw
+    raw = url.to_s.strip
+    return api if raw.blank?
+    return api if api_payment_success_url?(raw)
+
+    Rails.logger.warn(
+      "[WebPay] WEBPAY_RETURN_URL=#{raw.inspect} points outside API success handler; " \
+      "using #{api.inspect} instead. Set WEBPAY_SUCCESS_REDIRECT_URL for the storefront page."
+    ) if defined?(Rails)
+
+    api
   end
 
   def api_payment_success_url(api_base)
@@ -20,6 +31,14 @@ module WebpayReturnUrl
     "#{base}/api/v1/payment/success"
   end
 
+  def api_payment_success_url?(url)
+    uri = URI.parse(url)
+    uri.path.to_s.delete_suffix('/').casecmp?('/api/v1/payment/success')
+  rescue URI::InvalidURIError
+    false
+  end
+
+  # Kept for backwards compatibility with old specs/extensions.
   def storefront_payment_success_path?(url)
     uri = URI.parse(url)
     uri.path.to_s.delete_suffix('/').casecmp?('/payment/success')

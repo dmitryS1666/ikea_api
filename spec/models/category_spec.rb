@@ -121,4 +121,15 @@ RSpec.describe Category, type: :model do
       expect(child.catalog_url).to eq("/catalog/mebel-dlya-hraneniya/vstroennye-shkafy/")
     end
   end
+
+  describe ".popular" do
+    it "orders popular categories by popular_position" do
+      second = create(:category, ikea_id: "popular-second", name: "B", translated_name: "B", is_popular: true, popular_position: 20)
+      first = create(:category, ikea_id: "popular-first", name: "A", translated_name: "A", is_popular: true, popular_position: 10)
+      create(:category, ikea_id: "not-popular", name: "C", translated_name: "C", is_popular: false, popular_position: 1)
+
+      expect(Category.popular.pluck(:ikea_id)).to eq([first.ikea_id, second.ikea_id])
+    end
+  end
+
 end

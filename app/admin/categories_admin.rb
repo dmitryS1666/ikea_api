@@ -347,7 +347,13 @@ Trestle.resource(:categories, model: Category) do
 
     def toggle_popular
       @category = admin.find_instance(params)
-      @category.update(is_popular: !@category.is_popular)
+      attrs = { is_popular: !@category.is_popular }
+
+      if attrs[:is_popular] && @category.popular_position.to_i <= 0
+        attrs[:popular_position] = Category.where(is_popular: true).maximum(:popular_position).to_i + 1
+      end
+
+      @category.update(attrs)
       clear_categories_cache
       redirect_to "/admin/categories", notice: "Категория #{@category.is_popular? ? 'добавлена в популярные' : 'удалена из популярных'}"
     end
@@ -428,6 +434,8 @@ Trestle.resource(:categories, model: Category) do
     column :is_popular do |category|
       status_tag(category.is_popular? ? "Да" : "Нет", category.is_popular? ? :success : :secondary)
     end
+
+    column :popular_position, header: "Позиция популярной"
 
     column :is_deleted do |category|
       status_tag(category.is_deleted? ? "Отключена" : "Активна", category.is_deleted? ? :danger : :success)
@@ -869,6 +877,9 @@ Trestle.resource(:categories, model: Category) do
       form_group :status, label: "Статус и настройки" do
         check_box :is_deleted, label: "Категория удалена (скрыта)"
         check_box :is_popular, label: "Популярная категория"
+        number_field :popular_position,
+               label: "Позиция в популярных",
+               help: "Используется для блока «Популярные категории». Чем меньше число, тем выше категория."
         check_box :is_top, label: "ТОП-категория"
         number_field :top_position, label: "Позиция в ТОП"
         number_field :root_position,
@@ -890,6 +901,7 @@ Trestle.resource(:categories, model: Category) do
       :name,
       :translated_name,
       :is_popular,
+      :popular_position,
       :is_top,
       :top_position,
       :root_position,

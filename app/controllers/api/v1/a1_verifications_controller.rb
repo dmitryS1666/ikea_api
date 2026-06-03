@@ -10,16 +10,6 @@ module Api
         phone = params.require(:phone)
         context = params[:context].presence || 'passport_update'
 
-        # Throttle: 30 seconds between requests
-        last_request = PhoneVerificationRequest.where(phone: phone.gsub(/\D/, '')).order(id: :desc).first
-        if last_request && last_request.created_at > 30.seconds.ago
-          seconds_left = (last_request.created_at + 30.seconds - Time.current).to_i
-          return render json: { 
-            error: "Повторный запрос звонка возможен через #{seconds_left} сек.",
-            seconds_left: seconds_left
-          }, status: :too_many_requests
-        end
-
         result = PhoneAuthService.send_code(
           phone: phone, 
           metadata: { 

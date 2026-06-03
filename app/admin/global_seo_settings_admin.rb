@@ -28,10 +28,10 @@ Trestle.resource(:global_seo_settings, model: GlobalSeoSetting) do
         ['Служебные страницы', 'static_page']
       ], label: "Тип страницы"
 
-      text_field :title_template, label: "Шаблон Title", help: "Используйте {{name}} для подстановки названия"
-      text_field :h1_template, label: "Шаблон H1", help: "{{name}}, {{city}}"
-      text_area :description_template, label: "Шаблон Description"
-      text_field :keywords_template, label: "Шаблон Keywords"
+      text_field :title_template, label: "Шаблон Title", help: "Доступно: {{name}}, {{base_name}}, {{small_desc_name}}, {{full_name}}, {{city}}, {{store_name}}"
+      text_field :h1_template, label: "Шаблон H1", help: "{{name}}, {{small_desc_name}}, {{full_name}}, {{city}}"
+      text_area :description_template, label: "Шаблон Description", help: "Доступно: {{name}}, {{base_name}}, {{small_desc_name}}, {{full_name}}, {{city}}, {{store_name}}"
+      text_field :keywords_template, label: "Шаблон Keywords", help: "Доступно: {{name}}, {{base_name}}, {{small_desc_name}}, {{full_name}}, {{city}}, {{store_name}}"
       text_field :robots, label: "Robots (индексация)"
       text_field :image_alt_template, label: "Шаблон alt изображений (товары)", help: "{{name}}, {{index}}, {{city}}"
       text_field :image_title_template, label: "Шаблон title изображений (товары)", help: "{{name}}, {{index}}"
