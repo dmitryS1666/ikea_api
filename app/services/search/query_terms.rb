@@ -19,7 +19,8 @@ module Search
       terms = [@query]
       stem = russian_plural_stem(@query)
       terms << stem if stem.present? && !stem.casecmp?(@query)
-      terms.uniq
+      terms.concat(Search::Synonyms.for(@query))
+      terms.map(&:to_s).map(&:strip).reject(&:blank?).uniq
     end
 
     private

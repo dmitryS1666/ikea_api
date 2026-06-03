@@ -15,6 +15,7 @@ module Search
       @products = Array(products)
       @products_scope = products_scope
       @limit = limit.to_i.positive? ? limit.to_i : CATEGORY_LIMIT
+      @terms = QueryTerms.for(@query)
     end
 
     def call
@@ -32,12 +33,21 @@ module Search
     private
 
     def matching_categories
-      term = "%#{@query}%"
+      return [] if @terms.blank?
+
+      clauses = []
+      binds = {}
+      @terms.each_with_index do |term, index|
+        key = :"term_#{index}"
+        binds[key] = "%#{term}%"
+        clauses << category_match_sql(key)
+      end
+
       starts_with_term = "#{@query}%"
       sanitized_pattern = Category.connection.quote(starts_with_term)
 
       Category.active
-              .where(category_match_sql, term: term)
+              .where(clauses.map { |clause| "(#{clause})" }.join(" OR "), binds)
               .order(Arel.sql(<<~SQL.squish))
                 CASE
                   WHEN translated_name ILIKE #{sanitized_pattern} THEN 0
@@ -51,12 +61,12 @@ module Search
               .to_a
     end
 
-    def category_match_sql
+    def category_match_sql(term_key)
       <<~SQL.squish
-        name ILIKE :term
-        OR translated_name ILIKE :term
-        OR available_filters::text ILIKE :term
-        OR COALESCE(available_filters_ru, '[]'::jsonb)::text ILIKE :term
+        name ILIKE :#{term_key}
+        OR translated_name ILIKE :#{term_key}
+        OR available_filters::text ILIKE :#{term_key}
+        OR COALESCE(available_filters_ru, '[]'::jsonb)::text ILIKE :#{term_key}
       SQL
     end
 
@@ -152,13 +162,16 @@ module Search
 
     def sort_categories(categories, matched_ids:)
       lower_query = @query.downcase
+      lower_terms = @terms.map(&:downcase)
 
       categories.sort_by do |category|
         name = display_name(category).downcase
         priority =
-          if matched_ids.include?(category.ikea_id.to_s) && name.start_with?(lower_query)
+          if matched_ids.include?(category.ikea_id.to_s) &&
+             (name.start_with?(lower_query) || lower_terms.any? { |term| name.start_with?(term) })
             0
-          elsif matched_ids.include?(category.ikea_id.to_s) || name.include?(lower_query)
+          elsif matched_ids.include?(category.ikea_id.to_s) || name.include?(lower_query) ||
+                lower_terms.any? { |term| name.include?(term) }
             1
           else
             2

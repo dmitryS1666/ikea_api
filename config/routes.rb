@@ -121,6 +121,7 @@ Rails.application.routes.draw do
       # Search
       resources :search, only: [] do
         collection do
+          get :autocomplete
           get :suggest
         end
       end

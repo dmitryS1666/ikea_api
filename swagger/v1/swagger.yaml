@@ -2176,9 +2176,33 @@ paths:
         '500':
           description: Внутренняя ошибка сервера
 
+  /api/v1/search/autocomplete:
+    get:
+      summary: Лёгкий autocomplete для поисковой строки
+      description: >
+        Быстрый endpoint для dropdown-подсказок. Не возвращает фильтры, пагинацию,
+        полные карточки товаров, пошлины и промо. Для полной страницы результатов
+        используйте /api/v1/search/suggest.
+      tags:
+        - Search
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Строка поиска. До 2 символов backend возвращает пустые массивы.
+      responses:
+        '200':
+          description: Короткие подсказки, категории и товары для dropdown
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchAutocompleteResponse'
+
   /api/v1/search/suggest:
     get:
-      summary: Умные подсказки и результаты поиска
+      summary: Полная поисковая выдача с фильтрами и пагинацией
       tags:
         - Search
       parameters:
@@ -2199,7 +2223,7 @@ paths:
             type: string
       responses:
         '200':
-          description: Список подсказок, категорий, товаров и популярных запросов
+          description: 'Полная выдача поиска: подсказки, категории, товары, фильтры, популярные запросы и meta'
           content:
             application/json:
               schema:
@@ -3255,6 +3279,91 @@ components:
           type: integer
         total_pages:
           type: integer
+
+    SearchAutocompleteResponse:
+      type: object
+      properties:
+        query:
+          type: string
+          example: шкафы
+        normalized_query:
+          type: string
+          example: шкафы
+        suggestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchAutocompleteSuggestion'
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchAutocompleteCategory'
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchAutocompleteProduct'
+
+    SearchAutocompleteSuggestion:
+      type: object
+      properties:
+        title:
+          type: string
+          example: Шкафы для одежды
+        query:
+          type: string
+          example: шкафы для одежды
+
+    SearchAutocompleteCategory:
+      type: object
+      properties:
+        id:
+          type: string
+          example: '700630'
+        title:
+          type: string
+          example: Гардеробы
+        slug:
+          type: string
+          example: garderoby
+        url:
+          type: string
+          example: /catalog/garderoby/
+        local_image_path:
+          type: string
+          nullable: true
+
+    SearchAutocompleteProduct:
+      type: object
+      properties:
+        sku:
+          type: string
+          example: '39491276'
+        slug:
+          type: string
+          example: pax
+        url:
+          type: string
+          example: /product/pax-39491276/
+        name_ru:
+          type: string
+          example: PAX
+        small_desc_name:
+          type: string
+          example: Гардероб, комбинация, белый
+        title:
+          type: string
+          example: PAX Гардероб, комбинация, белый
+        category_title:
+          type: string
+          nullable: true
+          example: Гардеробы
+        category_url:
+          type: string
+          nullable: true
+          example: /catalog/garderoby/
+        preview_image:
+          type: string
+          nullable: true
+          example: /images/products/aa/bb/example.webp
 
     PopularSearchQuery:
       type: object

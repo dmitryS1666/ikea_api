@@ -5,6 +5,11 @@ module Api
     class SearchController < ApplicationController
       include FavoriteHelper
 
+      def autocomplete
+        query = params[:q].to_s.strip
+        render json: Search::AutocompleteService.new(query: query, params: params).call
+      end
+
       def suggest
         query = params[:q].to_s.strip
         page = normalized_page
