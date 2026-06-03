@@ -11,7 +11,8 @@ RSpec.describe Delivery::ParcelPackingService do
     allow(CalculatorSetting).to receive(:get).and_call_original
     allow(CalculatorSetting).to receive(:get).with("europost_max_weight_kg").and_return(30.0)
     allow(CalculatorSetting).to receive(:get).with("europost_max_volume_m3").and_return(0.25)
-    allow(CalculatorSetting).to receive(:get).with("europost_max_dimension_cm").and_return(120.0)
+    allow(CalculatorSetting).to receive(:get).with("europost_max_dimension_cm").and_return(105.0)
+    allow(CalculatorSetting).to receive(:get).with("europost_max_dimensions_sum_cm").and_return(180.0)
     allow(CalculatorSetting).to receive(:get).with("europost_max_side_dimensions_cm").and_return(nil)
     # Product has after_commit hooks that enqueue filter reindex jobs.
     # Disable queue side-effects in this unit-level service spec.
@@ -59,6 +60,44 @@ RSpec.describe Delivery::ParcelPackingService do
 
     expect(result[:eligible_for_europost]).to be(false)
     expect(result[:ineligible_reason]).to eq("max_dimension_exceeded")
+  end
+
+
+  it "fails by dimensions sum even when max side fits" do
+    product = create(:product, weight: 5, package_volume: nil, package_dimensions: "80 x 60 x 50 cm", dimensions: nil, full_attributes: {})
+    add_item(product, quantity: 1)
+
+    result = described_class.call(cart)
+
+    expect(result[:eligible_for_europost]).to be(false)
+    expect(result[:ineligible_reason]).to eq("max_dimensions_sum_exceeded")
+    expect(result[:max_dimensions_sum_cm]).to eq(190.0)
+  end
+
+  it "creates one parcel per physical package and cart quantity" do
+    product = create(
+      :product,
+      weight: 1,
+      package_volume: nil,
+      package_dimensions: nil,
+      dimensions: nil,
+      full_attributes: {
+        "dimensions_map" => {
+          "packaging" => {
+            "details" => [
+              { "width" => "10 см", "height" => "20 см", "length" => "30 см", "weight" => "1.5 кг", "count" => 2 }
+            ]
+          }
+        }
+      }
+    )
+    add_item(product, quantity: 3)
+
+    result = described_class.call(cart)
+
+    expect(result[:eligible_for_europost]).to be(true)
+    expect(result[:parcels].size).to eq(6)
+    expect(result[:total_weight_kg]).to eq(9.0)
   end
 
   it "quantity greater than one creates multiple parcels" do

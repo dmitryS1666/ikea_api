@@ -1,0 +1,193 @@
+diff --git a/app/serializers/product_serializer.rb b/app/serializers/product_serializer.rb
+index 0723b7c..be8d736 100644
+--- a/app/serializers/product_serializer.rb
++++ b/app/serializers/product_serializer.rb
+@@ -725,18 +725,13 @@ class ProductSerializer
+   
+     # Старый fallback оставляем только если modal packages реально нет.
+     if product.package_dimensions.present? && product.weight.present?
+-      pd = product.package_dimensions.to_s
+-  
++      fallback_packaging = build_packaging_from_product_columns(product)
++
+       size_block["packaging"] ||= {}
+-      size_block["packaging"]["desc"] ||= nil
+-      size_block["packaging"]["details"] ||= [
+-        {
+-          "width" => nil,
+-          "height" => nil,
+-          "length" => normalize_api_measurement_value(pd),
+-          "weight" => normalize_api_measurement_value("#{product.weight} кг")
+-        }.compact
+-      ]
++      size_block["packaging"]["desc"] ||= fallback_packaging["desc"]
++      if Array(size_block["packaging"]["details"]).blank?
++        size_block["packaging"]["details"] = fallback_packaging["details"]
++      end
+     end
+   end
+ 
+@@ -1041,11 +1036,28 @@ class ProductSerializer
+   
+   def self.build_size_block(dimensions_map, packaging_info)
+     size_data = dimensions_map.is_a?(Hash) ? dimensions_map.deep_dup.stringify_keys : {}
+-  
+-    size_data["packaging"] = build_packaging_block(packaging_info)
+-  
++
++    existing_packaging = size_data["packaging"].is_a?(Hash) ? size_data["packaging"].deep_stringify_keys : nil
++    built_packaging = build_packaging_block(packaging_info)
++
++    # `dimensions_map` may already contain normalized packaging/details from imports or specs.
++    # Do not wipe it with an empty block when detailed_info has no packaging section.
++    size_data["packaging"] = if packaging_block_present?(built_packaging)
++                                built_packaging
++                              elsif packaging_block_present?(existing_packaging)
++                                existing_packaging
++                              else
++                                built_packaging
++                              end
++
+     size_data
+   end
++
++  def self.packaging_block_present?(value)
++    return false unless value.is_a?(Hash)
++
++    value["desc"].present? || Array(value["details"]).any?
++  end
+   
+   def self.build_packaging_block(packaging_info)
+     return { "desc" => nil, "details" => [] } unless packaging_info.is_a?(Hash)
+diff --git a/app/services/delivery/parcel_packing_service.rb b/app/services/delivery/parcel_packing_service.rb
+index 9e1ee0f..9d75542 100644
+--- a/app/services/delivery/parcel_packing_service.rb
++++ b/app/services/delivery/parcel_packing_service.rb
+@@ -144,6 +144,8 @@ class Delivery
+       metrics = package_metrics_from_packaging_details(size) if metrics.blank?
+       return [fallback] if metrics.blank?
+ 
++      metrics = metrics.map { |metric| merge_package_metric_fallback(metric, fallback, single_metric: metrics.size == 1) }
++
+       if metrics.size == 1
+         product_volume_m3 = product.package_volume.present? ? product.package_volume.to_f / 1000.0 : nil
+         metrics[0][:volume_m3] = product_volume_m3 if product_volume_m3.to_f.positive?
+@@ -289,6 +291,26 @@ class Delivery
+       }
+     end
+ 
++    def self.merge_package_metric_fallback(metric, fallback, single_metric:)
++      metric = metric.deep_dup
++
++      if single_metric && metric[:weight_kg].to_f <= 0 && fallback[:weight_kg].to_f.positive?
++        metric[:weight_kg] = fallback[:weight_kg]
++      end
++
++      if [metric[:width_cm], metric[:height_cm], metric[:depth_cm]].any? { |value| value.to_f <= 0 }
++        metric[:width_cm] = fallback[:width_cm] if metric[:width_cm].to_f <= 0 && fallback[:width_cm].to_f.positive?
++        metric[:height_cm] = fallback[:height_cm] if metric[:height_cm].to_f <= 0 && fallback[:height_cm].to_f.positive?
++        metric[:depth_cm] = fallback[:depth_cm] if metric[:depth_cm].to_f <= 0 && fallback[:depth_cm].to_f.positive?
++      end
++
++      if metric[:volume_m3].to_f <= 0 && [metric[:width_cm], metric[:height_cm], metric[:depth_cm]].all? { |value| value.to_f.positive? }
++        metric[:volume_m3] = volume_from_sides(metric[:width_cm], metric[:height_cm], metric[:depth_cm])
++      end
++
++      metric
++    end
++
+     def self.measurements_by_normalized_name(measurements)
+       Array(measurements).each_with_object({}) do |row, memo|
+         next unless row.is_a?(Hash)
+@@ -376,7 +398,10 @@ class Delivery
+         height_cm = diameter_cm
+       end
+ 
+-      normalize_sides([width_cm, height_cm, length_cm])
++      sides = [width_cm, height_cm, length_cm]
++      return nil unless sides.all? { |value| value.to_f.positive? }
++
++      sides.map(&:to_f)
+     end
+ 
+     def self.first_extracted_cm(value)
+diff --git a/spec/factories/products.rb b/spec/factories/products.rb
+index b494f5a..2d9bf4e 100644
+--- a/spec/factories/products.rb
++++ b/spec/factories/products.rb
+@@ -22,22 +22,21 @@ FactoryBot.define do
+         next
+       end
+ 
+-      parts = product.package_dimensions.to_s.split(/\s*[×x]\s*/i).map(&:strip)
+-      width = parts[0].presence || "20 см"
+-      height = parts[1].presence || "30 см"
+-      length = parts[2].presence || "40 см"
++      detail = {
++        "weight" => "#{w} кг",
++        "count" => 1
++      }
++
++      if product.package_dimensions.present?
++        parts = product.package_dimensions.to_s.split(/\s*[×x]\s*/i).map(&:strip)
++        detail["width"] = parts[0] if parts[0].present?
++        detail["height"] = parts[1] if parts[1].present?
++        detail["length"] = parts[2] if parts[2].present?
++      end
+ 
+       dm = (fa["dimensions_map"] || {}).deep_dup
+       dm["packaging"] = {
+-        "details" => [
+-          {
+-            "weight" => "#{w} кг",
+-            "count" => 1,
+-            "width" => width,
+-            "height" => height,
+-            "length" => length
+-          }
+-        ]
++        "details" => [detail]
+       }
+       fa = fa.deep_dup
+       fa["dimensions_map"] = dm
+diff --git a/spec/requests/api/v1/webhooks/webpay_spec.rb b/spec/requests/api/v1/webhooks/webpay_spec.rb
+index f038bce..031ec22 100644
+--- a/spec/requests/api/v1/webhooks/webpay_spec.rb
++++ b/spec/requests/api/v1/webhooks/webpay_spec.rb
+@@ -16,12 +16,20 @@ RSpec.describe 'POST /api/v1/webhooks/webpay', type: :request do
+     p.merge('wsb_signature' => Digest::MD5.hexdigest(payload + secret))
+   end
+ 
++  def reset_async_job_spies!
++    RSpec::Mocks.space.proxy_for(CrmSyncJob).reset
++    allow(CrmSyncJob).to receive(:perform_later)
++    RSpec::Mocks.space.proxy_for(EuropostCreateShipmentJob).reset
++    allow(EuropostCreateShipmentJob).to receive(:perform_later)
++  end
++
+   it 'marks order paid on valid notification' do
+     order = create(:order,
+                    status: :created,
+                    total_amount: 100.00,
+                    payment_order_number: 'ORDER-SPEC-1',
+                    payment_method: 'card')
++    reset_async_job_spies!
+ 
+     body = notify_params(
+       'batch_timestamp' => '1562591640',
+@@ -52,6 +60,7 @@ RSpec.describe 'POST /api/v1/webhooks/webpay', type: :request do
+                    total_amount: 77.00,
+                    payment_order_number: 'ORDER-SPEC-PROCESSING',
+                    payment_method: 'card')
++    reset_async_job_spies!
+ 
+     body = notify_params(
+       'batch_timestamp' => '1562591640',
+@@ -103,6 +112,7 @@ RSpec.describe 'POST /api/v1/webhooks/webpay', type: :request do
+                    total_amount: 10.00,
+                    payment_order_number: 'ORDER-SPEC-3',
+                    payment_method: 'card')
++    reset_async_job_spies!
+ 
+     body = notify_params(
+       'batch_timestamp' => '1562591640',

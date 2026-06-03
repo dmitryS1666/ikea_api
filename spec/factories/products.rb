@@ -22,17 +22,21 @@ FactoryBot.define do
         next
       end
 
+      detail = {
+        "weight" => "#{w} кг",
+        "count" => 1
+      }
+
+      if product.package_dimensions.present?
+        parts = product.package_dimensions.to_s.split(/\s*[×x]\s*/i).map(&:strip)
+        detail["width"] = parts[0] if parts[0].present?
+        detail["height"] = parts[1] if parts[1].present?
+        detail["length"] = parts[2] if parts[2].present?
+      end
+
       dm = (fa["dimensions_map"] || {}).deep_dup
       dm["packaging"] = {
-        "details" => [
-          {
-            "weight" => "#{w} кг",
-            "count" => 1,
-            "width" => "20 см",
-            "height" => "30 см",
-            "length" => "40 см"
-          }
-        ]
+        "details" => [detail]
       }
       fa = fa.deep_dup
       fa["dimensions_map"] = dm

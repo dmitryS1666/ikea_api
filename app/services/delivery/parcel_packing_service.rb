@@ -1,9 +1,9 @@
 class Delivery
   class ParcelPackingService
-    # TODO: tune with real provider limits from business.
     DEFAULT_MAX_WEIGHT_KG = 30.0
     DEFAULT_MAX_VOLUME_M3 = 0.25
-    DEFAULT_MAX_DIMENSION_CM = 120.0
+    DEFAULT_MAX_DIMENSION_CM = 105.0
+    DEFAULT_MAX_DIMENSIONS_SUM_CM = 180.0
 
     def self.call(cart)
       parcels = build_parcels(cart)
@@ -15,6 +15,8 @@ class Delivery
         total_weight_kg: totals[:total_weight_kg],
         total_volume_m3: totals[:total_volume_m3],
         max_dimension_cm: totals[:max_dimension_cm],
+        max_dimensions_sum_cm: totals[:max_dimensions_sum_cm],
+        parcels_count: parcels.size,
         parcels: parcels,
         eligible_for_europost: first_ineligible.nil?,
         ineligible_reason: first_ineligible&.dig(:ineligible_reason)
@@ -26,6 +28,7 @@ class Delivery
         max_weight_kg: CalculatorSetting.get("europost_max_weight_kg") || DEFAULT_MAX_WEIGHT_KG,
         max_volume_m3: CalculatorSetting.get("europost_max_volume_m3") || DEFAULT_MAX_VOLUME_M3,
         max_dimension_cm: CalculatorSetting.get("europost_max_dimension_cm") || DEFAULT_MAX_DIMENSION_CM,
+        max_dimensions_sum_cm: CalculatorSetting.get("europost_max_dimensions_sum_cm") || DEFAULT_MAX_DIMENSIONS_SUM_CM,
         side_dimensions_cm: normalize_side_limits(CalculatorSetting.get("europost_max_side_dimensions_cm"))
       }
     end
@@ -41,11 +44,17 @@ class Delivery
       return ineligible(parcel, "max_weight_exceeded") if parcel[:weight_kg].to_f > limits[:max_weight_kg].to_f
       return ineligible(parcel, "max_volume_exceeded") if parcel[:volume_m3].to_f > limits[:max_volume_m3].to_f
 
-      max_dim = [parcel[:width_cm], parcel[:height_cm], parcel[:depth_cm]].map(&:to_f).max
+      sides = [parcel[:width_cm], parcel[:height_cm], parcel[:depth_cm]].map(&:to_f)
+      max_dim = sides.max
       return ineligible(parcel, "max_dimension_exceeded") if max_dim > limits[:max_dimension_cm].to_f
 
+      dimensions_sum = sides.sum
+      if limits[:max_dimensions_sum_cm].to_f.positive? && dimensions_sum > limits[:max_dimensions_sum_cm].to_f
+        return ineligible(parcel, "max_dimensions_sum_exceeded")
+      end
+
       if limits[:side_dimensions_cm].present?
-        parcel_sides = [parcel[:width_cm], parcel[:height_cm], parcel[:depth_cm]].map(&:to_f).sort
+        parcel_sides = sides.sort
         side_limits = limits[:side_dimensions_cm].sort
         exceeds = parcel_sides.each_with_index.any? { |side, idx| side > side_limits[idx].to_f }
         return ineligible(parcel, "side_limits_exceeded") if exceeds
@@ -64,21 +73,26 @@ class Delivery
         product = item.product
         sku = product&.sku || item.try(:product_sku)
         product_id = product&.id
-        metrics = parcel_metrics(product)
+        package_metrics = parcel_metrics_list(product)
 
-        quantity.times.map do
-          parcel = {
-            product_id: product_id,
-            sku: sku,
-            quantity: 1,
-            weight_kg: metrics[:weight_kg],
-            width_cm: metrics[:width_cm],
-            height_cm: metrics[:height_cm],
-            depth_cm: metrics[:depth_cm],
-            volume_m3: metrics[:volume_m3]
-          }
+        quantity.times.flat_map do |unit_index|
+          package_metrics.each_with_index.map do |metrics, package_index|
+            parcel = {
+              product_id: product_id,
+              sku: sku,
+              quantity: 1,
+              unit_index: unit_index + 1,
+              package_index: package_index + 1,
+              package_source: metrics[:package_source],
+              weight_kg: metrics[:weight_kg],
+              width_cm: metrics[:width_cm],
+              height_cm: metrics[:height_cm],
+              depth_cm: metrics[:depth_cm],
+              volume_m3: metrics[:volume_m3]
+            }
 
-          evaluate_parcel(parcel)
+            evaluate_parcel(parcel)
+          end
         end
       end
     end
@@ -95,7 +109,7 @@ class Delivery
     end
 
     def self.parcel_metrics(product)
-      return { weight_kg: nil, width_cm: nil, height_cm: nil, depth_cm: nil, volume_m3: nil } unless product
+      return { weight_kg: nil, width_cm: nil, height_cm: nil, depth_cm: nil, volume_m3: nil, package_source: "missing_product" } unless product
 
       weight = safe_product_weight_kg(product)
       sides = extract_sides(product)
@@ -106,15 +120,41 @@ class Delivery
       # - VGH constraints are expressed in m³ (`*_max_volume_m3`)
       volume_m3 = (product.package_volume.to_f / 1000.0) if product.package_volume.present?
       volume_m3 = nil if volume_m3.to_f <= 0
-      volume_m3 = (width.to_f * height.to_f * depth.to_f / 1_000_000.0).round(6) if volume_m3.blank? && [width, height, depth].all?(&:present?)
+      volume_m3 = volume_from_sides(width, height, depth) if volume_m3.blank? && [width, height, depth].all?(&:present?)
 
       {
         weight_kg: weight&.to_f,
         width_cm: width&.to_f,
         height_cm: height&.to_f,
         depth_cm: depth&.to_f,
-        volume_m3: volume_m3
+        volume_m3: volume_m3,
+        package_source: "product_fallback"
       }
+    end
+
+    def self.parcel_metrics_list(product)
+      fallback = parcel_metrics(product)
+      return [fallback] unless product
+
+      payload = customer_full_attributes_payload(product)
+      size = payload["size"]
+      return [fallback] unless size.is_a?(Hash)
+
+      metrics = package_metrics_from_packages(size)
+      metrics = package_metrics_from_packaging_details(size) if metrics.blank?
+      return [fallback] if metrics.blank?
+
+      metrics = metrics.map { |metric| merge_package_metric_fallback(metric, fallback, single_metric: metrics.size == 1) }
+
+      if metrics.size == 1
+        product_volume_m3 = product.package_volume.present? ? product.package_volume.to_f / 1000.0 : nil
+        metrics[0][:volume_m3] = product_volume_m3 if product_volume_m3.to_f.positive?
+      end
+
+      metrics
+    rescue StandardError => e
+      Rails.logger.warn("[EUROPOST] parcel_metrics_list fallback product_id=#{product&.id}: #{e.class}: #{e.message}")
+      [parcel_metrics(product)]
     end
 
     # Лёгкий расчёт ВГХ для admin XLSX (колонки + JSON без ProductSerializer).
@@ -128,7 +168,7 @@ class Delivery
 
       volume_m3 = (product.package_volume.to_f / 1000.0) if product.package_volume.present?
       volume_m3 = nil if volume_m3.to_f <= 0
-      volume_m3 = (width.to_f * height.to_f * depth.to_f / 1_000_000.0).round(6) if volume_m3.blank? && [width, height, depth].all?(&:present?)
+      volume_m3 = volume_from_sides(width, height, depth) if volume_m3.blank? && [width, height, depth].all?(&:present?)
 
       {
         weight_kg: weight&.to_f,
@@ -187,6 +227,117 @@ class Delivery
       {}
     end
 
+    def self.package_metrics_from_packages(size)
+      Array(size["packages"]).each_with_object([]) do |package, result|
+        next unless package.is_a?(Hash)
+
+        measurements = Array(package["measurements"])
+        by_name = measurements_by_normalized_name(measurements)
+        sides = build_parcel_sides(
+          width: by_name["ширина"],
+          height: by_name["высота"],
+          length: by_name["длина"],
+          depth: by_name["глубина"],
+          diameter: by_name["диаметр"]
+        )
+        weight = Products::WeightExtractor.parse_weight_to_kg(by_name["вес"], allow_unitless: false)
+        count = parse_count(by_name["упаковка(-и)"] || by_name["упаковки"] || by_name["количество упаковок"])
+
+        count.times do
+          result << build_package_metric(
+            weight_kg: weight,
+            sides: sides,
+            source: "size.packages"
+          )
+        end
+      end
+    end
+
+    def self.package_metrics_from_packaging_details(size)
+      Array(size.dig("packaging", "details")).each_with_object([]) do |detail, result|
+        next unless detail.is_a?(Hash)
+
+        detail = detail.stringify_keys
+        sides = build_parcel_sides(
+          width: detail["width"],
+          height: detail["height"],
+          length: detail["length"],
+          depth: detail["depth"],
+          diameter: detail["diameter"]
+        )
+        weight = Products::WeightExtractor.parse_weight_to_kg(detail["weight"], allow_unitless: true)
+        count = parse_count(detail["count"])
+
+        count.times do
+          result << build_package_metric(
+            weight_kg: weight,
+            sides: sides,
+            source: "size.packaging.details"
+          )
+        end
+      end
+    end
+
+    def self.build_package_metric(weight_kg:, sides:, source:)
+      width, height, depth = sides || [nil, nil, nil]
+
+      {
+        weight_kg: weight_kg&.to_f,
+        width_cm: width&.to_f,
+        height_cm: height&.to_f,
+        depth_cm: depth&.to_f,
+        volume_m3: volume_from_sides(width, height, depth),
+        package_source: source
+      }
+    end
+
+    def self.merge_package_metric_fallback(metric, fallback, single_metric:)
+      metric = metric.deep_dup
+
+      if single_metric && metric[:weight_kg].to_f <= 0 && fallback[:weight_kg].to_f.positive?
+        metric[:weight_kg] = fallback[:weight_kg]
+      end
+
+      if [metric[:width_cm], metric[:height_cm], metric[:depth_cm]].any? { |value| value.to_f <= 0 }
+        metric[:width_cm] = fallback[:width_cm] if metric[:width_cm].to_f <= 0 && fallback[:width_cm].to_f.positive?
+        metric[:height_cm] = fallback[:height_cm] if metric[:height_cm].to_f <= 0 && fallback[:height_cm].to_f.positive?
+        metric[:depth_cm] = fallback[:depth_cm] if metric[:depth_cm].to_f <= 0 && fallback[:depth_cm].to_f.positive?
+      end
+
+      if metric[:volume_m3].to_f <= 0 && [metric[:width_cm], metric[:height_cm], metric[:depth_cm]].all? { |value| value.to_f.positive? }
+        metric[:volume_m3] = volume_from_sides(metric[:width_cm], metric[:height_cm], metric[:depth_cm])
+      end
+
+      metric
+    end
+
+    def self.measurements_by_normalized_name(measurements)
+      Array(measurements).each_with_object({}) do |row, memo|
+        next unless row.is_a?(Hash)
+
+        label = normalized_measurement_label(row["name"] || row[:name])
+        next if label.blank?
+
+        memo[label] = row["measure"] || row[:measure]
+      end
+    end
+
+    def self.normalized_measurement_label(value)
+      label =
+        if defined?(ProductSerializer) && ProductSerializer.respond_to?(:translate_measurement_label_for_api)
+          ProductSerializer.translate_measurement_label_for_api(value)
+        else
+          value
+        end
+
+      label.to_s.downcase.gsub(":", "").gsub(/\s+/, " ").strip
+    end
+
+    def self.parse_count(value)
+      count = value.to_s[/\d+/].to_i
+      count.positive? ? count : 1
+    end
+
     def self.extract_sides_from_packaging_details(size)
       Array(size.dig("packaging", "details")).each do |detail|
         next unless detail.is_a?(Hash)
@@ -207,17 +358,7 @@ class Delivery
     def self.extract_sides_from_packages(size)
       Array(size["packages"]).each do |package|
         measurements = Array(package["measurements"])
-        by_name = measurements.each_with_object({}) do |row, memo|
-          next unless row.is_a?(Hash)
-
-          label =
-            if defined?(ProductSerializer) && ProductSerializer.respond_to?(:translate_measurement_label_for_api)
-              ProductSerializer.translate_measurement_label_for_api(row["name"] || row[:name]).to_s.downcase
-            else
-              row["name"].to_s.downcase
-            end
-          memo[label] = row["measure"] || row[:measure]
-        end
+        by_name = measurements_by_normalized_name(measurements)
 
         normalized = build_parcel_sides(
           width: by_name["ширина"],
@@ -257,7 +398,10 @@ class Delivery
         height_cm = diameter_cm
       end
 
-      normalize_sides([width_cm, height_cm, length_cm])
+      sides = [width_cm, height_cm, length_cm]
+      return nil unless sides.all? { |value| value.to_f.positive? }
+
+      sides.map(&:to_f)
     end
 
     def self.first_extracted_cm(value)
@@ -304,11 +448,23 @@ class Delivery
       end
     end
 
+    def self.volume_from_sides(width, height, depth)
+      return nil unless [width, height, depth].all?(&:present?)
+
+      (width.to_f * height.to_f * depth.to_f / 1_000_000.0).round(6)
+    end
+
     def self.parcel_totals(parcels)
+      sides = parcels.flat_map { |p| [p[:width_cm], p[:height_cm], p[:depth_cm]].compact }.map(&:to_f)
+      dimension_sums = parcels.map do |p|
+        [p[:width_cm], p[:height_cm], p[:depth_cm]].compact.map(&:to_f).sum
+      end
+
       {
         total_weight_kg: parcels.sum { |p| p[:weight_kg].to_f }.round(3),
         total_volume_m3: parcels.sum { |p| p[:volume_m3].to_f }.round(6),
-        max_dimension_cm: parcels.flat_map { |p| [p[:width_cm], p[:height_cm], p[:depth_cm]].compact }.map(&:to_f).max.to_f.round(2)
+        max_dimension_cm: sides.max.to_f.round(2),
+        max_dimensions_sum_cm: dimension_sums.max.to_f.round(2)
       }
     end
 

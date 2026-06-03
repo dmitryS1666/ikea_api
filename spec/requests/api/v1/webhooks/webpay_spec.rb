@@ -7,6 +7,7 @@ RSpec.describe 'POST /api/v1/webhooks/webpay', type: :request do
     allow(WebpayGetTransactionService).to receive(:billing_configured?).and_return(false)
     allow(WebpayGetTransactionService).to receive(:fetch)
     allow(CrmSyncJob).to receive(:perform_later)
+    allow(EuropostCreateShipmentJob).to receive(:perform_later)
   end
 
   def notify_params(attrs)
@@ -15,12 +16,20 @@ RSpec.describe 'POST /api/v1/webhooks/webpay', type: :request do
     p.merge('wsb_signature' => Digest::MD5.hexdigest(payload + secret))
   end
 
+  def reset_async_job_spies!
+    RSpec::Mocks.space.proxy_for(CrmSyncJob).reset
+    allow(CrmSyncJob).to receive(:perform_later)
+    RSpec::Mocks.space.proxy_for(EuropostCreateShipmentJob).reset
+    allow(EuropostCreateShipmentJob).to receive(:perform_later)
+  end
+
   it 'marks order paid on valid notification' do
     order = create(:order,
                    status: :created,
                    total_amount: 100.00,
                    payment_order_number: 'ORDER-SPEC-1',
                    payment_method: 'card')
+    reset_async_job_spies!
 
     body = notify_params(
       'batch_timestamp' => '1562591640',
@@ -42,6 +51,34 @@ RSpec.describe 'POST /api/v1/webhooks/webpay', type: :request do
     expect(order.webpay_transaction_id).to eq('858578101')
     expect(order.webpay_paid_at).to be_present
     expect(CrmSyncJob).to have_received(:perform_later).with('Order', order.id).once
+    expect(EuropostCreateShipmentJob).to have_received(:perform_later).with(order.id).once
+  end
+
+  it 'marks processing checkout order paid on valid notification' do
+    order = create(:order,
+                   status: :processing,
+                   total_amount: 77.00,
+                   payment_order_number: 'ORDER-SPEC-PROCESSING',
+                   payment_method: 'card')
+    reset_async_job_spies!
+
+    body = notify_params(
+      'batch_timestamp' => '1562591640',
+      'currency_id' => 'BYN',
+      'amount' => '77.00',
+      'payment_method' => 'cc',
+      'order_id' => '9990011',
+      'site_order_id' => order.payment_order_number,
+      'transaction_id' => '858578111',
+      'payment_type' => '4',
+      'rrn' => '786755995452'
+    )
+
+    post '/api/v1/webhooks/webpay', params: body
+
+    expect(response).to have_http_status(:ok)
+    expect(order.reload).to be_paid
+    expect(EuropostCreateShipmentJob).to have_received(:perform_later).with(order.id).once
   end
 
   it 'returns forbidden on bad signature' do
@@ -75,6 +112,7 @@ RSpec.describe 'POST /api/v1/webhooks/webpay', type: :request do
                    total_amount: 10.00,
                    payment_order_number: 'ORDER-SPEC-3',
                    payment_method: 'card')
+    reset_async_job_spies!
 
     body = notify_params(
       'batch_timestamp' => '1562591640',
@@ -94,6 +132,7 @@ RSpec.describe 'POST /api/v1/webhooks/webpay', type: :request do
     expect(response).to have_http_status(:ok)
     expect(order.reload.webpay_transaction_id).to eq('858578103')
     expect(CrmSyncJob).to have_received(:perform_later).with('Order', order.id).once
+    expect(EuropostCreateShipmentJob).to have_received(:perform_later).with(order.id).once
   end
 
   context 'when Billing API get_transaction fails' do

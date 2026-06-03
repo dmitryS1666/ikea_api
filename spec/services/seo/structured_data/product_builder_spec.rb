@@ -16,7 +16,7 @@ RSpec.describe Seo::StructuredData::ProductBuilder do
   end
 
   it "returns Product schema hash" do
-    payload = described_class.build(product, site_url: "https://test.ikeya.by", city_code: "minsk")
+    payload = described_class.build(product, site_url: "https://ikeya.by", city_code: "minsk")
 
     expect(payload["@type"]).to eq("Product")
     expect(payload["sku"]).to eq("30566134")

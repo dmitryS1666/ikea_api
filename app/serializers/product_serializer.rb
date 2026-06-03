@@ -725,18 +725,13 @@ class ProductSerializer
   
     # Старый fallback оставляем только если modal packages реально нет.
     if product.package_dimensions.present? && product.weight.present?
-      pd = product.package_dimensions.to_s
-  
+      fallback_packaging = build_packaging_from_product_columns(product)
+
       size_block["packaging"] ||= {}
-      size_block["packaging"]["desc"] ||= nil
-      size_block["packaging"]["details"] ||= [
-        {
-          "width" => nil,
-          "height" => nil,
-          "length" => normalize_api_measurement_value(pd),
-          "weight" => normalize_api_measurement_value("#{product.weight} кг")
-        }.compact
-      ]
+      size_block["packaging"]["desc"] ||= fallback_packaging["desc"]
+      if Array(size_block["packaging"]["details"]).blank?
+        size_block["packaging"]["details"] = fallback_packaging["details"]
+      end
     end
   end
 
@@ -1041,10 +1036,27 @@ class ProductSerializer
   
   def self.build_size_block(dimensions_map, packaging_info)
     size_data = dimensions_map.is_a?(Hash) ? dimensions_map.deep_dup.stringify_keys : {}
-  
-    size_data["packaging"] = build_packaging_block(packaging_info)
-  
+
+    existing_packaging = size_data["packaging"].is_a?(Hash) ? size_data["packaging"].deep_stringify_keys : nil
+    built_packaging = build_packaging_block(packaging_info)
+
+    # `dimensions_map` may already contain normalized packaging/details from imports or specs.
+    # Do not wipe it with an empty block when detailed_info has no packaging section.
+    size_data["packaging"] = if packaging_block_present?(built_packaging)
+                                built_packaging
+                              elsif packaging_block_present?(existing_packaging)
+                                existing_packaging
+                              else
+                                built_packaging
+                              end
+
     size_data
+  end
+
+  def self.packaging_block_present?(value)
+    return false unless value.is_a?(Hash)
+
+    value["desc"].present? || Array(value["details"]).any?
   end
   
   def self.build_packaging_block(packaging_info)

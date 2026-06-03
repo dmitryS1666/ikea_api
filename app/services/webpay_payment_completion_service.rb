@@ -146,6 +146,7 @@ class WebpayPaymentCompletionService
 
     outcome = :noop
     sync_crm = false
+    create_europost_shipment = false
     Order.transaction do
       order.lock!
       order.reload
@@ -153,7 +154,7 @@ class WebpayPaymentCompletionService
         outcome = order.webpay_transaction_id.to_s == tid ? :already_paid : :already_paid_other
       elsif order.checkout_draft?
         outcome = :invalid_state
-      elsif !order.created?
+      elsif !payment_completion_allowed?(order)
         outcome = :invalid_state
       elsif Order.where.not(id: order.id).exists?(webpay_transaction_id: tid)
         outcome = :transaction_used
@@ -165,11 +166,17 @@ class WebpayPaymentCompletionService
         )
         outcome = :paid
         sync_crm = true
+        create_europost_shipment = true
       end
     end
+    EuropostCreateShipmentJob.perform_later(order.id) if create_europost_shipment
     CrmSyncJob.perform_later('Order', order.id) if sync_crm
     outcome
   rescue ActiveRecord::RecordNotUnique
     :transaction_used
+  end
+
+  def payment_completion_allowed?(order)
+    order.created? || order.processing?
   end
 end

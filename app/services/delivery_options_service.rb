@@ -12,6 +12,7 @@ class DeliveryOptionsService
         weight_kg: parcel_result[:total_weight_kg],
         volume_m3: parcel_result[:total_volume_m3],
         max_dimension_cm: parcel_result[:max_dimension_cm],
+        max_dimensions_sum_cm: parcel_result[:max_dimensions_sum_cm],
         eligible_for_europost: europost_eligibility[:eligible],
         ineligible_reason: europost_eligibility[:reason]
       },
@@ -20,6 +21,7 @@ class DeliveryOptionsService
         total_weight_kg: parcel_result[:total_weight_kg],
         total_volume_m3: parcel_result[:total_volume_m3],
         max_dimension_cm: parcel_result[:max_dimension_cm],
+        max_dimensions_sum_cm: parcel_result[:max_dimensions_sum_cm],
         eligible_for_europost: europost_eligibility[:eligible],
         ineligible_reason: europost_eligibility[:reason]
       },
