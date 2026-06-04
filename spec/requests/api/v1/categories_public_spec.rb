@@ -103,6 +103,15 @@ RSpec.describe 'Categories API (public)', type: :request do
       produces 'application/json'
 
       response '200', 'successful' do
+        schema type: :object,
+               properties: {
+                 data: {
+                   type: :array,
+                   items: { '$ref' => '#/components/schemas/category_tree' }
+                 },
+                 catalog_seo: { '$ref' => '#/components/schemas/catalog_seo', nullable: true }
+               }
+
         run_test!
       end
     end

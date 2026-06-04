@@ -112,7 +112,11 @@ module Api
           Categories::TreeBuilder.new(categories, city_code: current_city).call
         end
 
-        render json: tree
+        response = tree.deep_dup
+        catalog_seo = Categories::CatalogSeoPayload.call
+        response[:catalog_seo] = catalog_seo if catalog_seo.present?
+
+        render json: response
       end
       
       def map

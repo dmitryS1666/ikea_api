@@ -588,6 +588,9 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/CategoryTree'
+                  catalog_seo:
+                    $ref: '#/components/schemas/CatalogSeo'
+                    nullable: true
 
   /api/v1/auth/login:
     post:
@@ -2944,6 +2947,24 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/CategoryTree'
+
+    CatalogSeo:
+      type: object
+      nullable: true
+      properties:
+        title:
+          type: string
+          nullable: true
+        meta_title:
+          type: string
+          nullable: true
+        meta_description:
+          type: string
+          nullable: true
+        seo_text:
+          type: string
+          nullable: true
+          description: HTML-текст SEO-блока корневой страницы каталога /catalog
 
     User:
       type: object

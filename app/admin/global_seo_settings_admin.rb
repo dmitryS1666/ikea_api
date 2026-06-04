@@ -8,6 +8,7 @@ Trestle.resource(:global_seo_settings, model: GlobalSeoSetting) do
       case setting.target_type
       when 'home' then 'Главная'
       when 'category' then 'Категории (общие)'
+      when 'catalog' then 'Корень каталога (/catalog)'
       when 'product' then 'Товары (общие)'
       when 'article' then 'Статьи (общие)'
       when 'static_page' then 'Служебные страницы'
@@ -23,6 +24,7 @@ Trestle.resource(:global_seo_settings, model: GlobalSeoSetting) do
       select :target_type, [
         ['Главная', 'home'],
         ['Категории (общие)', 'category'],
+        ['Корень каталога (/catalog)', 'catalog'],
         ['Товары (общие)', 'product'],
         ['Статьи (общие)', 'article'],
         ['Служебные страницы', 'static_page']
