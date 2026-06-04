@@ -12,7 +12,15 @@ RSpec.describe 'Reviews API', type: :request do
       parameter name: :rating, in: :query, type: :integer, required: false, description: 'Фильтр по оценке 1–5'
       parameter name: :with_photo, in: :query, type: :boolean, required: false
       parameter name: :sort, in: :query, type: :string, required: false,
-                description: 'newest (default) | oldest | rating_high | rating_low | helpful'
+                description: 'newest (default) | oldest | rating_high | rating_low | helpful; invalid values return 422'
+
+      response '422', 'invalid filter parameter' do
+        let!(:product) { create(:product, sku: 'REVIEWS-SWAGGER-SKU', quantity: 10) }
+        let(:product_sku) { product.sku }
+        let(:rating) { 6 }
+
+        run_test!
+      end
 
       response '404', 'product not found' do
         let(:product_sku) { 'NON_EXISTING_SKU' }

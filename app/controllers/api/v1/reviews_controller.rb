@@ -10,6 +10,8 @@ module Api
       def index
         result = ProductReviews::IndexService.new(product: @product, params: params).call
         render json: result
+      rescue ProductReviews::IndexService::InvalidParameterError => e
+        render json: { error: e.message, code: 'invalid_parameter', param: e.param }, status: :unprocessable_entity
       end
 
       def create

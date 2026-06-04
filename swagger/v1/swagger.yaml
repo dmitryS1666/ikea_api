@@ -2504,7 +2504,7 @@ paths:
             type: string
             enum: [newest, oldest, rating_high, rating_low, helpful]
             default: newest
-          description: Сортировка (закреплённые отзывы всегда выше)
+          description: Сортировка (закреплённые отзывы всегда выше; некорректное значение вернёт 422)
       responses:
         '200':
           description: Список отзывов и агрегаты
@@ -2512,6 +2512,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProductReviewsIndexResponse'
+        '422':
+          description: Некорректный фильтр rating или sort
         '404':
           description: Товар не найден
     post:

@@ -32,6 +32,35 @@ RSpec.describe 'Product reviews API (public)', type: :request do
       expect(json['meta']).to include('page' => 1, 'total' => 1, 'total_pages' => 1)
     end
 
+    it 'returns empty response for with_photo filter when product has no photo reviews' do
+      get "/api/v1/products/#{product.sku}/reviews", params: { page: 1, per_page: 20, with_photo: 1 }
+
+      expect(response).to have_http_status(:ok)
+      json = JSON.parse(response.body)
+
+      expect(json['data']).to eq([])
+      expect(json['aggregates']).to include('rating_avg' => 0, 'rating_weighted' => 0, 'rating_count' => 0)
+      expect(json['rating_distribution']).to eq('1' => 0, '2' => 0, '3' => 0, '4' => 0, '5' => 0)
+      expect(json['photos']).to eq([])
+      expect(json['meta']).to include('page' => 1, 'per_page' => 20, 'total' => 0, 'total_pages' => 0)
+    end
+
+    it 'returns 422 for invalid rating instead of 500' do
+      get "/api/v1/products/#{product.sku}/reviews", params: { rating: 6 }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      json = JSON.parse(response.body)
+      expect(json).to include('code' => 'invalid_parameter', 'param' => 'rating')
+    end
+
+    it 'returns 422 for invalid sort instead of 500' do
+      get "/api/v1/products/#{product.sku}/reviews", params: { sort: 'random' }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      json = JSON.parse(response.body)
+      expect(json).to include('code' => 'invalid_parameter', 'param' => 'sort')
+    end
+
     it 'returns 404 for unknown product' do
       get '/api/v1/products/UNKNOWN-SKU/reviews'
       expect(response).to have_http_status(:not_found)

@@ -6,13 +6,26 @@ module ProductReviews
     PER_PAGE_MAX = 50
     SORT_OPTIONS = %w[newest oldest rating_high rating_low helpful].freeze
 
+    class InvalidParameterError < StandardError
+      attr_reader :param, :value
+
+      def initialize(param, value, allowed_values: nil)
+        @param = param
+        @value = value
+        allowed = Array(allowed_values).presence
+        details = allowed ? "; allowed values: #{allowed.join(', ')}" : nil
+
+        super("Invalid #{param}: #{value.inspect}#{details}")
+      end
+    end
+
     def initialize(product:, params: {})
       @product = product
       @params = params
     end
 
     def call
-      page = [params[:page].to_i, 1].max
+      page = normalized_page
       per_page = normalized_per_page
       base_scope = Review.published.where(product_sku: @product.sku)
       filtered_scope = apply_filters(base_scope)
@@ -25,9 +38,9 @@ module ProductReviews
 
       {
         data: paginated.map(&:as_public_json),
-        aggregates: aggregates,
-        rating_distribution: rating_distribution,
-        photos: photos_strip(base_scope),
+        aggregates: aggregates(filtered_scope),
+        rating_distribution: rating_distribution(filtered_scope),
+        photos: photos_strip(filtered_scope),
         meta: {
           page: page,
           per_page: per_page,
@@ -41,6 +54,11 @@ module ProductReviews
 
     attr_reader :product, :params
 
+    def normalized_page
+      page = (params[:page].presence || 1).to_i
+      page.positive? ? page : 1
+    end
+
     def normalized_per_page
       per_page = (params[:per_page].presence || PER_PAGE_DEFAULT).to_i
       per_page = PER_PAGE_DEFAULT if per_page <= 0
@@ -48,13 +66,14 @@ module ProductReviews
     end
 
     def apply_filters(scope)
-      scope = scope.where(rating: params[:rating].to_i) if params[:rating].present?
-      scope = scope.with_attached_photos.joins(:photos_attachments).distinct if truthy?(params[:with_photo])
+      rating = rating_filter_value
+      scope = scope.where(rating: rating) if rating
+      scope = only_with_photos(scope) if truthy?(params[:with_photo])
       scope
     end
 
     def apply_sort(scope)
-      case params[:sort].to_s
+      case sort_value
       when 'oldest'
         scope.order(pinned: :desc, published_at: :asc, created_at: :asc)
       when 'rating_high'
@@ -75,16 +94,74 @@ module ProductReviews
       end
     end
 
-    def aggregates
+    def rating_filter_value
+      return nil if params[:rating].blank?
+
+      rating = Integer(params[:rating].to_s, 10)
+      return rating if (1..5).cover?(rating)
+
+      raise InvalidParameterError.new(:rating, params[:rating], allowed_values: 1..5)
+    rescue ArgumentError, TypeError
+      raise InvalidParameterError.new(:rating, params[:rating], allowed_values: 1..5)
+    end
+
+    def sort_value
+      sort = params[:sort].presence || 'newest'
+      return sort if SORT_OPTIONS.include?(sort)
+
+      raise InvalidParameterError.new(:sort, params[:sort], allowed_values: SORT_OPTIONS)
+    end
+
+    def only_with_photos(scope)
+      photos_attachment_ids = ActiveStorage::Attachment
+                              .where(record_type: Review.name, name: 'photos')
+                              .select(:record_id)
+
+      scope.where(id: photos_attachment_ids)
+    end
+
+    def aggregates(scope)
+      rating_scope = scope.where(excluded_from_rating: false)
+      count = rating_scope.count
+
+      return empty_aggregates if count.zero?
+
       {
-        rating_avg: product.rating_avg.to_f,
-        rating_weighted: product.rating_weighted.to_f,
-        rating_count: product.rating_count
+        rating_avg: rating_scope.average(:rating).to_f.round(2),
+        rating_weighted: weighted_rating(rating_scope).round(2).to_f,
+        rating_count: count
       }
     end
 
-    def rating_distribution
-      counts = Review.published_reviews.where(product_sku: product.sku).group(:rating).count
+    def empty_aggregates
+      {
+        rating_avg: 0,
+        rating_weighted: 0,
+        rating_count: 0
+      }
+    end
+
+    def weighted_rating(scope)
+      settings = ReviewSetting.instance
+      base_weight = settings.base_weight.to_d
+      helpful_weight_factor = settings.helpful_weight_factor.to_d
+      helpful_counts = ReviewHelpfulVote.where(review_id: scope.select(:id)).group(:review_id).count
+
+      total_weight = 0.to_d
+      weighted_sum = 0.to_d
+
+      scope.select(:id, :rating).find_each do |review|
+        helpful = helpful_counts[review.id] || 0
+        weight = base_weight + helpful * helpful_weight_factor
+        total_weight += weight
+        weighted_sum += review.rating * weight
+      end
+
+      total_weight.positive? ? weighted_sum / total_weight : 0.to_d
+    end
+
+    def rating_distribution(scope)
+      counts = scope.where(excluded_from_rating: false).group(:rating).count
       (1..5).each_with_object({}) do |stars, hash|
         hash[stars.to_s] = counts[stars] || 0
       end

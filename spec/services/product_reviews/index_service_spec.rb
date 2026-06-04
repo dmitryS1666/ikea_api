@@ -51,4 +51,46 @@ RSpec.describe ProductReviews::IndexService do
       expect(result[:data].map { |r| r[:rating] }).to eq([5, 4])
     end
   end
+
+  context 'with with_photo filter and no matching reviews' do
+    let(:params) { { with_photo: '1' } }
+
+    it 'returns an empty stable response instead of raising' do
+      expect(result[:data]).to eq([])
+      expect(result[:aggregates]).to eq(rating_avg: 0, rating_weighted: 0, rating_count: 0)
+      expect(result[:rating_distribution]).to eq('1' => 0, '2' => 0, '3' => 0, '4' => 0, '5' => 0)
+      expect(result[:photos]).to eq([])
+      expect(result[:meta]).to include(page: 1, per_page: 20, total: 0, total_pages: 0)
+    end
+  end
+
+  context 'with with_photo filter and matching reviews' do
+    before do
+      create(:review, :with_photo, product_sku: product.sku, user: create(:user), rating: 5, body: 'С фото', published_at: Time.current)
+    end
+
+    let(:params) { { with_photo: '1' } }
+
+    it 'returns only reviews that have photos' do
+      expect(result[:data].size).to eq(1)
+      expect(result[:data].first[:photos]).not_to be_empty
+      expect(result[:meta]).to include(total: 1)
+    end
+  end
+
+  context 'with invalid rating filter' do
+    let(:params) { { rating: '6' } }
+
+    it 'raises a controlled validation error' do
+      expect { result }.to raise_error(ProductReviews::IndexService::InvalidParameterError, /Invalid rating/)
+    end
+  end
+
+  context 'with invalid sort' do
+    let(:params) { { sort: 'random' } }
+
+    it 'raises a controlled validation error' do
+      expect { result }.to raise_error(ProductReviews::IndexService::InvalidParameterError, /Invalid sort/)
+    end
+  end
 end
