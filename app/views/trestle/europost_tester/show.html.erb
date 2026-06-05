@@ -1,0 +1,327 @@
+<% require "json" %>
+<% fp = (@form_params || {}) %>
+
+<div class="container-fluid europost-tester">
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-info text-white">
+          <h3 class="mb-0">🚚 Тестовые запросы API Европочты</h3>
+        </div>
+        <div class="card-body">
+          <p class="mb-3">
+            Инструмент использует реальные методы backend: <code>GET /api/external/stores</code>,
+            <code>POST /api/external/postal/payment/calculate</code> и
+            <code>POST /api/external/postal/create</code>.
+          </p>
+
+          <div class="alert alert-warning mb-0">
+            <strong>Важно:</strong> расчёт доставки безопасен, а создание ПчО реально отправляет заявку в Европочту.
+            Для получения трек-номера нужно отдельно отметить чекбокс подтверждения.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <% if @error.present? %>
+    <div class="alert alert-danger"><%= @error %></div>
+  <% end %>
+
+  <div class="row">
+    <div class="col-lg-4">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">⚙️ Проверка настроек</h5>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-sm table-bordered mb-0">
+            <tbody>
+              <tr>
+                <th>EUROPOST_API_BASE_URL</th>
+                <td><code><%= @env_status[:rest_api_base_url] %></code></td>
+              </tr>
+              <tr>
+                <th>EUROPOST_API_TOKEN</th>
+                <td>
+                  <% if @env_status[:api_token_present] %>
+                    <span class="badge bg-success">задан</span>
+                  <% else %>
+                    <span class="badge bg-danger">не задан</span>
+                  <% end %>
+                </td>
+              </tr>
+              <tr>
+                <th>EUROPOST_STORE_ID_START</th>
+                <td><code><%= @env_status[:store_id_start].presence || "—" %></code></td>
+              </tr>
+              <tr>
+                <th>EUROPOST_STORE_ID_FINISH</th>
+                <td><code><%= @env_status[:store_id_finish].presence || "—" %></code></td>
+              </tr>
+              <tr>
+                <th>EUROPOST_CONTRACTOR_UNN</th>
+                <td><code><%= @env_status[:contractor_unn].presence || "—" %></code></td>
+              </tr>
+              <tr>
+                <th>delivery_type</th>
+                <td><code><%= @env_status[:delivery_type] %></code> / courier <code><%= @env_status[:courier_delivery_type] %></code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">📍 Подгрузить ОПС/склады</h5>
+        </div>
+        <div class="card-body">
+          <%= form_tag admin.instance_path(EuropostTester.new(id: "show")), method: :get, data: { turbo: false } do %>
+            <div class="form-group mb-3">
+              <%= label_tag :store_type, "Тип точки", class: "form-label" %>
+              <%= select_tag :store_type,
+                  options_for_select(Admin::EuropostTesterService::STORE_TYPE_OPTIONS, params[:store_type].presence || fp["store_type"]),
+                  class: "form-control" %>
+            </div>
+            <%= submit_tag "Подгрузить из Европочты", name: "load_stores", class: "btn btn-outline-primary w-100" %>
+          <% end %>
+
+          <% if @stores.present? %>
+            <div class="alert alert-success mt-3 mb-0">
+              Загружено точек: <strong><%= @stores.size %></strong>. ID можно скопировать в поля ниже.
+            </div>
+          <% elsif params[:load_stores].present? %>
+            <div class="alert alert-warning mt-3 mb-0">
+              Точки не вернулись. Проверьте токен, base URL и доступность API Европочты.
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <% if @stores.present? %>
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">Список точек</h5>
+          </div>
+          <div class="card-body p-0" style="max-height: 520px; overflow: auto;">
+            <table class="table table-sm table-striped mb-0">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Точка</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @stores.first(300).each do |store| %>
+                  <tr>
+                    <td><code><%= store[:id] %></code></td>
+                    <td>
+                      <strong><%= store[:name] %></strong><br>
+                      <small class="text-muted"><%= [store[:city], store[:address]].compact_blank.join(", ") %></small>
+                    </td>
+                    <td class="text-nowrap">
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-store="start" data-store-id="<%= store[:id] %>">start</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-store="finish" data-store-id="<%= store[:id] %>">finish</button>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+            <% if @stores.size > 300 %>
+              <div class="p-2 small text-muted">Показаны первые 300 точек из <%= @stores.size %>.</div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h4 class="mb-0">🧪 Параметры тестового запроса</h4>
+        </div>
+        <div class="card-body">
+          <%= form_tag admin.instance_path(EuropostTester.new(id: "show")), method: :get, data: { turbo: false } do %>
+            <%= hidden_field_tag :store_type, params[:store_type].presence || fp["store_type"] %>
+
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <%= label_tag :delivery_kind, "Сценарий доставки", class: "form-label" %>
+                <%= select_tag :delivery_kind,
+                    options_for_select(Admin::EuropostTesterService::DELIVERY_KIND_OPTIONS, params[:delivery_kind].presence || fp["delivery_kind"]),
+                    class: "form-control", id: "europost_delivery_kind" %>
+              </div>
+              <div class="col-md-4 mb-3">
+                <%= label_tag :store_id_start, "store_id_start", class: "form-label" %>
+                <%= number_field_tag :store_id_start, params[:store_id_start].presence || fp["store_id_start"], class: "form-control", id: "store_id_start", required: true %>
+              </div>
+              <div class="col-md-4 mb-3 europost-pickup-field">
+                <%= label_tag :store_id_finish, "store_id_finish", class: "form-label" %>
+                <%= number_field_tag :store_id_finish, params[:store_id_finish].presence || fp["store_id_finish"], class: "form-control", id: "store_id_finish" %>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-3 mb-3">
+                <%= label_tag :weight, "Вес, кг", class: "form-label" %>
+                <%= number_field_tag :weight, params[:weight].presence || fp["weight"], class: "form-control", step: 0.001, min: 0, required: true %>
+              </div>
+              <div class="col-md-3 mb-3">
+                <%= label_tag :length, "Длина, см", class: "form-label" %>
+                <%= number_field_tag :length, params[:length].presence || fp["length"], class: "form-control", step: 0.1, min: 0 %>
+              </div>
+              <div class="col-md-3 mb-3">
+                <%= label_tag :width, "Ширина, см", class: "form-label" %>
+                <%= number_field_tag :width, params[:width].presence || fp["width"], class: "form-control", step: 0.1, min: 0 %>
+              </div>
+              <div class="col-md-3 mb-3">
+                <%= label_tag :height, "Высота, см", class: "form-label" %>
+                <%= number_field_tag :height, params[:height].presence || fp["height"], class: "form-control", step: 0.1, min: 0 %>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <%= label_tag :declared_amount, "Объявленная сумма, BYN", class: "form-label" %>
+                <%= number_field_tag :declared_amount, params[:declared_amount].presence || fp["declared_amount"], class: "form-control", step: 0.01, min: 0 %>
+              </div>
+              <div class="col-md-4 mb-3">
+                <%= label_tag :payment_amount, "Наложенный платеж, BYN", class: "form-label" %>
+                <%= number_field_tag :payment_amount, params[:payment_amount], class: "form-control", step: 0.01, min: 0 %>
+              </div>
+              <div class="col-md-4 mb-3 europost-courier-field">
+                <%= label_tag :address_id, "address_id для расчёта курьера", class: "form-label" %>
+                <%= number_field_tag :address_id, params[:address_id], class: "form-control" %>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <%= label_tag :shipment_payer, "shipment_payer", class: "form-label" %>
+                <%= select_tag :shipment_payer, options_for_select([["Отправитель", "0"], ["Получатель", "1"]], params[:shipment_payer].presence || fp["shipment_payer"]), class: "form-control" %>
+              </div>
+              <div class="col-md-4 mb-3">
+                <%= label_tag :packing_payer, "packing_payer", class: "form-label" %>
+                <%= select_tag :packing_payer, options_for_select([["Отправитель", "0"], ["Получатель", "1"]], params[:packing_payer].presence || fp["packing_payer"]), class: "form-control" %>
+              </div>
+              <div class="col-md-4 mb-3">
+                <%= label_tag :cash_on_delivery_payer, "cash_on_delivery_payer", class: "form-label" %>
+                <%= select_tag :cash_on_delivery_payer, options_for_select([["Отправитель", "0"], ["Получатель", "1"]], params[:cash_on_delivery_payer].presence || fp["cash_on_delivery_payer"]), class: "form-control" %>
+              </div>
+            </div>
+
+            <hr>
+            <h5>Получатель для теста создания ПчО</h5>
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <%= label_tag :receiver_phone_number, "Телефон", class: "form-label" %>
+                <%= text_field_tag :receiver_phone_number, params[:receiver_phone_number].presence || fp["receiver_phone_number"], class: "form-control" %>
+              </div>
+              <div class="col-md-4 mb-3">
+                <%= label_tag :receiver_surname, "Фамилия", class: "form-label" %>
+                <%= text_field_tag :receiver_surname, params[:receiver_surname].presence || fp["receiver_surname"], class: "form-control" %>
+              </div>
+              <div class="col-md-4 mb-3">
+                <%= label_tag :receiver_name, "Имя", class: "form-label" %>
+                <%= text_field_tag :receiver_name, params[:receiver_name].presence || fp["receiver_name"], class: "form-control" %>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <%= label_tag :receiver_patronymic_name, "Отчество", class: "form-label" %>
+                <%= text_field_tag :receiver_patronymic_name, params[:receiver_patronymic_name].presence || fp["receiver_patronymic_name"], class: "form-control" %>
+              </div>
+              <div class="col-md-4 mb-3">
+                <%= label_tag :receiver_email, "Email", class: "form-label" %>
+                <%= email_field_tag :receiver_email, params[:receiver_email].presence || fp["receiver_email"], class: "form-control" %>
+              </div>
+              <div class="col-md-4 mb-3">
+                <%= label_tag :contractor_unn, "УНН контрагента", class: "form-label" %>
+                <%= number_field_tag :contractor_unn, params[:contractor_unn].presence || fp["contractor_unn"], class: "form-control" %>
+              </div>
+            </div>
+
+            <div class="row europost-courier-field">
+              <div class="col-md-4 mb-3">
+                <%= label_tag :address_city, "Город", class: "form-label" %>
+                <%= text_field_tag :address_city, params[:address_city].presence || fp["address_city"], class: "form-control" %>
+              </div>
+              <div class="col-md-4 mb-3">
+                <%= label_tag :address_street, "Улица", class: "form-label" %>
+                <%= text_field_tag :address_street, params[:address_street].presence || fp["address_street"], class: "form-control" %>
+              </div>
+              <div class="col-md-2 mb-3">
+                <%= label_tag :address_house_number, "Дом", class: "form-label" %>
+                <%= text_field_tag :address_house_number, params[:address_house_number].presence || fp["address_house_number"], class: "form-control" %>
+              </div>
+              <div class="col-md-2 mb-3">
+                <%= label_tag :flat_number, "Кв.", class: "form-label" %>
+                <%= text_field_tag :flat_number, params[:flat_number].presence || fp["flat_number"], class: "form-control" %>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <%= label_tag :external_id, "external_id", class: "form-label" %>
+                <%= text_field_tag :external_id, params[:external_id].presence || fp["external_id"], class: "form-control" %>
+              </div>
+              <div class="col-md-6 mb-3">
+                <%= label_tag :info_sender, "Комментарий отправителя", class: "form-label" %>
+                <%= text_field_tag :info_sender, params[:info_sender], class: "form-control", placeholder: "IKEYA admin Europost test" %>
+              </div>
+            </div>
+
+            <div class="form-check alert alert-danger">
+              <%= check_box_tag :confirm_create, "1", params[:confirm_create] == "1", class: "form-check-input", id: "confirm_create" %>
+              <%= label_tag :confirm_create, "Подтверждаю реальное создание тестовой ПчО в Европочте", class: "form-check-label" %>
+            </div>
+
+            <div class="d-flex gap-2">
+              <%= submit_tag "1. Рассчитать доставку через API", name: "calculate", class: "btn btn-primary btn-lg" %>
+              <%= submit_tag "2. Создать ПчО и получить трек-номер", name: "create_shipment", class: "btn btn-danger btn-lg" %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <% if @quote_result %>
+        <%= render partial: "trestle/europost_tester/result", locals: { title: "Расчёт доставки", result: @quote_result } %>
+      <% end %>
+
+      <% if @create_result %>
+        <%= render partial: "trestle/europost_tester/result", locals: { title: "Создание ПчО / трек-номер", result: @create_result } %>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    function updateDeliveryFields() {
+      var select = document.getElementById("europost_delivery_kind");
+      if (!select) return;
+      var courier = select.value === "courier";
+      document.querySelectorAll(".europost-courier-field").forEach(function (el) {
+        el.style.display = courier ? "" : "none";
+      });
+      document.querySelectorAll(".europost-pickup-field").forEach(function (el) {
+        el.style.display = courier ? "none" : "";
+      });
+    }
+
+    document.querySelectorAll("[data-copy-store]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var targetId = button.getAttribute("data-copy-store") === "start" ? "store_id_start" : "store_id_finish";
+        var target = document.getElementById(targetId);
+        if (target) target.value = button.getAttribute("data-store-id");
+      });
+    });
+
+    var select = document.getElementById("europost_delivery_kind");
+    if (select) select.addEventListener("change", updateDeliveryFields);
+    updateDeliveryFields();
+  });
+</script>

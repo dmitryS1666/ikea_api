@@ -1,0 +1,38 @@
+<% status_class = result.success? ? "success" : "danger" %>
+<div class="card mb-4">
+  <div class="card-header bg-<%= status_class %> text-white">
+    <h4 class="mb-0"><%= title %>: <%= result.status %></h4>
+  </div>
+  <div class="card-body">
+    <% if result.track_number.present? %>
+      <div class="alert alert-success">
+        <strong>Трек-номер:</strong> <code><%= result.track_number %></code>
+      </div>
+    <% end %>
+
+    <% if result.amount.present? %>
+      <div class="alert alert-info">
+        <strong>Сумма доставки:</strong>
+        <%= number_with_precision(result.amount, precision: 2) %>
+        <%= result.currency.presence || "BYN" %>
+      </div>
+    <% end %>
+
+    <% if result.error.present? %>
+      <div class="alert alert-danger">
+        <strong>Ошибка:</strong> <%= result.error %>
+      </div>
+    <% end %>
+
+    <div class="row">
+      <div class="col-md-6">
+        <h5>Payload</h5>
+        <pre class="bg-light border rounded p-3" style="max-height: 420px; overflow: auto;"><%= JSON.pretty_generate(result.payload || {}) %></pre>
+      </div>
+      <div class="col-md-6">
+        <h5>Ответ Европочты</h5>
+        <pre class="bg-light border rounded p-3" style="max-height: 420px; overflow: auto;"><%= result.raw_response.present? ? JSON.pretty_generate(result.raw_response) : "{}" %></pre>
+      </div>
+    </div>
+  </div>
+</div>
