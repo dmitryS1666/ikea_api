@@ -172,6 +172,43 @@ RSpec.describe Delivery::ParcelPackingService do
     expect(parcel[:depth_cm]).to eq(29.0)
   end
 
+  it "uses package diameter as second side when round flat package has height but no length" do
+    product = create(
+      :product,
+      weight: 0.13,
+      package_volume: nil,
+      package_dimensions: nil,
+      dimensions: nil,
+      full_attributes: {
+        "measurements_modal" => {
+          "packages" => [
+            {
+              "measurements" => [
+                { "name" => "Высота", "measure" => "8 см" },
+                { "name" => "Диаметр", "measure" => "30 см" },
+                { "name" => "Вес", "measure" => "0.13 кг" },
+                { "name" => "Упаковка(-и)", "measure" => "1" }
+              ]
+            }
+          ]
+        }
+      }
+    )
+    add_item(product, quantity: 8)
+
+    result = described_class.call(cart)
+
+    expect(result[:eligible_for_europost]).to be(true)
+    expect(result[:parcels].size).to eq(8)
+    expect(result[:total_weight_kg]).to eq(1.04)
+    expect(result[:total_volume_m3]).to eq(0.0576)
+
+    parcel = result[:parcels].first
+    expect(parcel[:width_cm]).to eq(30.0)
+    expect(parcel[:height_cm]).to eq(8.0)
+    expect(parcel[:depth_cm]).to eq(30.0)
+  end
+
   it "uses structured package dimensions instead of arbitrary numbers from full attributes" do
     product = create(
       :product,

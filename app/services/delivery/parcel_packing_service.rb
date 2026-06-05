@@ -391,11 +391,20 @@ class Delivery
       length_cm = first_extracted_cm(length) || first_extracted_cm(depth)
       diameter_cm = first_extracted_cm(diameter)
 
-      if width_cm.blank? && diameter_cm.present?
-        width_cm = diameter_cm
-      end
-      if height_cm.blank? && diameter_cm.present?
-        height_cm = diameter_cm
+      if diameter_cm.present?
+        width_cm = diameter_cm if width_cm.blank?
+
+        # IKEA can describe round/soft packages in two common ways:
+        # - rolled cylinder: diameter + length => diameter x diameter x length
+        # - flat round item: diameter + height => diameter x height x diameter
+        # Without this, items like SANDLÖPARE stool covers expose only
+        # "Высота" + "Диаметр" and Europost becomes unavailable with
+        # missing_dimensions even though the parcel is small.
+        if length_cm.blank? && height_cm.present?
+          length_cm = diameter_cm
+        elsif height_cm.blank?
+          height_cm = diameter_cm
+        end
       end
 
       sides = [width_cm, height_cm, length_cm]
