@@ -768,7 +768,7 @@ Trestle.resource(:products, model: Product) do
 
   params do |params|
     raw = params.require(:product).permit(
-      :sku, :unique_id, :item_no, :url, :name, :name_ru, :collection, :category_id,
+      :sku, :unique_id, :item_no, :url, :name, :name_ru, :collection, :category_id, :small_desc_name,
       :price, :quantity, :home_delivery, :weight, :net_weight, :package_volume,
       :package_dimensions, :dimensions, :dimensions_ru, :is_parcel,
       :is_bestseller, :is_new, :is_popular, :is_recommended, :translated, :popularity_score, :views_count, :sales_count,
