@@ -37,6 +37,7 @@ RSpec.describe "Checkout delivery types", type: :request do
         }
       ]
     )
+    allow(EuropostApiService).to receive(:external_stores_for_merge).and_return([])
     allow(ExchangeRate).to receive(:fetch_or_create).and_return(double(rate_per_unit: 3.2))
     allow(CrmIntegrationService).to receive(:sync_order).and_return({ success: true })
     allow(WebpayPaymentLinkService).to receive(:issue_link!)
@@ -49,18 +50,20 @@ RSpec.describe "Checkout delivery types", type: :request do
     post "/api/v1/checkout", params: payload, headers: headers
   end
 
-  it "creates order with normalized type for legacy pickup" do
+  it "rejects unsupported delivery type" do
     checkout(
       full_name: "User",
       phone: "375291112233",
-      delivery_type: "pickup",
+      delivery_type: "unsupported",
       payment_method: "card",
       pickup_point_id: "70130010"
     )
 
-    expect(response).to have_http_status(:created)
-    order = Order.last
-    expect(order.delivery_type).to eq("europost_pickup")
+    expect(response).to have_http_status(:unprocessable_entity)
+    body = JSON.parse(response.body)
+    expect(body["error"]).to eq("Неподдерживаемый тип доставки")
+    expect(body["delivery_type"]).to eq("unsupported")
+    expect(body["normalized_delivery_type"]).to eq("unsupported")
   end
 
   it "creates order with europost_pickup" do
@@ -106,7 +109,13 @@ RSpec.describe "Checkout delivery types", type: :request do
   end
 
   it "creates order with ikeya_delivery when europost is unavailable" do
-    product.update!(weight: nil, package_volume: nil, package_dimensions: nil, dimensions: nil)
+    product.update!(
+      weight: nil,
+      package_volume: nil,
+      package_dimensions: nil,
+      dimensions: nil,
+      full_attributes: {}
+    )
     checkout(
       full_name: "User",
       phone: "375291112233",
@@ -120,7 +129,13 @@ RSpec.describe "Checkout delivery types", type: :request do
   end
 
   it "does not create order for unavailable delivery type" do
-    product.update!(weight: nil, package_volume: nil, package_dimensions: nil, dimensions: nil)
+    product.update!(
+      weight: nil,
+      package_volume: nil,
+      package_dimensions: nil,
+      dimensions: nil,
+      full_attributes: {}
+    )
 
     expect {
       checkout(

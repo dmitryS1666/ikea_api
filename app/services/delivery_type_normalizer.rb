@@ -1,6 +1,4 @@
 class DeliveryTypeNormalizer
-  LEGACY_PICKUP = "pickup".freeze
-
   EUROPOST_PICKUP = "europost_pickup".freeze
   COURIER = "courier".freeze
   IKEYA_DELIVERY = "ikeya_delivery".freeze
@@ -15,7 +13,7 @@ class DeliveryTypeNormalizer
     normalized = value.to_s.strip.downcase
 
     case normalized
-    when LEGACY_PICKUP, EUROPOST_PICKUP
+    when EUROPOST_PICKUP
       EUROPOST_PICKUP
     when COURIER
       COURIER

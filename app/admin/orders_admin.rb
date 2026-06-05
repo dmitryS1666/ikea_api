@@ -35,6 +35,9 @@ Trestle.resource(:orders) do
       end
     end
     column :total_amount
+    column :track_number, label: "Трек-номер" do |order|
+      order.track_number.presence || "—"
+    end
     column :created_at, align: :center
     actions
   end
@@ -100,6 +103,9 @@ Trestle.resource(:orders) do
 
       static_field :delivery_type, label: "Тип доставки"
       static_field :payment_method, label: "Способ оплаты"
+      static_field :track_number, label: "Трек-номер" do
+        order.track_number.presence || "—"
+      end
 
       if order.payment_url.present?
         static_field :payment_url, label: "Ссылка на оплату (WebPay)" do

@@ -69,6 +69,20 @@ RSpec.describe 'Order Payment Timer', type: :request do
       expect(json['data']['id']).to eq(order.public_uid)
     end
 
+    it 'returns Europost track number and tracking info' do
+      order.update!(
+        track_number: 'BY080027046773',
+        tracking_info: { 'europost_create' => { 'status' => 'created' } }
+      )
+
+      get "/api/v1/account/orders/#{order.id}", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      attrs = JSON.parse(response.body).dig('data', 'attributes')
+      expect(attrs['track_number']).to eq('BY080027046773')
+      expect(attrs['tracking_info']).to eq('europost_create' => { 'status' => 'created' })
+    end
+
     it 'marks order as expired when time passes' do
       order.update!(payment_expires_at: 1.minute.ago)
       

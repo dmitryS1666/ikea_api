@@ -14,9 +14,9 @@ RSpec.describe 'api/v1/checkout', type: :request do
           phone: { type: :string, example: '79991234567' },
           delivery_type: {
             type: :string,
-            enum: %w[pickup europost_pickup courier ikeya_delivery],
+            enum: %w[europost_pickup courier ikeya_delivery],
             example: 'europost_pickup',
-            description: 'pickup — deprecated alias и нормализуется в europost_pickup'
+            description: 'Поддерживаемые типы: europost_pickup, courier, ikeya_delivery'
           },
           payment_method: { type: :string, example: 'card' },
           pickup_point_id: { type: :string, example: "70130010", description: "WarehouseId Европочты" },

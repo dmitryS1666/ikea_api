@@ -43,7 +43,7 @@ RSpec.describe EuropostCreateShipmentService do
     allow(CrmSyncJob).to receive(:perform_later)
   end
 
-  it "creates Europost shipment for paid pickup order and stores track number" do
+  it "creates Europost shipment for paid Europost pickup order and stores track number" do
     order = create(
       :order,
       user: user,
@@ -63,6 +63,11 @@ RSpec.describe EuropostCreateShipmentService do
       }
     )
     create(:order_item, order: order, product_sku: product.sku, quantity: 2, price: 10)
+
+    # Order creation enqueues CRM sync via after_create_commit. For this example we
+    # only want to assert the CRM sync triggered after Europost track number is saved.
+    RSpec::Mocks.space.proxy_for(CrmSyncJob).reset
+    allow(CrmSyncJob).to receive(:perform_later)
 
     allow(EuropostApiService).to receive(:postal_create).and_return(
       "number" => "BY080027046773",

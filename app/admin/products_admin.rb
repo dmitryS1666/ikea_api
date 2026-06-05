@@ -482,7 +482,7 @@ Trestle.resource(:products, model: Product) do
     end
 
     tab :delivery, label: "Доставка" do
-      select :delivery_type, [['Курьер', 'courier'], ['Самовывоз', 'pickup']], { label: "Тип доставки" }
+      select :delivery_type, [['ПВЗ Европочты', 'europost_pickup'], ['Курьер', 'courier'], ['Доставка IKEYA', 'ikeya_delivery']], { label: "Тип доставки" }
       text_field :delivery_name, label: "Название способа доставки"
       number_field :delivery_cost, label: "Стоимость доставки"
       text_field :delivery_reason, label: "Комментарий к доставке"

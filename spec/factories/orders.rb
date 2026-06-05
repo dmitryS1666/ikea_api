@@ -5,7 +5,7 @@ FactoryBot.define do
     status { "created" }
     full_name { "Test User" }
     phone { "+375291234567" }
-    delivery_type { "pickup" }
+    delivery_type { DeliveryTypeNormalizer::EUROPOST_PICKUP }
     payment_method { "cash" }
     address_json { { city: "Minsk" } }
   end

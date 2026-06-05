@@ -1093,8 +1093,8 @@ paths:
                   example: "375291234567"
                 delivery_type:
                   type: string
-                  enum: [pickup, europost_pickup, courier, ikeya_delivery]
-                  description: "pickup — deprecated alias, backend нормализует его в europost_pickup."
+                  enum: [europost_pickup, courier, ikeya_delivery]
+                  description: "Поддерживаемые типы: europost_pickup, courier, ikeya_delivery."
                   examples:
                     europost_pickup: { value: "europost_pickup" }
                     courier: { value: "courier" }
@@ -1105,7 +1105,7 @@ paths:
                   description: "card (карта онлайн), installment (рассрочка), qr (QR-код), erip (ЕРИП), oplati (Оплати)"
                 pickup_point_id:
                   type: integer
-                  description: "ID ПВЗ (обязательно для delivery_type=europost_pickup; legacy pickup также поддержан и нормализуется)"
+                  description: "ID ПВЗ (обязательно для delivery_type=europost_pickup)"
                 a1_verification_id:
                   type: string
                   description: "ID верификации A1 (обязательно при изменении паспорта, может быть получено из профиля)"
@@ -1346,10 +1346,9 @@ paths:
                   type: string
                 delivery_type:
                   type: string
-                  enum: [pickup, europost_pickup, courier, ikeya_delivery]
-                  description: "pickup — deprecated alias, backend нормализует его в europost_pickup."
+                  enum: [europost_pickup, courier, ikeya_delivery]
+                  description: "Поддерживаемые типы: europost_pickup, courier, ikeya_delivery."
                   examples:
-                    pickup_alias: { value: "pickup" }
                     europost_pickup: { value: "europost_pickup" }
                     courier: { value: "courier" }
                     ikeya_delivery: { value: "ikeya_delivery" }

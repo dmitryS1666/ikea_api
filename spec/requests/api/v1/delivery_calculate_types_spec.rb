@@ -129,7 +129,14 @@ RSpec.describe "Delivery calculate types", type: :request do
   end
 
   it "returns payload for ikeya_delivery when europost is ineligible" do
-    product.update!(weight: nil, package_volume: nil, package_dimensions: nil, dimensions: nil)
+    product.update!(
+      weight: nil,
+      package_volume: nil,
+      package_dimensions: nil,
+      dimensions: nil,
+      full_attributes: {}
+    )
+
     calculate(delivery_type: "ikeya_delivery")
 
     expect(response).to have_http_status(:ok)
@@ -139,17 +146,25 @@ RSpec.describe "Delivery calculate types", type: :request do
     expect(body["delivery"]["total_delivery_price_byn"].to_f).to eq(body["delivery"]["delivery_to_belarus_price_byn"].to_f)
   end
 
-  it "normalizes legacy pickup to europost_pickup" do
-    calculate(delivery_type: "pickup")
+  it "returns 422 for unsupported delivery type" do
+    calculate(delivery_type: "unsupported")
 
-    expect(response).to have_http_status(:ok)
+    expect(response).to have_http_status(:unprocessable_entity)
     body = JSON.parse(response.body)
-    expect(body["delivery"]["delivery_type"]).to eq("pickup")
-    expect(body["delivery"]["normalized_delivery_type"]).to eq("europost_pickup")
+    expect(body["error"]).to eq("Неподдерживаемый тип доставки")
+    expect(body["delivery_type"]).to eq("unsupported")
+    expect(body["normalized_delivery_type"]).to eq("unsupported")
   end
 
   it "returns 422 for unavailable type by VGH" do
-    product.update!(weight: nil, package_volume: nil, package_dimensions: nil, dimensions: nil)
+    product.update!(
+      weight: nil,
+      package_volume: nil,
+      package_dimensions: nil,
+      dimensions: nil,
+      full_attributes: {}
+    )
+
     calculate(delivery_type: "courier")
 
     expect(response).to have_http_status(:unprocessable_entity)

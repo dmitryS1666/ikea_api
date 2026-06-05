@@ -13,7 +13,9 @@ RSpec.describe OrderSerializer do
       attrs = described_class.new(order).serializable_hash[:data][:attributes]
 
       expect(attrs[:status]).to eq("processing")
-      expect(attrs[:status_description]).to eq("В работе")
+      expect(attrs[:status_description]).to eq(
+        I18n.t("activerecord.attributes.order.statuses.processing")
+      )
     end
   end
 
@@ -37,4 +39,19 @@ RSpec.describe OrderSerializer do
       expect(processing_row[:is_completed]).to be(false)
     end
   end
+  describe "tracking fields" do
+    it "returns track number and tracking info" do
+      order = create(
+        :order,
+        track_number: "BY080027046773",
+        tracking_info: { "europost_create" => { "status" => "created" } }
+      )
+
+      attrs = described_class.new(order).serializable_hash[:data][:attributes]
+
+      expect(attrs[:track_number]).to eq("BY080027046773")
+      expect(attrs[:tracking_info]).to eq("europost_create" => { "status" => "created" })
+    end
+  end
+
 end
