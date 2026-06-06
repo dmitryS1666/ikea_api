@@ -1,7 +1,9 @@
 module Products
   class SearchService
-    EXCLUDED_FILTER_PARAMETERS = %w[f-type].freeze
-    SKIPPED_FILTER_PARAMETERS = %w[f-availability f-price-buckets].freeze
+    # Не скрываем/не блокируем f-type на уровне применения фильтров: политика исключения
+    # относится к списку отображаемых available_filters, но старые ссылки/API-клиенты
+    # могут прислать уже проиндексированный параметр.
+    SKIPPED_FILTER_PARAMETERS = %w[f-availability].freeze
 
     def initialize(category, params = {}, base_scope: nil, default_sort: nil)
       @category = category
@@ -110,7 +112,6 @@ module Products
         filter_param = filter_param.to_s
         next if filter_param.blank?
         next if SKIPPED_FILTER_PARAMETERS.include?(filter_param)
-        next if EXCLUDED_FILTER_PARAMETERS.include?(filter_param)
 
         if filter_param == "f-price-buckets" && (values.is_a?(Hash) || values.is_a?(ActionController::Parameters))
           next
@@ -141,7 +142,7 @@ module Products
 
       case sort_option.to_s
       when "relevance"
-        preserve_scope_order(@scope)
+        @scope = preserve_scope_order(@scope)
       when "cheapest"
         @scope = sort_by_display_price(direction: :asc)
       when "expensive"

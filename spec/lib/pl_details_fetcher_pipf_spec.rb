@@ -140,5 +140,23 @@ RSpec.describe PlDetailsFetcher do
       result = described_class.parse_html(html, "https://www.ikea.com/pl/pl/p/x-s29537086/", use_headless: false)
       expect(result[:related_products]).to contain_exactly("80598627", "40624384", "90304889")
     end
+
+    it "extracts related_products from accessories grid without opening modal" do
+      html = <<~HTML
+        <!DOCTYPE html><html><body>
+          <section class="pipf-accessories-grid">
+            <article data-product-number="80598627"></article>
+            <div data-ref-id="40624384"></div>
+            <a href="https://www.ikea.com/pl/pl/p/foo-bar-90304889/"></a>
+          </section>
+          <a href="https://www.ikea.com/pl/pl/p/should-not-be-related-99999999/"></a>
+        </body></html>
+      HTML
+
+      doc = Nokogiri::HTML(html)
+      related = described_class.new.send(:merge_related_product_skus_from_document, doc)
+
+      expect(related).to contain_exactly("80598627", "40624384", "90304889")
+    end
   end
 end

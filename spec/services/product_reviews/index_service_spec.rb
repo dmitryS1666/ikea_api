@@ -9,7 +9,7 @@ RSpec.describe ProductReviews::IndexService do
 
   before do
     create(:review, product_sku: product.sku, user: user1, rating: 5, body: 'Пять звёзд', published_at: 2.days.ago)
-    create(:review, product_sku: product.sku, user: user2, rating: 4, body: 'Хорошо', published_at: 1.day.ago)
+    create(:review, product_sku: product.sku, user: user2, rating: 4, body: 'Хорошо, всё ок', published_at: 1.day.ago)
     create(:review, :pending, product_sku: product.sku, user: create(:user), rating: 3)
     ProductRatingCalculator.recalculate!(product.sku)
     product.reload
@@ -66,7 +66,7 @@ RSpec.describe ProductReviews::IndexService do
 
   context 'with with_photo filter and matching reviews' do
     before do
-      create(:review, :with_photo, product_sku: product.sku, user: create(:user), rating: 5, body: 'С фото', published_at: Time.current)
+      create(:review, :with_photo, product_sku: product.sku, user: create(:user), rating: 5, body: 'С фото есть', published_at: Time.current)
     end
 
     let(:params) { { with_photo: '1' } }
@@ -75,6 +75,49 @@ RSpec.describe ProductReviews::IndexService do
       expect(result[:data].size).to eq(1)
       expect(result[:data].first[:photos]).not_to be_empty
       expect(result[:meta]).to include(total: 1)
+    end
+  end
+
+  context 'with WEBP review photos' do
+    before do
+      create(:review, :with_webp_photo, product_sku: product.sku, user: create(:user), rating: 5, body: 'С WEBP фото', published_at: Time.current)
+    end
+
+    let(:params) { { with_photo: '1' } }
+
+    it 'keeps published WEBP photo reviews in the with_photo filter' do
+      expect(result[:data].size).to eq(1)
+      expect(result[:data].first[:body]).to eq('С WEBP фото')
+      expect(result[:data].first[:photos]).not_to be_empty
+      expect(result[:meta]).to include(total: 1)
+    end
+  end
+
+  context 'with WEBP review photos stored with generic content type' do
+    before do
+      create(:review, :with_octet_stream_webp_photo, product_sku: product.sku, user: create(:user), rating: 5, body: 'С WEBP octet-stream фото', published_at: Time.current)
+    end
+
+    let(:params) { { with_photo: '1' } }
+
+    it 'treats .webp filename as a photo even when content_type is generic' do
+      expect(result[:data].size).to eq(1)
+      expect(result[:data].first[:body]).to eq('С WEBP octet-stream фото')
+      expect(result[:data].first[:photos]).not_to be_empty
+      expect(result[:meta]).to include(total: 1)
+    end
+  end
+
+  context 'with plural with_photos alias' do
+    before do
+      create(:review, :with_webp_photo, product_sku: product.sku, user: create(:user), rating: 5, body: 'С фото alias', published_at: Time.current)
+    end
+
+    let(:params) { { with_photos: 'true' } }
+
+    it 'supports the frontend plural alias' do
+      expect(result[:data].size).to eq(1)
+      expect(result[:data].first[:body]).to eq('С фото alias')
     end
   end
 

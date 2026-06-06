@@ -64,6 +64,13 @@ RSpec.configure do |config|
         body: { _embedded: { leads: [{ id: 789 }] } }.to_json,
         headers: { 'Content-Type' => 'application/json' }
       )
+
+    stub_request(:patch, %r{\Ahttps://.*\.amocrm\.ru/api/v4/contacts/\d+})
+      .to_return(
+        status: 200,
+        body: { _embedded: { contacts: [{ id: 123 }] } }.to_json,
+        headers: { 'Content-Type' => 'application/json' }
+      )
   end
 
   # Remove this line if you're not using ActiveRecord or ActiveRecord fixtures

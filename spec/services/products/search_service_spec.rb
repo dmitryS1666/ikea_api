@@ -31,7 +31,7 @@ RSpec.describe Products::SearchService do
       end
 
       it 'filters by max_price in BYN (display price)' do
-        threshold = [display_price_byn(product1), display_price_byn(product3)].min - 0.01
+        threshold = [display_price_byn(product1), display_price_byn(product3)].max + 0.01
         service = described_class.new(category, { max_price: threshold })
         expect(service.call).to contain_exactly(product1, product3)
       end

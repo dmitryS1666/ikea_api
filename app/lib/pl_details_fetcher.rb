@@ -232,8 +232,9 @@ class PlDetailsFetcher
     return [] unless doc
 
     a = extract_related_products_from_accessories_modal(doc)
+    g = extract_related_products_from_accessories_grid(doc)
     r = extract_related_products_from_recommendation_panel(doc)
-    (Array(a) + Array(r)).map(&:to_s).uniq
+    (Array(a) + Array(g) + Array(r)).map(&:to_s).uniq
   end
 
   # Минимальный разбор страницы товара PL: цена в PLN (злотые), наличие, canonical URL.
@@ -1258,11 +1259,10 @@ class PlDetailsFetcher
   end
   
   def extract_related_products(_product_data, doc = nil)
-    unless Products::RelatedProductsCollection::ENABLED
-      Rails.logger.debug "PlDetailsFetcher.extract_related_products: skipped (RelatedProductsCollection::ENABLED is false)"
-      return []
-    end
-
+    # Парсер должен возвращать найденные SKU независимо от флага фоновой записи
+    # Products::RelatedProductsCollection::ENABLED. Этот флаг используется выше по цепочке
+    # в ExtendedAttributesFetchService, чтобы решать, писать ли related_products в карточку.
+    # Иначе parse_html теряет уже присутствующую в HTML модалку/сетку аксессуаров.
     related = merge_related_product_skus_from_document(doc)
     Rails.logger.info "PlDetailsFetcher.extract_related_products: Extracted #{related.length} related products"
     related
@@ -1294,6 +1294,32 @@ class PlDetailsFetcher
     end
 
     related.uniq
+  end
+
+  def extract_related_products_from_accessories_grid(doc)
+    return [] unless doc
+
+    containers = doc.css(".pipf-accessories-grid, .pipf-accessories, [class*='accessories-grid'], [class*='accessories']")
+    return [] if containers.empty?
+
+    containers.flat_map do |container|
+      from_attrs =
+        container.css("[data-product-number], [data-ref-id], [data-item-no], [data-product-id]").flat_map do |node|
+          [
+            node["data-product-number"],
+            node["data-ref-id"],
+            node["data-item-no"],
+            node["data-product-id"]
+          ]
+        end
+
+      from_links = container.css("a[href*='/p/']").map do |a|
+        href = a["href"].to_s
+        href[/\-([a-z]?\d{8})\/?(?:[#?].*)?$/i, 1] || href[%r{/p/[^/]*-([a-z]?\d{8})/?(?:[#?].*)?$}i, 1]
+      end
+
+      (from_attrs + from_links).filter_map { |token| normalize_product_token(token) }
+    end.uniq
   end
 
   def try_open_accessories_modal!(browser)
@@ -3089,7 +3115,8 @@ class PlDetailsFetcher
     modal_selectors = [
       '.pipf-product-details-modal',
       '[class*="product-details-modal"]',
-      '[id*="product-details"]',
+      # Не используем общий [id*="product-details"]: на PIPF так называются
+      # обычные accordion-секции, из-за чего section-based extraction не запускался.
       '[aria-labelledby*="pip-modal-header"]',
       '[aria-modal="true"]',
       '.pipf-sheets',
@@ -3251,21 +3278,31 @@ class PlDetailsFetcher
     heading_node = candidates.find do |n|
       t = normalize_text(n.text)
       next false if t.blank?
+
       normalized_targets.include?(t.downcase)
     end
 
     return nil unless heading_node
 
-    # На новых PIPF страницах заголовок часто лежит глубоко внутри "accordion item".
-    # Поднимаемся до ближайшего контейнера, который вероятнее всего содержит контент.
-    container = heading_node.ancestors.find do |a|
+    # На PIPF заголовок может быть внутри .pipf-accordion__header.
+    # Если вернуть сам header, контент секции не попадёт в выборку; поэтому сначала
+    # ищем настоящий item/section, а только потом более общий контейнер.
+    section_container = heading_node.ancestors.find do |a|
       cls = a['class'].to_s
       id = a['id'].to_s
       a.name == 'section' ||
-        cls.include?('pipf-accordion') ||
-        cls.include?('pipf-product-details') ||
-        cls.include?('pip-product-details') ||
-        id.include?('pip')
+        cls.include?('pipf-accordion__item') ||
+        cls.include?('pip-accordion__item') ||
+        id.include?('product-details')
+    end
+    return section_container if section_container
+
+    content_sibling = heading_node.ancestors.find { |a| a['class'].to_s.include?('accordion__header') }&.next_element
+    return content_sibling if content_sibling
+
+    container = heading_node.ancestors.find do |a|
+      cls = a['class'].to_s
+      cls.include?('pipf-product-details') || cls.include?('pip-product-details')
     end
 
     container || heading_node.parent

@@ -78,12 +78,16 @@ class Product < ApplicationRecord
   }
 
   # Единая область товаров категории для каталога, фильтров и переиндексации.
+  # Для верхнеуровневых категорий берём текущую категорию + всех потомков,
+  # потому что витрина родителя показывает товары дочерних категорий.
   # В проекте товары могут быть привязаны двумя способами:
   #   1) напрямую через products.category_id;
   #   2) через join category_products.
-  # Если использовать только category_products, часть товаров/значений фильтров теряется.
+  # Если использовать только category_products или только текущий ikea_id,
+  # часть товаров/значений фильтров теряется.
   scope :catalog_category_scope, lambda { |ikea_id|
-    in_category_ikea_id(ikea_id).active.with_available_stock
+    ikea_ids = Category.self_and_descendant_ikea_ids_for(ikea_id)
+    in_categories_ikea_ids(ikea_ids).active.with_available_stock
   }
 
   # Локальные пути ещё указывают на jpg/jpeg/png (до конвертации в .webp в хранилище)
@@ -207,7 +211,9 @@ class Product < ApplicationRecord
       sibling_skus = present_skus.reject { |s| s == sku_key }
       next if sibling_skus.sort == rec.normalized_variant_skus.map(&:to_s).sort
 
-      rec.update_columns(variants: sibling_skus.to_json, updated_at: Time.current)
+      # variants сериализуется через ActiveRecord serialize; передаём массив,
+      # иначе update_columns может сохранить JSON-строку как строковый элемент.
+      rec.update_columns(variants: sibling_skus, updated_at: Time.current)
     end
   end
 
@@ -444,8 +450,14 @@ class Product < ApplicationRecord
               item[:price_byn] = nil
             end
         
-            item[:sku] = Product.public_sku(sku_v) if sku_v.present?
-            item["sku"] = item[:sku]
+            # В payload вариантов оставляем канонический SKU из БД/парсера.
+            # Product.public_sku убирает префикс s у составных IKEA SKU, из-за чего
+            # текущий товар перестаёт совпадать с self.sku и сортируется не первым.
+            if sku_v.present?
+              canonical_sku = rec&.sku.presence || sku_v.to_s
+              item[:sku] = canonical_sku
+              item["sku"] = canonical_sku
+            end
         
             item[:images] = normalize_variant_item_images(item[:images] || item["images"])
             item["images"] = item[:images]

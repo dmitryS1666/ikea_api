@@ -307,6 +307,16 @@ class Category < ApplicationRecord
   
       ids.last == category.ikea_id.to_s ? ids[-2] : ids.last
     end
+
+    def self_and_descendant_ikea_ids_for(ikea_id)
+      ikea_id = ikea_id.to_s.strip
+      return [] if ikea_id.blank?
+
+      category = find_by(ikea_id: ikea_id)
+      return [ikea_id] unless category
+
+      category.self_and_descendant_ikea_ids
+    end
     
     def sort_root_nodes(nodes)
       nodes.sort_by do |node|

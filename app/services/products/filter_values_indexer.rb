@@ -3,7 +3,7 @@ require "set"
 module Products
   class FilterValuesIndexer
     INSERT_BATCH_SIZE = 1_000
-    EXCLUDED_PARAMETERS = %w[f-type].freeze
+    EXCLUDED_PARAMETERS = Categories::FilterPolicy::GLOBAL_EXCLUDED_PARAMETERS
 
     BOOLEAN_PARAMS = %w[
       f-top-seller
@@ -176,7 +176,7 @@ module Products
         .map { |p| p.to_s.strip.presence }
         .compact
         .uniq
-        .reject { |parameter| EXCLUDED_PARAMETERS.include?(parameter) }
+        .reject { |parameter| excluded_parameter?(parameter) }
     end
 
     def selective_mode?
@@ -186,11 +186,15 @@ module Products
     def filters_to_apply
       return [] if @filters.blank?
 
-      available = @filters.reject { |f| EXCLUDED_PARAMETERS.include?(f["parameter"].to_s) }
+      available = @filters.reject { |f| excluded_parameter?(f["parameter"].to_s) }
       return available unless selective_mode?
       return [] if @parameters.blank?
 
       available.select { |f| @parameters.include?(f["parameter"].to_s) }
+    end
+
+    def excluded_parameter?(parameter)
+      Categories::FilterPolicy.excluded?(parameter, category: @category)
     end
 
     def match_product(product, promo_skus:, filters:)

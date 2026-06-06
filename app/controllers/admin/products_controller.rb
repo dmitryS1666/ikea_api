@@ -15,8 +15,10 @@ class Admin::ProductsController < ApplicationController
 
     # Как на странице категории в Trestle: и products.category_id, и category_products
     # (joins(:categories) пропускал товары только с «основной» категорией без строки в join-таблице).
+    category_ikea_ids = Category.self_and_descendant_ikea_ids_for(category_ikea_id)
+
     products = Product
-      .in_category_ikea_id(category_ikea_id)
+      .in_categories_ikea_ids(category_ikea_ids)
       .distinct
       .order(:name, :sku)
       .limit(500)

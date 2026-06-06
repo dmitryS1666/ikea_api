@@ -5,6 +5,8 @@ module ProductReviews
     PER_PAGE_DEFAULT = 20
     PER_PAGE_MAX = 50
     SORT_OPTIONS = %w[newest oldest rating_high rating_low helpful].freeze
+    PHOTO_ATTACHMENT_NAME = 'photos'.freeze
+    PHOTO_FILENAME_SUFFIXES = %w[.jpg .jpeg .png .webp .gif .avif .heic].freeze
 
     class InvalidParameterError < StandardError
       attr_reader :param, :value
@@ -68,7 +70,7 @@ module ProductReviews
     def apply_filters(scope)
       rating = rating_filter_value
       scope = scope.where(rating: rating) if rating
-      scope = only_with_photos(scope) if truthy?(params[:with_photo])
+      scope = only_with_photos(scope) if with_photo_filter_enabled?
       scope
     end
 
@@ -113,11 +115,38 @@ module ProductReviews
     end
 
     def only_with_photos(scope)
-      photos_attachment_ids = ActiveStorage::Attachment
-                              .where(record_type: Review.name, name: 'photos')
-                              .select(:record_id)
+      review_ids = photo_review_ids
+      return scope.none if review_ids.empty?
 
-      scope.where(id: photos_attachment_ids)
+      scope.where(id: review_ids)
+    end
+
+    def photo_review_ids
+      filename_predicates = PHOTO_FILENAME_SUFFIXES.map do
+        'LOWER(active_storage_blobs.filename) LIKE ?'
+      end.join(' OR ')
+
+      ActiveStorage::Attachment
+        .joins(:blob)
+        .where(record_type: Review.base_class.name, name: PHOTO_ATTACHMENT_NAME)
+        .where(
+          "active_storage_blobs.content_type LIKE ? OR #{filename_predicates}",
+          'image/%',
+          *PHOTO_FILENAME_SUFFIXES.map { |suffix| "%#{suffix}" }
+        )
+        .distinct
+        .pluck(:record_id)
+        .filter_map { |record_id| Integer(record_id, exception: false) }
+    end
+
+    def with_photo_filter_enabled?
+      value = params[:with_photo]
+      value = params[:with_photos] if value.nil?
+      value = params[:only_with_photo] if value.nil?
+      value = params[:has_photo] if value.nil?
+      value = params[:has_photos] if value.nil?
+
+      truthy?(value)
     end
 
     def aggregates(scope)

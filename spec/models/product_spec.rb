@@ -147,3 +147,25 @@ RSpec.describe Product, type: :model do
     end
   end
 end
+
+RSpec.describe Product, type: :model do
+  describe '.catalog_category_scope' do
+    it 'includes products from the category and all descendant categories' do
+      parent = create(:category, ikea_id: 'catalog-parent', unique_id: nil)
+      child = create(:category, ikea_id: 'catalog-child', unique_id: nil, parent_ids: ['catalog-parent'])
+      grandchild = create(:category, ikea_id: 'catalog-grandchild', unique_id: nil, parent_ids: ['catalog-parent', 'catalog-child'])
+
+      parent_product = create(:product, category_id: parent.ikea_id, quantity: 5)
+      child_product = create(:product, category_id: child.ikea_id, quantity: 5)
+      grandchild_product = create(:product, quantity: 5)
+      outside_product = create(:product, quantity: 5)
+
+      CategoryProduct.create!(category_id: grandchild.ikea_id, product: grandchild_product)
+
+      expect(described_class.catalog_category_scope(parent.ikea_id))
+        .to contain_exactly(parent_product, child_product, grandchild_product)
+      expect(described_class.catalog_category_scope(parent.ikea_id))
+        .not_to include(outside_product)
+    end
+  end
+end

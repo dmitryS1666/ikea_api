@@ -9,24 +9,17 @@ module Categories
     SEARCH_URL = "https://sik.search.blue.cdtapps.com/lt/lt/search?c=listaf&v=20241114".freeze
     PAGE_SIZE = 24
 
-    # f-type осознанно не включаем: по требованиям этот фильтр игнорируется.
-    REQUIRED_PARAMETERS = {
-      "f-colors" => "Цвет",
-      "f-feature" => "Свойства",
-      "f-firmness" => "Жесткость",
-      "f-number-of-seats" => "Количество мест",
-      "f-shape" => "Форма",
-      "f-material" => "Материал",
-      "f-size" => "Размер",
-      "f-series" => "Серия"
-    }.freeze
-
-    IGNORED_PARAMETERS = %w[f-type].freeze
+    REQUIRED_PARAMETERS = Categories::FilterPolicy::REQUIRED_PARAMETERS
+    FILTER_PARAMETERS = Categories::FilterPolicy::ALLOWED_PARAMETERS
+    PRICE_FILTER_VALUES = [{ "id" => "PRICE_RANGE", "name" => "Цена" }].freeze
 
     PARAMETER_ALIASES = {
       "f-colour" => "f-colors",
       "f-color" => "f-colors",
       "f-colors" => "f-colors",
+      "f-price" => "f-price-buckets",
+      "f-price-buckets" => "f-price-buckets",
+      "f-price-range" => "f-price-buckets",
       "f-feature" => "f-feature",
       "f-features" => "f-feature",
       "f-function" => "f-feature",
@@ -47,6 +40,11 @@ module Categories
       "цвета" => "f-colors",
       "kolor" => "f-colors",
       "kolory" => "f-colors",
+      "цена" => "f-price-buckets",
+      "цены" => "f-price-buckets",
+      "стоимость" => "f-price-buckets",
+      "price" => "f-price-buckets",
+      "kaina" => "f-price-buckets",
       "свойства" => "f-feature",
       "характеристики" => "f-feature",
       "особенности" => "f-feature",
@@ -105,7 +103,9 @@ module Categories
         changed ||= series_result.changed
       end
 
-      ReindexCategoryFiltersJob.perform_later(@category.ikea_id) if @reindex && changed
+      # Переиндексация нужна не только при изменении JSON фильтров: товары/атрибуты могли обновиться,
+      # а набор available_filters остаться прежним.
+      ReindexCategoryFiltersJob.perform_later(@category.ikea_id) if @reindex
 
       current_filters = normalize_filters(@category.reload.available_filters)
       Result.new(
@@ -194,15 +194,14 @@ module Categories
         h = raw.stringify_keys
         parameter = normalize_parameter(h["parameter"] || h["filterParameter"] || h["filterId"] || h["id"], filter_name(h))
         next if parameter.blank?
-        next if IGNORED_PARAMETERS.include?(parameter)
-        next unless REQUIRED_PARAMETERS.key?(parameter)
+        next unless Categories::FilterPolicy.allowed?(parameter, category: @category)
 
-        values = normalize_values(h["values"] || h["options"] || h["items"] || h["filterValues"])
-        next if values.blank? && parameter != "f-series"
+        values = normalize_values(h["values"] || h["options"] || h["items"] || h["filterValues"], parameter: parameter)
+        next if values.blank? && !REQUIRED_PARAMETERS.key?(parameter)
 
         by_parameter[parameter] ||= {
           "parameter" => parameter,
-          "name" => REQUIRED_PARAMETERS.fetch(parameter),
+          "name" => FILTER_PARAMETERS.fetch(parameter),
           "values" => []
         }
 
@@ -216,8 +215,7 @@ module Categories
       parameter = raw_parameter.to_s.strip
       aliased = PARAMETER_ALIASES[parameter]
       return aliased if aliased.present?
-      return nil if IGNORED_PARAMETERS.include?(parameter)
-      return parameter if REQUIRED_PARAMETERS.key?(parameter)
+      return parameter if FILTER_PARAMETERS.key?(parameter) || Categories::FilterPolicy.excluded?(parameter, category: @category)
 
       NAME_TO_PARAMETER[normalize_text(raw_name)]
     end
@@ -226,7 +224,9 @@ module Categories
       hash["name"] || hash["label"] || hash["title"] || hash.dig("text", "title")
     end
 
-    def normalize_values(raw_values)
+    def normalize_values(raw_values, parameter: nil)
+      return PRICE_FILTER_VALUES.deep_dup if parameter.to_s == "f-price-buckets"
+
       Array(raw_values).filter_map do |raw|
         next unless raw.is_a?(Hash)
 
@@ -241,8 +241,7 @@ module Categories
 
     def merge_with_existing_required_filters(lt_filters)
       by_parameter = normalize_filters(@category.available_filters)
-        .select { |filter| REQUIRED_PARAMETERS.key?(filter["parameter"].to_s) }
-        .reject { |filter| IGNORED_PARAMETERS.include?(filter["parameter"].to_s) }
+        .select { |filter| Categories::FilterPolicy.allowed?(filter["parameter"].to_s, category: @category) }
         .index_by { |filter| filter["parameter"].to_s }
 
       lt_filters.each do |filter|
@@ -250,7 +249,7 @@ module Categories
         existing = by_parameter[parameter]
         by_parameter[parameter] = if existing
           existing.merge(
-            "name" => REQUIRED_PARAMETERS.fetch(parameter),
+            "name" => FILTER_PARAMETERS.fetch(parameter),
             "values" => merge_values(Array(existing["values"]), Array(filter["values"]))
           )
         else
@@ -259,15 +258,20 @@ module Categories
       end
 
       REQUIRED_PARAMETERS.each do |parameter, title|
-        by_parameter[parameter] ||= { "parameter" => parameter, "name" => title, "values" => [] }
+        next unless Categories::FilterPolicy.allowed?(parameter, category: @category)
+
+        by_parameter[parameter] ||= {
+          "parameter" => parameter,
+          "name" => title,
+          "values" => normalize_values(nil, parameter: parameter)
+        }
       end
 
       order_filters(by_parameter.values)
     end
 
     def order_filters(filters)
-      order = REQUIRED_PARAMETERS.keys
-      filters.sort_by { |filter| order.index(filter["parameter"].to_s) || order.length }
+      filters.sort_by { |filter| Categories::FilterPolicy.order_index(filter["parameter"].to_s) }
     end
 
     def merge_values(existing_values, incoming_values)
@@ -311,13 +315,12 @@ module Categories
         h = filter.deep_stringify_keys
         parameter = normalize_parameter(h["parameter"], h["name"])
         next if parameter.blank?
-        next if IGNORED_PARAMETERS.include?(parameter)
-        next unless REQUIRED_PARAMETERS.key?(parameter)
+        next unless Categories::FilterPolicy.allowed?(parameter, category: @category)
 
         {
           "parameter" => parameter,
-          "name" => REQUIRED_PARAMETERS.fetch(parameter),
-          "values" => normalize_values(h["values"])
+          "name" => FILTER_PARAMETERS.fetch(parameter),
+          "values" => normalize_values(h["values"], parameter: parameter)
         }
       end
     end

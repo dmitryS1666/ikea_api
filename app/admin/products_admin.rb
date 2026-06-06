@@ -113,8 +113,10 @@ Trestle.resource(:products, model: Product) do
       category_ikea_id = params[:category_id].to_s.strip
       return render(json: []) if category_ikea_id.blank?
 
+      category_ikea_ids = Category.self_and_descendant_ikea_ids_for(category_ikea_id)
+
       products = Product
-        .in_category_ikea_id(category_ikea_id)
+        .in_categories_ikea_ids(category_ikea_ids)
         .distinct
         .order(:name, :sku)
         .limit(500)

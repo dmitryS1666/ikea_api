@@ -1,7 +1,7 @@
 FactoryBot.define do
   factory :category do
-    ikea_id { "MyString" }
-    unique_id { 1 }
+    sequence(:ikea_id) { |n| "category_#{n}" }
+    sequence(:unique_id) { |n| n }
     name { "MyString" }
     translated_name { "MyString" }
     url { "MyString" }
