@@ -252,6 +252,7 @@ class RefreshCategoryFromLtJob < ApplicationJob
       end
 
       product.reload
+      merge_product_accessories_into_category_related!(product, category)
 
       # ВАЖНО:
       # ExtendedAttributesFetchService уже записал полную PL-галерею в product.images
@@ -657,6 +658,26 @@ class RefreshCategoryFromLtJob < ApplicationJob
       .reject(&:blank?)
       .uniq
       .reject { |sku| parent_aliases.include?(sku) }
+  end
+
+  def merge_product_accessories_into_category_related!(product, category)
+    return if product.blank? || category.blank?
+
+    related = Array(product.related_products)
+    return if related.empty?
+
+    excluded = [product.sku, product.item_no] + Array(product.included_products) + Array(product.set_items)
+    Products::CategoryRelatedProductsHarvestService.merge_skus!(
+      category: category,
+      skus: related,
+      exclude_skus: excluded,
+      anchor_sku: product.sku
+    )
+  rescue StandardError => e
+    Rails.logger.warn(
+      "RefreshCategoryFromLtJob: category related merge failed " \
+      "category=#{category&.ikea_id} sku=#{product&.sku}: #{e.message}"
+    )
   end
 
   def collect_related_skus_for(parent, category: nil)

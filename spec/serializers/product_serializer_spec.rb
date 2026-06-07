@@ -50,6 +50,19 @@ RSpec.describe ProductSerializer do
 
       expect(related).to eq(["srel00002"])
     end
+
+    it "prefers category-level related list over product-level list" do
+      category = Category.create!(ikea_id: "cat-rel-2", name: "Cat", parent_ids: [])
+      product = create(:product, sku: "srel10001", category_id: category.ikea_id, related_products: %w[srel10002])
+      create(:product, sku: "srel10002", quantity: 4)
+      create(:product, sku: "srel10003", quantity: 4)
+      CategoryRelatedProductList.create!(category_id: category.ikea_id, related_products: %w[srel10003])
+
+      serialized = described_class.new(product, params: { detail: true }).serializable_hash
+      related = serialized[:data][:attributes][:related_products]
+
+      expect(related).to eq(["srel10003"])
+    end
   end
 
   describe ".materials_hash_from_product_details_modal" do

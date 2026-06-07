@@ -955,25 +955,6 @@ class PlDetailsFetcher
         Rails.logger.warn "PlDetailsFetcher.fetch_modal_with_headless_browser: no proxy, direct connection"
       end
 
-ferrum_proxy = nil
-if proxy_host.present? && proxy_port.present?
-  ferrum_proxy = {
-    host: proxy_host,
-    port: proxy_port.to_i
-  }
-
-  if proxy_user.present? && proxy_pass.present?
-    ferrum_proxy[:user] = proxy_user
-    ferrum_proxy[:password] = proxy_pass
-  end
-
-  Rails.logger.debug(
-    "PlDetailsFetcher.fetch_modal_with_headless_browser: " \
-    "Using native Ferrum proxy: #{proxy_host}:#{proxy_port} " \
-    "(auth=#{proxy_user.present?})"
-  )
-end
-
       browser_options = {
         "no-sandbox" => nil,
         "disable-dev-shm-usage" => nil,
@@ -1006,6 +987,13 @@ end
         browser_options.delete("disable-extensions")
       end
 
+      browser_options["proxy-server"] = proxy_string if proxy_string
+
+      if extension_dir
+        browser_options["load-extension"] = extension_dir
+        browser_options["disable-extensions-except"] = extension_dir
+      end
+
       # ИСПОЛЬЗУЕМ headless=new для поддержки расширений в headless режиме
       if full_browser_mode?
         Rails.logger.info "PlDetailsFetcher.fetch_modal_with_headless_browser: Running in full browser mode (headless disabled)"
@@ -1018,8 +1006,6 @@ end
         timeout: 60,
         browser_path: browser_executable
       }
-
-      opts[:proxy] = ferrum_proxy if ferrum_proxy.present?
 
       browser = Ferrum::Browser.new(browser_options: browser_options, **opts)
       
@@ -1177,16 +1163,7 @@ end
         ).map(&:to_s).uniq
       end
 
-measurements_opened =
-  if respond_to?(:try_open_measurements_sheet!, true)
-    try_open_measurements_sheet!(browser)
-  else
-    Rails.logger.debug(
-      "PlDetailsFetcher.fetch_modal_with_headless_browser: " \
-      "measurements sheet skipped: try_open_measurements_sheet! is not defined"
-    )
-    false
-  end
+      measurements_opened = try_open_measurements_sheet!(browser)
       
       # Получаем HTML страницы после открытия модального окна
       page_html = browser.body
@@ -1392,160 +1369,68 @@ measurements_opened =
     false
   end
 
-def try_open_accessories_modal!(browser)
-  Rails.logger.debug "PlDetailsFetcher.try_open_accessories_modal!: closing active PIPF dialogs before accessories click"
+  def try_open_accessories_modal!(browser)
+    close_pipf_dialogs!(browser)
 
-  begin
-    browser.evaluate(<<~'JS')
+    clicked = browser.evaluate(<<~'JS')
       (function() {
-        const isVisible = (el) => {
-          if (!el) return false;
-          const rect = el.getBoundingClientRect();
-          const style = window.getComputedStyle(el);
-          return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
-        };
-
-        const closeRe = /закры|close|zamknij|fechar|cerrar|chiudi|sluiten/i;
-        const candidates = Array.from(document.querySelectorAll("button, [role='button'], a")).filter((el) => {
-          const haystack = [
-            el.innerText,
-            el.textContent,
-            el.getAttribute("aria-label"),
-            el.getAttribute("title"),
-            el.getAttribute("data-testid"),
-            el.className,
-            el.id
-          ].join(" ");
-          return isVisible(el) && closeRe.test(haystack);
-        });
-
-        if (candidates.length > 0) {
-          candidates[0].click();
-          return true;
-        }
-
-        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
-        window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
-        return false;
-      })();
-    JS
-    sleep(0.6)
-  rescue => e
-    Rails.logger.debug "PlDetailsFetcher.try_open_accessories_modal!: close existing modal failed: #{e.message}"
-  end
-
-  clicked = browser.evaluate(<<~'JS')
-    (function() {
-      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-      const isVisible = (el) => {
-        if (!el) return false;
-        const rect = el.getBoundingClientRect();
-        const style = window.getComputedStyle(el);
-        return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
-      };
-
-      const normalize = (value) => (value || "").toString().toLowerCase();
-
-      const markerRe = /pokaż wszystkie akcesoria|akcesoria|akcesor|accessories|accessory|аксессуар|аксес|related|upsell|pipf-upsell|pipf-accessories/i;
-
-      const collectCandidates = () => {
-        const selectors = [
+        const candidates = Array.from(document.querySelectorAll([
           "button",
           "a",
           "[role='button']",
           "[class*='accessories']",
           "[class*='upsell']",
           "[data-testid*='accessories']",
-          "[data-testid*='upsell']",
-          "[aria-label*='akces']",
-          "[aria-label*='access']",
-          "[aria-label*='аксес']"
-        ].join(",");
+          "[data-testid*='upsell']"
+        ].join(",")));
 
-        return Array.from(document.querySelectorAll(selectors)).filter((el) => {
-          const haystack = [
-            el.innerText,
-            el.textContent,
-            el.getAttribute("aria-label"),
-            el.getAttribute("title"),
-            el.getAttribute("data-testid"),
-            el.className,
-            el.id
-          ].join(" ");
+        const target = candidates.find((el) => {
+          const text = (el.innerText || el.textContent || "").trim().toLowerCase();
+          const aria = (el.getAttribute("aria-label") || "").toLowerCase();
+          const testid = (el.getAttribute("data-testid") || "").toLowerCase();
+          const cls = (typeof el.className === "string" ? el.className : "").toLowerCase();
+          const id = (el.id || "").toLowerCase();
+          const haystack = [text, aria, testid, cls, id].join(" ");
 
-          return isVisible(el) && markerRe.test(haystack);
+          return haystack.includes("pokaż wszystkie akcesoria") ||
+            haystack.includes("akcesoria") ||
+            haystack.includes("akcesor") ||
+            haystack.includes("аксессуар") ||
+            haystack.includes("аксесуар") ||
+            haystack.includes("accessories") ||
+            haystack.includes("accessory") ||
+            haystack.includes("related") ||
+            haystack.includes("upsell") ||
+            haystack.includes("pipf-upsell") ||
+            haystack.includes("pipf-accessories");
         });
-      };
-
-      const tryClick = () => {
-        const candidates = collectCandidates();
-
-        // Prefer explicit "show all accessories" buttons/links.
-        candidates.sort((a, b) => {
-          const ha = normalize([a.innerText, a.textContent, a.getAttribute("aria-label"), a.className].join(" "));
-          const hb = normalize([b.innerText, b.textContent, b.getAttribute("aria-label"), b.className].join(" "));
-
-          const score = (h) => {
-            let s = 0;
-            if (/pokaż wszystkie akcesoria|show all accessories|все аксесс/i.test(h)) s += 100;
-            if (/akcesoria|accessories|аксесс/i.test(h)) s += 50;
-            if (/upsell|pipf-upsell|pipf-accessories/i.test(h)) s += 25;
-            if (/informacje o produkcie|подробная информация|product details/i.test(h)) s -= 100;
-            return s;
-          };
-
-          return score(hb) - score(ha);
-        });
-
-        const target = candidates[0];
         if (!target) return false;
 
         target.scrollIntoView({ block: "center", inline: "center" });
-        target.click();
+        try { target.click(); } catch (_) {
+          target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+        }
         return true;
-      };
-
-      if (tryClick()) return true;
-
-      // Some IKEA sections are lazy-rendered only after scrolling below details.
-      const heights = [0.35, 0.55, 0.75, 0.9, 1.0];
-      for (const h of heights) {
-        window.scrollTo(0, Math.floor(document.body.scrollHeight * h));
-        if (tryClick()) return true;
-      }
-
-      return false;
-    })();
-  JS
-
-  unless clicked
-    Rails.logger.debug "PlDetailsFetcher.try_open_accessories_modal!: accessories trigger not found"
-    return false
-  end
-
-  20.times do |i|
-    sleep(0.5)
-    opened = browser.evaluate(<<~'JS')
-      (function() {
-        return document.querySelector(".pipf-upsell-modal") !== null ||
-          document.querySelector("[class*='upsell'] [data-product-number]") !== null ||
-          document.querySelector("[class*='accessories'] [data-product-number]") !== null;
       })();
     JS
+    return false unless clicked
 
-    if opened
-      Rails.logger.debug "PlDetailsFetcher.try_open_accessories_modal!: accessories opened after #{(i + 1) * 0.5}s"
-      return true
+    20.times do
+      sleep(0.5)
+      opened = browser.evaluate(<<~'JS')
+        (function() {
+          return document.querySelector('.pipf-upsell-modal') !== null ||
+            document.querySelector('[class*="upsell"] [data-product-number]') !== null ||
+            document.querySelector('[class*="accessories"] [data-product-number]') !== null;
+        })();
+      JS
+      return true if opened
     end
+    false
+  rescue => e
+    Rails.logger.debug "PlDetailsFetcher.try_open_accessories_modal!: #{e.message}"
+    false
   end
-
-  Rails.logger.debug "PlDetailsFetcher.try_open_accessories_modal!: trigger clicked but accessories modal/card list did not appear"
-  false
-rescue => e
-  Rails.logger.debug "PlDetailsFetcher.try_open_accessories_modal!: #{e.class} - #{e.message}"
-  false
-end
 
   # В SSR есть кнопка открытия модалки аксессуаров — без headless блок в DOM пустой.
   def accessories_modal_clickable?(doc)

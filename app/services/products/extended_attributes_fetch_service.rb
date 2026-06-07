@@ -396,6 +396,11 @@ class Products::ExtendedAttributesFetchService
     if lt_details[:variants].present? && attributes[:variants].blank?
       attributes[:variants] = normalize_variants_payload(lt_details[:variants])
     end
+
+    # LT/RU PIP часто уже содержит .pipf-upsell-modal в готовом HTML.
+    # Эти аксессуары относятся именно к текущей карточке товара, поэтому сохраняем
+    # их в product.related_products, а не только в category_related_product_lists.
+    merge_related_products_attribute!(product, lt_details, attributes)
   end
 
   def merge_pl_with_lt_priority(product, pl_details, attributes)
@@ -417,10 +422,7 @@ class Products::ExtendedAttributesFetchService
     reconcile_pl_scoped_product_images!(product, pl_details, attributes)
 
     attributes[:set_items] = pl_details[:set_items] if pl_details[:set_items].present? && attributes[:set_items].blank?
-    if Products::RelatedProductsCollection::ENABLED && pl_details[:related_products].present? && !skip_per_product_related_from_pl?(product)
-      merged_rp = (parse_json_array(attributes[:related_products]) + Array(pl_details[:related_products]).map(&:to_s)).compact.uniq
-      attributes[:related_products] = merged_rp if merged_rp.any?
-    end
+    merge_related_products_attribute!(product, pl_details, attributes)
     merge_pl_variants_union!(pl_details, attributes) if pl_details[:variants].present?
 
     # included_products — только из модалки набора на PL (см. PlDetailsFetcher), не смешиваем с set_items.
@@ -589,10 +591,7 @@ class Products::ExtendedAttributesFetchService
     end
 
     attributes[:set_items] = pl_details[:set_items] if pl_details[:set_items]
-    if Products::RelatedProductsCollection::ENABLED && pl_details[:related_products].present? && !skip_per_product_related_from_pl?(product)
-      merged_rp = (parse_json_array(attributes[:related_products]) + Array(pl_details[:related_products]).map(&:to_s)).compact.uniq
-      attributes[:related_products] = merged_rp if merged_rp.any?
-    end
+    merge_related_products_attribute!(product, pl_details, attributes)
     merge_pl_variants_union!(pl_details, attributes) if pl_details[:variants].present?
 
     merge_included_products_attribute!(product, pl_details, attributes)
@@ -723,10 +722,28 @@ class Products::ExtendedAttributesFetchService
     end
   end
 
-  def skip_per_product_related_from_pl?(product)
-    return false unless product&.category_id.present?
+  def merge_related_products_attribute!(product, details, attributes)
+    return if details.blank?
 
-    CategoryRelatedProductList.skus_array_for_category_id(product.category_id).any?
+    incoming = details[:related_products] || details["related_products"]
+    incoming = Array(incoming).filter_map { |sku| normalize_related_product_sku(sku) }
+    return if incoming.empty?
+
+    current = parse_json_array(attributes[:related_products]).filter_map { |sku| normalize_related_product_sku(sku) }
+    parent_article = normalize_related_product_sku(product&.sku).to_s.sub(/\As/i, "")
+
+    merged = (current + incoming).uniq
+    merged.reject! { |sku| sku.to_s.sub(/\As/i, "") == parent_article } if parent_article.present?
+
+    attributes[:related_products] = merged if merged.any?
+  end
+
+  def normalize_related_product_sku(value)
+    token = value.is_a?(Hash) ? (value["sku"] || value[:sku] || value["item_no"] || value[:item_no]) : value
+    token = token.to_s.gsub(/[^0-9a-z]/i, "")
+    return nil if token.blank?
+
+    token if token.match?(/\A\d{8}\z/i) || token.match?(/\As\d{8}\z/i)
   end
 
   def pl_modal_fields_complete?(details)

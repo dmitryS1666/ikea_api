@@ -8,6 +8,17 @@ module Products
       new(category: category, listing_rows: listing_rows).call
     end
 
+    # Добавляет SKU аксессуаров, найденные при актуализации конкретной карточки товара,
+    # в общий список related_products категории. Так все товары категории получают один
+    # общий, постепенно обогащаемый список аксессуаров.
+    def self.merge_skus!(category:, skus:, exclude_skus: [], anchor_sku: nil)
+      new(category: category, listing_rows: []).merge_skus!(
+        skus,
+        exclude_skus: exclude_skus,
+        anchor_sku: anchor_sku
+      )
+    end
+
     def initialize(category:, listing_rows:)
       @category = category
       @rows = Array(listing_rows)
@@ -25,19 +36,12 @@ module Products
         skus.concat(chunk)
       end
 
-      skus =
-        skus
-          .map(&:to_s)
-          .map { |s| s.gsub(/[^0-9a-z]/i, "") }
-          .select { |s| s.match?(/\A\d{8}\z/i) || s.match?(/\As\d{8}\z/i) }
-          .uniq
-
-      exclude = anchor_data.filter_map { |h| canonical_article(h[:listing_sku]) }.uniq
-      skus.reject! { |s| exclude.include?(canonical_article(s)) }
-
-      record = CategoryRelatedProductList.find_or_initialize_by(category_id: @category.ikea_id.to_s)
+      record = merge_skus!(
+        skus,
+        exclude_skus: anchor_data.filter_map { |h| h[:listing_sku] },
+        anchor_sku: anchor_data.first[:listing_sku]
+      )
       record.assign_attributes(
-        related_products: skus,
         anchor_first_sku: anchor_data.first[:listing_sku].to_s,
         anchor_last_sku: (anchor_data.size > 1 ? anchor_data.last[:listing_sku] : nil)&.to_s
       )
@@ -48,7 +52,36 @@ module Products
       )
     end
 
+    def merge_skus!(skus, exclude_skus: [], anchor_sku: nil)
+      incoming = normalize_skus(skus)
+      return existing_record if incoming.empty?
+
+      excluded_articles = normalize_skus(exclude_skus).filter_map { |sku| canonical_article(sku) }.uniq
+      incoming.reject! { |sku| excluded_articles.include?(canonical_article(sku)) }
+      return existing_record if incoming.empty?
+
+      record = existing_record
+      current = normalize_skus(record.related_products)
+      merged = (current + incoming).uniq
+      record.assign_attributes(related_products: merged)
+      record.anchor_first_sku ||= anchor_sku.to_s if anchor_sku.present?
+      record.save!
+      record
+    end
+
     private
+
+    def existing_record
+      CategoryRelatedProductList.find_or_initialize_by(category_id: @category.ikea_id.to_s)
+    end
+
+    def normalize_skus(values)
+      Array(values)
+        .map(&:to_s)
+        .map { |s| s.gsub(/[^0-9a-z]/i, "") }
+        .select { |s| s.match?(/\A\d{8}\z/i) || s.match?(/\As\d{8}\z/i) }
+        .uniq
+    end
 
     def anchor_rows_with_urls
       rows = []

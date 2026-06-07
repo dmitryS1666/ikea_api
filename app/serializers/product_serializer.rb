@@ -126,24 +126,29 @@ class ProductSerializer
   end
 
   attribute :related_products do |product|
+    # CategoryRelatedProductList — канонический общий список для категории.
+    # Он обогащается аксессуарами отдельных карточек при refresh, поэтому товары
+    # одной категории должны получать одинаковый related_products.
     category_skus = CategoryRelatedProductList.skus_for_product(product)
-    raw =
-      if category_skus.any?
-        category_skus
+    raw_product_related = product.related_products
+    product_skus =
+      if raw_product_related.is_a?(Array)
+        raw_product_related
+      elsif raw_product_related.is_a?(String) && raw_product_related.present?
+        begin
+          JSON.parse(raw_product_related)
+        rescue JSON::ParserError
+          []
+        end
       else
-        product.related_products
+        []
       end
-    items = if raw.is_a?(Array)
-              raw
-            elsif raw.is_a?(String) && raw.present?
-              begin
-                JSON.parse(raw)
-              rescue JSON::ParserError
-                []
-              end
-            else
-              []
-            end
+
+    # CategoryRelatedProductList — канонический список для категории: он обогащается
+    # аксессуарами отдельных карточек при refresh. Поэтому, если список категории уже
+    # есть, отдаём его одинаковым для всех товаров категории. product.related_products
+    # нужен как fallback для товаров без собранного category-level списка.
+    items = category_skus.any? ? category_skus : product_skus
 
     skus = items.filter_map do |item|
       if item.is_a?(Hash)

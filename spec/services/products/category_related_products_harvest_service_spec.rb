@@ -37,5 +37,22 @@ RSpec.describe Products::CategoryRelatedProductsHarvestService do
       expect(list.related_products).to eq(%w[77777777])
       expect(list.anchor_last_sku).to be_nil
     end
+
+    it "merges product accessories into existing category related list" do
+      CategoryRelatedProductList.create!(
+        category_id: category.ikea_id,
+        related_products: %w[11111111 22222222]
+      )
+
+      described_class.merge_skus!(
+        category: category,
+        skus: %w[22222222 33333333 44444444],
+        exclude_skus: %w[44444444],
+        anchor_sku: "99999999"
+      )
+
+      list = CategoryRelatedProductList.find_by!(category_id: category.ikea_id)
+      expect(list.related_products).to eq(%w[11111111 22222222 33333333])
+    end
   end
 end
