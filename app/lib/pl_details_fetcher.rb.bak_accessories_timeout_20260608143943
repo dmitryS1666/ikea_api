@@ -1169,20 +1169,7 @@ end
       # Ниже мы можем открыть measurements sheet, и тогда финальный browser.body
       # уже будет содержать не upsell-модалку, а модалку замеров.
       accessories_related = []
-      accessories_opened = false
-
-      begin
-        require "timeout"
-        accessories_opened = Timeout.timeout(ENV.fetch("PIPF_ACCESSORIES_TIMEOUT", "20").to_i) do
-          try_open_accessories_modal!(browser)
-        end
-      rescue Timeout::Error
-        Rails.logger.warn "PlDetailsFetcher.fetch_modal_with_headless_browser: accessories modal opening timed out"
-      rescue => e
-        Rails.logger.debug "PlDetailsFetcher.fetch_modal_with_headless_browser: accessories modal opening failed: #{e.class} - #{e.message}"
-      end
-
-      if accessories_opened
+      if try_open_accessories_modal!(browser)
         accessories_doc = Nokogiri::HTML(browser.body)
         accessories_related = (
           extract_related_products_from_accessories_modal(accessories_doc) +
@@ -1451,7 +1438,7 @@ def try_open_accessories_modal!(browser)
 
   tried = []
 
-  [0.0, 0.45, 0.85].each do |scroll_point|
+  [0.0, 0.25, 0.45, 0.65, 0.85, 1.0].each do |scroll_point|
     browser.evaluate("window.scrollTo(0, Math.floor(document.body.scrollHeight * #{scroll_point}));")
     sleep(0.6)
 
@@ -1513,7 +1500,7 @@ def try_open_accessories_modal!(browser)
           };
 
           return score(b) - score(a);
-        }).slice(0, 5);
+        }).slice(0, 15);
       })();
     JS
 
@@ -1593,7 +1580,7 @@ def try_open_accessories_modal!(browser)
 
       next unless clicked
 
-      6.times do
+      14.times do
         sleep(0.35)
 
         opened = browser.evaluate(<<~'JS')

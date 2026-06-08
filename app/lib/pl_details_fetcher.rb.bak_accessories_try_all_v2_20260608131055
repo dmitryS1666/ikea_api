@@ -1169,20 +1169,7 @@ end
       # Ниже мы можем открыть measurements sheet, и тогда финальный browser.body
       # уже будет содержать не upsell-модалку, а модалку замеров.
       accessories_related = []
-      accessories_opened = false
-
-      begin
-        require "timeout"
-        accessories_opened = Timeout.timeout(ENV.fetch("PIPF_ACCESSORIES_TIMEOUT", "20").to_i) do
-          try_open_accessories_modal!(browser)
-        end
-      rescue Timeout::Error
-        Rails.logger.warn "PlDetailsFetcher.fetch_modal_with_headless_browser: accessories modal opening timed out"
-      rescue => e
-        Rails.logger.debug "PlDetailsFetcher.fetch_modal_with_headless_browser: accessories modal opening failed: #{e.class} - #{e.message}"
-      end
-
-      if accessories_opened
+      if try_open_accessories_modal!(browser)
         accessories_doc = Nokogiri::HTML(browser.body)
         accessories_related = (
           extract_related_products_from_accessories_modal(accessories_doc) +
@@ -1234,9 +1221,8 @@ measurements_opened =
       accessories_related = (Array(accessories_related) +
         extract_related_products_from_accessories_modal(modal_doc) +
         extract_related_products_from_accessories_grid(modal_doc)).map(&:to_s).uniq
-      accessories_grid_related = extract_related_products_from_accessories_grid(modal_doc)
       recommendation_related = extract_related_products_from_recommendation_panel(modal_doc)
-      related = (Array(accessories_related) + Array(accessories_grid_related) + Array(recommendation_related)).map(&:to_s).uniq
+      related = (Array(accessories_related) + Array(recommendation_related)).map(&:to_s).uniq
 
       result[:related_products] = related if related.any?
 
@@ -1407,7 +1393,7 @@ measurements_opened =
   end
 
 def try_open_accessories_modal!(browser)
-  Rails.logger.debug "PlDetailsFetcher.try_open_accessories_modal!: sync accessories candidates clicker"
+  Rails.logger.debug "PlDetailsFetcher.try_open_accessories_modal!: closing active PIPF dialogs before accessories click"
 
   begin
     browser.evaluate(<<~'JS')
@@ -1430,11 +1416,10 @@ def try_open_accessories_modal!(browser)
             el.className,
             el.id
           ].join(" ");
-
           return isVisible(el) && closeRe.test(haystack);
         });
 
-        if (candidates[0]) {
+        if (candidates.length > 0) {
           candidates[0].click();
           return true;
         }
@@ -1444,39 +1429,27 @@ def try_open_accessories_modal!(browser)
         return false;
       })();
     JS
-    sleep(0.8)
+    sleep(0.6)
   rescue => e
-    Rails.logger.debug "PlDetailsFetcher.try_open_accessories_modal!: close existing modal failed: #{e.class} - #{e.message}"
+    Rails.logger.debug "PlDetailsFetcher.try_open_accessories_modal!: close existing modal failed: #{e.message}"
   end
 
-  tried = []
+  clicked = browser.evaluate(<<~'JS')
+    (function() {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  [0.0, 0.45, 0.85].each do |scroll_point|
-    browser.evaluate("window.scrollTo(0, Math.floor(document.body.scrollHeight * #{scroll_point}));")
-    sleep(0.6)
+      const isVisible = (el) => {
+        if (!el) return false;
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+      };
 
-    candidates = browser.evaluate(<<~'JS')
-      (function() {
-        const isVisible = (el) => {
-          if (!el) return false;
-          const rect = el.getBoundingClientRect();
-          const style = window.getComputedStyle(el);
-          return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
-        };
+      const normalize = (value) => (value || "").toString().toLowerCase();
 
-        const textOf = (el) => [
-          el.innerText,
-          el.textContent,
-          el.getAttribute("aria-label"),
-          el.getAttribute("title"),
-          el.getAttribute("data-testid"),
-          el.className,
-          el.id
-        ].join(" ").replace(/\\s+/g, " ").trim();
+      const markerRe = /pokaż wszystkie akcesoria|akcesoria|akcesor|accessories|accessory|аксессуар|аксес|related|upsell|pipf-upsell|pipf-accessories/i;
 
-        const markerRe = /pokaż wszystkie akcesoria|akcesoria|akcesor|accessories|accessory|аксессуар|аксес|upsell|pipf-upsell|pipf-accessories/i;
-        const badRe = /informacje o produkcie|подробная информация|product details|measurements|wymiary|размер/i;
-
+      const collectCandidates = () => {
         const selectors = [
           "button",
           "a",
@@ -1490,47 +1463,8 @@ def try_open_accessories_modal!(browser)
           "[aria-label*='аксес']"
         ].join(",");
 
-        return Array.from(document.querySelectorAll(selectors)).map((el, index) => {
-          const label = textOf(el);
-          return {
-            index: index,
-            label: label.slice(0, 180),
-            tag: el.tagName,
-            role: el.getAttribute("role"),
-            visible: isVisible(el),
-            matched: markerRe.test(label) && !badRe.test(label)
-          };
-        }).filter((item) => item.visible && item.matched).sort((a, b) => {
-          const score = (item) => {
-            const h = item.label;
-            let s = 0;
-            if (/pokaż wszystkie akcesoria|show all accessories|все аксесс/i.test(h)) s += 100;
-            if (/akcesoria|accessories|аксесс/i.test(h)) s += 50;
-            if (/upsell|pipf-upsell|pipf-accessories/i.test(h)) s += 25;
-            if (item.tag === "BUTTON") s += 10;
-            if (item.role === "button") s += 8;
-            return s;
-          };
-
-          return score(b) - score(a);
-        }).slice(0, 5);
-      })();
-    JS
-
-    Array(candidates).each_with_index do |candidate, candidate_position|
-      label = candidate["label"].to_s
-      tried << label
-
-      clicked = browser.evaluate(<<~JS)
-        (function() {
-          const isVisible = (el) => {
-            if (!el) return false;
-            const rect = el.getBoundingClientRect();
-            const style = window.getComputedStyle(el);
-            return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
-          };
-
-          const textOf = (el) => [
+        return Array.from(document.querySelectorAll(selectors)).filter((el) => {
+          const haystack = [
             el.innerText,
             el.textContent,
             el.getAttribute("aria-label"),
@@ -1538,100 +1472,82 @@ def try_open_accessories_modal!(browser)
             el.getAttribute("data-testid"),
             el.className,
             el.id
-          ].join(" ").replace(/\\s+/g, " ").trim();
+          ].join(" ");
 
-          const markerRe = /pokaż wszystkie akcesoria|akcesoria|akcesor|accessories|accessory|аксессуар|аксес|upsell|pipf-upsell|pipf-accessories/i;
-          const badRe = /informacje o produkcie|подробная информация|product details|measurements|wymiary|размер/i;
+          return isVisible(el) && markerRe.test(haystack);
+        });
+      };
 
-          const selectors = [
-            "button",
-            "a",
-            "[role='button']",
-            "[class*='accessories']",
-            "[class*='upsell']",
-            "[data-testid*='accessories']",
-            "[data-testid*='upsell']",
-            "[aria-label*='akces']",
-            "[aria-label*='access']",
-            "[aria-label*='аксес']"
-          ].join(",");
+      const tryClick = () => {
+        const candidates = collectCandidates();
 
-          const items = Array.from(document.querySelectorAll(selectors)).filter((el) => {
-            const label = textOf(el);
-            return isVisible(el) && markerRe.test(label) && !badRe.test(label);
-          }).sort((a, b) => {
-            const score = (el) => {
-              const h = textOf(el);
-              let s = 0;
-              if (/pokaż wszystkie akcesoria|show all accessories|все аксесс/i.test(h)) s += 100;
-              if (/akcesoria|accessories|аксесс/i.test(h)) s += 50;
-              if (/upsell|pipf-upsell|pipf-accessories/i.test(h)) s += 25;
-              if (el.tagName === "BUTTON") s += 10;
-              if (el.getAttribute("role") === "button") s += 8;
-              return s;
-            };
-            return score(b) - score(a);
-          });
+        // Prefer explicit "show all accessories" buttons/links.
+        candidates.sort((a, b) => {
+          const ha = normalize([a.innerText, a.textContent, a.getAttribute("aria-label"), a.className].join(" "));
+          const hb = normalize([b.innerText, b.textContent, b.getAttribute("aria-label"), b.className].join(" "));
 
-          const target = items[#{candidate_position}];
-          if (!target) return false;
+          const score = (h) => {
+            let s = 0;
+            if (/pokaż wszystkie akcesoria|show all accessories|все аксесс/i.test(h)) s += 100;
+            if (/akcesoria|accessories|аксесс/i.test(h)) s += 50;
+            if (/upsell|pipf-upsell|pipf-accessories/i.test(h)) s += 25;
+            if (/informacje o produkcie|подробная информация|product details/i.test(h)) s -= 100;
+            return s;
+          };
 
-          const inner = target.matches("button,a,[role='button']") ? target : target.querySelector("button,a,[role='button']");
-          const clickTarget = inner || target;
+          return score(hb) - score(ha);
+        });
 
-          clickTarget.scrollIntoView({ block: "center", inline: "center" });
+        const target = candidates[0];
+        if (!target) return false;
 
-          try {
-            clickTarget.click();
-          } catch (e) {
-            clickTarget.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
-          }
+        target.scrollIntoView({ block: "center", inline: "center" });
+        target.click();
+        return true;
+      };
 
-          return true;
-        })();
-      JS
+      if (tryClick()) return true;
 
-      next unless clicked
+      // Some IKEA sections are lazy-rendered only after scrolling below details.
+      const heights = [0.35, 0.55, 0.75, 0.9, 1.0];
+      for (const h of heights) {
+        window.scrollTo(0, Math.floor(document.body.scrollHeight * h));
+        if (tryClick()) return true;
+      }
 
-      6.times do
-        sleep(0.35)
+      return false;
+    })();
+  JS
 
-        opened = browser.evaluate(<<~'JS')
-          (function() {
-            return document.querySelector(".pipf-upsell-modal") !== null ||
-              document.querySelectorAll(".pipf-upsell-modal [data-product-number]").length > 0 ||
-              document.querySelectorAll("[class*='upsell'] [data-product-number], [class*='accessories'] [data-product-number]").length > 0;
-          })();
-        JS
+  unless clicked
+    Rails.logger.debug "PlDetailsFetcher.try_open_accessories_modal!: accessories trigger not found"
+    return false
+  end
 
-        if opened
-          skus = browser.evaluate(<<~'JS')
-            (function() {
-              return Array.from(document.querySelectorAll("[data-product-number]"))
-                .map((el) => el.getAttribute("data-product-number"))
-                .filter(Boolean);
-            })();
-          JS
+  20.times do |i|
+    sleep(0.5)
+    opened = browser.evaluate(<<~'JS')
+      (function() {
+        return document.querySelector(".pipf-upsell-modal") !== null ||
+          document.querySelector("[class*='upsell'] [data-product-number]") !== null ||
+          document.querySelector("[class*='accessories'] [data-product-number]") !== null;
+      })();
+    JS
 
-          Rails.logger.debug(
-            "PlDetailsFetcher.try_open_accessories_modal!: opened=true clicked=#{label.inspect} skus=#{Array(skus).inspect}"
-          )
-          return true
-        end
-      end
+    if opened
+      Rails.logger.debug "PlDetailsFetcher.try_open_accessories_modal!: accessories opened after #{(i + 1) * 0.5}s"
+      return true
     end
   end
 
-  Rails.logger.debug(
-    "PlDetailsFetcher.try_open_accessories_modal!: opened=false tried=#{tried.first(30).inspect}"
-  )
+  Rails.logger.debug "PlDetailsFetcher.try_open_accessories_modal!: trigger clicked but accessories modal/card list did not appear"
   false
 rescue => e
   Rails.logger.debug "PlDetailsFetcher.try_open_accessories_modal!: #{e.class} - #{e.message}"
   false
 end
 
-
+  # В SSR есть кнопка открытия модалки аксессуаров — без headless блок в DOM пустой.
   def accessories_modal_clickable?(doc)
     return false unless doc
 
