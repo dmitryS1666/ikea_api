@@ -827,19 +827,33 @@ class Product < ApplicationRecord
   end
   
   def reject_self_from_article_list(list)
-    self_tokens = [
-      sku,
-      item_no,
-      url.to_s.downcase[/-(s\d{8})(?:[\/?#]|$)/, 1]
-    ].compact.flat_map do |value|
-      token = value.to_s.gsub(/[^0-9a-z]/i, "").downcase
-      [token, token.sub(/\As/, "")]
-    end.reject(&:blank?).uniq
+    sku_token = sku.to_s.gsub(/[^0-9a-z]/i, "").downcase
+    sku_article_token = sku_token.sub(/\As/, "")
+
+    url_sku_token = url.to_s.downcase[/-(s\d{8})(?:[\/?#]|$)/, 1].to_s.gsub(/[^0-9a-z]/i, "").downcase
+    url_article_token = url_sku_token.sub(/\As/, "")
+
+    item_no_token = item_no.to_s.gsub(/[^0-9a-z]/i, "").downcase
+    item_no_article_token = item_no_token.sub(/\As/, "")
+
+    self_source_tokens = [sku_token, sku_article_token, url_sku_token, url_article_token].reject(&:blank?)
+
+    # item_no у комплектов IKEA иногда указывает на один из компонентов набора.
+    # Например основной SKU 29517045, а item_no/full attributes могут содержать 60559472.
+    # Такой компонент нельзя выкидывать из included_products.
+    if item_no_article_token.present? && self_source_tokens.include?(item_no_article_token)
+      self_source_tokens << item_no_token
+      self_source_tokens << item_no_article_token
+    end
+
+    self_tokens = self_source_tokens.reject(&:blank?).uniq
   
     Products::ArticleNumber.normalize_list(list)
       .reject do |article|
         token = article.to_s.gsub(/[^0-9a-z]/i, "").downcase
-        self_tokens.include?(token) || self_tokens.include?(token.sub(/\As/, ""))
+        article_token = token.sub(/\As/, "")
+
+        self_tokens.include?(token) || self_tokens.include?(article_token)
       end
       .uniq
   end
