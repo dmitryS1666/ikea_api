@@ -14,14 +14,14 @@ module Categories
     OPTIONAL_PARAMETERS = {
       "f-feature" => "Свойства",
       "f-size" => "Размер",
-      "f-shape" => "Форма"
+      "f-shape" => "Форма",
+      "f-type" => "Тип"
     }.freeze
 
     ALLOWED_PARAMETERS = REQUIRED_PARAMETERS.merge(OPTIONAL_PARAMETERS).freeze
     PARAMETER_ORDER = (REQUIRED_PARAMETERS.keys + OPTIONAL_PARAMETERS.keys).freeze
 
     GLOBAL_EXCLUDED_PARAMETERS = %w[
-      f-type
       f-firmness
       f-number-of-seats
     ].freeze

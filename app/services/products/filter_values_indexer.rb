@@ -21,8 +21,8 @@ module Products
       "f-energy-labels" => ["Etykieta energetyczna", "Klasa energetyczna", "Энергетическая этикетка", "Класс энергопотребления", "Энергетический класс"],
       "f-number-of-cooking-zones" => ["Liczba pól grzewczych", "Liczba stref grzewczych", "Liczba pół grzewczych", "Количество конфорок", "Количество зон нагрева", "Количество варочных зон"],
       "f-colors" => ["Kolor", "Kolory", "Kolorystyka", "Kolor/wyкоńчение", "Kolor/wykonczenie", "Цвет", "Цвета", "Цветовая гамма", "Цвет/отделка"],
-      "f-material" => ["Materiał", "Materiały", "Materiał/wykońчение", "Materiały i pielęgnacja", "Материал", "Материалы", "Материал/отделка", "Материалы и уход"],
-      "f-materials" => ["Materiał", "Materiały", "Materiał/wykończenie", "Materiały i pielęgnacja", "Материал", "Материалы", "Материал/отделка", "Материалы и уход"],
+      "f-material" => ["Materiał", "Materiały", "Materiał/wykońчение", "Materiały i pielęgnacja", "Материал", "Материалы", "Материал/отделка", "Материалы и уход", "Materiał/wykończenie", "Materiał obicia", "Tkanina", "Skład", "Pokrycie", "Medžiaga", "Medžiagos", "Audinys", "Sudėtis", "Material", "Materials", "Composition", "Fabric", "Cover material", "Материал/ы", "Состав", "Ткань", "Тканевые", "Обивка", "Материал обивки", "Чехол"],
+      "f-materials" => ["Materiał", "Materiały", "Materiał/wykończenie", "Materiały i pielęgnacja", "Материал", "Материалы", "Материал/отделка", "Материалы и уход", "Materiał obicia", "Tkanina", "Skład", "Pokrycie", "Medžiaga", "Medžiagos", "Audinys", "Sudėtis", "Material", "Materials", "Composition", "Fabric", "Cover material", "Материал/ы", "Состав", "Ткань", "Тканевые", "Обивка", "Материал обивки", "Чехол"],
       "f-style" => ["Styl", "Styl i wykończenie", "Стиль", "Стиль и отделка"],
       "f-room" => ["Pomieszczenie", "Pomieszczenia", "Przeznaczenie", "Помещение", "Помещения", "Назначение"],
       "f-pattern" => ["Wzór", "Wzory", "Узор", "Узоры"],
@@ -69,6 +69,9 @@ module Products
       "стекло" => ["szкło", "szklane", "glass"],
       "пластик" => ["plastik", "tworzywo", "tworzywo polipropylenowe", "polypropylene"],
       "ткань" => ["tkanina", "tekstylia", "bawełна", "poliester", "fabric"],
+"тканевые" => ["tkanina", "tekstylia", "bawełna", "poliester", "polyester", "fabric", "audinys", "textile", "upholstery"],
+"обивка" => ["tkanina", "fabric", "cover", "upholstery", "audinys", "pokrycie"],
+"полиэстер" => ["poliester", "polyester"],
       
       # Формы
       "круглый" => ["okrąглый", "okrągła", "round"],
@@ -236,7 +239,12 @@ module Products
       results
     end
 
-    def match_measurements(results, parameter, values, product)
+def measurement_bucket_values?(values)
+  Array(values).any? do |value|
+    value.is_a?(Hash) && parse_measurement_bucket(value["id"])
+  end
+end
+
       measurements = extract_measurements(product)
       values.each do |value|
         bucket = parse_measurement_bucket(value["id"])
