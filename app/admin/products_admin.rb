@@ -775,7 +775,7 @@ Trestle.resource(:products, model: Product) do
       :delivery_type, :delivery_name, :delivery_cost, :delivery_reason,
       :short_description, :short_description_ru, :materials, :materials_ru,
       :care_instructions, :care_instructions_ru,
-      :included_products, :variant_type,
+      :included_products, :included_products_text_for_form, :variant_type,
       :variants_skus_text_for_form, :variants_payload_text_for_form, :sync_variant_sibling_links,
       :full_attributes_json_input,
       :full_attributes_api_override_json_input,
@@ -783,12 +783,28 @@ Trestle.resource(:products, model: Product) do
       seo_meta_attributes: [:id, :title, :description, :keywords, :robots, :seo_text, :h1, :image_alt, :image_title, :_destroy]
     )
   
-    if raw[:included_products].is_a?(String)
-      raw[:included_products] = raw[:included_products]
-        .split(/[\n,\r;]+/)
-        .map { |v| v.to_s.strip }
-        .reject(&:blank?)
-        .uniq
+    included_products_text =
+      if raw.key?(:included_products_text_for_form)
+        raw.delete(:included_products_text_for_form)
+      elsif raw.key?("included_products_text_for_form")
+        raw.delete("included_products_text_for_form")
+      else
+        raw[:included_products]
+      end
+
+    if included_products_text.is_a?(String)
+      raw[:included_products] =
+        included_products_text
+          .split(/[\n,\r;]+/)
+          .map { |v| v.to_s.strip }
+          .reject(&:blank?)
+          .uniq
+    elsif included_products_text.is_a?(Array)
+      raw[:included_products] =
+        included_products_text
+          .map { |v| v.to_s.strip }
+          .reject(&:blank?)
+          .uniq
     end
   
     raw
