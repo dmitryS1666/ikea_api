@@ -363,6 +363,13 @@ class CrmIntegrationService
       }
     end
 
+    if order.track_number.present?
+      lead_payload[:custom_fields_values] << {
+        field_id: contact_field_id('TRACK_NUMBER'),
+        values: [{ value: order.track_number }]
+      }
+    end
+
     if (services = order.address_json['services']).present?
       lead_payload[:custom_fields_values] << {
         field_id: contact_field_id('SERVICES'),
