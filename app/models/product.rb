@@ -143,6 +143,7 @@ class Product < ApplicationRecord
   serialize :assembly_documents, coder: JSON
 
   before_save :cache_slug, if: -> { name_changed? || name_ru_changed? || cached_slug.blank? }
+  before_validation :apply_included_products_text_for_form
   before_validation :normalize_included_products!
   before_validation :apply_full_attributes_json_input
   before_validation :apply_full_attributes_api_override_json_input
@@ -218,6 +219,21 @@ class Product < ApplicationRecord
   end
 
   # --- Админка (Trestle): текстовое поле со списком SKU вариантов ---
+  # --- Админка (Trestle): текстовое поле со списком SKU товаров в наборе ---
+  def included_products_text_for_form=(text)
+    @included_products_text_for_form_submitted = true
+    @included_products_text_for_form = text
+  end
+
+  def included_products_text_for_form
+    return @included_products_text_for_form if @included_products_text_for_form_submitted
+
+    Array(included_products)
+      .filter_map { |value| value.to_s.strip.presence }
+      .uniq
+      .join("\n")
+  end
+
   def variants_skus_text_for_form=(text)
     @variants_skus_text_for_form_submitted = true
     @variants_skus_text_for_form = text
@@ -564,6 +580,18 @@ class Product < ApplicationRecord
 
   private
 
+  def apply_included_products_text_for_form
+    return unless @included_products_text_for_form_submitted
+
+    self.included_products =
+      @included_products_text_for_form
+        .to_s
+        .split(/[\n,\r;]+/)
+        .map { |value| value.to_s.strip }
+        .reject(&:blank?)
+        .uniq
+  end
+
   def apply_variants_skus_from_form_text
     return unless @variants_skus_text_for_form_submitted
 
@@ -605,8 +633,12 @@ class Product < ApplicationRecord
   def reset_variants_admin_form_flags
     @variants_skus_text_for_form_submitted = false
     @variants_payload_text_for_form_submitted = false
+    @included_products_text_for_form_submitted = false
+
     remove_instance_variable(:@variants_skus_text_for_form) if instance_variable_defined?(:@variants_skus_text_for_form)
     remove_instance_variable(:@variants_payload_text_for_form) if instance_variable_defined?(:@variants_payload_text_for_form)
+    remove_instance_variable(:@included_products_text_for_form) if instance_variable_defined?(:@included_products_text_for_form)
+
     self.sync_variant_sibling_links = nil
   end
 

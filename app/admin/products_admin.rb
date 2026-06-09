@@ -396,14 +396,12 @@ Trestle.resource(:products, model: Product) do
         select :category_ids, Category.all.map { |c| [c.translated_name, c.ikea_id] }, { label: "Категории" }, { multiple: true, data: { ui: "select2" } }
       end
 
-      form_group :included_products, label: "Продукты в наборе" do
-        text_area_tag(
-          "product[included_products]",
-          Array(product.included_products).join("\n"),
-          rows: 8,
-          class: "form-control"
-        ) +
-        content_tag(:small, "Один SKU на строку. Допустимы также запятые и ;", class: "form-text text-muted")
+      form_group :included_products_text_for_form, label: "Продукты в наборе" do
+        text_area :included_products_text_for_form,
+                  rows: 8,
+                  class: "form-control",
+                  style: "font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;",
+                  help: "Один SKU на строку. Допустимы также запятые и ;. Собственный SKU будет отфильтрован автоматически."
       end
     end
 
