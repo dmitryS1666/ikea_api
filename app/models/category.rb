@@ -362,7 +362,12 @@ class Category < ApplicationRecord
 
     return nil if values.empty?
 
-    filter.merge("values" => values)
+    api_name = Categories::FilterPolicy.display_name(param).presence || filter["name"]
+
+    filter.merge(
+      "name" => api_name,
+      "values" => values
+    )
   end
 
   def dedupe_f_series_values_for_api(values)
