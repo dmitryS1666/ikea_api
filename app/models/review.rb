@@ -20,7 +20,7 @@ class Review < ApplicationRecord
   validates :user, presence: true
   validate :body_length_within_limits
   validate :photos_count_within_limits
-  validate :product_must_be_purchased_by_user
+  validate :product_must_be_purchased_by_user, on: :create
 
   before_validation :assign_order_for_review, on: :create
   before_save :set_published_at_if_needed

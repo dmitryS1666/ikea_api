@@ -20,18 +20,37 @@ Trestle.resource(:reviews, model: Review) do
     column :rating
     column :status do |review|
       status_text = I18n.t("activerecord.attributes.review.statuses.#{review.status}")
-      status_tag(status_text, review.status == 'published' ? :success : :secondary)
+      status_tag(status_text, review.status == "published" ? :success : :secondary)
     end
     column :helpful_count
+
     column "Фото" do |review|
-      "#{review.photos.count} шт."
+      if review.photos.attached?
+        content_tag(:div, style: "display: flex; gap: 6px; align-items: center;") do
+          thumbs = review.photos.first(3).map do |photo|
+            image_tag(
+              Rails.application.routes.url_helpers.rails_blob_path(photo.blob, only_path: true),
+              style: "width: 48px; height: 48px; object-fit: cover; border-radius: 4px;"
+            )
+          end
+
+          extra = if review.photos.count > 3
+                    content_tag(:span, "+#{review.photos.count - 3}", class: "text-muted")
+                  end
+
+          safe_join(thumbs + [extra].compact)
+        end
+      else
+        "—"
+      end
     end
+
     column :pinned, label: "Закреплен" do |review|
-      status_tag(review.pinned? ? 'Да' : 'Нет',
+      status_tag(review.pinned? ? "Да" : "Нет",
                  review.pinned? ? :success : :secondary)
     end
     column :excluded_from_rating, label: "Исключен" do |review|
-      status_tag(review.excluded_from_rating? ? 'Да' : 'Нет',
+      status_tag(review.excluded_from_rating? ? "Да" : "Нет",
                  review.excluded_from_rating? ? :warning : :secondary)
     end
     column :created_at, align: :center
@@ -54,7 +73,66 @@ Trestle.resource(:reviews, model: Review) do
     end
 
     tab :photos, label: "Фотографии" do
-      # ...
+      row do
+        col(sm: 12) do
+          file_field(
+            :photos,
+            label: "Добавить фотографии",
+            multiple: true,
+            accept: "image/*",
+            id: "js-review-photos-input",
+            help: "Можно выбрать одно или несколько изображений"
+          )
+        end
+      end
+
+      row do
+        col(sm: 12) do
+          content_tag(:div, id: "js-photos-preview", class: "row", style: "margin-top: 12px;") do
+            "".html_safe
+          end
+        end
+      end
+
+      row do
+        col(sm: 12) do
+          if review.photos.attached?
+            content_tag(:div, class: "row", style: "margin-top: 16px;") do
+              safe_join(
+                review.photos.map do |photo|
+                  content_tag(:div, class: "col-xs-6 col-sm-3 col-md-2", style: "margin-bottom: 16px;") do
+                    content_tag(:div, class: "thumbnail") do
+                      safe_join(
+                        [
+                          link_to(
+                            image_tag(
+                              Rails.application.routes.url_helpers.rails_blob_path(photo.blob, only_path: true),
+                              style: "height: 120px; width: 100%; object-fit: cover;"
+                            ),
+                            Rails.application.routes.url_helpers.rails_blob_path(photo.blob, only_path: true),
+                            target: "_blank",
+                            rel: "noopener"
+                          ),
+                          content_tag(:div, class: "caption", style: "text-align: center; margin-top: 8px;") do
+                            link_to(
+                              "Удалить",
+                              admin.path(:delete_photo, id: review.id, photo_id: photo.id),
+                              data: { confirm: "Удалить это фото?" },
+                              class: "btn btn-danger btn-xs"
+                            )
+                          end
+                        ]
+                      )
+                    end
+                  end
+                end
+              )
+            end
+          else
+            content_tag(:p, "Фотографии пока не загружены", class: "text-muted")
+          end
+        end
+      end
     end
 
     sidebar do
@@ -76,8 +154,6 @@ Trestle.resource(:reviews, model: Review) do
     end
   end
 
-  # Используем хук для вставки JS кода. 
-  # Хук "resource.form.footer" вставит контент сразу после формы.
   hook("resource.form.footer") do
     content_tag(:script) do
       <<-JS.html_safe
@@ -85,16 +161,21 @@ Trestle.resource(:reviews, model: Review) do
           $(document).on('change', '#js-review-photos-input', function() {
             var $preview = $('#js-photos-preview');
             $preview.empty();
+
             if (this.files) {
               $.each(this.files, function(i, file) {
                 if (!file.type.match('image.*')) return;
+
                 var reader = new FileReader();
+
                 reader.onload = function(e) {
                   var html = '<div class="col-xs-3 col-sm-2"><div class="thumbnail">' +
                              '<img src="' + e.target.result + '" style="height: 80px; width: 100%; object-fit: cover;">' +
                              '</div></div>';
+
                   $preview.append(html);
-                }
+                };
+
                 reader.readAsDataURL(file);
               });
             }
@@ -113,6 +194,7 @@ Trestle.resource(:reviews, model: Review) do
       review = admin.find_instance(params)
       photo = review.photos.find(params[:photo_id])
       photo.purge
+
       redirect_to admin.instance_path(review, action: :edit), notice: "Фото удалено"
     end
   end
