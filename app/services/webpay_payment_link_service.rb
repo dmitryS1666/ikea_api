@@ -1,7 +1,11 @@
 require 'digest/sha1'
 
 class WebpayPaymentLinkService
-  LINK_VALIDITY = 30.minutes
+  def self.link_validity
+    ENV.fetch("WEBPAY_LINK_VALIDITY_MINUTES", ENV.fetch("PAYMENT_TIMEOUT_MINUTES", Order::DEFAULT_PAYMENT_TIMEOUT_MINUTES)).to_i.minutes
+  end
+
+  LINK_VALIDITY = link_validity
 
   Result = Struct.new(:action, :fields, :seed, keyword_init: true)
 

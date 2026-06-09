@@ -1,4 +1,10 @@
 class Order < ApplicationRecord
+  DEFAULT_PAYMENT_TIMEOUT_MINUTES = 20
+
+  def self.payment_timeout
+    ENV.fetch("PAYMENT_TIMEOUT_MINUTES", DEFAULT_PAYMENT_TIMEOUT_MINUTES).to_i.minutes
+  end
+
   belongs_to :user
   belongs_to :promo_code, optional: true
   has_many :order_items, dependent: :destroy
@@ -134,7 +140,7 @@ class Order < ApplicationRecord
   def set_payment_expiration
     return if checkout_draft
 
-    self.payment_expires_at = 30.minutes.from_now
+    self.payment_expires_at = self.class.payment_timeout.from_now
     # self.payment_url = "https://payment-gateway.com/pay/#{SecureRandom.hex(10)}"
   end
 
