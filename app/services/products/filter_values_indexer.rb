@@ -21,8 +21,8 @@ module Products
       "f-energy-labels" => ["Etykieta energetyczna", "Klasa energetyczna", "Энергетическая этикетка", "Класс энергопотребления", "Энергетический класс"],
       "f-number-of-cooking-zones" => ["Liczba pól grzewczych", "Liczba stref grzewczych", "Liczba pół grzewczych", "Количество конфорок", "Количество зон нагрева", "Количество варочных зон"],
       "f-colors" => ["Kolor", "Kolory", "Kolorystyka", "Kolor/wyкоńчение", "Kolor/wykonczenie", "Цвет", "Цвета", "Цветовая гамма", "Цвет/отделка"],
-      "f-material" => ["Materiał", "Materiały", "Materiał/wykońчение", "Materiały i pielęgnacja", "Материал", "Материалы", "Материал/отделка", "Материалы и уход", "Materiał/wykończenie", "Materiał obicia", "Tkanina", "Skład", "Pokrycie", "Medžiaga", "Medžiagos", "Audinys", "Sudėtis", "Material", "Materials", "Composition", "Fabric", "Cover material", "Материал/ы", "Состав", "Ткань", "Тканевые", "Обивка", "Материал обивки", "Чехол"],
-      "f-materials" => ["Materiał", "Materiały", "Materiał/wykończenie", "Materiały i pielęgnacja", "Материал", "Материалы", "Материал/отделка", "Материалы и уход", "Materiał obicia", "Tkanina", "Skład", "Pokrycie", "Medžiaga", "Medžiagos", "Audinys", "Sudėtis", "Material", "Materials", "Composition", "Fabric", "Cover material", "Материал/ы", "Состав", "Ткань", "Тканевые", "Обивка", "Материал обивки", "Чехол"],
+      "f-material" => ["Materiał", "Materiały", "Materiał/wykońчение", "Materiały i pielęgnacja", "Материал", "Материалы", "Материал/отделка", "Материалы и уход"],
+      "f-materials" => ["Materiał", "Materiały", "Materiał/wykończenie", "Materiały i pielęgnacja", "Материал", "Материалы", "Материал/отделка", "Материалы и уход"],
       "f-style" => ["Styl", "Styl i wykończenie", "Стиль", "Стиль и отделка"],
       "f-room" => ["Pomieszczenie", "Pomieszczenia", "Przeznaczenie", "Помещение", "Помещения", "Назначение"],
       "f-pattern" => ["Wzór", "Wzory", "Узор", "Узоры"],
@@ -69,9 +69,6 @@ module Products
       "стекло" => ["szкło", "szklane", "glass"],
       "пластик" => ["plastik", "tworzywo", "tworzywo polipropylenowe", "polypropylene"],
       "ткань" => ["tkanina", "tekstylia", "bawełна", "poliester", "fabric"],
-"тканевые" => ["tkanina", "tekstylia", "bawełna", "poliester", "polyester", "fabric", "audinys", "textile", "upholstery"],
-"обивка" => ["tkanina", "fabric", "cover", "upholstery", "audinys", "pokrycie"],
-"полиэстер" => ["poliester", "polyester"],
       
       # Формы
       "круглый" => ["okrąглый", "okrągła", "round"],
@@ -84,83 +81,6 @@ module Products
       "традиционный" => ["tradycyjny", "klasyczny", "traditional", "classic"]
     }.freeze
 
-    MATERIAL_TAXONOMY = {
-      "material_fabric" => {
-        name: "Ткань",
-        patterns: /ткан|текстил|обив|чехол|полиэстер|полиэфир|хлопок|fabric|textile|upholstery|cover|tkanina|audinys|pokrycie|poliester|polyester|bawelna/
-      },
-      "material_coated_fabric" => {
-        name: "Ткань с покрытием",
-        patterns: /ткань с покрытием|покрыт.*ткан|coated fabric|tkanina powlekana|powlekana/
-      },
-      "material_velvet" => {
-        name: "Бархат",
-        patterns: /бархат|велюр|вельвет|velvet|aksamit/
-      },
-      "material_leather" => {
-        name: "Кожа",
-        patterns: /кожа|кожан|leather|skora/
-      },
-      "material_polyester" => {
-        name: "Полиэстер",
-        patterns: /полиэстер|полиэфир|polyester|poliester/
-      },
-      "material_cotton" => {
-        name: "Хлопок",
-        patterns: /хлопок|cotton|bawelna/
-      },
-      "material_wool" => {
-        name: "Шерсть",
-        patterns: /шерсть|wool|welna/
-      },
-      "material_linen" => {
-        name: "Лён",
-        patterns: /лен|лён|linen/
-      },
-      "material_wood" => {
-        name: "Дерево",
-        patterns: /массив дерева|дерево|древес|wood|drewno|oak|pine|birch|дуб|сосна|береза|берёза|фанера/
-      },
-      "material_bamboo" => {
-        name: "Бамбук",
-        patterns: /бамбук|bamboo|bambus/
-      },
-      "material_rattan" => {
-        name: "Ротанг",
-        patterns: /ротанг|rattan|ratan/
-      },
-      "material_metal" => {
-        name: "Металл",
-        patterns: /металл|сталь|алюминий|metal|steel|stal|aluminium|aluminum/
-      },
-      "material_stainless_steel" => {
-        name: "Нержавеющая сталь",
-        patterns: /нержавеющ|stainless steel|stal nierdzewna/
-      },
-      "material_glass" => {
-        name: "Стекло",
-        patterns: /стекло|glass|szklo/
-      },
-      "material_plastic" => {
-        name: "Пластик",
-        patterns: /пластик|полипропилен|plastic|polypropylene|tworzywo/
-      },
-      "material_ceramic" => {
-        name: "Керамика",
-        patterns: /керамик|ceramic|ceramika/
-      },
-      "material_porcelain" => {
-        name: "Фарфор",
-        patterns: /фарфор|porcelain|porcelana/
-      },
-      "material_foam" => {
-        name: "Пенополиуретан",
-        patterns: /пенополиуретан|полиуретановая пена|foam|pianka/
-      }
-    }.freeze
-
-    MATERIAL_VALUE_ORDER = MATERIAL_TAXONOMY.keys.freeze
-
     # parameters: список id фильтров из available_filters (например %w[f-series f-colors]).
     # nil — переиндексировать все фильтры категории (прежнее поведение).
     def initialize(category, parameters: nil)
@@ -171,7 +91,6 @@ module Products
     end
 
     def reindex!
-      ensure_material_filter_values!
       eff = filters_to_apply
       return if eff.blank?
 
@@ -308,7 +227,11 @@ module Products
           match_textual_parameter(results, parameter, values, product, PARAMETER_KEYS[parameter])
         when "f-type", "f-feature", "f-function", "f-colors", "f-material", "f-materials", "f-style", "f-room", "f-pattern",
              "f-shape", "f-brand", "f-size", "f-length", "f-width", "f-height", "f-depth"
-          match_textual_parameter(results, parameter, values, product, PARAMETER_KEYS[parameter])
+          if %w[f-size f-length f-width f-height f-depth].include?(parameter) && measurement_bucket_values?(values)
+            match_measurements(results, parameter, values, product)
+          else
+            match_textual_parameter(results, parameter, values, product, PARAMETER_KEYS[parameter])
+          end
         else
           match_textual_parameter(results, parameter, values, product, PARAMETER_KEYS[parameter])
         end
@@ -317,12 +240,13 @@ module Products
       results
     end
 
-def measurement_bucket_values?(values)
-  Array(values).any? do |value|
-    value.is_a?(Hash) && parse_measurement_bucket(value["id"])
-  end
-end
+    def measurement_bucket_values?(values)
+      Array(values).any? do |value|
+        value.is_a?(Hash) && parse_measurement_bucket(value["id"])
+      end
+    end
 
+    def match_measurements(results, parameter, values, product)
       measurements = extract_measurements(product)
       values.each do |value|
         bucket = parse_measurement_bucket(value["id"])
@@ -421,120 +345,17 @@ end
       end
     end
 
-    def ensure_material_filter_values!
-      return if @material_filter_values_ensured
-
-      @material_filter_values_ensured = true
-      return unless Categories::FilterPolicy.allowed?("f-material", category: @category)
-
-      filters = normalize_filter_rows(@category.available_filters)
-      material_filter = filters.find { |filter| filter["parameter"].to_s == "f-material" }
-
-      found_values = {}
-
-      Product.catalog_category_scope(@category.ikea_id).find_each do |product|
-        material_taxonomy_matches_for_product(product).each do |material_id|
-          found_values[material_id] = material_value_row(material_id)
-        end
-      end
-
-      return if found_values.blank? && material_filter.present?
-
-      unless material_filter
-        material_filter = {
-          "parameter" => "f-material",
-          "name" => Categories::FilterPolicy.display_name("f-material") || "Материал",
-          "values" => []
-        }
-        filters << material_filter
-      end
-
-      existing_values = Array(material_filter["values"])
-      merged_values = merge_material_filter_values(existing_values, found_values)
-
-      return if merged_values == existing_values
-
-      material_filter["name"] = Categories::FilterPolicy.display_name("f-material") || material_filter["name"] || "Материал"
-      material_filter["values"] = merged_values
-
-      @category.update!(available_filters: filters)
-      @filters = filters
-    end
-
-    def normalize_filter_rows(raw)
-      Array(raw).filter_map do |filter|
-        next unless filter.is_a?(Hash)
-
-        filter.deep_stringify_keys
-      end
-    end
-
-    def merge_material_filter_values(existing_values, found_values)
-      values_by_id = {}
-
-      Array(existing_values).each do |raw|
-        next unless raw.is_a?(Hash)
-
-        value = raw.deep_stringify_keys
-        mapped_id = material_taxonomy_id_for_target(value["name"].presence || value["id"])
-        next if mapped_id.present?
-
-        id = value["id"].to_s.strip
-        name = value["name"].to_s.strip.presence || id
-        next if id.blank? || name.blank?
-
-        values_by_id[id] ||= { "id" => id, "name" => name }
-      end
-
-      found_values.each do |id, value|
-        values_by_id[id.to_s] = value.deep_stringify_keys.slice("id", "name")
-      end
-
-      ordered = MATERIAL_VALUE_ORDER.filter_map { |id| values_by_id.delete(id) }
-      ordered + values_by_id.values.sort_by { |value| normalize_text(value["name"]) }
-    end
-
-    def material_value_row(material_id)
-      taxonomy = MATERIAL_TAXONOMY[material_id.to_s]
-      {
-        "id" => material_id.to_s,
-        "name" => taxonomy.fetch(:name)
-      }
-    end
-
-    def material_taxonomy_matches_for_product(product)
-      text = material_text_pool(product).map { |value| normalize_text(value) }.join(" ")
-      return [] if text.blank?
-
-      MATERIAL_TAXONOMY.filter_map do |material_id, config|
-        material_id if text.match?(config.fetch(:patterns))
-      end
-    end
-
-    def material_taxonomy_id_for_target(target)
-      target_norm = normalize_text(target)
-      return nil if target_norm.blank?
-
-      MATERIAL_TAXONOMY.each do |material_id, config|
-        name_norm = normalize_text(config.fetch(:name))
-        return material_id if target_norm == name_norm
-        return material_id if target_norm.include?(name_norm) || name_norm.include?(target_norm)
-        return material_id if target_norm.match?(config.fetch(:patterns))
-      end
-
-      nil
-    end
-
     def material_filter_value_match?(values, target)
       return true if text_values_match?(values, target)
 
-      material_id = material_taxonomy_id_for_target(target)
-      return false if material_id.blank?
-
+      target_norm = normalize_text(target)
       value_text = values.map { |value| normalize_text(value) }.join(" ")
-      return false if value_text.blank?
 
-      value_text.match?(MATERIAL_TAXONOMY.fetch(material_id).fetch(:patterns))
+      if target_norm.include?("ткан")
+        return true if value_text.match?(/ткан|текстил|обив|чехол|полиэстер|полиэфир|хлопок|fabric|textile|upholstery|cover|tkanina|audinys|pokrycie/)
+      end
+
+      false
     end
 
     def boolean_filter_match?(parameter, product, promo_skus)
