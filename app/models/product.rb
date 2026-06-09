@@ -143,7 +143,6 @@ class Product < ApplicationRecord
   serialize :assembly_documents, coder: JSON
 
   before_save :cache_slug, if: -> { name_changed? || name_ru_changed? || cached_slug.blank? }
-  before_validation :apply_included_products_text_for_form
   before_validation :normalize_included_products!
   before_validation :apply_full_attributes_json_input
   before_validation :apply_full_attributes_api_override_json_input
@@ -633,11 +632,9 @@ class Product < ApplicationRecord
   def reset_variants_admin_form_flags
     @variants_skus_text_for_form_submitted = false
     @variants_payload_text_for_form_submitted = false
-    @included_products_text_for_form_submitted = false
 
     remove_instance_variable(:@variants_skus_text_for_form) if instance_variable_defined?(:@variants_skus_text_for_form)
     remove_instance_variable(:@variants_payload_text_for_form) if instance_variable_defined?(:@variants_payload_text_for_form)
-    remove_instance_variable(:@included_products_text_for_form) if instance_variable_defined?(:@included_products_text_for_form)
 
     self.sync_variant_sibling_links = nil
   end
