@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_05_000100) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_10_171000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -443,6 +443,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_05_000100) do
     t.decimal "price", precision: 12, scale: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "image_url"
     t.index ["order_id", "product_sku"], name: "index_order_items_on_order_id_and_product_sku", unique: true
     t.index ["order_id"], name: "index_order_items_on_order_id"
     t.index ["product_sku"], name: "index_order_items_on_product_sku"

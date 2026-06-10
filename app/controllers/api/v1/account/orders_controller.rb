@@ -5,7 +5,7 @@ module Api
         before_action :authenticate_user
 
         def index
-          orders = current_user.orders.includes(:order_items).order(created_at: :desc)
+          orders = current_user.orders.includes(order_items: :product).order(created_at: :desc)
           paginated = orders.page(params[:page]).per(params[:per_page] || 10)
 
           render json: OrderSerializer.new(paginated, {

@@ -22,6 +22,24 @@ RSpec.describe OrderItemSerializer do
       expect(image_url).not_to start_with("[")
     end
 
+
+    it "prefers order item image snapshot over current product images" do
+      product = build_stubbed(
+        :product,
+        local_images: ["/images/products/current.webp"],
+        images: ["https://www.ikea.com/current.jpg"]
+      )
+      order_item = build_stubbed(
+        :order_item,
+        product: product,
+        image_url: "/images/products/snapshot.webp"
+      )
+
+      image_url = described_class.new(order_item).serializable_hash.dig(:data, :attributes, :image_url)
+
+      expect(image_url).to eq("/images/products/snapshot.webp")
+    end
+
     it "falls back to first product local image before remote images" do
       product = build_stubbed(
         :product,

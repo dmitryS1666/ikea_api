@@ -5,7 +5,7 @@ RSpec.describe 'Order Payment Timer', type: :request do
   let(:token) { JwtService.encode(user_id: user.id) }
   let(:headers) { { 'Authorization' => "Bearer #{token}" } }
   let!(:cart) { create(:cart, user: user) }
-  let!(:product) { create(:product, sku: "SKU123", quantity: 10, price: 100) }
+  let!(:product) { create(:product, sku: "SKU123", quantity: 10, price: 100, local_images: ["/images/products/order-item.webp"]) }
   let!(:cart_item) { create(:cart_item, cart: cart, product_sku: product.sku, quantity: 1) }
 
   before do
@@ -81,6 +81,17 @@ RSpec.describe 'Order Payment Timer', type: :request do
       attrs = JSON.parse(response.body).dig('data', 'attributes')
       expect(attrs['track_number']).to eq('BY080027046773')
       expect(attrs['tracking_info']).to eq('europost_create' => { 'status' => 'created' })
+    end
+
+
+    it 'returns order item image_url in included data' do
+      create(:order_item, order: order, product_sku: product.sku, quantity: 1, price: 100)
+
+      get "/api/v1/account/orders/#{order.id}", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      included_item = JSON.parse(response.body)['included'].find { |item| item['type'] == 'order_item' }
+      expect(included_item.dig('attributes', 'image_url')).to eq('/images/products/order-item.webp')
     end
 
     it 'marks order as expired when time passes' do
