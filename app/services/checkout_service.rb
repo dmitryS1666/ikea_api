@@ -273,10 +273,10 @@ class CheckoutService
       }
     end
 
-    cart = user.cart
-    return { error: 'Корзина не найдена' } unless cart
-    return { error: 'Корзина пуста' } if cart.cart_items.blank?
+    cart_result = resolve_base_cart(user: user, params: params)
+    return cart_result if cart_result[:error]
 
+    cart = cart_result[:cart]
     cart_context = resolve_checkout_cart(cart: cart, params: params)
     return cart_context if cart_context[:error]
 
@@ -442,10 +442,10 @@ class CheckoutService
   end
 
   def self.create_draft(user:, params:)
-    cart = user.cart
-    return { error: 'Корзина не найдена' } unless cart
-    return { error: 'Корзина пуста' } if cart.cart_items.blank?
+    cart_result = resolve_base_cart(user: user, params: params)
+    return cart_result if cart_result[:error]
 
+    cart = cart_result[:cart]
     cart_context = resolve_checkout_cart(cart: cart, params: params)
     return cart_context if cart_context[:error]
 
@@ -804,12 +804,27 @@ class CheckoutService
     { verification_id: verification_id, passport_changed: passport_changed, passport_input: passport_input }
   end
 
+  def self.resolve_base_cart(user:, params:)
+    token = params[:cart_token].presence
+
+    cart = if token.present?
+             Cart.find_by(guest_token: token)
+           else
+             user.cart
+           end
+
+    return { error: 'Корзина не найдена', code: 'cart_not_found' } unless cart && !cart.expired?
+    return { error: 'Корзина пуста', code: 'cart_empty' } if cart.cart_items.blank?
+
+    { cart: cart }
+  end
+
   def self.resolve_checkout_cart(cart:, params:)
     selection = CartSelectionService.apply(cart: cart, params: params)
     return selection if selection[:error]
 
     effective_cart = selection[:cart]
-    return { error: 'Корзина пуста' } if effective_cart.cart_items.blank?
+    return { error: 'Корзина пуста', code: 'cart_empty' } if effective_cart.cart_items.blank?
 
     { cart: effective_cart, selections: selection[:selections] }
   end

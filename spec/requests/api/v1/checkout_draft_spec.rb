@@ -36,6 +36,9 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     allow(EuropostApiService).to receive(:offices_out).and_return(
       [{ "WarehouseId" => "70130010", "WarehouseWeightLimit" => "50" }]
     )
+    allow(EuropostOfficeHoursEnricher).to receive(:enrich) do |offices, **_kwargs|
+      offices
+    end
     allow(ExchangeRate).to receive(:fetch_or_create).and_return(double(rate_per_unit: 3.2))
     allow(CrmIntegrationService).to receive(:sync_order).and_return({ success: true })
     allow(WebpayPaymentLinkService).to receive(:issue_link!).and_call_original
@@ -88,7 +91,18 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
   end
 
   it "returns delivery options based on draft order VGH" do
-    product.update!(package_dimensions: "20 x 30 x 140 cm")
+    allow(Delivery::ParcelPackingService).to receive(:call).and_return(
+      total_weight_kg: 120.0,
+      total_volume_m3: 3.375,
+      max_dimension_cm: 150.0,
+      max_dimensions_sum_cm: 450.0,
+      parcels_count: 1,
+      parcels: [
+        { sku: product.sku, weight_kg: 120.0, width_cm: 150.0, height_cm: 150.0, depth_cm: 150.0, volume_m3: 3.375, eligible_for_europost: false, ineligible_reason: "max_weight_exceeded" }
+      ],
+      eligible_for_europost: false,
+      ineligible_reason: "max_weight_exceeded"
+    )
 
     post "/api/v1/checkout", params: { draft: true }, headers: headers
     expect(response).to have_http_status(:created)
@@ -187,4 +201,54 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     body = JSON.parse(response.body)
     expect(body.dig("data", "attributes", "checkout_draft")).to eq(true)
   end
+
+  it "loads draft via GET /checkout/draft fallback" do
+    post "/api/v1/checkout", params: { draft: true }, headers: headers
+    order_id = JSON.parse(response.body)["order_id"]
+
+    get "/api/v1/checkout/draft", params: { draft_id: order_id }, headers: headers
+    expect(response).to have_http_status(:ok)
+    body = JSON.parse(response.body)
+    expect(body.dig("data", "attributes", "checkout_draft")).to eq(true)
+  end
+
+  it "creates draft from explicit cart_token selected items and returns stable draft ids" do
+    guest_cart = create(:cart, user: nil, guest_token: 'guest-draft-token')
+    other = create(:product, sku: "SKU-DRAFT-TOKEN", quantity: 10, price: 180.0, weight: 5.0,
+                             package_volume: 0.02, package_dimensions: "20 x 30 x 40 cm",
+                             dimensions: "20 x 30 x 40 cm", full_attributes: {})
+    create(:cart_item, cart: guest_cart, product_sku: other.sku, quantity: 2)
+
+    post "/api/v1/checkout",
+         params: { draft: true, cart_token: guest_cart.guest_token, items: [{ sku: other.sku, quantity: 1 }] },
+         headers: headers
+
+    expect(response).to have_http_status(:created)
+    json = JSON.parse(response.body)
+    expect(json["order_id"]).to be_present
+    expect(json["draft_id"]).to eq(json["order_id"])
+    expect(json["draft_order_id"]).to eq(json["order_id"])
+    expect(json["id"]).to eq(json["order_id"])
+
+    order = Order.find(json["order_id"])
+    expect(order.checkout_draft).to be true
+    expect(order.order_items.pluck(:product_sku, :quantity)).to eq([[other.sku, 1]])
+  end
+
+  it "returns cart_empty for draft checkout with empty selected items" do
+    post "/api/v1/checkout", params: { draft: true, items: [] }, headers: headers
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(JSON.parse(response.body)["code"]).to eq("cart_empty")
+  end
+
+  it "returns item_not_in_cart for draft checkout with missing selected SKU" do
+    post "/api/v1/checkout", params: { draft: true, items: [{ sku: 'MISSING', quantity: 1 }] }, headers: headers
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    json = JSON.parse(response.body)
+    expect(json["code"]).to eq("item_not_in_cart")
+    expect(json["sku"]).to eq("MISSING")
+  end
+
 end

@@ -833,6 +833,16 @@ paths:
                   type: integer
                 cart_token:
                   type: string
+                items:
+                  type: array
+                  description: Selected items. Если передано, промокод считается только для выбранных товаров и корзина не мутируется.
+                  items:
+                    type: object
+                    properties:
+                      sku:
+                        type: string
+                      quantity:
+                        type: integer
       responses:
         '200':
           description: Обновленная корзина
@@ -947,6 +957,42 @@ paths:
                 $ref: '#/components/schemas/CartResponse'
         '422':
           description: Неверный промокод
+
+  /api/v1/cart/summary:
+    post:
+      summary: Рассчитать selected summary корзины
+      tags:
+        - Cart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - items
+              properties:
+                cart_token:
+                  type: string
+                promo_code:
+                  type: string
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - sku
+                      - quantity
+                    properties:
+                      sku:
+                        type: string
+                      quantity:
+                        type: integer
+      responses:
+        '200':
+          description: Summary выбранных товаров
+        '422':
+          description: Ошибка selected summary
 
   /api/v1/cart/promo/remove:
     delete:
@@ -1068,7 +1114,11 @@ paths:
 
   /api/v1/checkout:
     post:
-      summary: Оформить заказ
+      summary: Создать черновик или оформить заказ
+      description: |
+        Legacy checkout создаёт заказ по полной форме.
+        Draft mode включается через `draft=true` и принимает `cart_token` + `items[]`;
+        при этом `full_name`, `phone`, `delivery_type`, `payment_method` не обязательны.
       tags:
         - Checkout
       security:
@@ -1079,12 +1129,23 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - full_name
-                - phone
-                - delivery_type
-                - payment_method
               properties:
+                draft:
+                  type: boolean
+                  description: Если true — создать/переиспользовать черновик заказа из selected items.
+                cart_token:
+                  type: string
+                  description: Токен гостевой корзины. Если передан, используется как источник товаров даже после auth.
+                items:
+                  type: array
+                  description: Selected cart items для draft/partial checkout.
+                  items:
+                    type: object
+                    properties:
+                      sku:
+                        type: string
+                      quantity:
+                        type: integer
                 full_name:
                   type: string
                   example: "Иван Иванов"
@@ -1095,10 +1156,6 @@ paths:
                   type: string
                   enum: [europost_pickup, courier, ikeya_delivery]
                   description: "Поддерживаемые типы: europost_pickup, courier, ikeya_delivery."
-                  examples:
-                    europost_pickup: { value: "europost_pickup" }
-                    courier: { value: "courier" }
-                    ikeya_delivery: { value: "ikeya_delivery" }
                 payment_method:
                   type: string
                   enum: [card, installment, qr, erip, oplati]
@@ -1108,52 +1165,20 @@ paths:
                   description: "ID ПВЗ (обязательно для delivery_type=europost_pickup)"
                 a1_verification_id:
                   type: string
-                  description: "ID верификации A1 (обязательно при изменении паспорта, может быть получено из профиля)"
+                  description: "ID верификации A1"
                 address:
                   type: object
-                  properties:
-                    city:
-                      type: string
-                    street:
-                      type: string
-                    house:
-                      type: string
-                    apartment:
-                      type: string
-                    is_private_house:
-                      type: boolean
-                      example: true
-                    entrance:
-                      type: string
-                      nullable: true
-                    floor:
-                      type: string
-                      nullable: true
-                    has_elevator:
-                      type: boolean
-                      nullable: true
-                    intercom:
-                      type: string
-                      nullable: true
+                  additionalProperties: true
                 passport:
                   type: object
-                  properties:
-                    passport_number:
-                      type: string
-                      example: "MP1234567"
-                    full_name:
-                      type: string
-                    issue_date:
-                      type: string
-                      format: date
+                  additionalProperties: true
                 services:
                   type: array
                   items:
                     type: string
-                  example: ["Сборка", "Подъем на этаж"]
       responses:
         '201':
-          description: Заказ создан
+          description: Заказ или черновик создан
           content:
             application/json:
               schema:
@@ -1163,31 +1188,125 @@ paths:
                     type: string
                   order_id:
                     type: integer
+                  draft_id:
+                    type: integer
+                    nullable: true
+                  draft_order_id:
+                    type: integer
+                    nullable: true
+                  id:
+                    type: integer
+                    nullable: true
                   order:
                     $ref: '#/components/schemas/Order'
         '401':
           description: Необходима авторизация
+        '409':
+          description: Уже есть активный черновик checkout
         '422':
           description: Ошибка валидации
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                  code:
-                    type: string
-                  passport_data:
-                    type: object
-                  a1_verification_id:
-                    type: string
+
+  /api/v1/checkout/draft:
+    get:
+      summary: Получить черновик заказа по draft_id query
+      tags:
+        - Checkout
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: draft_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Черновик заказа
+        '404':
+          description: Черновик не найден
+
+  /api/v1/checkout/{id}:
+    get:
+      summary: Получить checkout draft
+      tags:
+        - Checkout
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Черновик заказа
+        '404':
+          description: Черновик не найден
+    patch:
+      summary: Обновить checkout draft
+      tags:
+        - Checkout
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Черновик обновлен
+        '404':
+          description: Черновик не найден
+        '422':
+          description: Ошибка валидации
+    delete:
+      summary: Отменить checkout draft
+      tags:
+        - Checkout
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Черновик отменен
+        '404':
+          description: Черновик не найден
+
+  /api/v1/checkout/{id}/finalize:
+    post:
+      summary: Финализировать checkout draft
+      tags:
+        - Checkout
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '201':
+          description: Заказ оформлен
+        '404':
+          description: Черновик не найден
+        '422':
+          description: Ошибка валидации
+
   /api/v1/payment_links/{id}:
     get:
       summary: Перенаправить на Webpay
       description: |
         Валидирует `token` и `payment_expires_at`, затем возвращает HTML-форму, которая сразу POST-ится на `wsb_payment_page`.
-        Ссылка действительна 30 минут после создания, далее возвращает `410`.
+        Ссылка действительна 20 минут после создания, далее возвращает `410`.
       tags:
         - Checkout
       parameters:

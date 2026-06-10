@@ -5,7 +5,6 @@ class WebpayPaymentLinkService
     ENV.fetch("WEBPAY_LINK_VALIDITY_MINUTES", ENV.fetch("PAYMENT_TIMEOUT_MINUTES", Order::DEFAULT_PAYMENT_TIMEOUT_MINUTES)).to_i.minutes
   end
 
-  LINK_VALIDITY = link_validity
 
   Result = Struct.new(:action, :fields, :seed, keyword_init: true)
 
@@ -16,7 +15,7 @@ class WebpayPaymentLinkService
         order.payment_link_token = token
         order.payment_order_number = ensure_order_number(order)
         order.payment_url = payment_link_url(order, token)
-        order.payment_expires_at = LINK_VALIDITY.from_now
+        order.payment_expires_at = link_validity.from_now
         order.save!
       end
     end

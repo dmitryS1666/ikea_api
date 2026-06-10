@@ -12,6 +12,18 @@ module Api
           return render json: { error: 'invalid_promo_code' }, status: :unprocessable_entity
         end
 
+        if CartSelectionService.items_key_present?(params)
+          selections = CartSelectionService.parse_items_param(params)
+          if selections.blank?
+            return render json: { error: 'Корзина пуста', code: 'cart_empty' }, status: :unprocessable_entity
+          end
+
+          result = CartSummaryService.call(cart: cart, items: selections, promo_code: code)
+          return render json: result.except(:success), status: :unprocessable_entity if result[:error]
+
+          return render json: result.except(:error, :code), status: :ok
+        end
+
         cart.update!(promo_code: promo)
         cart.touch_expiration!
 

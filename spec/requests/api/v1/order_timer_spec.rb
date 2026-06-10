@@ -39,7 +39,7 @@ RSpec.describe 'Order Payment Timer', type: :request do
       
       expiration = Time.parse(json['order']['payment_expires_at'])
       expect(expiration).to be > Time.current
-      expect(expiration).to be <= 31.minutes.from_now
+      expect(expiration).to be <= 21.minutes.from_now
     end
   end
 
@@ -90,6 +90,17 @@ RSpec.describe 'Order Payment Timer', type: :request do
       
       json = JSON.parse(response.body)
       expect(json['data']['attributes']['payment_expired']).to be true
+    end
+  end
+
+  describe 'GET /api/v1/payment_links/:id' do
+    it 'expires payment link after 20 minutes' do
+      order = create(:order, user: user, payment_link_token: 'expired-token')
+      order.update!(payment_expires_at: 21.minutes.ago)
+
+      get "/api/v1/payment_links/#{order.id}", params: { token: 'expired-token' }
+
+      expect(response).to have_http_status(:gone)
     end
   end
 end

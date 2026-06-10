@@ -15,6 +15,17 @@ module Api
         end
       end
 
+      def draft
+        draft_id = params[:draft_id].presence || params[:id].presence
+        @draft_order = current_user.orders.find_by(id: draft_id, checkout_draft: true)
+
+        unless @draft_order
+          return render json: { error: 'Черновик заказа не найден', code: 'draft_not_found' }, status: :not_found
+        end
+
+        render json: checkout_order_payload(@draft_order), status: :ok
+      end
+
       def show
         render json: checkout_order_payload(@draft_order), status: :ok
       end
@@ -69,6 +80,12 @@ module Api
           order: OrderSerializer.new(order).serializable_hash[:data][:attributes]
         }
 
+        if order.checkout_draft
+          payload[:id] = order.id
+          payload[:draft_id] = order.id
+          payload[:draft_order_id] = order.id
+        end
+
         if order.checkout_draft && result[:delivery_options].present?
           payload[:delivery_options] = result[:delivery_options]
         end
@@ -116,6 +133,7 @@ module Api
           :a1_verification_id,
           :a1_verification_last4,
           :verification_code,
+          :cart_token,
           services: [],
           pickup_point: {},
           address: {},

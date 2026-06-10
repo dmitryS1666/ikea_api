@@ -75,7 +75,7 @@ class CartSelectionService
     return { cart: cart, selections: nil } unless items_key_present?(params)
 
     selections = parse_items_param(params)
-    return { error: 'Укажите товары для оформления', code: 'items_required' } if selections.blank?
+    return { error: 'Корзина пуста', code: 'cart_empty' } if selections.blank?
 
     build_subset_cart(cart: cart, selections: selections)
   end

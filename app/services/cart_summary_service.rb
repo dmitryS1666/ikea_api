@@ -1,5 +1,5 @@
 class CartSummaryService
-  def self.call(cart:, items: nil)
+  def self.call(cart:, items: nil, promo_code: nil)
     effective =
       if items.present?
         built = CartSelectionService.build_subset_cart(cart: cart, selections: items)
@@ -10,7 +10,10 @@ class CartSummaryService
         cart
       end
 
-    return { error: 'Корзина пуста' } if effective.cart_items.blank?
+    return { error: 'Корзина пуста', code: 'cart_empty' } if effective.cart_items.blank?
+
+    promo_result = apply_calculation_promo(effective, promo_code)
+    return promo_result if promo_result[:error]
 
     pricing = CartPricingService.call(cart: effective)
     totals = CartDisplayTotalsService.for_summary(pricing[:totals])
@@ -37,6 +40,18 @@ class CartSummaryService
         min_order_error: rules[:flags][:checkout_allowed] ? nil : "Оформление доступно от #{rules[:rules][:min_order_amount_byn]} руб."
       }
     }
+  end
+
+  def self.apply_calculation_promo(cart, promo_code)
+    return {} if promo_code.blank?
+
+    promo = PromoCode.find_by(code: promo_code.to_s.strip.upcase)
+    return { error: 'invalid_promo_code', code: 'invalid_promo_code' } unless promo&.active_now?
+
+    # Calculation-only promo: virtual/subset cart is not persisted, so this does
+    # not mutate the real user/guest cart.
+    cart.promo_code = promo
+    {}
   end
 
   def self.format_delivery(totals, delivery_options)

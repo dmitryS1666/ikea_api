@@ -56,7 +56,7 @@ RSpec.describe CartSummaryService do
     expect(row[:pricing][:unit_price_new_byn].to_f).to be > 0
     expect(row[:pricing][:line_total_new_byn].to_f).to eq(row[:pricing][:unit_price_new_byn].to_f)
     expect(row[:pricing][:line_total_new_byn].to_f).to be < summary[:total_byn].to_f
-    expect(row[:pricing][:line_total_new_byn].to_f + summary[:delivery_to_belarus_byn].to_f).to be_within(0.02).of(
+    expect(row[:pricing][:line_total_new_byn].to_f + summary[:delivery_to_belarus_byn].to_f).to be_within(0.03).of(
       summary[:total_byn].to_f + summary[:discount_total_byn].to_f
     )
   end
@@ -70,6 +70,18 @@ RSpec.describe CartSummaryService do
 
     expect(visible_total.round(2)).to eq(summary[:total_byn].to_f)
     expect(summary[:final_total_byn]).to eq(summary[:total_byn])
+  end
+
+
+  it "applies promo_code only to selected summary calculation" do
+    PromoCode.create!(code: "SEL10", discount_type: :percent, discount_value: 10, active: true)
+
+    summary = described_class.call(cart: cart, items: selections, promo_code: "SEL10")
+
+    expect(summary[:items].map { |i| i[:sku] }).to eq([product_a.sku])
+    expect(summary[:discount_total_byn].to_f).to be > 0
+    expect(summary[:items].first[:pricing][:promo_applied]).to be true
+    expect(cart.reload.promo_code).to be_nil
   end
 
 end

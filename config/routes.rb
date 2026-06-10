@@ -163,6 +163,7 @@ Rails.application.routes.draw do
       get 'reviews/export(.:format)', to: 'reviews_exports#index'
       
       # Checkout (draft flow: GET :id → PATCH → POST finalize; legacy: POST без draft)
+      get 'checkout/draft', to: 'checkout#draft'
       get 'checkout/:id', to: 'checkout#show'
       patch 'checkout/:id', to: 'checkout#update'
       post 'checkout/:id/finalize', to: 'checkout#finalize'
