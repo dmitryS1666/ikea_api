@@ -189,7 +189,14 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(order.delivery_price.to_f).to be > 0
     expect(body.dig("pricing", "delivery", "type")).to eq("courier")
     expect(body.dig("pricing", "delivery", "title")).to eq("Курьерская доставка")
-    expect(body.dig("pricing", "totals", "delivery_total_byn")).to eq(format("%.2f", order.delivery_price))
+
+    totals = body.dig("pricing", "totals")
+    delivery_total_byn = totals["delivery_total_byn"]
+    expect(delivery_total_byn).to eq(format("%.2f", order.delivery_price))
+    expect(body.dig("pricing", "delivery", "total_delivery_price_byn")).to eq(delivery_total_byn)
+    expect(
+      totals["subtotal_new_byn"].to_f - totals["discount_total_byn"].to_f + delivery_total_byn.to_f
+    ).to be_within(0.02).of(totals["total_byn"].to_f)
   end
 
   it "loads draft via GET /checkout/:id" do

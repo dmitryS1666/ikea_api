@@ -66,7 +66,7 @@ class CheckoutService
         pickup_point_id: params[:pickup_point_id],
         address: delivery_context[:address_snapshot]
       )
-      total_amount = pricing[:totals][:total_byn].to_f - pricing[:totals][:delivery_total_byn].to_f + prices[:total_delivery_price_byn]
+      total_amount = checkout_total_amount(pricing: pricing, prices: prices)
 
       delivery_snapshot = build_delivery_snapshot(
         normalized_delivery_type: normalized_delivery_type,
@@ -181,7 +181,7 @@ class CheckoutService
       pickup_point_id: merged[:pickup_point_id],
       address: delivery_context[:address_snapshot]
     )
-    total_amount = pricing[:totals][:total_byn].to_f - pricing[:totals][:delivery_total_byn].to_f + prices[:total_delivery_price_byn]
+    total_amount = checkout_total_amount(pricing: pricing, prices: prices)
 
     delivery_snapshot = build_delivery_snapshot(
       normalized_delivery_type: normalized_delivery_type,
@@ -367,7 +367,7 @@ class CheckoutService
       pickup_point_id: params[:pickup_point_id],
       address: delivery_context[:address_snapshot]
     )
-    total_amount = pricing[:totals][:total_byn].to_f - pricing[:totals][:delivery_total_byn].to_f + prices[:total_delivery_price_byn]
+    total_amount = checkout_total_amount(pricing: pricing, prices: prices)
 
     delivery_snapshot = build_delivery_snapshot(
       normalized_delivery_type: normalized_delivery_type,
@@ -640,6 +640,15 @@ class CheckoutService
       total_delivery_price_byn: fin[:total_delivery_price_byn].round(2)
     }
   end
+
+  def self.checkout_total_amount(pricing:, prices:)
+    cart_total = pricing.dig(:totals, :total_byn).to_f
+    cart_delivery_total = pricing.dig(:totals, :delivery_total_byn).to_f
+    selected_delivery_total = prices[:total_delivery_price_byn].to_f
+
+    (cart_total - cart_delivery_total + selected_delivery_total).round(2)
+  end
+  private_class_method :checkout_total_amount
 
   def self.format_price(value)
     format("%.2f", value.to_f)

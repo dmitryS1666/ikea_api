@@ -37,6 +37,9 @@ class Order < ApplicationRecord
   }
 
   PURCHASED_STATUSES = %w[arrived_pvz handed_to_courier handed_to_courier_ikeya completed].freeze
+  FRONTEND_STATUS_ALIASES = {
+    "completed" => "received"
+  }.freeze
 
   scope :purchased, -> { where(status: PURCHASED_STATUSES) }
 
@@ -57,6 +60,22 @@ class Order < ApplicationRecord
 
   def purchased?
     status.in?(PURCHASED_STATUSES)
+  end
+
+  def frontend_status
+    frontend_status_for(status)
+  end
+
+  def frontend_status_title(status_code = status)
+    frontend_code = frontend_status_for(status_code)
+
+    I18n.t(
+      "activerecord.attributes.order.frontend_statuses.#{frontend_code}",
+      default: I18n.t(
+        "activerecord.attributes.order.statuses.#{status_code}",
+        default: frontend_code.to_s.humanize
+      )
+    )
   end
 
   # ЛК: в URL можно передавать public_uid (6–8 цифр) или числовой id (как раньше).
@@ -122,8 +141,8 @@ class Order < ApplicationRecord
     sequence.map do |code|
       at = event_times[code]
       {
-        code: code,
-        title: I18n.t("activerecord.attributes.order.statuses.#{code}", default: code.humanize),
+        code: frontend_status_for(code),
+        title: frontend_status_title(code),
         at: at&.iso8601,
         is_current: status.to_s == code,
         is_completed: at.present?
@@ -132,6 +151,10 @@ class Order < ApplicationRecord
   end
 
   private
+
+  def frontend_status_for(status_code)
+    FRONTEND_STATUS_ALIASES.fetch(status_code.to_s, status_code.to_s)
+  end
 
   def ensure_public_uid
     self.public_uid = self.class.generate_unique_public_uid if public_uid.blank?

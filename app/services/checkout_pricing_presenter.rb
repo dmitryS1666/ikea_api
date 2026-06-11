@@ -53,8 +53,12 @@ class CheckoutPricingPresenter
     def apply_order_delivery_totals!(summary, order)
       snapshot_prices = delivery_prices_from_order(order)
       total_delivery = order.delivery_price.to_f
+      total_delivery_byn = format_byn(total_delivery)
 
-      summary[:totals][:delivery_total_byn] = format_byn(total_delivery)
+      # On checkout the selected pickup/courier/IKEYA delivery replaces the
+      # cart delivery estimate. Frontend must use delivery_total_byn for the
+      # visible delivery row so it matches total_byn/final_total_byn.
+      summary[:totals][:delivery_total_byn] = total_delivery_byn
       summary[:totals][:total_byn] = format_byn(order.total_amount)
       summary[:totals][:final_total_byn] = format_byn(order.total_amount)
 
@@ -66,9 +70,9 @@ class CheckoutPricingPresenter
       summary[:delivery] = {
         type: order.delivery_type,
         title: DELIVERY_TITLES[order.delivery_type] || order.delivery_type,
-        delivery_price_byn: snapshot_prices&.dig(:delivery_price_byn) || format_byn(total_delivery),
+        delivery_price_byn: snapshot_prices&.dig(:delivery_price_byn) || total_delivery_byn,
         delivery_to_belarus_price_byn: snapshot_prices&.dig(:delivery_to_belarus_price_byn),
-        total_delivery_price_byn: format_byn(total_delivery)
+        total_delivery_price_byn: total_delivery_byn
       }.compact
     end
 

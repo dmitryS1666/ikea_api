@@ -15,7 +15,7 @@ module Api
               product = Product.find_by(sku: oi.product_sku)
               {
                 order_id: order.id,
-                status: order.status,
+                status: order.frontend_status,
                 purchased_at: order.purchased_at&.iso8601,
                 product_sku: oi.product_sku,
                 quantity: oi.quantity,

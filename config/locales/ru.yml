@@ -379,6 +379,8 @@ ru:
           handed_to_courier_ikeya: "Выдано курьеру IKEYA"
           completed: "Доставлено"
           cancelled: "Отменен"
+        frontend_statuses:
+          received: "Получен"
         total_amount: "Сумма"
         created_at: "Дата создания"
         updated_at: "Дата изменения"

@@ -244,3 +244,5 @@ en:
           handed_to_courier_ikeya: "Handed to IKEYA courier"
           completed: "Delivered"
           cancelled: "Cancelled"
+        frontend_statuses:
+          received: "Received"
