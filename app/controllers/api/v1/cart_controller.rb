@@ -8,7 +8,13 @@ module Api
         cart, token, _ = CartTokenResolver.call(request: request, params: params, user: current_user)
         apply_promo_from_param(cart)
         cart.touch_expiration!
-        render json: cart_response_payload(cart, token)
+
+        selection = CartSelectionService.apply(cart: cart, params: params)
+        if selection[:error]
+          return render json: selection.except(:cart, :selections), status: :unprocessable_entity
+        end
+
+        render json: cart_response_payload(cart, token, pricing_cart: selection[:cart] || cart)
       end
 
       def clear

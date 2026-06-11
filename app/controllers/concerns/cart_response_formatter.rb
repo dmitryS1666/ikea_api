@@ -1,13 +1,18 @@
 module CartResponseFormatter
   private
 
-  def cart_response_payload(cart, token)
-    pricing = CartPricingService.call(cart: cart)
+  def cart_response_payload(cart, token, pricing_cart: cart)
+    # `cart` is the real cart and is used for rendering item rows.
+    # `pricing_cart` may be a virtual subset built from selected items; it is
+    # used only for totals/rules/delivery so unchecked items do not affect the
+    # visible order summary.
+    pricing = CartPricingService.call(cart: pricing_cart)
+    line_pricing = pricing_cart.equal?(cart) ? pricing : CartPricingService.call(cart: cart)
     totals = CartDisplayTotalsService.for_summary(pricing[:totals])
     rules_data = CartRulesService.call(subtotal_new_byn: totals[:subtotal_new_byn])
-    pricing_map = pricing[:items].index_by { |entry| entry[:sku] }
+    pricing_map = line_pricing[:items].index_by { |entry| entry[:sku] }
     cart_items = cart.cart_items.includes(:product)
-    delivery_options = DeliveryOptionsService.call(cart)
+    delivery_options = DeliveryOptionsService.call(pricing_cart)
 
     {
       cart: {

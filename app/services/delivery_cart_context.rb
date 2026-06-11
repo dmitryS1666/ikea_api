@@ -79,16 +79,20 @@ class DeliveryCartContext
   end
 
   def cart_from_items(items)
-    skus = items.map(&:sku)
-    products = Product.where(sku: skus).index_by(&:sku)
-    virtual_item = Struct.new(:product, :quantity)
-    virtual_items = items.filter_map do |sel|
-      product = products[sel.sku]
+    aliases_by_requested_sku = items.to_h do |sel|
+      [sel.sku, CartSelectionService.sku_aliases(sel.sku)]
+    end
+    products = Product.where(sku: aliases_by_requested_sku.values.flatten.uniq).index_by(&:sku)
+
+    subset = Cart.new
+    items.each do |sel|
+      product = aliases_by_requested_sku[sel.sku].filter_map { |sku| products[sku] }.first
       next if product.nil? || sel.quantity <= 0
 
-      virtual_item.new(product, sel.quantity)
+      cart_item = subset.cart_items.build(product_sku: product.sku, quantity: sel.quantity)
+      cart_item.product = product
     end
 
-    Struct.new(:cart_items).new(virtual_items)
+    subset
   end
 end
