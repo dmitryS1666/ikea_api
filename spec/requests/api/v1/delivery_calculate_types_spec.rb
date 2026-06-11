@@ -55,6 +55,15 @@ RSpec.describe "Delivery calculate types", type: :request do
     expect(body["delivery"]["display"]).to be_a(Hash)
     expect(body["delivery"]["pricing"]["source"]).to be_present
     expect(body["delivery"]["pricing"]["internal"]).to be_a(Hash)
+
+    expected_total = (
+      body.dig("totals", "subtotal_new_byn").to_f -
+      body.dig("totals", "discount_total_byn").to_f +
+      body.dig("totals", "delivery_total_byn").to_f
+    ).round(2)
+    expect(body.dig("totals", "total_byn").to_f).to be_within(0.01).of(expected_total)
+    expect(body["total_byn"]).to eq(body.dig("totals", "total_byn"))
+    expect(body.dig("delivery", "display", "total_byn")).to eq(body.dig("totals", "total_byn"))
   end
 
   it "returns payload for courier" do

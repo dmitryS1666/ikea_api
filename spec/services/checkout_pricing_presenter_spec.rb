@@ -58,4 +58,45 @@ RSpec.describe CheckoutPricingPresenter do
       summary[:totals][:total_byn].to_f + summary[:totals][:discount_total_byn].to_f
     )
   end
+  it "shows selected delivery method in draft payable total even if saved draft total is stale" do
+    order = build_stubbed(
+      :order,
+      checkout_draft: true,
+      delivery_type: "courier",
+      total_amount: 775.70,
+      delivery_price: 133.82,
+      address_json: {
+        "delivery" => {
+          "prices" => {
+            "delivery_price_byn" => "53.87",
+            "delivery_to_belarus_price_byn" => "79.95",
+            "total_delivery_price_byn" => "133.82"
+          }
+        }
+      }
+    )
+    pricing = {
+      items: [],
+      totals: {
+        subtotal_new_byn: 695.75,
+        discount_total_byn: 0.0,
+        delivery_to_belarus_byn: 79.95,
+        delivery_total_byn: 79.95,
+        total_byn: 775.70,
+        final_total_byn: 775.70,
+        total_weight_kg: 66.3
+      },
+      promo: {},
+      meta: {}
+    }
+
+    summary = described_class.for_order(order, pricing: pricing)
+
+    expect(summary.dig(:totals, :delivery_to_belarus_byn)).to eq("79.95")
+    expect(summary.dig(:totals, :delivery_method_byn)).to eq("53.87")
+    expect(summary.dig(:totals, :delivery_total_byn)).to eq("133.82")
+    expect(summary.dig(:totals, :total_byn)).to eq("829.57")
+    expect(summary.dig(:totals, :final_total_byn)).to eq("829.57")
+  end
+
 end

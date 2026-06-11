@@ -61,9 +61,12 @@ class CheckoutPricingPresenter
       #   delivery_to_belarus_byn + delivery_method_byn = delivery_total_byn
       # Frontend may show the first two rows separately, but must use total_byn
       # as the payable order total.
+      payable_total_byn = checkout_payable_total(summary: summary, total_delivery_byn: total_delivery)
+      display_total_byn = order.checkout_draft? ? payable_total_byn : order.total_amount.to_f
+
       summary[:totals][:delivery_total_byn] = total_delivery_byn
-      summary[:totals][:total_byn] = format_byn(order.total_amount)
-      summary[:totals][:final_total_byn] = format_byn(order.total_amount)
+      summary[:totals][:total_byn] = format_byn(display_total_byn)
+      summary[:totals][:final_total_byn] = format_byn(display_total_byn)
 
       if snapshot_prices
         summary[:totals][:delivery_poland_byn] = snapshot_prices[:delivery_price_byn]
@@ -81,6 +84,13 @@ class CheckoutPricingPresenter
         delivery_to_belarus_price_byn: cart_delivery_to_belarus_byn,
         total_delivery_price_byn: total_delivery_byn
       }.compact
+    end
+
+    def checkout_payable_total(summary:, total_delivery_byn:)
+      subtotal = summary.dig(:totals, :subtotal_new_byn).to_f
+      discount = summary.dig(:totals, :discount_total_byn).to_f
+
+      [(subtotal - discount + total_delivery_byn.to_f), 0.0].max.round(2)
     end
 
     def delivery_prices_from_order(order)
