@@ -70,7 +70,12 @@ class CartPricingService
       )
 
       storefront_line_byn_before_discount = (line_byn[:goods_byn] + line_byn[:delivery_poland_byn]).round(2)
-      full_line_byn_before_discount = line_byn[:total_byn]
+      # Keep the checkout total consistent with the public cart rows.  The
+      # rounded full total from PriceCalculationService may differ by 0.01 from
+      # the sum of already displayed rounded components (goods + PL delivery +
+      # BY delivery).  The UI shows these components separately, so the payable
+      # total must be built from the same rounded components.
+      full_line_byn_before_discount = (storefront_line_byn_before_discount + line_byn[:delivery_belarus_byn]).round(2)
       unit_price_byn_before_discount = quantity.positive? ? (storefront_line_byn_before_discount / quantity).round(2) : 0.0
 
       # Промо применяется к витринной цене позиции (без доставки в Беларусь).

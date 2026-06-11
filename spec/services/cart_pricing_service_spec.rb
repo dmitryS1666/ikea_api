@@ -39,10 +39,10 @@ RSpec.describe CartPricingService do
     expect(item[:unit_price_byn_before_discount]).to be_within(0.01).of(535.5) # витрина: товар + доставка PL, без РБ
     expect(item[:unit_discount_byn]).to eq(53.55)
     expect(item[:line_total_byn]).to be_within(0.02).of(481.95)
-    expect(item[:line_total_byn_checkout]).to eq(707.53)
-    expect(item[:unit_price_byn_checkout]).to eq(707.53)
+    expect(item[:line_total_byn_checkout]).to eq(707.54)
+    expect(item[:unit_price_byn_checkout]).to eq(707.54)
     expect(pricing[:totals][:discount_total_byn]).to eq(53.55)
-    expect(pricing[:totals][:total_byn]).to eq(707.53)
+    expect(pricing[:totals][:total_byn]).to eq(707.54)
   end
 
   it "ограничивает fixed_byn скидку ценой позиции после всех наценок" do
@@ -88,9 +88,11 @@ RSpec.describe CartPricingService do
     expect(pricing[:totals][:total_weight_kg]).to eq(25.0)
     expect(pricing[:totals][:delivery_total_byn]).to be >= wc_by_byn
     expect(pricing[:totals][:delivery_to_belarus_byn]).to be >= wc_by_byn
-    expect(pricing[:totals][:delivery_total_byn]).to eq(
-      pricing[:totals][:delivery_poland_byn] + pricing[:totals][:delivery_to_belarus_byn]
-    )
+    # В публичном summary delivery_total_byn — это видимая строка
+    # "Доставка в Беларусь". Доставка по Польше уже включена в
+    # subtotal_new_byn / items_total_byn как часть стоимости товаров.
+    expect(pricing[:totals][:delivery_poland_byn]).to be > 0
+    expect(pricing[:totals][:delivery_total_byn]).to eq(pricing[:totals][:delivery_to_belarus_byn])
   end
 
   it "разрешает checkout по витринной subtotal_new_byn, а не по сырой цене IKEA в PLN" do
@@ -141,5 +143,32 @@ RSpec.describe CartPricingService do
     expect(item[:line_total_byn]).to be < item[:line_total_byn_checkout]
     expect(item[:line_total_byn] + pricing[:totals][:delivery_to_belarus_byn]).to be_within(0.03).of(item[:line_total_byn_checkout])
     expect(pricing[:totals][:total_byn]).to eq(item[:line_total_byn_checkout])
+  end
+
+  it "строит checkout total из тех же округленных компонентов, которые видит пользователь" do
+    user = create(:user)
+    product = create(:product, sku: "SKU-ROUND-1", price: 500.0, weight: 17.3, delivery_cost: 0.0, quantity: 5)
+    cart = create(:cart, user: user)
+    create(:cart_item, cart: cart, product_sku: product.sku, quantity: 1)
+
+    allow(PriceCalculationService).to receive(:line_breakdown_pln).and_return(
+      mode: :k,
+      markup_k: 0.1
+    )
+    allow(PriceCalculationService).to receive(:line_byn_components).and_return(
+      goods_byn: 197.13,
+      delivery_poland_byn: 0.0,
+      delivery_belarus_byn: 41.12,
+      total_byn: 238.26
+    )
+
+    pricing = described_class.call(cart: cart)
+    item = pricing[:items].first
+
+    expect(item[:line_total_byn]).to eq(197.13)
+    expect(item[:line_total_byn_checkout]).to eq(238.25)
+    expect(pricing[:totals][:subtotal_new_byn]).to eq(197.13)
+    expect(pricing[:totals][:delivery_to_belarus_byn]).to eq(41.12)
+    expect(pricing[:totals][:total_byn]).to eq(238.25)
   end
 end
