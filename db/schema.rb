@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_11_103000) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_11_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -818,6 +818,32 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_11_103000) do
     t.datetime "updated_at", null: false
     t.index ["customer_id"], name: "index_search_query_logs_on_customer_id"
     t.index ["query"], name: "index_search_query_logs_on_query"
+  end
+
+  create_table "seo_catalog_pages", force: :cascade do |t|
+    t.string "slug", null: false
+    t.string "title"
+    t.string "h1"
+    t.string "meta_title"
+    t.string "meta_description"
+    t.text "seo_text"
+    t.string "canonical_path"
+    t.integer "status", default: 0, null: false
+    t.boolean "indexable", default: true, null: false
+    t.integer "position", default: 0, null: false
+    t.jsonb "filter_config", default: {}, null: false
+    t.jsonb "products_snapshot", default: [], null: false
+    t.integer "products_count", default: 0, null: false
+    t.datetime "last_generated_at"
+    t.datetime "last_products_updated_at"
+    t.datetime "published_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["filter_config"], name: "index_seo_catalog_pages_on_filter_config", using: :gin
+    t.index ["position"], name: "index_seo_catalog_pages_on_position"
+    t.index ["slug"], name: "index_seo_catalog_pages_on_slug", unique: true
+    t.index ["status", "indexable", "products_count"], name: "index_seo_catalog_pages_for_sitemap"
+    t.index ["status"], name: "index_seo_catalog_pages_on_status"
   end
 
   create_table "seo_meta", force: :cascade do |t|

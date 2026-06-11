@@ -34,6 +34,9 @@ Rails.application.routes.draw do
   
   namespace :api do
     namespace :v1 do
+      # SEO catalog pages for Next.js SSG / ISR
+      resources :seo_catalog_pages, only: [:index, :show], param: :slug
+
       # Products
       resources :products, only: [:index, :show], param: :sku do
         collection do

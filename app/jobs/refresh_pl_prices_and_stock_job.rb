@@ -109,6 +109,10 @@ class RefreshPlPricesAndStockJob < ApplicationJob
       stats[:errors] = task.error_count
       task.mark_as_completed!(stats)
       notify_completed("pl_prices_stock", stats)
+
+      # После актуализации цен/остатков пересобираем SEO-статические подборки,
+      # чтобы Next.js после revalidation получил свежие цены и наличие.
+      RegenerateSeoCatalogPagesJob.perform_later if defined?(RegenerateSeoCatalogPagesJob)
     rescue StandardError => e
       if e.message == "Task was stopped manually"
         Rails.logger.info "RefreshPlPricesAndStockJob: task #{task.id} stopped manually"

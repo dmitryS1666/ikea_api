@@ -1,0 +1,66 @@
+<% content_for(:title, "Preview SEO-подборки") %>
+
+<div class="main-content-container">
+  <div class="content-header">
+    <h1>Preview SEO-подборки</h1>
+    <p class="text-muted">
+      <%= @seo_catalog_page.title.presence || @seo_catalog_page.slug %>
+      · <%= @seo_catalog_page.path %>
+    </p>
+  </div>
+
+  <div class="mb-3">
+    <%= link_to "← Вернуться к странице", Trestle.lookup(:seo_catalog_pages).path(:edit, id: @seo_catalog_page.id), class: "btn btn-outline-secondary" %>
+    <%= button_to "Сгенерировать snapshot", Trestle.lookup(:seo_catalog_pages).path(:generate_snapshot, id: @seo_catalog_page.id), method: :post, class: "btn btn-primary", form: { style: "display:inline", data: { turbo: false } } %>
+  </div>
+
+  <% if @result.products_count.zero? %>
+    <div class="alert alert-warning">
+      По текущему filter_config товары не найдены. При генерации published-страница будет оставлена, но indexable станет false.
+    </div>
+  <% else %>
+    <div class="alert alert-info">
+      Найдено товаров для snapshot: <strong><%= @result.products_count %></strong>
+    </div>
+  <% end %>
+
+  <div class="card">
+    <div class="card-header">
+      <strong>Товары preview</strong>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-striped table-hover mb-0">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>SKU</th>
+            <th>Название</th>
+            <th>Цена BYN</th>
+            <th>Наличие</th>
+            <th>Slug</th>
+            <th>Картинка</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @result.snapshot.each do |product| %>
+            <tr>
+              <td><%= product["id"] %></td>
+              <td><%= product["sku"] %></td>
+              <td><%= product["name_ru"] %></td>
+              <td><%= product["price_byn"] %></td>
+              <td><%= product["available"] ? "Да" : "Нет" %></td>
+              <td><%= product["slug"] %></td>
+              <td>
+                <% if product["image_url"].present? %>
+                  <%= product["image_url"] %>
+                <% else %>
+                  <span class="text-muted">—</span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
