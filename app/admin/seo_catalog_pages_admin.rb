@@ -6,7 +6,9 @@ Trestle.resource(:seo_catalog_pages, model: SeoCatalogPage) do
   end
 
   routes do
-    get :preview_products, on: :member
+    # В идеале generate_snapshot должен быть POST,
+    # но Trestle/link_to сейчас открывает его как GET.
+    get :generate_snapshot, on: :member
     post :generate_snapshot, on: :member
   end
 
@@ -59,8 +61,6 @@ Trestle.resource(:seo_catalog_pages, model: SeoCatalogPage) do
     end
     column :actions, label: "Действия" do |page|
       safe_join([
-        link_to("Preview", admin.path(:preview_products, id: page.id), class: "btn btn-xs btn-outline-info"),
-        " ",
         link_to(
           "Generate",
           admin.path(:generate_snapshot, id: page.id),
@@ -141,7 +141,7 @@ Trestle.resource(:seo_catalog_pages, model: SeoCatalogPage) do
     sidebar do
       form_group :snapshot, label: "Подборка" do
         static_field :products_count, label: "Товаров"
-        static_field :filters_count, label: "Фильтров" do |page|
+        static_field :filters_count, label: "Фильтров" do
           page.filters_snapshot_for_api.size
         end
         static_field :last_generated_at, label: "Последняя генерация"
@@ -149,13 +149,12 @@ Trestle.resource(:seo_catalog_pages, model: SeoCatalogPage) do
 
         if page.persisted?
           safe_join([
-            link_to("Preview товаров", admin.path(:preview_products, id: page.id), class: "btn btn-outline-info btn-block mb-2"),
-            link_to(
+            button_to(
               "Сгенерировать snapshot товаров и фильтров",
               admin.path(:generate_snapshot, id: page.id),
               method: :post,
               class: "btn btn-primary btn-block mb-2",
-              data: { turbo: false }
+              form: { data: { turbo: false } }
             ),
             link_to("Открыть frontend", page.frontend_url, target: "_blank", rel: "noopener", class: "btn btn-outline-secondary btn-block")
           ])
@@ -173,16 +172,6 @@ Trestle.resource(:seo_catalog_pages, model: SeoCatalogPage) do
   end
 
   controller do
-    def preview_products
-      @seo_catalog_page = admin.find_instance(params)
-      @result = SeoCatalogPages::GenerateSnapshotService.new(@seo_catalog_page, persist: false).preview
-      render "trestle/seo_catalog_pages/preview"
-    rescue StandardError => e
-      Rails.logger.error("SeoCatalogPages preview failed: #{e.class}: #{e.message}\n#{e.backtrace&.first(10)&.join("\n")}")
-      flash[:error] = "Не удалось собрать preview: #{e.message}"
-      redirect_to admin.path(:edit, id: params[:id])
-    end
-
     def generate_snapshot
       page = admin.find_instance(params)
       result = SeoCatalogPages::GenerateSnapshotService.call(page)
