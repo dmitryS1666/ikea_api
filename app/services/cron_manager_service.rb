@@ -84,6 +84,8 @@ class CronManagerService
         FetchCurrencyRatesJob
       when 'pl_prices_stock'
         RefreshPlPricesAndStockJob
+      when 'cancel_expired_unpaid_orders'
+        CancelExpiredUnpaidOrdersJob
       else
         raise ArgumentError, "Unknown task type: #{task_type}"
       end

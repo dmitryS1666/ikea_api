@@ -94,12 +94,22 @@ RSpec.describe 'Order Payment Timer', type: :request do
       expect(included_item.dig('attributes', 'image_url')).to eq('/images/products/order-item.webp')
     end
 
-    it 'marks order as expired when time passes' do
-      order.update!(payment_expires_at: 1.minute.ago)
-      
+    it 'marks processing order as expired when time passes' do
+      order.update!(status: :processing, payment_expires_at: 1.minute.ago)
+
       get "/api/v1/account/orders/#{order.id}", headers: headers
-      
+
       json = JSON.parse(response.body)
+      expect(json['data']['attributes']['payment_expired']).to be true
+    end
+
+    it 'marks paid order payment link as expired without changing the status meaning' do
+      order.update!(status: :paid, payment_expires_at: 1.minute.ago)
+
+      get "/api/v1/account/orders/#{order.id}", headers: headers
+
+      json = JSON.parse(response.body)
+      expect(json['data']['attributes']['status']).to eq('paid')
       expect(json['data']['attributes']['payment_expired']).to be true
     end
   end

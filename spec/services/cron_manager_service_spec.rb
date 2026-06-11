@@ -31,9 +31,24 @@ RSpec.describe CronManagerService do
 
     it 'does not create job if schedule is disabled' do
       disabled_schedule = create(:cron_schedule, enabled: false)
-      
+
       expect(Sidekiq::Cron::Job).not_to receive(:create)
       CronManagerService.setup_cron_schedule(disabled_schedule)
+    end
+
+    it 'creates auto-cancel cron job for expired unpaid orders' do
+      schedule = create(:cron_schedule, task_type: 'cancel_expired_unpaid_orders', schedule: '*/5 * * * *')
+      allow(Sidekiq::Cron::Job).to receive(:find).and_return(nil)
+      allow(Sidekiq::Cron::Job).to receive(:create)
+
+      CronManagerService.setup_cron_schedule(schedule)
+
+      expect(Sidekiq::Cron::Job).to have_received(:create).with(
+        name: 'parser_cancel_expired_unpaid_orders',
+        cron: '*/5 * * * *',
+        class: 'CancelExpiredUnpaidOrdersJob',
+        args: []
+      )
     end
   end
 

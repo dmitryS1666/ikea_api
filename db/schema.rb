@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_10_171000) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_11_103000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -496,6 +496,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_10_171000) do
     t.index ["payment_link_token"], name: "index_orders_on_payment_link_token", unique: true
     t.index ["promo_code_id"], name: "index_orders_on_promo_code_id"
     t.index ["public_uid"], name: "index_orders_on_public_uid", unique: true
+    t.index ["status", "checkout_draft", "payment_expires_at"], name: "index_orders_on_unpaid_payment_expiration", where: "(payment_expires_at IS NOT NULL)"
     t.index ["status"], name: "index_orders_on_status"
     t.index ["user_id", "checkout_draft"], name: "index_orders_on_user_id_where_checkout_draft", where: "(checkout_draft = true)"
     t.index ["user_id"], name: "index_orders_on_user_id"

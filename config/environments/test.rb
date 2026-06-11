@@ -49,6 +49,9 @@ Rails.application.configure do
   # Annotate rendered view with file names.
   # config.action_view.annotate_rendered_view_with_filenames = true
 
+  # ActiveJob: keep background jobs queued in specs instead of running them via async threads.
+  config.active_job.queue_adapter = :test
+
   # ActiveStorage configuration - use test disk service
   config.active_storage.service = :test
 

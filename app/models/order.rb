@@ -37,11 +37,20 @@ class Order < ApplicationRecord
   }
 
   PURCHASED_STATUSES = %w[arrived_pvz handed_to_courier handed_to_courier_ikeya completed].freeze
+  PAYMENT_AUTOCANCEL_STATUSES = %w[created processing].freeze
+  DEFAULT_PAYMENT_AUTOCANCEL_GRACE_PERIOD_MINUTES = 0
+
   FRONTEND_STATUS_ALIASES = {
     "completed" => "received"
   }.freeze
 
   scope :purchased, -> { where(status: PURCHASED_STATUSES) }
+  scope :expired_unpaid_for_autocancel, lambda { |cutoff_time = Time.current|
+    where(status: PAYMENT_AUTOCANCEL_STATUSES, checkout_draft: false)
+      .where.not(payment_expires_at: nil)
+      .where("payment_expires_at < ?", cutoff_time)
+  }
+
 
   PUBLIC_UID_FORMAT = /\A\d{6,8}\z/.freeze
 
@@ -102,10 +111,51 @@ class Order < ApplicationRecord
     rand((10**(n - 1))..((10**n) - 1)).to_s
   end
 
-  def payment_expired?
-    return false if checkout_draft
+  def self.payment_autocancel_grace_period
+    ENV.fetch(
+      "PAYMENT_AUTOCANCEL_GRACE_PERIOD_MINUTES",
+      DEFAULT_PAYMENT_AUTOCANCEL_GRACE_PERIOD_MINUTES
+    ).to_i.minutes
+  end
 
-    created? && payment_expires_at.present? && Time.current > payment_expires_at
+  def self.cancel_expired_unpaid!(now: Time.current, grace_period: payment_autocancel_grace_period)
+    cutoff_time = now - grace_period
+    checked = 0
+    cancelled = 0
+
+    expired_unpaid_for_autocancel(cutoff_time).find_each do |order|
+      checked += 1
+      cancelled += 1 if order.cancel_expired_unpaid!(cutoff_time: cutoff_time)
+    end
+
+    { checked: checked, cancelled: cancelled, cutoff_time: cutoff_time }
+  end
+
+  def payment_expired?
+    payment_expires_at.present? && payment_expires_at < Time.current
+  end
+
+  def cancel_expired_unpaid!(cutoff_time: Time.current)
+    with_lock do
+      reload
+      return false unless expired_unpaid_for_autocancel?(cutoff_time: cutoff_time)
+
+      self.status_changed_at = Time.current
+      self.status_change_source = "payment_timer"
+      update!(
+        status: :cancelled,
+        cancellation_reason: cancellation_reason.presence || "Истек срок оплаты заказа"
+      )
+    end
+
+    true
+  end
+
+  def expired_unpaid_for_autocancel?(cutoff_time: Time.current)
+    !checkout_draft? &&
+      status.in?(PAYMENT_AUTOCANCEL_STATUSES) &&
+      payment_expires_at.present? &&
+      payment_expires_at < cutoff_time
   end
 
   def customer_name
