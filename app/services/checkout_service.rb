@@ -59,12 +59,15 @@ class CheckoutService
         order_date: Date.current,
         with_storage: normalized_delivery_type == DeliveryTypeNormalizer::EUROPOST_PICKUP
       )
-      prices = delivery_prices_for(
-        weight_kg: pricing[:totals][:total_weight_kg],
-        delivery_type: normalized_delivery_type,
-        parcels: delivery_options[:parcels],
-        pickup_point_id: params[:pickup_point_id],
-        address: delivery_context[:address_snapshot]
+      prices = checkout_delivery_prices(
+        pricing: pricing,
+        raw_prices: delivery_prices_for(
+          weight_kg: pricing[:totals][:total_weight_kg],
+          delivery_type: normalized_delivery_type,
+          parcels: delivery_options[:parcels],
+          pickup_point_id: params[:pickup_point_id],
+          address: delivery_context[:address_snapshot]
+        )
       )
       total_amount = checkout_total_amount(pricing: pricing, prices: prices)
 
@@ -174,12 +177,15 @@ class CheckoutService
       order_date: Date.current,
       with_storage: normalized_delivery_type == DeliveryTypeNormalizer::EUROPOST_PICKUP
     )
-    prices = delivery_prices_for(
-      weight_kg: pricing[:totals][:total_weight_kg],
-      delivery_type: normalized_delivery_type,
-      parcels: delivery_options[:parcels],
-      pickup_point_id: merged[:pickup_point_id],
-      address: delivery_context[:address_snapshot]
+    prices = checkout_delivery_prices(
+      pricing: pricing,
+      raw_prices: delivery_prices_for(
+        weight_kg: pricing[:totals][:total_weight_kg],
+        delivery_type: normalized_delivery_type,
+        parcels: delivery_options[:parcels],
+        pickup_point_id: merged[:pickup_point_id],
+        address: delivery_context[:address_snapshot]
+      )
     )
     total_amount = checkout_total_amount(pricing: pricing, prices: prices)
 
@@ -360,12 +366,15 @@ class CheckoutService
       order_date: Date.current,
       with_storage: normalized_delivery_type == DeliveryTypeNormalizer::EUROPOST_PICKUP
     )
-    prices = delivery_prices_for(
-      weight_kg: pricing[:totals][:total_weight_kg],
-      delivery_type: normalized_delivery_type,
-      parcels: delivery_options[:parcels],
-      pickup_point_id: params[:pickup_point_id],
-      address: delivery_context[:address_snapshot]
+    prices = checkout_delivery_prices(
+      pricing: pricing,
+      raw_prices: delivery_prices_for(
+        weight_kg: pricing[:totals][:total_weight_kg],
+        delivery_type: normalized_delivery_type,
+        parcels: delivery_options[:parcels],
+        pickup_point_id: params[:pickup_point_id],
+        address: delivery_context[:address_snapshot]
+      )
     )
     total_amount = checkout_total_amount(pricing: pricing, prices: prices)
 
@@ -641,6 +650,32 @@ class CheckoutService
     }
   end
 
+  def self.checkout_delivery_prices(pricing:, raw_prices:)
+    raw = (raw_prices || {}).with_indifferent_access
+
+    # CartPricingService is the source of truth for the public "delivery to
+    # Belarus" amount shown in cart. Checkout must not replace it with the
+    # value returned by the selected pickup/courier calculation, otherwise the
+    # same order shows different Belarus delivery on cart and checkout screens.
+    #
+    # The selected delivery calculation contributes only the method component
+    # (Europost pickup/courier/IKEYA). The additive checkout contract is:
+    #   delivery_to_belarus_price_byn + delivery_price_byn = total_delivery_price_byn
+    cart_delivery_to_belarus = pricing.dig(:totals, :delivery_to_belarus_byn).to_f.round(2)
+    method_delivery = raw[:delivery_price_byn].to_f.round(2)
+    normalized_total = (cart_delivery_to_belarus + method_delivery).round(2)
+
+    {
+      delivery_price_byn: method_delivery,
+      delivery_to_belarus_price_byn: cart_delivery_to_belarus,
+      total_delivery_price_byn: normalized_total,
+      provider_delivery_price_byn: method_delivery,
+      provider_delivery_to_belarus_price_byn: raw[:delivery_to_belarus_price_byn].to_f.round(2),
+      provider_total_delivery_price_byn: raw[:total_delivery_price_byn].to_f.round(2)
+    }
+  end
+  private_class_method :checkout_delivery_prices
+
   def self.checkout_total_amount(pricing:, prices:)
     cart_total = pricing.dig(:totals, :total_byn).to_f
     cart_delivery_total = pricing.dig(:totals, :delivery_total_byn).to_f
@@ -713,7 +748,10 @@ class CheckoutService
       prices: {
         delivery_price_byn: format_price(prices[:delivery_price_byn]),
         delivery_to_belarus_price_byn: format_price(prices[:delivery_to_belarus_price_byn]),
-        total_delivery_price_byn: format_price(prices[:total_delivery_price_byn])
+        total_delivery_price_byn: format_price(prices[:total_delivery_price_byn]),
+        provider_delivery_price_byn: format_price(prices[:provider_delivery_price_byn]),
+        provider_delivery_to_belarus_price_byn: format_price(prices[:provider_delivery_to_belarus_price_byn]),
+        provider_total_delivery_price_byn: format_price(prices[:provider_total_delivery_price_byn])
       },
       pickup_point: pickup_point_snapshot,
       address: address_snapshot

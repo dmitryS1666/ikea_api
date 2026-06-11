@@ -191,12 +191,60 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(body.dig("pricing", "delivery", "title")).to eq("Курьерская доставка")
 
     totals = body.dig("pricing", "totals")
+    delivery = body.dig("pricing", "delivery")
     delivery_total_byn = totals["delivery_total_byn"]
     expect(delivery_total_byn).to eq(format("%.2f", order.delivery_price))
-    expect(body.dig("pricing", "delivery", "total_delivery_price_byn")).to eq(delivery_total_byn)
+    expect(delivery["total_delivery_price_byn"]).to eq(delivery_total_byn)
+
+    expect(delivery["delivery_price_byn"]).to eq("9.50")
+    expect(delivery["delivery_method_price_byn"]).to eq(delivery["delivery_price_byn"])
+    expect(totals["delivery_method_byn"]).to eq(delivery["delivery_price_byn"])
+    expect(
+      totals["delivery_to_belarus_byn"].to_f + totals["delivery_method_byn"].to_f
+    ).to be_within(0.02).of(delivery_total_byn.to_f)
+
     expect(
       totals["subtotal_new_byn"].to_f - totals["discount_total_byn"].to_f + delivery_total_byn.to_f
     ).to be_within(0.02).of(totals["total_byn"].to_f)
+  end
+
+  it "keeps cart delivery to Belarus stable and adds only method delivery on checkout" do
+    post "/api/v1/checkout", params: { draft: true }, headers: headers
+    expect(response).to have_http_status(:created)
+
+    initial_body = JSON.parse(response.body)
+    order_id = initial_body["order_id"]
+    initial_totals = initial_body.dig("pricing", "totals")
+    cart_delivery_to_belarus = initial_totals["delivery_to_belarus_byn"].to_f
+    cart_total = initial_totals["total_byn"].to_f
+
+    allow(CheckoutService).to receive(:delivery_prices_for).and_return(
+      delivery_price_byn: 10.0,
+      delivery_to_belarus_price_byn: [cart_delivery_to_belarus - 1.0, 0.0].max.round(2),
+      total_delivery_price_byn: 99.0
+    )
+
+    patch "/api/v1/checkout/#{order_id}", params: {
+      delivery_type: "europost_pickup",
+      pickup_point_id: "70130010",
+      payment_method: "card"
+    }, headers: headers
+
+    expect(response).to have_http_status(:ok)
+    body = JSON.parse(response.body)
+    totals = body.dig("pricing", "totals")
+    delivery = body.dig("pricing", "delivery")
+
+    expect(totals["delivery_to_belarus_byn"]).to eq(format("%.2f", cart_delivery_to_belarus))
+    expect(delivery["delivery_to_belarus_price_byn"]).to eq(format("%.2f", cart_delivery_to_belarus))
+
+    expect(totals["delivery_method_byn"]).to eq("10.00")
+    expect(delivery["delivery_price_byn"]).to eq("10.00")
+    expect(delivery["delivery_method_price_byn"]).to eq("10.00")
+
+    expect(totals["delivery_total_byn"]).to eq(format("%.2f", cart_delivery_to_belarus + 10.0))
+    expect(delivery["total_delivery_price_byn"]).to eq(format("%.2f", cart_delivery_to_belarus + 10.0))
+    expect(totals["total_byn"].to_f).to be_within(0.02).of(cart_total + 10.0)
   end
 
   it "loads draft via GET /checkout/:id" do

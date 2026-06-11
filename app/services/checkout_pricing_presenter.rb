@@ -54,24 +54,31 @@ class CheckoutPricingPresenter
       snapshot_prices = delivery_prices_from_order(order)
       total_delivery = order.delivery_price.to_f
       total_delivery_byn = format_byn(total_delivery)
+      cart_delivery_to_belarus_byn = summary[:totals][:delivery_to_belarus_byn]
 
-      # On checkout the selected pickup/courier/IKEYA delivery replaces the
-      # cart delivery estimate. Frontend must use delivery_total_byn for the
-      # visible delivery row so it matches total_byn/final_total_byn.
+      # The cart pricing is the source of truth for the public "delivery to
+      # Belarus" row. Checkout adds the selected method component on top of it:
+      #   delivery_to_belarus_byn + delivery_method_byn = delivery_total_byn
+      # Frontend may show the first two rows separately, but must use total_byn
+      # as the payable order total.
       summary[:totals][:delivery_total_byn] = total_delivery_byn
       summary[:totals][:total_byn] = format_byn(order.total_amount)
       summary[:totals][:final_total_byn] = format_byn(order.total_amount)
 
       if snapshot_prices
         summary[:totals][:delivery_poland_byn] = snapshot_prices[:delivery_price_byn]
-        summary[:totals][:delivery_to_belarus_byn] = snapshot_prices[:delivery_to_belarus_price_byn]
+        summary[:totals][:delivery_method_byn] = snapshot_prices[:delivery_price_byn]
+        summary[:totals][:delivery_to_belarus_byn] = cart_delivery_to_belarus_byn
       end
+
+      delivery_method_byn = snapshot_prices&.dig(:delivery_price_byn) || total_delivery_byn
 
       summary[:delivery] = {
         type: order.delivery_type,
         title: DELIVERY_TITLES[order.delivery_type] || order.delivery_type,
-        delivery_price_byn: snapshot_prices&.dig(:delivery_price_byn) || total_delivery_byn,
-        delivery_to_belarus_price_byn: snapshot_prices&.dig(:delivery_to_belarus_price_byn),
+        delivery_price_byn: delivery_method_byn,
+        delivery_method_price_byn: delivery_method_byn,
+        delivery_to_belarus_price_byn: cart_delivery_to_belarus_byn,
         total_delivery_price_byn: total_delivery_byn
       }.compact
     end
@@ -84,7 +91,10 @@ class CheckoutPricingPresenter
       {
         delivery_price_byn: prices["delivery_price_byn"] || prices[:delivery_price_byn],
         delivery_to_belarus_price_byn: prices["delivery_to_belarus_price_byn"] || prices[:delivery_to_belarus_price_byn],
-        total_delivery_price_byn: prices["total_delivery_price_byn"] || prices[:total_delivery_price_byn]
+        total_delivery_price_byn: prices["total_delivery_price_byn"] || prices[:total_delivery_price_byn],
+        provider_delivery_price_byn: prices["provider_delivery_price_byn"] || prices[:provider_delivery_price_byn],
+        provider_delivery_to_belarus_price_byn: prices["provider_delivery_to_belarus_price_byn"] || prices[:provider_delivery_to_belarus_price_byn],
+        provider_total_delivery_price_byn: prices["provider_total_delivery_price_byn"] || prices[:provider_total_delivery_price_byn]
       }.compact
     end
 
