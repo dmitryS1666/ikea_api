@@ -16,7 +16,9 @@ module SeoCatalogPages
     Result = Struct.new(
       :page,
       :products,
+      :products_data,
       :snapshot,
+      :filters_snapshot,
       :products_count,
       :changed,
       keyword_init: true
@@ -34,32 +36,27 @@ module SeoCatalogPages
 
     def call
       products = matching_products.to_a
-      snapshot = storage_snapshot(build_snapshot(products))
-      changed = snapshot != Array.wrap(page.products_snapshot)
+      snapshot = storage_snapshot(build_products_snapshot(products))
+      filters = storage_snapshot(build_filters_snapshot(products))
+      changed = snapshot != page.products_snapshot || filters != Array.wrap(page.filters_snapshot)
 
       if persist
-        page.update!(snapshot_attributes(snapshot, changed: changed))
+        page.update!(snapshot_attributes(snapshot, filters, changed: changed))
       end
 
-      Result.new(
-        page: page,
-        products: products,
-        snapshot: snapshot,
-        products_count: snapshot.size,
-        changed: changed
-      )
+      result(products, snapshot, filters, changed)
     end
 
     def preview
       products = matching_products.to_a
-      snapshot = storage_snapshot(build_snapshot(products))
+      snapshot = storage_snapshot(build_products_snapshot(products))
+      filters = storage_snapshot(build_filters_snapshot(products))
 
-      Result.new(
-        page: page,
-        products: products,
-        snapshot: snapshot,
-        products_count: snapshot.size,
-        changed: snapshot != Array.wrap(page.products_snapshot)
+      result(
+        products,
+        snapshot,
+        filters,
+        snapshot != page.products_snapshot || filters != Array.wrap(page.filters_snapshot)
       )
     end
 
@@ -79,14 +76,19 @@ module SeoCatalogPages
       scope = Product.active
       scope = scope.in_categories_ikea_ids(category_ikea_ids) if category_ikea_ids.any?
       scope = only_available? ? scope.available_for_listing : scope.with_listing_price
-      scope.includes(:category, :category_products)
+      scope.includes(:category, :categories, :category_products, :seo_meta)
+    end
+
+    def direct_category_ikea_ids
+      @direct_category_ikea_ids ||= Array(config["category_ids"] || config[:category_ids])
+                                  .map(&:to_s)
+                                  .map(&:strip)
+                                  .reject(&:blank?)
+                                  .uniq
     end
 
     def category_ikea_ids
-      @category_ikea_ids ||= begin
-        ids = Array(config["category_ids"] || config[:category_ids]).map(&:to_s).map(&:strip).reject(&:blank?).uniq
-        ids.flat_map { |id| Category.self_and_descendant_ikea_ids_for(id) }.uniq
-      end
+      @category_ikea_ids ||= direct_category_ikea_ids.flat_map { |id| Category.self_and_descendant_ikea_ids_for(id) }.uniq
     end
 
     def search_params
@@ -127,69 +129,162 @@ module SeoCatalogPages
       @config ||= (page.filter_config.presence || {}).deep_stringify_keys
     end
 
-    def snapshot_attributes(snapshot, changed:)
+    def snapshot_attributes(snapshot, filters, changed:)
       attrs = {
         products_snapshot: snapshot,
-        products_count: snapshot.size,
+        filters_snapshot: filters,
+        products_count: products_count_from_snapshot(snapshot),
         last_generated_at: Time.current,
         last_products_updated_at: Product.maximum(:updated_at)
       }
 
       # SEO-safe правило: не удаляем страницу и не снимаем published, но закрываем от индексации,
       # если опубликованная подборка стала пустой.
-      attrs[:indexable] = false if snapshot.empty? && page.published?
+      attrs[:indexable] = false if attrs[:products_count].zero? && page.published?
 
       attrs
     end
 
-    def build_snapshot(products)
-      products.map { |product| product_payload(product) }
+    def build_products_snapshot(products)
+      ProductTeaserSerializer.new(products, {
+        params: serializer_params(products),
+        meta: serializer_meta(products)
+      }).serializable_hash
     end
 
-    def product_payload(product)
+    def serializer_params(products)
+      promos = active_promos
+
       {
-        id: product.id,
-        sku: Product.public_sku(product.sku),
-        slug: product.slug,
-        name_ru: product.name_ru.to_s.presence || product.name.to_s,
-        price_byn: storefront_price_byn(product),
-        available: product.available_in_stock?,
-        image_url: ProductLocalImages.expand_paths(product.local_images).first,
-        badges: product_badges(product)
+        favorite_skus: [],
+        active_promos: promos,
+        promo_applicability: promo_applicability(products, promos),
+        rates: exchange_rates,
+        calculator_settings: calculator_settings
       }
+    end
+
+    def serializer_meta(products)
+      {
+        total: products.size,
+        page: 1,
+        per_page: limit,
+        total_pages: products.empty? ? 0 : 1,
+        default_sort: sort_option
+      }
+    end
+
+    def products_count_from_snapshot(snapshot)
+      Array.wrap(snapshot["data"] || snapshot[:data]).size
+    end
+
+    def products_data_from_snapshot(snapshot)
+      Array.wrap(snapshot["data"] || snapshot[:data])
+    end
+
+    def active_promos
+      @active_promos ||= PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
+    end
+
+    def promo_applicability(products, promos)
+      Array(products).each_with_object({}) do |product, memo|
+        cat_ids = ([product.category_id] + product.category_products.map(&:category_id)).compact.uniq
+        memo[product.sku] = promos.select { |promo| promo.applies_to_sku?(product.sku, cat_ids) }
+      end
+    end
+
+    def exchange_rates
+      @exchange_rates ||= {
+        eur: ExchangeRate.fetch_or_create("EUR")&.rate_per_unit,
+        pln: ExchangeRate.fetch_or_create("PLN")&.rate_per_unit
+      }
+    end
+
+    def calculator_settings
+      @calculator_settings ||= {
+        "show_delivery_block_global" => CalculatorSetting.get("show_delivery_block_global"),
+        "show_reviews_block_global" => CalculatorSetting.get("show_reviews_block_global"),
+        "show_tips_block_global" => CalculatorSetting.get("show_tips_block_global"),
+        "default_delivery_days" => CalculatorSetting.get("default_delivery_days"),
+        "exchange_rate_buffer" => CalculatorSetting.get("exchange_rate_buffer")
+      }
+    end
+
+    def build_filters_snapshot(products)
+      filters = filter_categories(products).flat_map(&:display_filters_for_api)
+      merge_filters(filters)
+    end
+
+    def filter_categories(products)
+      categories = Category.where(ikea_id: direct_category_ikea_ids).to_a if direct_category_ikea_ids.any?
+      categories = Array(categories).compact
+      return categories if categories.any?
+
+      category_ids = Array(products).flat_map do |product|
+        [product.category_id, *product.category_products.map(&:category_id)]
+      end.compact.map(&:to_s).reject(&:blank?).uniq
+
+      Category.where(ikea_id: category_ids).to_a
+    end
+
+    def merge_filters(filters)
+      by_parameter = {}
+
+      Array(filters).each do |filter|
+        next unless filter.is_a?(Hash)
+
+        normalized_filter = filter.deep_stringify_keys
+        parameter = normalized_filter["parameter"].to_s
+        next if parameter.blank?
+
+        target = by_parameter[parameter] ||= normalized_filter.merge("values" => [])
+        target["name"] = normalized_filter["name"] if target["name"].blank? && normalized_filter["name"].present?
+        target["values"] = merge_filter_values(target["values"], normalized_filter["values"])
+      end
+
+      by_parameter.values.reject { |filter| Array(filter["values"]).empty? }
+    end
+
+    def merge_filter_values(existing_values, incoming_values)
+      values_by_id = Array(existing_values).index_by { |value| value["id"].to_s }
+
+      Array(incoming_values).each do |value|
+        next unless value.is_a?(Hash)
+
+        row = value.deep_stringify_keys
+        value_id = row["id"].to_s
+        next if value_id.blank?
+
+        if values_by_id.key?(value_id)
+          values_by_id[value_id] = merge_filter_value_rows(values_by_id[value_id], row)
+        else
+          values_by_id[value_id] = row
+        end
+      end
+
+      values_by_id.values.sort_by { |value| (value["name"].presence || value["id"]).to_s.mb_chars.downcase.to_s }
+    end
+
+    def merge_filter_value_rows(left, right)
+      left.merge(right) do |key, old_value, new_value|
+        key == "count" ? [old_value.to_i, new_value.to_i].max : old_value.presence || new_value
+      end
     end
 
     def storage_snapshot(snapshot)
       JSON.parse(snapshot.to_json)
     end
 
-    def storefront_price_byn(product)
-      price = PriceCalculationService.product_storefront_price_byn(
-        product.price.to_f,
-        weight_kg: product.packaging_weight_kg.to_f,
-        delivery_pln: product.delivery_cost.to_f,
-        pln_rate: pln_rate,
-        buffer: exchange_rate_buffer
+    def result(products, snapshot, filters, changed)
+      Result.new(
+        page: page,
+        products: products,
+        products_data: products_data_from_snapshot(snapshot),
+        snapshot: snapshot,
+        filters_snapshot: filters,
+        products_count: products_count_from_snapshot(snapshot),
+        changed: changed
       )
-
-      format("%.2f", price)
-    end
-
-    def pln_rate
-      @pln_rate ||= ExchangeRate.fetch_or_create("PLN")&.rate_per_unit || 0
-    end
-
-    def exchange_rate_buffer
-      @exchange_rate_buffer ||= CalculatorSetting.get("exchange_rate_buffer") || PriceCalculationService.exchange_rate_buffer
-    end
-
-    def product_badges(product)
-      badges = []
-      badges << "bestseller" if product.is_bestseller?
-      badges << "new" if product.is_new?
-      badges << "popular" if product.is_popular?
-      badges << "recommended" if product.is_recommended?
-      badges
     end
   end
 end

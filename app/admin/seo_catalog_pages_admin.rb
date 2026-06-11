@@ -141,6 +141,9 @@ Trestle.resource(:seo_catalog_pages, model: SeoCatalogPage) do
     sidebar do
       form_group :snapshot, label: "Подборка" do
         static_field :products_count, label: "Товаров"
+        static_field :filters_count, label: "Фильтров" do |page|
+          page.filters_snapshot_for_api.size
+        end
         static_field :last_generated_at, label: "Последняя генерация"
         static_field :last_products_updated_at, label: "Последнее обновление товаров"
 
@@ -148,7 +151,7 @@ Trestle.resource(:seo_catalog_pages, model: SeoCatalogPage) do
           safe_join([
             link_to("Preview товаров", admin.path(:preview_products, id: page.id), class: "btn btn-outline-info btn-block mb-2"),
             link_to(
-              "Сгенерировать snapshot",
+              "Сгенерировать snapshot товаров и фильтров",
               admin.path(:generate_snapshot, id: page.id),
               method: :post,
               class: "btn btn-primary btn-block mb-2",
@@ -185,9 +188,9 @@ Trestle.resource(:seo_catalog_pages, model: SeoCatalogPage) do
       result = SeoCatalogPages::GenerateSnapshotService.call(page)
 
       if result.products_count.zero?
-        flash[:warning] = "Snapshot сгенерирован, но товаров нет. Страница оставлена, indexable установлен в false."
+        flash[:warning] = "Snapshot товаров и фильтров сгенерирован, но товаров нет. Страница оставлена, indexable установлен в false."
       else
-        flash[:message] = "Snapshot сгенерирован: #{result.products_count} товаров."
+        flash[:message] = "Snapshot сгенерирован: #{result.products_count} товаров, #{result.filters_snapshot.size} фильтров."
       end
 
       redirect_to admin.path(:edit, id: page.id)

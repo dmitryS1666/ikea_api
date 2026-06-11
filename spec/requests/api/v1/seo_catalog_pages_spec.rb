@@ -11,7 +11,23 @@ RSpec.describe 'SeoCatalogPages API', type: :request do
       meta_title: 'Диваны до 1000 BYN — купить с доставкой',
       meta_description: 'Подборка диванов до 1000 BYN с доставкой в Беларусь.',
       filter_config: { 'max_price' => 1000, 'only_available' => true },
-      products_snapshot: [{ id: 1, sku: '12345678' }],
+      filters_snapshot: [
+        {
+          'name' => 'Цвет',
+          'parameter' => 'f-colors',
+          'values' => [{ 'id' => 'white', 'name' => 'Белый', 'count' => 1 }]
+        }
+      ],
+      products_snapshot: {
+        'data' => [
+          {
+            'id' => '1',
+            'type' => 'product_teaser',
+            'attributes' => { 'sku' => '12345678', 'slug' => 'billy' }
+          }
+        ],
+        'meta' => { 'total' => 1, 'page' => 1, 'per_page' => 60, 'total_pages' => 1 }
+      },
       products_count: 1,
       last_generated_at: Time.zone.parse('2026-06-11 10:00:00')
     )
@@ -42,7 +58,7 @@ RSpec.describe 'SeoCatalogPages API', type: :request do
   end
 
   describe 'GET /api/v1/seo_catalog_pages/:slug' do
-    it 'returns full published page payload' do
+    it 'returns full published page payload with serializer-compatible products and available filters' do
       get '/api/v1/seo_catalog_pages/divany-do-1000-byn'
 
       expect(response).to have_http_status(:ok)
@@ -54,8 +70,12 @@ RSpec.describe 'SeoCatalogPages API', type: :request do
         'canonical_path' => '/catalog/seo/divany-do-1000-byn',
         'products_count' => 1
       )
-      expect(data['filters']).to eq('max_price' => 1000, 'only_available' => true)
-      expect(data['products']).to eq([{ 'id' => 1, 'sku' => '12345678' }])
+      expect(data['filter_config']).to eq('max_price' => 1000, 'only_available' => true)
+      expect(data['filters']).to eq(data['available_filters'])
+      expect(data['filters'].first).to include('parameter' => 'f-colors')
+      expect(data['products']).to include('data', 'meta')
+      expect(data['products']['data'].first).to include('id' => '1', 'type' => 'product_teaser')
+      expect(data['products']['data'].first['attributes']).to include('sku' => '12345678', 'slug' => 'billy')
     end
 
     it 'does not expose drafts' do

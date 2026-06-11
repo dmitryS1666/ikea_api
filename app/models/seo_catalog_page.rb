@@ -29,7 +29,7 @@ class SeoCatalogPage < ApplicationRecord
 
   before_validation :normalize_slug
   before_validation :apply_filter_config_json_input
-  before_validation :normalize_filter_config
+  before_validation :normalize_snapshots
   before_validation :fill_canonical_path
   before_save :set_published_at
 
@@ -66,8 +66,26 @@ class SeoCatalogPage < ApplicationRecord
     filter_config.to_s
   end
 
+  # Храним snapshot товаров в том же формате, который отдает ProductTeaserSerializer:
+  # { "data" => [...], "meta" => {...} }.
+  # Для старых snapshot, созданных до этой доработки, сохраняем обратную совместимость.
   def products_snapshot_for_api
-    Array.wrap(products_snapshot)
+    case products_snapshot
+    when Hash
+      products_snapshot
+    when Array
+      { "data" => products_snapshot, "meta" => { "total" => products_snapshot.size } }
+    else
+      { "data" => [], "meta" => { "total" => 0 } }
+    end
+  end
+
+  def products_data_for_api
+    Array.wrap(products_snapshot_for_api["data"] || products_snapshot_for_api[:data])
+  end
+
+  def filters_snapshot_for_api
+    Array.wrap(filters_snapshot)
   end
 
   def frontend_list_payload
@@ -82,6 +100,8 @@ class SeoCatalogPage < ApplicationRecord
   end
 
   def frontend_detail_payload
+    available_filters = filters_snapshot_for_api
+
     {
       slug: slug,
       path: path,
@@ -91,7 +111,9 @@ class SeoCatalogPage < ApplicationRecord
       seo_text: seo_text,
       canonical_path: canonical_path.presence || path,
       indexable: indexable,
-      filters: filter_config.presence || {},
+      filter_config: filter_config.presence || {},
+      filters: available_filters,
+      available_filters: available_filters,
       products: products_snapshot_for_api,
       products_count: products_count,
       last_generated_at: last_generated_at&.iso8601
@@ -113,9 +135,10 @@ class SeoCatalogPage < ApplicationRecord
     errors.add(:filter_config, "содержит невалидный JSON: #{e.message}")
   end
 
-  def normalize_filter_config
+  def normalize_snapshots
     self.filter_config = {} if filter_config.nil?
     self.products_snapshot = [] if products_snapshot.nil?
+    self.filters_snapshot = [] if has_attribute?(:filters_snapshot) && filters_snapshot.nil?
   end
 
   def fill_canonical_path
@@ -159,6 +182,7 @@ class SeoCatalogPage < ApplicationRecord
       "indexable",
       "status",
       "products_snapshot",
+      "filters_snapshot",
       "products_count",
       "last_generated_at"
     ).present?

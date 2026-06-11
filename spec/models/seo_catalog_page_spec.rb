@@ -34,6 +34,29 @@ RSpec.describe SeoCatalogPage, type: :model do
     expect(page.errors[:filter_config]).to be_present
   end
 
+
+  it 'normalizes legacy products array snapshot for API' do
+    page = build(:seo_catalog_page, products_snapshot: [{ 'sku' => '12345678' }])
+
+    expect(page.products_snapshot_for_api).to eq(
+      'data' => [{ 'sku' => '12345678' }],
+      'meta' => { 'total' => 1 }
+    )
+  end
+
+  it 'exposes filter_config separately from available filters' do
+    page = build(
+      :seo_catalog_page,
+      filter_config: { 'max_price' => 1000 },
+      filters_snapshot: [{ 'parameter' => 'f-colors', 'values' => [] }]
+    )
+
+    payload = page.frontend_detail_payload
+    expect(payload[:filter_config]).to eq('max_price' => 1000)
+    expect(payload[:filters]).to eq([{ 'parameter' => 'f-colors', 'values' => [] }])
+    expect(payload[:available_filters]).to eq(payload[:filters])
+  end
+
   it 'builds frontend payload paths' do
     page = build(:seo_catalog_page, slug: 'divany-do-1000-byn')
 

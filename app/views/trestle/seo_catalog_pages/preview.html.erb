@@ -11,7 +11,7 @@
 
   <div class="mb-3">
     <%= link_to "← Вернуться к странице", Trestle.lookup(:seo_catalog_pages).path(:edit, id: @seo_catalog_page.id), class: "btn btn-outline-secondary" %>
-    <%= button_to "Сгенерировать snapshot", Trestle.lookup(:seo_catalog_pages).path(:generate_snapshot, id: @seo_catalog_page.id), method: :post, class: "btn btn-primary", form: { style: "display:inline", data: { turbo: false } } %>
+    <%= button_to "Сгенерировать snapshot товаров и фильтров", Trestle.lookup(:seo_catalog_pages).path(:generate_snapshot, id: @seo_catalog_page.id), method: :post, class: "btn btn-primary", form: { style: "display:inline", data: { turbo: false } } %>
   </div>
 
   <% if @result.products_count.zero? %>
@@ -20,13 +20,56 @@
     </div>
   <% else %>
     <div class="alert alert-info">
-      Найдено товаров для snapshot: <strong><%= @result.products_count %></strong>
+      Найдено товаров для snapshot: <strong><%= @result.products_count %></strong>.
+      Доступных фильтров для статики: <strong><%= @result.filters_snapshot.size %></strong>.
+    </div>
+  <% end %>
+
+  <% if @result.filters_snapshot.blank? %>
+    <div class="alert alert-warning">
+      Доступные фильтры не найдены. Проверьте category_ids в filter_config и заполнение available_filters у категории.
+    </div>
+  <% else %>
+    <div class="card mb-4">
+      <div class="card-header">
+        <strong>Фильтры preview</strong>
+        <span class="text-muted">— будут отданы frontend как filters / available_filters</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-striped table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Parameter</th>
+              <th>Название</th>
+              <th>Значений</th>
+              <th>Первые значения</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @result.filters_snapshot.each do |filter| %>
+              <% values = Array(filter["values"]) %>
+              <tr>
+                <td><code><%= filter["parameter"] %></code></td>
+                <td><%= filter["name"] %></td>
+                <td><%= values.size %></td>
+                <td>
+                  <%= values.first(8).map { |value| "#{value['name'] || value['id']} (#{value['count']})" }.join(", ") %>
+                  <% if values.size > 8 %>
+                    <span class="text-muted">…</span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
     </div>
   <% end %>
 
   <div class="card">
     <div class="card-header">
       <strong>Товары preview</strong>
+      <span class="text-muted">— формат ProductTeaserSerializer</span>
     </div>
     <div class="table-responsive">
       <table class="table table-striped table-hover mb-0">
@@ -42,17 +85,19 @@
           </tr>
         </thead>
         <tbody>
-          <% @result.snapshot.each do |product| %>
+          <% @result.products_data.each do |resource| %>
+            <% attributes = resource["attributes"] || {} %>
+            <% images = Array(attributes["local_images"]) %>
             <tr>
-              <td><%= product["id"] %></td>
-              <td><%= product["sku"] %></td>
-              <td><%= product["name_ru"] %></td>
-              <td><%= product["price_byn"] %></td>
-              <td><%= product["available"] ? "Да" : "Нет" %></td>
-              <td><%= product["slug"] %></td>
+              <td><%= resource["id"] %></td>
+              <td><%= attributes["sku"] %></td>
+              <td><%= attributes["name_ru"] || attributes["name"] %></td>
+              <td><%= attributes["price_byn"] %></td>
+              <td><%= attributes["quantity"].to_i.positive? ? "Да" : "Нет" %></td>
+              <td><%= attributes["slug"] %></td>
               <td>
-                <% if product["image_url"].present? %>
-                  <%= product["image_url"] %>
+                <% if images.first.present? %>
+                  <%= images.first %>
                 <% else %>
                   <span class="text-muted">—</span>
                 <% end %>

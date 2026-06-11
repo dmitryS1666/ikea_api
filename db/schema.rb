@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_11_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_11_123000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -839,7 +839,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_11_120000) do
     t.datetime "published_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "filters_snapshot", default: [], null: false
     t.index ["filter_config"], name: "index_seo_catalog_pages_on_filter_config", using: :gin
+    t.index ["filters_snapshot"], name: "index_seo_catalog_pages_on_filters_snapshot", using: :gin
     t.index ["position"], name: "index_seo_catalog_pages_on_position"
     t.index ["slug"], name: "index_seo_catalog_pages_on_slug", unique: true
     t.index ["status", "indexable", "products_count"], name: "index_seo_catalog_pages_for_sitemap"
