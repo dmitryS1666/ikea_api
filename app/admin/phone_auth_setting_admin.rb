@@ -33,7 +33,7 @@ Trestle.resource :phone_auth_setting, model: PhoneAuthSetting, singleton: true d
     row do
       col(sm: 12) do
         content_tag :p do
-          "Если опция выключена, звонок в ASTERISK не выполняется, а код подтверждения всегда статичный: #{PhoneAuthSetting::STATIC_TEST_CODE}."
+          "Если опция выключена, звонок в ASTERISK не выполняется, а код подтверждения всегда статичный: #{PhoneAuthSetting::STATIC_TEST_CODE}. Для боевого режима должны быть заданы ENV ASTERISK_CALL_AUTH_TOKEN и, при необходимости, ASTERISK_CALL_AUTH_URL / ASTERISK_CALL_AUTH_FROM_NUMBERS."
         end
       end
     end
