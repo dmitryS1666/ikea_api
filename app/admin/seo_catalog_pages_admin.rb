@@ -6,8 +6,8 @@ Trestle.resource(:seo_catalog_pages, model: SeoCatalogPage) do
   end
 
   routes do
-    # В идеале generate_snapshot должен быть POST,
-    # но Trestle/link_to сейчас открывает его как GET.
+    # GET оставляем временно, потому что текущая кнопка/ссылка в Trestle уходит как GET.
+    # POST — правильный метод для действия, которое меняет данные.
     get :generate_snapshot, on: :member
     post :generate_snapshot, on: :member
   end
@@ -173,20 +173,12 @@ Trestle.resource(:seo_catalog_pages, model: SeoCatalogPage) do
 
   controller do
     def generate_snapshot
-      page = admin.find_instance(params)
-      result = SeoCatalogPages::GenerateSnapshotService.call(page)
+      page = SeoCatalogPage.find(params[:id])
 
-      if result.products_count.zero?
-        flash[:warning] = "Snapshot товаров и фильтров сгенерирован, но товаров нет. Страница оставлена, indexable установлен в false."
-      else
-        flash[:message] = "Snapshot сгенерирован: #{result.products_count} товаров, #{result.filters_snapshot.size} фильтров."
-      end
+      GenerateSeoCatalogPageSnapshotJob.perform_later(page.id)
 
+      flash[:message] = "Генерация snapshot поставлена в очередь. Обновите страницу через несколько секунд."
       redirect_to admin.path(:edit, id: page.id)
-    rescue StandardError => e
-      Rails.logger.error("SeoCatalogPages generate failed: #{e.class}: #{e.message}\n#{e.backtrace&.first(10)&.join("\n")}")
-      flash[:error] = "Не удалось сгенерировать snapshot: #{e.message}"
-      redirect_to admin.path(:edit, id: params[:id])
     end
   end
 
