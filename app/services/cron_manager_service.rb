@@ -84,6 +84,8 @@ class CronManagerService
         FetchCurrencyRatesJob
       when 'pl_prices_stock'
         RefreshPlPricesAndStockJob
+      when 'seo_catalog_pages'
+        RegenerateSeoCatalogPagesJob
       when 'cancel_expired_unpaid_orders'
         CancelExpiredUnpaidOrdersJob
       else

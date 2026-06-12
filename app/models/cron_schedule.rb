@@ -1,5 +1,5 @@
 class CronSchedule < ApplicationRecord
-  TASK_TYPES = %w[categories products bestsellers popular_categories category_images product_images extended_attributes currency_rates pl_prices_stock cancel_expired_unpaid_orders].freeze
+  TASK_TYPES = %w[categories products bestsellers popular_categories category_images product_images extended_attributes currency_rates pl_prices_stock seo_catalog_pages cancel_expired_unpaid_orders].freeze
 
   validates :task_type, presence: true, uniqueness: true, inclusion: { in: TASK_TYPES }
   validates :schedule, presence: true

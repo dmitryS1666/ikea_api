@@ -30,6 +30,12 @@ RSpec.describe CronSchedule, type: :model do
     end
   end
 
+  it 'allows SEO catalog pages regeneration task type' do
+    schedule = build(:cron_schedule, task_type: 'seo_catalog_pages')
+
+    expect(schedule).to be_valid
+  end
+
   describe 'scopes' do
     let!(:enabled_schedule) { create(:cron_schedule, task_type: 'categories', enabled: true) }
     let!(:disabled_schedule) { create(:cron_schedule, task_type: 'products', enabled: false) }

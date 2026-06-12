@@ -36,6 +36,21 @@ RSpec.describe CronManagerService do
       CronManagerService.setup_cron_schedule(disabled_schedule)
     end
 
+    it 'creates SEO catalog pages regeneration cron job' do
+      schedule = create(:cron_schedule, task_type: 'seo_catalog_pages', schedule: '0 8 * * *')
+      allow(Sidekiq::Cron::Job).to receive(:find).and_return(nil)
+      allow(Sidekiq::Cron::Job).to receive(:create)
+
+      CronManagerService.setup_cron_schedule(schedule)
+
+      expect(Sidekiq::Cron::Job).to have_received(:create).with(
+        name: 'parser_seo_catalog_pages',
+        cron: '0 8 * * *',
+        class: 'RegenerateSeoCatalogPagesJob',
+        args: []
+      )
+    end
+
     it 'creates auto-cancel cron job for expired unpaid orders' do
       schedule = create(:cron_schedule, task_type: 'cancel_expired_unpaid_orders', schedule: '*/5 * * * *')
       allow(Sidekiq::Cron::Job).to receive(:find).and_return(nil)
