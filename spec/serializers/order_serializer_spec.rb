@@ -39,6 +39,33 @@ RSpec.describe OrderSerializer do
       expect(processing_row[:is_completed]).to be(false)
     end
 
+
+    it "returns in_transit_pvz for shipped Europost pickup orders" do
+      order = create(
+        :order,
+        status: "shipped",
+        delivery_type: DeliveryTypeNormalizer::EUROPOST_PICKUP
+      )
+
+      attrs = described_class.new(order).serializable_hash[:data][:attributes]
+      timeline = attrs[:status_timeline]
+      in_transit_row = timeline.find { |row| row[:code] == "in_transit_pvz" }
+
+      expect(attrs[:status]).to eq("in_transit_pvz")
+      expect(attrs[:status_description]).to eq(I18n.t("activerecord.attributes.order.frontend_statuses.in_transit_pvz"))
+      expect(in_transit_row[:title]).to eq(I18n.t("activerecord.attributes.order.frontend_statuses.in_transit_pvz"))
+      expect(in_transit_row[:is_current]).to be(true)
+    end
+
+    it "keeps shipped status for non-PVZ delivery orders" do
+      order = create(:order, status: "shipped", delivery_type: DeliveryTypeNormalizer::COURIER)
+
+      attrs = described_class.new(order).serializable_hash[:data][:attributes]
+
+      expect(attrs[:status]).to eq("shipped")
+      expect(attrs[:status_description]).to eq(I18n.t("activerecord.attributes.order.statuses.shipped"))
+    end
+
     it "returns final completed status as received for frontend" do
       order = create(:order, status: "completed")
 
@@ -54,17 +81,67 @@ RSpec.describe OrderSerializer do
     end
   end
   describe "tracking fields" do
-    it "returns track number and tracking info" do
+    let(:tracking_info) { { "europost_create" => { "status" => "created" } } }
+
+    it "returns track number and tracking info from Belarus customs for Europost pickup orders" do
       order = create(
         :order,
+        status: "customs_belarus",
+        delivery_type: DeliveryTypeNormalizer::EUROPOST_PICKUP,
         track_number: "BY080027046773",
-        tracking_info: { "europost_create" => { "status" => "created" } }
+        tracking_info: tracking_info
       )
 
       attrs = described_class.new(order).serializable_hash[:data][:attributes]
 
       expect(attrs[:track_number]).to eq("BY080027046773")
-      expect(attrs[:tracking_info]).to eq("europost_create" => { "status" => "created" })
+      expect(attrs[:tracking_info]).to eq(tracking_info)
+    end
+
+    it "keeps track number visible for later Europost pickup statuses" do
+      order = create(
+        :order,
+        status: "shipped",
+        delivery_type: DeliveryTypeNormalizer::EUROPOST_PICKUP,
+        track_number: "BY080027046773",
+        tracking_info: tracking_info
+      )
+
+      attrs = described_class.new(order).serializable_hash[:data][:attributes]
+
+      expect(attrs[:status]).to eq("in_transit_pvz")
+      expect(attrs[:track_number]).to eq("BY080027046773")
+      expect(attrs[:tracking_info]).to eq(tracking_info)
+    end
+
+    it "hides track number and tracking info before Belarus customs" do
+      order = create(
+        :order,
+        status: "on_border",
+        delivery_type: DeliveryTypeNormalizer::EUROPOST_PICKUP,
+        track_number: "BY080027046773",
+        tracking_info: tracking_info
+      )
+
+      attrs = described_class.new(order).serializable_hash[:data][:attributes]
+
+      expect(attrs[:track_number]).to be_nil
+      expect(attrs[:tracking_info]).to be_nil
+    end
+
+    it "hides track number and tracking info for non-PVZ delivery orders" do
+      order = create(
+        :order,
+        status: "customs_belarus",
+        delivery_type: DeliveryTypeNormalizer::COURIER,
+        track_number: "BY080027046773",
+        tracking_info: tracking_info
+      )
+
+      attrs = described_class.new(order).serializable_hash[:data][:attributes]
+
+      expect(attrs[:track_number]).to be_nil
+      expect(attrs[:tracking_info]).to be_nil
     end
   end
 

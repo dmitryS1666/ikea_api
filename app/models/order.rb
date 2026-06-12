@@ -43,6 +43,13 @@ class Order < ApplicationRecord
   FRONTEND_STATUS_ALIASES = {
     "completed" => "received"
   }.freeze
+  PVZ_DELIVERY_TYPES = %w[europost_pickup pickup].freeze
+  CUSTOMER_TRACKING_VISIBLE_STATUSES = %w[
+    customs_belarus
+    shipped
+    arrived_pvz
+    completed
+  ].freeze
 
   scope :purchased, -> { where(status: PURCHASED_STATUSES) }
   scope :expired_unpaid_for_autocancel, lambda { |cutoff_time = Time.current|
@@ -72,19 +79,28 @@ class Order < ApplicationRecord
   end
 
   def frontend_status
-    frontend_status_for(status)
+    frontend_status_for(status, delivery_type: delivery_type)
   end
 
   def frontend_status_title(status_code = status)
-    frontend_code = frontend_status_for(status_code)
-
-    I18n.t(
-      "activerecord.attributes.order.frontend_statuses.#{frontend_code}",
-      default: I18n.t(
-        "activerecord.attributes.order.statuses.#{status_code}",
-        default: frontend_code.to_s.humanize
-      )
+    frontend_code = frontend_status_for(
+      status_code,
+      delivery_type: status_code.to_s == status.to_s ? delivery_type : nil
     )
+
+    frontend_status_title_for(status_code, frontend_code)
+  end
+
+  def customer_track_number
+    return nil unless customer_tracking_visible?
+
+    track_number
+  end
+
+  def customer_tracking_info
+    return nil unless customer_tracking_visible?
+
+    tracking_info
   end
 
   # ЛК: в URL можно передавать public_uid (6–8 цифр) или числовой id (как раньше).
@@ -190,9 +206,10 @@ class Order < ApplicationRecord
 
     sequence.map do |code|
       at = event_times[code]
+      frontend_code = frontend_status_for(code, delivery_type: delivery_type)
       {
-        code: frontend_status_for(code),
-        title: frontend_status_title(code),
+        code: frontend_code,
+        title: frontend_status_title_for(code, frontend_code),
         at: at&.iso8601,
         is_current: status.to_s == code,
         is_completed: at.present?
@@ -202,8 +219,30 @@ class Order < ApplicationRecord
 
   private
 
-  def frontend_status_for(status_code)
+  def frontend_status_for(status_code, delivery_type: nil)
+    return "in_transit_pvz" if status_code.to_s == "shipped" && pvz_delivery_type?(delivery_type)
+
     FRONTEND_STATUS_ALIASES.fetch(status_code.to_s, status_code.to_s)
+  end
+
+  def frontend_status_title_for(status_code, frontend_code)
+    I18n.t(
+      "activerecord.attributes.order.frontend_statuses.#{frontend_code}",
+      default: I18n.t(
+        "activerecord.attributes.order.statuses.#{status_code}",
+        default: frontend_code.to_s.humanize
+      )
+    )
+  end
+
+  def pvz_delivery_type?(value)
+    PVZ_DELIVERY_TYPES.include?(value.to_s)
+  end
+
+  def customer_tracking_visible?
+    track_number.present? &&
+      pvz_delivery_type?(delivery_type) &&
+      status.to_s.in?(CUSTOMER_TRACKING_VISIBLE_STATUSES)
   end
 
   def ensure_public_uid

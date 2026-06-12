@@ -380,6 +380,7 @@ ru:
           completed: "Доставлено"
           cancelled: "Отменен"
         frontend_statuses:
+          in_transit_pvz: "В доставке ПВЗ"
           received: "Получен"
         total_amount: "Сумма"
         created_at: "Дата создания"
