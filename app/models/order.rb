@@ -41,7 +41,8 @@ class Order < ApplicationRecord
   DEFAULT_PAYMENT_AUTOCANCEL_GRACE_PERIOD_MINUTES = 0
 
   FRONTEND_STATUS_ALIASES = {
-    "completed" => "received"
+    "completed" => "delivered",
+    "cancelled" => "canceled"
   }.freeze
   PVZ_DELIVERY_TYPES = %w[europost_pickup pickup].freeze
   CUSTOMER_TRACKING_VISIBLE_STATUSES = %w[

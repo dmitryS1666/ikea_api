@@ -66,18 +66,33 @@ RSpec.describe OrderSerializer do
       expect(attrs[:status_description]).to eq(I18n.t("activerecord.attributes.order.statuses.shipped"))
     end
 
-    it "returns final completed status as received for frontend" do
+    it "returns final completed status as delivered for frontend" do
       order = create(:order, status: "completed")
 
       attrs = described_class.new(order).serializable_hash[:data][:attributes]
       timeline = attrs[:status_timeline]
-      received_row = timeline.find { |row| row[:code] == "received" }
+      delivered_row = timeline.find { |row| row[:code] == "delivered" }
 
-      expect(attrs[:status]).to eq("received")
-      expect(attrs[:status_description]).to eq(I18n.t("activerecord.attributes.order.frontend_statuses.received"))
-      expect(received_row[:title]).to eq(I18n.t("activerecord.attributes.order.frontend_statuses.received"))
-      expect(received_row[:is_current]).to be(true)
+      expect(attrs[:status]).to eq("delivered")
+      expect(attrs[:status_description]).to eq(I18n.t("activerecord.attributes.order.frontend_statuses.delivered"))
+      expect(delivered_row[:title]).to eq(I18n.t("activerecord.attributes.order.frontend_statuses.delivered"))
+      expect(delivered_row[:is_current]).to be(true)
       expect(timeline.none? { |row| row[:code] == "completed" }).to be(true)
+      expect(timeline.none? { |row| row[:code] == "received" }).to be(true)
+    end
+
+    it "returns cancelled status as canceled for frontend" do
+      order = create(:order, status: "cancelled")
+
+      attrs = described_class.new(order).serializable_hash[:data][:attributes]
+      timeline = attrs[:status_timeline]
+      canceled_row = timeline.find { |row| row[:code] == "canceled" }
+
+      expect(attrs[:status]).to eq("canceled")
+      expect(attrs[:status_description]).to eq(I18n.t("activerecord.attributes.order.frontend_statuses.canceled"))
+      expect(canceled_row[:title]).to eq(I18n.t("activerecord.attributes.order.frontend_statuses.canceled"))
+      expect(canceled_row[:is_current]).to be(true)
+      expect(timeline.none? { |row| row[:code] == "cancelled" }).to be(true)
     end
   end
   describe "tracking fields" do

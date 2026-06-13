@@ -382,6 +382,8 @@ ru:
         frontend_statuses:
           in_transit_pvz: "В доставке ПВЗ"
           received: "Получен"
+          delivered: "Доставлено"
+          canceled: "Отменен"
         total_amount: "Сумма"
         created_at: "Дата создания"
         updated_at: "Дата изменения"

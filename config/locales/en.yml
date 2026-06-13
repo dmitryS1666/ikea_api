@@ -247,3 +247,5 @@ en:
         frontend_statuses:
           in_transit_pvz: "In transit to pickup point"
           received: "Received"
+          delivered: "Delivered"
+          canceled: "Canceled"
