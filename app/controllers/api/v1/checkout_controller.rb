@@ -94,6 +94,8 @@ module Api
           payload[:pricing] = result[:pricing] || CheckoutPricingPresenter.for_order(order)
         end
 
+        payload[:reused] = true if result[:reused]
+
         payload
       end
 

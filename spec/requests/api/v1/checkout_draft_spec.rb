@@ -132,7 +132,7 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(json["code"]).to eq("checkout_draft_exists")
   end
 
-  it "replaces draft when posting draft with different selection while draft exists" do
+  it "reuses draft when posting draft with different selection while draft exists" do
     post "/api/v1/checkout", params: { draft: true }, headers: headers
     expect(response).to have_http_status(:created)
     first_id = Order.last.id
@@ -142,15 +142,26 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
                              dimensions: "20 x 30 x 40 cm", full_attributes: {})
     create(:cart_item, cart: cart, product_sku: other.sku, quantity: 1)
     post "/api/v1/checkout", params: { draft: true, items: [{ sku: other.sku, quantity: 1 }] }, headers: headers
-    expect(response).to have_http_status(:created)
+    expect(response).to have_http_status(:ok)
     json = JSON.parse(response.body)
     second_id = json["order_id"]
-    expect(second_id).not_to eq(first_id)
+    expect(second_id).to eq(first_id)
+    expect(json["reused"]).to eq(true)
 
-    expect(Order.find(first_id).checkout_draft).to be false
-    expect(Order.find(first_id).status).to eq("cancelled")
-    expect(Order.find(second_id).checkout_draft).to be true
-    expect(Order.find(second_id).order_items.pluck(:product_sku, :quantity)).to eq([[other.sku, 1]])
+    expect(Order.exists?(first_id)).to be true
+    expect(Order.find(first_id).checkout_draft).to be true
+    expect(Order.find(first_id).status).to eq("created")
+    expect(Order.find(first_id).order_items.pluck(:product_sku, :quantity)).to eq([[other.sku, 1]])
+  end
+
+  it "destroys draft on DELETE without marking it cancelled" do
+    post "/api/v1/checkout", params: { draft: true }, headers: headers
+    order_id = JSON.parse(response.body)["order_id"]
+
+    delete "/api/v1/checkout/#{order_id}", headers: headers
+
+    expect(response).to have_http_status(:no_content)
+    expect(Order.exists?(order_id)).to be false
   end
 
   it "returns 200 with same order when posting draft twice with same selection" do

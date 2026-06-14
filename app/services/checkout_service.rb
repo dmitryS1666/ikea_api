@@ -261,11 +261,7 @@ class CheckoutService
     order = user.orders.find_by(id: order_id, checkout_draft: true)
     return { error: 'Черновик заказа не найден', code: 'draft_not_found' } unless order
 
-    Order.transaction do
-      order.order_items.destroy_all
-      order.update!(status: :cancelled, checkout_draft: false)
-    end
-
+    order.destroy!
     { success: true }
   end
 
@@ -464,27 +460,14 @@ class CheckoutService
 
     existing = user.orders.find_by(checkout_draft: true)
     if existing
-      if CartSelectionService.selections_equal?(
-        requested_selections,
-        CartSelectionService.selections_from_order(existing)
+      return refresh_or_reuse_draft(
+        user: user,
+        order: existing,
+        cart: cart,
+        checkout_cart: checkout_cart,
+        requested_selections: requested_selections,
+        params: params
       )
-        order = existing
-        if order.delivery_type.present? && params[:delivery_type].present?
-          update_result = update_draft(user: user, order_id: order.id, params: params)
-          return update_result unless update_result[:success]
-          order = update_result[:order]
-        end
-        return {
-          success: true,
-          order: order,
-          delivery_options: draft_delivery_options_for(order),
-          pricing: CheckoutPricingPresenter.for_order(order),
-          reused: true
-        }
-      end
-
-      cancel_result = cancel_draft(user: user, order_id: existing.id)
-      return cancel_result unless cancel_result[:success]
     end
 
     stock_check = validate_stock_for_pricing_items(checkout_cart, params)
@@ -897,6 +880,106 @@ class CheckoutService
     { ok: true }
   end
 
+  def self.refresh_or_reuse_draft(user:, order:, cart:, checkout_cart:, requested_selections:, params:)
+    selections_changed = !CartSelectionService.selections_equal?(
+      requested_selections,
+      CartSelectionService.selections_from_order(order)
+    )
+    pricing_for_response = nil
+
+    if selections_changed
+      stock_check = validate_stock_for_pricing_items(checkout_cart, params)
+      return stock_check if stock_check[:error]
+
+      pricing = CartPricingService.call(cart: checkout_cart)
+      unless pricing[:meta][:can_checkout]
+        return { error: pricing[:meta][:min_order_error] }
+      end
+
+      refresh_result = refresh_draft_order!(
+        order: order,
+        cart: cart,
+        checkout_cart: checkout_cart,
+        pricing: pricing,
+        params: params
+      )
+      return refresh_result unless refresh_result[:success]
+
+      order = refresh_result[:order]
+      pricing_for_response = pricing
+    end
+
+    if params[:delivery_type].present?
+      update_result = update_draft(user: user, order_id: order.id, params: params)
+      return update_result unless update_result[:success]
+
+      order = update_result[:order]
+      pricing_for_response = update_result[:pricing]
+    end
+
+    {
+      success: true,
+      order: order,
+      delivery_options: draft_delivery_options_for(order),
+      pricing: pricing_for_response || CheckoutPricingPresenter.for_order(order),
+      reused: true
+    }
+  end
+
+  def self.refresh_draft_order!(order:, cart:, checkout_cart:, pricing:, params:)
+    display_totals = CartDisplayTotalsService.for_summary(pricing[:totals])
+    total_amount = display_totals[:total_byn].to_f
+    delivery_price = display_totals[:delivery_to_belarus_byn].to_f
+
+    Order.transaction do
+      sync_draft_order_items!(order: order, checkout_cart: checkout_cart, pricing: pricing)
+
+      order.assign_attributes(
+        total_amount: total_amount.round(2),
+        delivery_price: delivery_price.round(2),
+        discount_amount: pricing[:totals][:discount_total_byn],
+        promo_code: cart.promo_code,
+        weight: pricing[:totals][:total_weight_kg],
+        full_name: params[:full_name].presence || order.full_name,
+        phone: params[:phone].presence || order.phone,
+        payment_method: params[:payment_method].presence || order.payment_method
+      )
+
+      unless params[:delivery_type].present?
+        order.delivery_type = nil
+        reset_draft_delivery_snapshot!(order)
+      end
+
+      raise ActiveRecord::Rollback unless order.save
+    end
+
+    if order.reload.persisted?
+      { success: true, order: order }
+    else
+      { error: order.errors.full_messages.join(', ') }
+    end
+  end
+
+  def self.sync_draft_order_items!(order:, checkout_cart:, pricing:)
+    order.order_items.destroy_all
+
+    checkout_cart.cart_items.each do |cart_item|
+      price_snapshot = pricing[:items].find { |i| i[:sku] == cart_item.product_sku }
+
+      OrderItem.create!(
+        order: order,
+        product_sku: cart_item.product_sku,
+        quantity: cart_item.quantity,
+        price: price_snapshot[:unit_price_byn_checkout]
+      )
+    end
+  end
+
+  def self.reset_draft_delivery_snapshot!(order)
+    base = order.address_json.is_a?(Hash) ? order.address_json.stringify_keys : {}
+    order.address_json = base.except("delivery", "pickup_point_id", "delivery_eta").merge("checkout_draft" => true)
+  end
+
   def self.build_draft_order(user:, cart:, checkout_cart:, pricing:, params:)
     display_totals = CartDisplayTotalsService.for_summary(pricing[:totals])
     total_amount = display_totals[:total_byn].to_f
@@ -931,16 +1014,7 @@ class CheckoutService
       )
 
       if order.save
-        checkout_cart.cart_items.each do |cart_item|
-          price_snapshot = pricing[:items].find { |i| i[:sku] == cart_item.product_sku }
-
-          OrderItem.create!(
-            order: order,
-            product_sku: cart_item.product_sku,
-            quantity: cart_item.quantity,
-            price: price_snapshot[:unit_price_byn_checkout]
-          )
-        end
+        sync_draft_order_items!(order: order, checkout_cart: checkout_cart, pricing: pricing)
       else
         raise ActiveRecord::Rollback
       end

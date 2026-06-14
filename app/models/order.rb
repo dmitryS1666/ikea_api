@@ -58,6 +58,24 @@ class Order < ApplicationRecord
       .where.not(payment_expires_at: nil)
       .where("payment_expires_at < ?", cutoff_time)
   }
+  scope :visible_in_account_list, lambda {
+    cutoff = checkout_draft_stale_cutoff
+    where(<<~SQL.squish, statuses[:cancelled], statuses[:created], cutoff)
+      NOT (
+        (checkout_draft = TRUE AND status = ?)
+        OR
+        (checkout_draft = TRUE AND status = ? AND created_at < ?)
+      )
+    SQL
+  }
+
+  def self.checkout_draft_stale_hours
+    ENV.fetch("CHECKOUT_DRAFT_STALE_HOURS", "24").to_i
+  end
+
+  def self.checkout_draft_stale_cutoff
+    checkout_draft_stale_hours.hours.ago
+  end
 
 
   PUBLIC_UID_FORMAT = /\A\d{6,8}\z/.freeze
