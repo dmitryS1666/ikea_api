@@ -127,6 +127,18 @@ Trestle.resource(:orders) do
         end
       end
 
+      if (elevator_label = OrderAddressFormatter.elevator_type_label(order)).present?
+        static_field :elevator_type, label: "Лифт" do
+          elevator_label
+        end
+      end
+
+      if (intercom = OrderAddressFormatter.intercom(order)).present?
+        static_field :intercom, label: "Домофон" do
+          intercom
+        end
+      end
+
       if (service_labels = OrderServicesFormatter.labels(order.address_json&.dig("services"))).present?
         static_field :checkout_services, label: "Доп. услуги" do
           safe_join(service_labels.map { |label| status_tag(label, :info) }, tag.br)

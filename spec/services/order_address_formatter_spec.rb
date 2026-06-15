@@ -2,6 +2,28 @@ require "rails_helper"
 
 RSpec.describe OrderAddressFormatter do
   describe ".display" do
+    it "includes elevator type and intercom in courier address" do
+      order = build(
+        :order,
+        address_json: {
+          "delivery" => {
+            "type" => "courier",
+            "address" => {
+              "city" => "Минск",
+              "street" => "Независимости",
+              "house" => "10",
+              "elevator_type" => "cargo",
+              "intercom" => "125B"
+            }
+          }
+        }
+      )
+
+      expect(described_class.display(order)).to eq("Минск, Независимости, д. 10, Грузовой, домофон 125B")
+      expect(described_class.elevator_type_label(order)).to eq("Грузовой")
+      expect(described_class.intercom(order)).to eq("125B")
+    end
+
     it "formats courier address from delivery snapshot" do
       order = build(
         :order,

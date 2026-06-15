@@ -574,7 +574,7 @@ class CheckoutService
           apartment: delivery_address.apartment,
           entrance: delivery_address.entrance,
           floor: delivery_address.floor,
-          has_elevator: delivery_address.has_elevator,
+          elevator_type: delivery_address.elevator_type,
           intercom: delivery_address.intercom,
           is_private_house: delivery_address.is_private_house,
           lat: delivery_address.lat,

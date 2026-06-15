@@ -325,7 +325,7 @@ ru:
         apartment: "Квартира"
         entrance: "Подъезд"
         floor: "Этаж"
-        has_elevator: "Лифт"
+        elevator_type: "Лифт"
         intercom: "Домофон"
         is_private_house: "Частный дом"
         lat: "Широта"

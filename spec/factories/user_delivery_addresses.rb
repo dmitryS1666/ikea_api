@@ -8,7 +8,7 @@ FactoryBot.define do
     apartment { "25" }
     entrance { "2" }
     floor { "5" }
-    has_elevator { true }
+    elevator_type { "passenger" }
     intercom { "125B" }
     is_private_house { false }
     lat { 53.9045 }

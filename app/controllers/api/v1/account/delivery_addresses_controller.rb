@@ -47,7 +47,7 @@ module Api
         def delivery_address_params
           params.permit(
             :city, :street, :house, :building, :apartment, :entrance, :floor,
-            :has_elevator, :intercom, :is_private_house, :lat, :lng, :comment
+            :elevator_type, :intercom, :is_private_house, :lat, :lng, :comment
           )
         end
       end

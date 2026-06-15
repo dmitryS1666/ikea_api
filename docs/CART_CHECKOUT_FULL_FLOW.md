@@ -481,7 +481,7 @@ POST /api/v1/delivery/calculate
     "apartment": "12",
     "entrance": "1",
     "floor": "3",
-    "has_elevator": true,
+    "elevator_type": "passenger",
     "lat": 53.9,
     "lng": 27.56,
     "full_address": "Минск, Ленина 10"

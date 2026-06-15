@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_12_110000) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_15_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -883,7 +883,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_12_110000) do
     t.string "apartment"
     t.string "entrance"
     t.string "floor"
-    t.boolean "has_elevator"
+    t.string "elevator_type"
     t.string "intercom"
     t.boolean "is_private_house", default: false, null: false
     t.decimal "lat", precision: 10, scale: 6

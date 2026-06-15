@@ -29,7 +29,7 @@ RSpec.describe "Account Delivery Addresses API", type: :request do
           apartment: { type: :string, nullable: true, example: nil },
           entrance: { type: :string, nullable: true, example: nil },
           floor: { type: :string, nullable: true, example: nil },
-          has_elevator: { type: :boolean, nullable: true, example: nil },
+          elevator_type: { type: :string, nullable: true, enum: %w[passenger cargo], example: "passenger" },
           intercom: { type: :string, nullable: true, example: nil },
           lat: { type: :number, example: 53.9 },
           lng: { type: :number, example: 27.56 },

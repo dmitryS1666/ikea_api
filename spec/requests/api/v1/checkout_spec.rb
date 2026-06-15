@@ -40,7 +40,7 @@ RSpec.describe 'api/v1/checkout', type: :request do
               apartment: { type: :string, nullable: true, example: nil },
               entrance: { type: :string, nullable: true, example: nil },
               floor: { type: :string, nullable: true, example: nil },
-              has_elevator: { type: :boolean, nullable: true, example: nil },
+              elevator_type: { type: :string, nullable: true, enum: %w[passenger cargo], example: "passenger" },
               intercom: { type: :string, nullable: true, example: nil }
             }
           },

@@ -3181,7 +3181,7 @@ components:
             apartment: { type: string, nullable: true }
             entrance: { type: string, nullable: true }
             floor: { type: string, nullable: true }
-            has_elevator: { type: boolean, nullable: true }
+            elevator_type: { type: string, nullable: true, enum: [passenger, cargo] }
             intercom: { type: string, nullable: true }
             is_private_house: { type: boolean }
             lat: { type: number, nullable: true }
@@ -3202,7 +3202,7 @@ components:
         apartment: { type: string }
         entrance: { type: string }
         floor: { type: string }
-        has_elevator: { type: boolean }
+        elevator_type: { type: string, enum: [passenger, cargo] }
         intercom: { type: string }
         is_private_house: { type: boolean }
         lat: { type: number }

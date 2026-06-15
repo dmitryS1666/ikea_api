@@ -224,7 +224,7 @@
 - пользователь видит/меняет только свои записи;
 - удаление soft (`deleted_at`);
 - есть `formatted_address` в serializer;
-- правило private house применяется на backend (очистка `apartment/entrance/floor/has_elevator/intercom`).
+- правило private house применяется на backend (очистка `apartment/entrance/floor/elevator_type/intercom`).
 
 ## 9. Account API: сохраненные ПВЗ пользователя
 

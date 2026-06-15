@@ -64,7 +64,7 @@ RSpec.describe "Account Delivery Addresses API", type: :request do
         apartment: "10",
         entrance: "2",
         floor: "5",
-        has_elevator: true,
+        elevator_type: "passenger",
         intercom: "123",
         is_private_house: true
       }, headers: headers
@@ -74,7 +74,7 @@ RSpec.describe "Account Delivery Addresses API", type: :request do
       expect(address.apartment).to be_nil
       expect(address.entrance).to be_nil
       expect(address.floor).to be_nil
-      expect(address.has_elevator).to be_nil
+      expect(address.elevator_type).to be_nil
       expect(address.intercom).to be_nil
     end
   end
