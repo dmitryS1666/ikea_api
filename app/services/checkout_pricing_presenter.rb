@@ -35,6 +35,7 @@ class CheckoutPricingPresenter
           discount_total_byn: format_byn(totals[:discount_total_byn]),
           delivery_poland_byn: format_byn(totals[:delivery_poland_byn]),
           delivery_to_belarus_byn: format_byn(totals[:delivery_to_belarus_byn]),
+          delivery_method_byn: format_byn(0),
           delivery_total_byn: format_byn(totals[:delivery_total_byn]),
           total_byn: format_byn(totals[:total_byn]),
           final_total_byn: format_byn(totals[:final_total_byn] || totals[:total_byn]),
@@ -101,10 +102,21 @@ class CheckoutPricingPresenter
       method = snapshot_prices&.dig(:delivery_price_byn).to_f.round(2)
 
       if snapshot_prices && method.positive?
-        (belarus + method).round(2)
-      else
-        order_delivery_price.to_f.round(2)
+        return (belarus + method).round(2)
       end
+
+      snap_total = snapshot_prices&.dig(:total_delivery_price_byn).to_f.round(2)
+      if snap_total.positive?
+        # Legacy drafts stored method-only price in total_delivery_price_byn.
+        return (belarus + method).round(2) if method.positive? && (snap_total - method).abs < 0.02
+
+        return snap_total
+      end
+
+      stored = order_delivery_price.to_f.round(2)
+      return 0.0 if stored <= 0.0
+
+      stored
     end
 
     def delivery_prices_from_order(order)

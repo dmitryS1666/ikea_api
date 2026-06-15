@@ -35,5 +35,16 @@ RSpec.describe CartDisplayTotalsService do
 
       expect(totals[:subtotal_new_byn] + totals[:delivery_total_byn] - totals[:discount_total_byn]).to eq(totals[:total_byn])
     end
+
+    it "prefers the sum of visible line totals for subtotal_new_byn" do
+      totals = described_class.for_summary(
+        storefront_subtotal_byn: 2620.50,
+        delivery_to_belarus_byn: 212.12,
+        discount_total_byn: 0.0,
+        total_byn: 2832.62
+      )
+
+      expect(totals[:subtotal_new_byn]).to eq(2620.50)
+    end
   end
 end

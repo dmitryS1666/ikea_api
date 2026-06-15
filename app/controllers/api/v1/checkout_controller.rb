@@ -91,7 +91,10 @@ module Api
         end
 
         if order.checkout_draft
-          payload[:pricing] = result[:pricing] || CheckoutPricingPresenter.for_order(order)
+          pricing = result[:pricing] || CheckoutService.draft_pricing_response(order)
+          order.reload
+          payload[:pricing] = pricing
+          payload[:order] = OrderSerializer.new(order).serializable_hash[:data][:attributes]
         end
 
         payload[:reused] = true if result[:reused]
@@ -100,11 +103,13 @@ module Api
       end
 
       def checkout_order_payload(order, pricing: nil)
-        payload = OrderSerializer.new(order, include: [:order_items]).serializable_hash
-
         if order.checkout_draft?
-          payload[:pricing] = pricing || CheckoutPricingPresenter.for_order(order)
+          pricing = pricing || CheckoutService.draft_pricing_response(order)
+          order.reload
         end
+
+        payload = OrderSerializer.new(order, include: [:order_items]).serializable_hash
+        payload[:pricing] = pricing if order.checkout_draft?
 
         payload
       end

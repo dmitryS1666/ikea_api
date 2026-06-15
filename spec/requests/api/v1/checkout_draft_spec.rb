@@ -317,4 +317,31 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(json["sku"]).to eq("MISSING")
   end
 
+  it "keeps order.total_amount aligned with pricing totals on draft responses" do
+    post "/api/v1/checkout", params: { draft: true }, headers: headers
+    expect(response).to have_http_status(:created)
+
+    body = JSON.parse(response.body)
+    order = Order.find(body["order_id"])
+    totals = body.dig("pricing", "totals")
+
+    expect(body.dig("order", "total_amount").to_f).to be_within(0.02).of(totals["total_byn"].to_f)
+    expect(order.total_amount.to_f).to be_within(0.02).of(totals["total_byn"].to_f)
+    expect(
+      totals["subtotal_new_byn"].to_f - totals["discount_total_byn"].to_f + totals["delivery_to_belarus_byn"].to_f
+    ).to be_within(0.02).of(totals["total_byn"].to_f)
+
+    order.update_columns(total_amount: totals["subtotal_new_byn"].to_f + 99.0)
+
+    get "/api/v1/checkout/#{order.id}", headers: headers
+    expect(response).to have_http_status(:ok)
+
+    refreshed = JSON.parse(response.body)
+    refreshed_totals = refreshed.dig("pricing", "totals")
+    expect(refreshed.dig("data", "attributes", "total_amount").to_f).to be_within(0.02).of(
+      refreshed_totals["total_byn"].to_f
+    )
+    expect(order.reload.total_amount.to_f).to be_within(0.02).of(refreshed_totals["total_byn"].to_f)
+  end
+
 end

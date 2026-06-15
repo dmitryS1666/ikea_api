@@ -171,4 +171,35 @@ RSpec.describe CartPricingService do
     expect(pricing[:totals][:delivery_to_belarus_byn]).to eq(41.12)
     expect(pricing[:totals][:total_byn]).to eq(238.25)
   end
+
+  it "uses parcel packing weight for totals and matches delivery options VGH" do
+    user = create(:user)
+    product = create(
+      :product,
+      sku: "SKU-WEIGHT-10X",
+      price: 100.0,
+      weight: 1.0,
+      delivery_cost: 5.0,
+      quantity: 10,
+      full_attributes: {
+        "dimensions_map" => {
+          "packaging" => {
+            "details" => [
+              { "weight" => "13.36 кг", "count" => 1, "width" => "80 см", "height" => "40 см", "length" => "150 см" },
+              { "weight" => "13.36 кг", "count" => 1, "width" => "60 см", "height" => "30 см", "length" => "120 см" }
+            ]
+          }
+        }
+      }
+    )
+    cart = create(:cart, user: user)
+    create(:cart_item, cart: cart, product_sku: product.sku, quantity: 10)
+
+    pricing = described_class.call(cart: cart)
+    delivery_options = DeliveryOptionsService.call(cart)
+
+    expect(pricing[:totals][:total_weight_kg]).to eq(delivery_options.dig(:cart_vgh, :weight_kg))
+    expect(pricing[:totals][:total_weight_kg]).to be_within(0.1).of(267.2)
+    expect(pricing[:totals][:subtotal_new_byn]).to eq(pricing[:items].sum { |item| item[:line_total_byn].to_f })
+  end
 end

@@ -111,7 +111,9 @@ class CheckoutService
     end
 
     if order.save
-      { success: true, order: order.reload, pricing: CheckoutPricingPresenter.for_order(order.reload, pricing: pricing) }
+      order.reload
+      pricing_response = draft_pricing_response(order, pricing: pricing)
+      { success: true, order: order, pricing: pricing_response }
     else
       { error: order.errors.full_messages.join(', ') }
     end
@@ -498,11 +500,29 @@ class CheckoutService
         success: true,
         order: order,
         delivery_options: draft_delivery_options_for(order),
-        pricing: pricing_for_response || CheckoutPricingPresenter.for_order(order, pricing: pricing)
+        pricing: pricing_for_response || draft_pricing_response(order, pricing: pricing)
       }
     else
       { error: order&.errors&.full_messages&.join(', ') || 'Ошибка создания черновика заказа' }
     end
+  end
+
+  def self.draft_pricing_response(order, pricing: nil)
+    pricing_payload = pricing || CartPricingService.call_from_order(order: order)
+    summary = CheckoutPricingPresenter.for_order(order, pricing: pricing_payload)
+    sync_draft_order_totals!(order, summary)
+    summary
+  end
+
+  def self.sync_draft_order_totals!(order, summary)
+    return unless order.checkout_draft? && order.persisted? && summary.is_a?(Hash)
+
+    totals = summary[:totals] || {}
+    total_amount = totals[:total_byn].to_f.round(2)
+    delivery_price = totals[:delivery_total_byn].to_f.round(2)
+    return if order.total_amount.to_f == total_amount && order.delivery_price.to_f == delivery_price
+
+    order.update_columns(total_amount: total_amount, delivery_price: delivery_price)
   end
 
   def self.resolve_delivery_context(user:, params:, delivery_type:, delivery_options: nil, require_address: true)
@@ -703,6 +723,7 @@ class CheckoutService
     aj = order.address_json.is_a?(Hash) ? order.address_json.stringify_keys : {}
     pickup_point_id = aj["pickup_point_id"]
     saved_address = order.address_json.dig("delivery", "address")
+    cart_pricing = CartPricingService.call_from_order(order: order)
 
     methods = Array(options[:methods]).map do |method|
       next method unless method[:available]
@@ -712,16 +733,20 @@ class CheckoutService
           saved_address
         end
 
-      prices = delivery_prices_for(
-        weight_kg: weight_kg,
-        delivery_type: method[:code],
-        parcels: parcels,
-        pickup_point_id: method[:code] == DeliveryTypeNormalizer::EUROPOST_PICKUP ? pickup_point_id : nil,
-        address: address
+      prices = checkout_delivery_prices(
+        pricing: cart_pricing,
+        raw_prices: delivery_prices_for(
+          weight_kg: weight_kg,
+          delivery_type: method[:code],
+          parcels: parcels,
+          pickup_point_id: method[:code] == DeliveryTypeNormalizer::EUROPOST_PICKUP ? pickup_point_id : nil,
+          address: address
+        )
       )
 
       method.merge(
         delivery_price_byn: prices[:delivery_price_byn],
+        delivery_method_price_byn: prices[:delivery_price_byn],
         delivery_to_belarus_price_byn: prices[:delivery_to_belarus_price_byn],
         total_delivery_price_byn: prices[:total_delivery_price_byn]
       )
@@ -915,7 +940,7 @@ class CheckoutService
       return refresh_result unless refresh_result[:success]
 
       order = refresh_result[:order]
-      pricing_for_response = pricing
+      pricing_for_response = draft_pricing_response(order, pricing: pricing)
     end
 
     if params[:delivery_type].present?
@@ -930,7 +955,7 @@ class CheckoutService
       success: true,
       order: order,
       delivery_options: draft_delivery_options_for(order),
-      pricing: pricing_for_response || CheckoutPricingPresenter.for_order(order),
+      pricing: pricing_for_response || draft_pricing_response(order),
       reused: true
     }
   end
@@ -939,18 +964,6 @@ class CheckoutService
     display_totals = CartDisplayTotalsService.for_summary(pricing[:totals])
     total_amount = display_totals[:total_byn].to_f
     delivery_price = display_totals[:delivery_to_belarus_byn].to_f
-
-    if order.delivery_type.present? && params[:delivery_type].blank?
-      snapshot_prices = delivery_snapshot_prices(order)
-      method_delivery = snapshot_prices&.dig(:delivery_price_byn).to_f
-      if method_delivery.positive?
-        delivery_price = (display_totals[:delivery_to_belarus_byn].to_f + method_delivery).round(2)
-        total_amount = checkout_total_amount(
-          pricing: pricing,
-          prices: { total_delivery_price_byn: delivery_price }
-        )
-      end
-    end
 
     Order.transaction do
       sync_draft_order_items!(order: order, checkout_cart: checkout_cart, pricing: pricing)

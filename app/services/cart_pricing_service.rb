@@ -25,7 +25,6 @@ class CartPricingService
 
     discount_total_pln = 0.0
     discount_total_byn = 0.0
-    total_weight = 0.0
     total_items_cost_eur = 0.0
     delivery_poland_byn = 0.0
     delivery_to_belarus_byn = 0.0
@@ -46,13 +45,21 @@ class CartPricingService
         cart.cart_items
       end
 
+    parcel_result = Delivery::ParcelPackingService.call(cart)
+    line_weight_by_sku = parcel_line_weights(parcel_result[:parcels])
+    total_weight = parcel_result[:total_weight_kg].to_f
+
     items = items_relation.map do |item|
       product_pln = item.product&.price.to_f || 0
       weight = item.product&.packaging_weight_kg.to_f
       quantity = item.quantity
       delivery_unit_pln = item.product&.delivery_cost.to_f
-      line_weight = weight * quantity
-      total_weight += line_weight
+      line_weight = line_weight_for_item(
+        sku: item.product_sku,
+        quantity: quantity,
+        packaging_weight_kg: weight,
+        line_weight_by_sku: line_weight_by_sku
+      )
 
       line_breakdown = PriceCalculationService.line_breakdown_pln(
         unit_price_zl: product_pln,
@@ -143,11 +150,13 @@ class CartPricingService
     # Итого в PLN и BYN: полная сумма строк (с доставкой в РБ) для checkout.
     total_pln = items.sum { |i| i[:line_total_pln].to_f }
     total_byn = items.sum { |i| i[:line_total_byn_checkout].to_f }.round(2)
+    storefront_subtotal_byn = items.sum { |i| i[:line_total_byn].to_f }.round(2)
 
     delivery_total_byn = (delivery_poland_byn + delivery_to_belarus_byn).round(2)
 
     totals = CartDisplayTotalsService.for_summary(
       total_byn: total_byn,
+      storefront_subtotal_byn: storefront_subtotal_byn,
       discount_total_byn: discount_total_byn.round(2),
       delivery_to_belarus_byn: delivery_to_belarus_byn,
       delivery_poland_byn: delivery_poland_byn,
@@ -214,4 +223,22 @@ class CartPricingService
     end
     applicability
   end
+
+  def self.parcel_line_weights(parcels)
+    Array(parcels).each_with_object(Hash.new(0.0)) do |parcel, weights|
+      sku = parcel[:sku].to_s
+      next if sku.blank?
+
+      weights[sku] += parcel[:weight_kg].to_f
+    end
+  end
+  private_class_method :parcel_line_weights
+
+  def self.line_weight_for_item(sku:, quantity:, packaging_weight_kg:, line_weight_by_sku:)
+    parcel_weight = line_weight_by_sku[sku.to_s].to_f
+    return parcel_weight if parcel_weight.positive?
+
+    (packaging_weight_kg.to_f * quantity.to_i).round(3)
+  end
+  private_class_method :line_weight_for_item
 end

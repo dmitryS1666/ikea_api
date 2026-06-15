@@ -29,10 +29,16 @@ class CartDisplayTotalsService
       # Belarus that is already embedded in total_byn.
       delivery_total_byn = delivery_to_belarus_byn
 
-      subtotal_new_byn = [
-        total_byn + discount_total_byn - delivery_total_byn,
-        0.0
-      ].max.round(2)
+      storefront_subtotal_byn = money(raw[:storefront_subtotal_byn])
+      subtotal_new_byn =
+        if storefront_subtotal_byn.positive?
+          storefront_subtotal_byn
+        else
+          [
+            total_byn + discount_total_byn - delivery_total_byn,
+            0.0
+          ].max.round(2)
+        end
 
       raw.to_h.symbolize_keys.merge(
         subtotal_new_byn: subtotal_new_byn,
