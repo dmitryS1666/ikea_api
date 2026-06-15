@@ -18,10 +18,13 @@ module Api
             return render json: { error: 'Корзина пуста', code: 'cart_empty' }, status: :unprocessable_entity
           end
 
+          built = CartSelectionService.build_subset_cart(cart: cart, selections: selections)
+          return render json: built.except(:cart, :selections), status: :unprocessable_entity if built[:error]
+
           result = CartSummaryService.call(cart: cart, items: selections, promo_code: code)
           return render json: result.except(:success), status: :unprocessable_entity if result[:error]
 
-          return render json: result.except(:error, :code), status: :ok
+          return render json: summary_response_payload(cart, token, result, pricing_cart: built[:cart]), status: :ok
         end
 
         cart.update!(promo_code: promo)

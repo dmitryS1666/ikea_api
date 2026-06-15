@@ -32,6 +32,43 @@ module CartResponseFormatter
     }
   end
 
+  # POST /cart/summary returns flat fields for checkout selection and mirrors
+  # GET /cart totals under `cart` so the sidebar can read delivery from one path.
+  def summary_response_payload(cart, token, summary, pricing_cart:)
+    delivery_options = DeliveryOptionsService.call(pricing_cart)
+    totals = summary_totals_hash(summary)
+    rules_data = CartRulesService.call(subtotal_new_byn: totals[:subtotal_new_byn])
+
+    summary.merge(
+      cart: {
+        token: token || cart.guest_token,
+        expires_at: cart.expires_at.iso8601,
+        items_count: summary[:items_count],
+        totals: format_totals(totals),
+        delivery: format_cart_delivery(totals, delivery_options),
+        rules: format_rules(rules_data[:rules]),
+        flags: format_flags(rules_data[:flags])
+      }
+    )
+  end
+
+  def summary_totals_hash(summary)
+    {
+      subtotal_new_byn: summary[:subtotal_new_byn].to_f,
+      items_total_byn: summary[:subtotal_new_byn].to_f,
+      discount_total_byn: summary[:discount_total_byn].to_f,
+      delivery_poland_byn: summary[:delivery_poland_byn].to_f,
+      delivery_to_belarus_byn: summary[:delivery_to_belarus_byn].to_f,
+      delivery_total_byn: summary[:delivery_total_byn].to_f,
+      customs_duty_byn: summary[:customs_duty_byn].to_f,
+      customs_fee_byn: summary[:customs_fee_byn].to_f,
+      customs_total_byn: summary[:customs_total_byn].to_f,
+      total_byn: summary[:total_byn].to_f,
+      final_total_byn: summary[:final_total_byn].to_f,
+      total_weight_kg: summary[:total_weight_kg].to_f
+    }
+  end
+
   def build_items(cart_items, pricing_map)
     cart_items.map do |item|
       product = item.product
