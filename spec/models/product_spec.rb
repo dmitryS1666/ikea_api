@@ -46,8 +46,8 @@ RSpec.describe Product, type: :model do
       out = product.normalized_variants_for_api
       expect(out).to be_a(Array)
       data = out.first[:data]
-      expect(data.first.dig(:item, :sku)).to eq("s29545213")
-      expect(data.last.dig(:item, :sku)).to eq("s11111111")
+      expect(data.first.dig(:item, :sku)).to eq("29545213")
+      expect(data.last.dig(:item, :sku)).to eq("11111111")
       expect(data.last.dig(:item, :price)).to eq("100.0")
       expect(data.last.dig(:item, :price_byn)).to be_present
       expect(data.first.dig(:item, :price_byn)).to be_present

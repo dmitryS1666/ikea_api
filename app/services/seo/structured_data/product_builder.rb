@@ -25,8 +25,8 @@ module Seo
           "@type" => "Product",
           "name" => SeoHelper.render_template_string("{{full_name}}", product, city_code).presence || product.name.to_s.presence || product.sku,
           "description" => meta[:description],
-          "sku" => product.sku,
-          "mpn" => product.item_no.presence || product.sku,
+          "sku" => product.public_sku,
+          "mpn" => product.item_no.presence || product.public_sku,
           "image" => images.presence,
           "url" => product_page_url,
           "offers" => {

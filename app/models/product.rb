@@ -510,6 +510,7 @@ class Product < ApplicationRecord
         return nil if processed_payload.empty?
 
         normalize_variant_payload_images!(processed_payload)
+        publicize_variant_payload_skus!(processed_payload)
 
         return payload.is_a?(Array) ? processed_payload : processed_payload.first
       rescue JSON::ParserError
@@ -601,6 +602,27 @@ class Product < ApplicationRecord
     else
       compact_variant_group_for_teaser(payload)
     end
+  end
+
+  def publicize_variant_payload_skus!(payload)
+    groups = payload.is_a?(Array) ? payload : [payload]
+    groups.each do |group|
+      next unless group.is_a?(Hash)
+
+      Array(group[:data] || group["data"]).each do |variant|
+        item = variant[:item] || variant["item"]
+        next unless item.is_a?(Hash)
+
+        raw = item[:sku].presence || item["sku"].presence
+        next if raw.blank?
+
+        public = self.class.public_sku(raw)
+        item[:sku] = public
+        item["sku"] = public
+      end
+    end
+
+    payload
   end
 
   def compact_variant_group_for_teaser(group)
