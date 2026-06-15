@@ -74,11 +74,15 @@ class CheckoutPricingPresenter
 
       if snapshot_prices
         summary[:totals][:delivery_poland_byn] = snapshot_prices[:delivery_price_byn]
-        summary[:totals][:delivery_method_byn] = snapshot_prices[:delivery_price_byn]
+        summary[:totals][:delivery_method_byn] = format_byn(
+          delivery_method_from_snapshot(snapshot_prices, belarus: cart_delivery_to_belarus_byn.to_f, delivery_total: delivery_total)
+        )
         summary[:totals][:delivery_to_belarus_byn] = cart_delivery_to_belarus_byn
       end
 
-      delivery_method_byn = snapshot_prices&.dig(:delivery_price_byn) || total_delivery_byn
+      delivery_method_byn = format_byn(
+        delivery_method_from_snapshot(snapshot_prices, belarus: cart_delivery_to_belarus_byn.to_f, delivery_total: delivery_total)
+      )
 
       summary[:delivery] = {
         type: order.delivery_type,
@@ -99,24 +103,45 @@ class CheckoutPricingPresenter
 
     def resolve_checkout_delivery_total(cart_delivery_to_belarus_byn:, snapshot_prices:, order_delivery_price:)
       belarus = cart_delivery_to_belarus_byn.to_f.round(2)
-      method = snapshot_prices&.dig(:delivery_price_byn).to_f.round(2)
+      snap = (snapshot_prices || {}).with_indifferent_access
+      method = snap[:delivery_price_byn].to_f.round(2)
 
-      if snapshot_prices && method.positive?
-        return (belarus + method).round(2)
-      end
+      return (belarus + method).round(2) if method.positive?
 
-      snap_total = snapshot_prices&.dig(:total_delivery_price_byn).to_f.round(2)
+      snap_total = snap[:total_delivery_price_byn].to_f.round(2)
       if snap_total.positive?
-        # Legacy drafts stored method-only price in total_delivery_price_byn.
-        return (belarus + method).round(2) if method.positive? && (snap_total - method).abs < 0.02
+        return belarus if (snap_total - belarus).abs < 0.02
+        return snap_total if full_delivery_total?(snap_total, belarus)
 
-        return snap_total
+        return (belarus + snap_total).round(2)
       end
 
       stored = order_delivery_price.to_f.round(2)
       return 0.0 if stored <= 0.0
+      return belarus if (stored - belarus).abs < 0.02
+      return stored if full_delivery_total?(stored, belarus)
 
-      stored
+      (belarus + stored).round(2)
+    end
+
+    # Full persisted totals already include cart Belarus delivery. Legacy snapshots
+    # and some client flows store only the selected method fee (Europost/IKEYA).
+    def full_delivery_total?(stored_total, belarus)
+      return true if belarus <= 0.0
+
+      implied_method = (stored_total - belarus).round(2)
+      implied_method >= 10.0
+    end
+
+    def delivery_method_from_snapshot(snapshot_prices, belarus:, delivery_total:)
+      snap = (snapshot_prices || {}).with_indifferent_access
+      method = snap[:delivery_price_byn].to_f.round(2)
+      return method if method.positive?
+
+      snap_total = snap[:total_delivery_price_byn].to_f.round(2)
+      return snap_total if snap_total.positive? && !full_delivery_total?(snap_total, belarus)
+
+      [(delivery_total.to_f - belarus), 0.0].max.round(2)
     end
 
     def delivery_prices_from_order(order)

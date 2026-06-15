@@ -145,6 +145,43 @@ RSpec.describe CheckoutPricingPresenter do
     ).to be_within(0.02).of(summary.dig(:totals, :total_byn).to_f)
   end
 
+  it "adds Belarus delivery when snapshot stores only method total without delivery_price_byn" do
+    order = build_stubbed(
+      :order,
+      checkout_draft: true,
+      delivery_type: "europost_pickup",
+      total_amount: 184.66,
+      delivery_price: 14.41,
+      address_json: {
+        "delivery" => {
+          "prices" => {
+            "total_delivery_price_byn" => "14.41"
+          }
+        }
+      }
+    )
+    pricing = {
+      items: [],
+      totals: {
+        subtotal_new_byn: 170.25,
+        discount_total_byn: 0.0,
+        delivery_to_belarus_byn: 6.90,
+        delivery_total_byn: 6.90,
+        total_byn: 177.15,
+        final_total_byn: 177.15,
+        total_weight_kg: 2.23
+      },
+      promo: {},
+      meta: {}
+    }
+
+    summary = described_class.for_order(order, pricing: pricing)
+
+    expect(summary.dig(:totals, :delivery_method_byn)).to eq("14.41")
+    expect(summary.dig(:totals, :delivery_total_byn)).to eq("21.31")
+    expect(summary.dig(:totals, :total_byn)).to eq("191.56")
+  end
+
   it "uses persisted order total for finalized orders" do
     order = build_stubbed(
       :order,
