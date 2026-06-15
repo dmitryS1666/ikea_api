@@ -50,15 +50,7 @@ module FavoriteResponseFormatter
   end
 
   def parse_local_images(images)
-    if images.is_a?(String)
-      begin
-        JSON.parse(images)
-      rescue JSON::ParserError
-        [images]
-      end
-    else
-      Array(images)
-    end
+    ProductLocalImages.preview_paths(images)
   end
 
   def public_sku(sku)

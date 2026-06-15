@@ -25,7 +25,7 @@ module Api
                   name: product.name,
                   price_byn: sprintf('%.2f', product.price.to_f),
                   images: {
-                    local_images: product.local_images || [],
+                    local_images: ProductLocalImages.preview_paths(product.local_images || []),
                     images: product.images || []
                   }
                 } : nil

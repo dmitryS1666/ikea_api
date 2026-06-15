@@ -9,6 +9,8 @@ require "fileutils"
 # (как ImageStorage::Local), с зеркалированием блоба на диск при первом раскрытии/загрузке.
 module ProductLocalImages
   AS_PREFIX = "as:".freeze
+  PREVIEW_SUFFIX = "_preview".freeze
+  LOCAL_PRODUCT_IMAGE_RE = %r{\A/images/products/}i
   PROD_IMG_FILENAME_RE = /\Aprod_img_([a-f0-9]{40})(\.[a-z0-9]+)\z/i
 
   module_function
@@ -60,8 +62,73 @@ module ProductLocalImages
     blob.open do |io|
       File.binwrite(abs_path, io.read)
     end
+
+    ensure_preview_for_rel!(rel)
   rescue StandardError => e
     Rails.logger.warn("ProductLocalImages: ensure_etalon_mirror! failed: #{e.class} #{e.message}")
+  end
+
+  def preview_rel_path(full_path)
+    path = normalize_rel_path(full_path)
+    return path if path.blank?
+    return path unless local_product_image_path?(path)
+    return path if preview_path?(path)
+
+    dir = File.dirname(path)
+    base = File.basename(path).sub(/\.webp\z/i, "")
+    base = base.sub(/#{PREVIEW_SUFFIX}\z/i, "")
+    normalize_rel_path("#{dir}/#{base}#{PREVIEW_SUFFIX}.webp")
+  end
+
+  def preview_path?(path)
+    path.to_s.match?(/#{PREVIEW_SUFFIX}\.webp\z/i)
+  end
+
+  def normalize_rel_path(path)
+    raw = path.to_s.strip
+    return raw if raw.blank?
+
+    "/#{raw.delete_prefix('/')}".gsub(%r{/+}, "/")
+  end
+
+  def local_product_image_path?(path)
+    normalize_rel_path(path).match?(LOCAL_PRODUCT_IMAGE_RE)
+  end
+
+  def preview_file_exists?(rel_path)
+    abs = public_abs_path(rel_path)
+    abs.present? && File.file?(abs) && File.size(abs).positive?
+  end
+
+  def preview_path_or_fallback(full_path)
+    path = full_path.to_s.strip
+    return path if path.blank?
+    return path unless local_product_image_path?(path)
+    return path if preview_path?(path)
+
+    preview = preview_rel_path(path)
+    preview_file_exists?(preview) ? preview : path
+  end
+
+  def preview_paths(value)
+    expand_paths(value).map { |path| preview_path_or_fallback(path) }
+  end
+
+  def ensure_preview_for_rel!(rel_path)
+    return unless local_product_image_path?(rel_path)
+
+    Products::GenerateImagePreviewService.new(source_path: rel_path).call
+  rescue StandardError => e
+    Rails.logger.warn("ProductLocalImages: ensure_preview_for_rel! failed: #{e.class} #{e.message}")
+    nil
+  end
+
+  def public_abs_path(rel_path)
+    raw = rel_path.to_s.strip.delete_prefix("/")
+    return nil if raw.blank?
+
+    abs = Rails.public_path.join(raw)
+    abs.to_s if File.exist?(abs)
   end
 
   def expand_path(ref)

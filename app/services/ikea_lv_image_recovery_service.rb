@@ -319,6 +319,7 @@ class IkeaLvImageRecoveryService
         end
 
         if image_readable?(absolute_path)
+          ProductLocalImages.ensure_preview_for_rel!("/#{File.join(relative_dir, filename)}")
           return "/#{File.join(relative_dir, filename)}"
         else
           FileUtils.rm_f(absolute_path) # Удаляем битый файл (Требование 1)

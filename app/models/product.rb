@@ -333,7 +333,7 @@ class Product < ApplicationRecord
   end
 
   def variant_item_payload
-    images = ProductLocalImages.expand_paths(local_images)
+    images = ProductLocalImages.preview_paths(local_images)
 
     {
       sku: public_sku,
@@ -417,7 +417,7 @@ class Product < ApplicationRecord
               item["quantity"] = item[:quantity]
         
               rec_local_images =
-                ProductLocalImages.normalize_api_image_array(rec.local_images)
+                ProductLocalImages.preview_paths(rec.local_images)
         
               rec_remote_images =
                 normalize_variant_item_images(rec.images)

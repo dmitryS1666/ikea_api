@@ -169,6 +169,8 @@ module Products
       @result.converted_images += 1
       log("OK sku=#{product.sku} #{image_path} -> #{relative_target}")
 
+      ProductLocalImages.ensure_preview_for_rel!(relative_target)
+
       [relative_target, true]
     end
 

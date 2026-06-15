@@ -104,7 +104,7 @@ module Search
     end
 
     def preview_image(product)
-      ProductLocalImages.expand_paths(product.local_images).first
+      ProductLocalImages.preview_paths(product.local_images).first
     end
 
     def normalized_query

@@ -19,7 +19,7 @@ class OrderItemImageSnapshot
     end
 
     def first_public_image_url(value)
-      ProductLocalImages.expand_paths(value).find(&:present?)
+      ProductLocalImages.preview_paths(value).find(&:present?)
     rescue StandardError => e
       Rails.logger.warn("OrderItemImageSnapshot: failed to normalize image URL: #{e.class} #{e.message}")
       nil

@@ -37,7 +37,7 @@ module Api
               sku: product.sku,
               name: product.name,
               images: product.images || [],
-              local_images: product.local_images || []
+              local_images: ProductLocalImages.preview_paths(product.local_images || [])
             }
           end
 

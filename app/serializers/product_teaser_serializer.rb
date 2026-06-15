@@ -35,7 +35,7 @@ class ProductTeaserSerializer
 
   attribute :images, if: proc { |_product, params| params[:search_context] } do |product, params|
     site_url = params[:site_url].to_s.chomp("/")
-    paths = ProductLocalImages.expand_paths(product.local_images)
+    paths = ProductLocalImages.preview_paths(product.local_images)
     paths.map { |path| absolute_image_url(path, site_url) }
   end
 
@@ -132,7 +132,7 @@ class ProductTeaserSerializer
   end
 
   attribute :local_images do |product|
-    ProductLocalImages.expand_paths(product.local_images)
+    ProductLocalImages.preview_paths(product.local_images)
   end
 
   attribute :variants do |product|
