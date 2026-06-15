@@ -99,4 +99,49 @@ RSpec.describe CheckoutPricingPresenter do
     expect(summary.dig(:totals, :final_total_byn)).to eq("829.57")
   end
 
+  it "adds Belarus delivery to payable total when saved delivery_price contains only method component" do
+    order = build_stubbed(
+      :order,
+      checkout_draft: true,
+      delivery_type: "europost_pickup",
+      total_amount: 259.36,
+      delivery_price: 63.04,
+      address_json: {
+        "delivery" => {
+          "prices" => {
+            "delivery_price_byn" => "63.04",
+            "delivery_to_belarus_price_byn" => "40.96",
+            "total_delivery_price_byn" => "63.04"
+          }
+        }
+      }
+    )
+    pricing = {
+      items: [],
+      totals: {
+        subtotal_new_byn: 196.32,
+        discount_total_byn: 0.0,
+        delivery_to_belarus_byn: 40.96,
+        delivery_total_byn: 40.96,
+        total_byn: 237.28,
+        final_total_byn: 237.28,
+        total_weight_kg: 17.3
+      },
+      promo: {},
+      meta: {}
+    }
+
+    summary = described_class.for_order(order, pricing: pricing)
+
+    expect(summary.dig(:totals, :delivery_to_belarus_byn)).to eq("40.96")
+    expect(summary.dig(:totals, :delivery_method_byn)).to eq("63.04")
+    expect(summary.dig(:totals, :delivery_total_byn)).to eq("104.00")
+    expect(summary.dig(:totals, :total_byn)).to eq("300.32")
+    expect(
+      summary.dig(:totals, :subtotal_new_byn).to_f +
+        summary.dig(:totals, :delivery_to_belarus_byn).to_f +
+        summary.dig(:totals, :delivery_method_byn).to_f
+    ).to be_within(0.02).of(summary.dig(:totals, :total_byn).to_f)
+  end
+
 end

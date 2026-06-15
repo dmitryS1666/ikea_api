@@ -486,17 +486,19 @@ class CheckoutService
       params: params
     )
 
+    pricing_for_response = nil
     if order&.persisted?
       if order.delivery_type.present?
         update_result = update_draft(user: user, order_id: order.id, params: params)
         return update_result unless update_result[:success]
         order = update_result[:order]
+        pricing_for_response = update_result[:pricing]
       end
       {
         success: true,
         order: order,
         delivery_options: draft_delivery_options_for(order),
-        pricing: CheckoutPricingPresenter.for_order(order, pricing: pricing)
+        pricing: pricing_for_response || CheckoutPricingPresenter.for_order(order, pricing: pricing)
       }
     else
       { error: order&.errors&.full_messages&.join(', ') || 'Ошибка создания черновика заказа' }
@@ -644,7 +646,7 @@ class CheckoutService
     # The selected delivery calculation contributes only the method component
     # (Europost pickup/courier/IKEYA). The additive checkout contract is:
     #   delivery_to_belarus_price_byn + delivery_price_byn = total_delivery_price_byn
-    cart_delivery_to_belarus = pricing.dig(:totals, :delivery_to_belarus_byn).to_f.round(2)
+    cart_delivery_to_belarus = cart_delivery_to_belarus_from_pricing(pricing)
     method_delivery = raw[:delivery_price_byn].to_f.round(2)
     normalized_total = (cart_delivery_to_belarus + method_delivery).round(2)
 
@@ -660,13 +662,20 @@ class CheckoutService
   private_class_method :checkout_delivery_prices
 
   def self.checkout_total_amount(pricing:, prices:)
-    cart_total = pricing.dig(:totals, :total_byn).to_f
-    cart_delivery_total = pricing.dig(:totals, :delivery_total_byn).to_f
-    selected_delivery_total = prices[:total_delivery_price_byn].to_f
+    totals = CartDisplayTotalsService.for_summary(pricing[:totals])
+    subtotal = totals[:subtotal_new_byn].to_f
+    discount = totals[:discount_total_byn].to_f
+    delivery_total = prices[:total_delivery_price_byn].to_f
 
-    (cart_total - cart_delivery_total + selected_delivery_total).round(2)
+    [(subtotal - discount + delivery_total), 0.0].max.round(2)
   end
   private_class_method :checkout_total_amount
+
+  def self.cart_delivery_to_belarus_from_pricing(pricing)
+    totals = CartDisplayTotalsService.for_summary((pricing || {}).dig(:totals))
+    totals[:delivery_to_belarus_byn].to_f.round(2)
+  end
+  private_class_method :cart_delivery_to_belarus_from_pricing
 
   def self.format_price(value)
     format("%.2f", value.to_f)
@@ -931,6 +940,18 @@ class CheckoutService
     total_amount = display_totals[:total_byn].to_f
     delivery_price = display_totals[:delivery_to_belarus_byn].to_f
 
+    if order.delivery_type.present? && params[:delivery_type].blank?
+      snapshot_prices = delivery_snapshot_prices(order)
+      method_delivery = snapshot_prices&.dig(:delivery_price_byn).to_f
+      if method_delivery.positive?
+        delivery_price = (display_totals[:delivery_to_belarus_byn].to_f + method_delivery).round(2)
+        total_amount = checkout_total_amount(
+          pricing: pricing,
+          prices: { total_delivery_price_byn: delivery_price }
+        )
+      end
+    end
+
     Order.transaction do
       sync_draft_order_items!(order: order, checkout_cart: checkout_cart, pricing: pricing)
 
@@ -974,6 +995,18 @@ class CheckoutService
       )
     end
   end
+
+  def self.delivery_snapshot_prices(order)
+    delivery = order.address_json.is_a?(Hash) ? order.address_json["delivery"] || order.address_json[:delivery] : nil
+    prices = delivery.is_a?(Hash) ? delivery["prices"] || delivery[:prices] : nil
+    return nil unless prices.is_a?(Hash)
+
+    {
+      delivery_price_byn: prices["delivery_price_byn"] || prices[:delivery_price_byn],
+      total_delivery_price_byn: prices["total_delivery_price_byn"] || prices[:total_delivery_price_byn]
+    }.compact
+  end
+  private_class_method :delivery_snapshot_prices
 
   def self.reset_draft_delivery_snapshot!(order)
     base = order.address_json.is_a?(Hash) ? order.address_json.stringify_keys : {}

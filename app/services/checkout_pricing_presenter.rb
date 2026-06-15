@@ -52,16 +52,19 @@ class CheckoutPricingPresenter
 
     def apply_order_delivery_totals!(summary, order)
       snapshot_prices = delivery_prices_from_order(order)
-      total_delivery = order.delivery_price.to_f
-      total_delivery_byn = format_byn(total_delivery)
       cart_delivery_to_belarus_byn = summary[:totals][:delivery_to_belarus_byn]
+      delivery_total = resolve_checkout_delivery_total(
+        cart_delivery_to_belarus_byn: cart_delivery_to_belarus_byn,
+        snapshot_prices: snapshot_prices,
+        order_delivery_price: order.delivery_price
+      )
+      total_delivery_byn = format_byn(delivery_total)
 
       # The cart pricing is the source of truth for the public "delivery to
       # Belarus" row. Checkout adds the selected method component on top of it:
       #   delivery_to_belarus_byn + delivery_method_byn = delivery_total_byn
-      # Frontend may show the first two rows separately, but must use total_byn
-      # as the payable order total.
-      payable_total_byn = checkout_payable_total(summary: summary, total_delivery_byn: total_delivery)
+      #   total_byn = subtotal_new_byn - discount_total_byn + delivery_total_byn
+      payable_total_byn = checkout_payable_total(summary: summary, delivery_total_byn: delivery_total)
       display_total_byn = order.checkout_draft? ? payable_total_byn : order.total_amount.to_f
 
       summary[:totals][:delivery_total_byn] = total_delivery_byn
@@ -86,11 +89,22 @@ class CheckoutPricingPresenter
       }.compact
     end
 
-    def checkout_payable_total(summary:, total_delivery_byn:)
+    def checkout_payable_total(summary:, delivery_total_byn:)
       subtotal = summary.dig(:totals, :subtotal_new_byn).to_f
       discount = summary.dig(:totals, :discount_total_byn).to_f
 
-      [(subtotal - discount + total_delivery_byn.to_f), 0.0].max.round(2)
+      [(subtotal - discount + delivery_total_byn.to_f), 0.0].max.round(2)
+    end
+
+    def resolve_checkout_delivery_total(cart_delivery_to_belarus_byn:, snapshot_prices:, order_delivery_price:)
+      belarus = cart_delivery_to_belarus_byn.to_f.round(2)
+      method = snapshot_prices&.dig(:delivery_price_byn).to_f.round(2)
+
+      if snapshot_prices && method.positive?
+        (belarus + method).round(2)
+      else
+        order_delivery_price.to_f.round(2)
+      end
     end
 
     def delivery_prices_from_order(order)
