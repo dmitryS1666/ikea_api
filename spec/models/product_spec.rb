@@ -96,6 +96,72 @@ RSpec.describe Product, type: :model do
     end
   end
 
+  describe "#normalized_variants_teaser_for_api" do
+    let(:product) do
+      build(
+        :product,
+        sku: "s29545213",
+        variants_payload: [
+          {
+            "type" => "color",
+            "data" => [
+              {
+                "color" => "Red",
+                "item" => {
+                  "sku" => "s11111111",
+                  "price" => "100.0",
+                  "small_desc_name" => "Red",
+                  "name_ru" => "Полное имя",
+                  "quantity" => 5,
+                  "images" => ["/images/a.webp", "/images/b.webp"]
+                }
+              },
+              {
+                "color" => "Self",
+                "item" => { "sku" => "s29545213", "price" => "100.0", "small_desc_name" => "Self" }
+              }
+            ]
+          }
+        ].to_json
+      )
+    end
+
+    before do
+      allow(ExchangeRate).to receive(:fetch_or_create).and_return(instance_double(ExchangeRate, rate_per_unit: 3.5))
+      allow(PriceCalculationService).to receive(:exchange_rate_buffer).and_return(0)
+      allow(PriceCalculationService).to receive(:product_storefront_price_byn).and_return(350.0)
+
+      create(:product, sku: "s11111111", quantity: 5, local_images: ["/images/a.webp"])
+      create(:product, sku: "s29545213", quantity: 5)
+    end
+
+    it "keeps contract shape with compact item fields" do
+      out = product.normalized_variants_teaser_for_api
+
+      expect(out).to be_a(Array)
+      group = out.first
+      expect(group[:type]).to eq("color")
+      expect(group[:data].size).to eq(2)
+
+      current_item = group[:data].first[:item]
+      expect(current_item[:sku]).to eq("s29545213")
+      expect(current_item.keys).to contain_exactly(:sku, :small_desc_name)
+      expect(current_item).not_to have_key(:price)
+      expect(current_item).not_to have_key(:price_byn)
+      expect(current_item).not_to have_key(:name_ru)
+      expect(current_item).not_to have_key(:quantity)
+
+      other_item = group[:data].find { |v| v.dig(:item, :sku) == "s11111111" }[:item]
+      expect(other_item[:images]).to eq(["/images/a.webp"])
+    end
+
+    it "delegates to full payload and returns nil when full payload is nil" do
+      Product.find_by(sku: "s11111111")&.update!(quantity: 0)
+
+      expect(product.normalized_variants_teaser_for_api).to be_nil
+    end
+  end
+
   describe "#normalized_variant_skus" do
     it "flattens sku when a variant hash stores multiple skus in an array" do
       p = build(:product, variants: [{ "sku" => %w[s11111111 s22222222] }])

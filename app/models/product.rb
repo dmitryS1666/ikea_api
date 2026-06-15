@@ -347,6 +347,11 @@ class Product < ApplicationRecord
   end
 
   def normalized_variants_for_api
+    normalized_variants_for_api_full
+  end
+
+  # Полный payload вариантов (карточка товара, откат листинга на полные variants).
+  def normalized_variants_for_api_full
     # Сначала пробуем использовать сохраненный тип из БД
     type = variant_type.presence || variant_group_type
     
@@ -577,7 +582,52 @@ class Product < ApplicationRecord
     Products::WeightExtractor.packaging_weight_kg_for_product(self)
   end
 
+  # Краткий payload для листингов: тот же контракт { type, data: [{ color|size, item }] },
+  # в item только sku, small_desc_name и одно превью.
+  def normalized_variants_teaser_for_api
+    compact_variants_payload_for_teaser(normalized_variants_for_api_full)
+  end
+
   private
+
+  def compact_variants_payload_for_teaser(payload)
+    return nil if payload.blank?
+
+    if payload.is_a?(Array)
+      compacted = payload.filter_map { |group| compact_variant_group_for_teaser(group) }
+      return nil if compacted.empty?
+
+      compacted
+    else
+      compact_variant_group_for_teaser(payload)
+    end
+  end
+
+  def compact_variant_group_for_teaser(group)
+    group = group.deep_symbolize_keys
+    data =
+      Array(group[:data]).filter_map do |variant|
+        variant = variant.deep_symbolize_keys
+        item = (variant[:item] || {}).deep_symbolize_keys
+        sku = item[:sku].presence
+        next if sku.blank?
+
+        images = Array(item[:images]).map(&:to_s).map(&:strip).reject(&:blank?)
+        compact_item = { sku: sku }
+        label = item[:small_desc_name].presence
+        compact_item[:small_desc_name] = label if label.present?
+        compact_item[:images] = [images.first] if images.first.present?
+
+        entry = { item: compact_item }
+        entry[:color] = variant[:color] if variant[:color].present?
+        entry[:size] = variant[:size] if variant[:size].present?
+        entry
+      end
+
+    return nil if data.size < 2
+
+    { type: group[:type], data: data }
+  end
 
   def apply_included_products_text_for_form
     return unless @included_products_text_for_form_submitted
