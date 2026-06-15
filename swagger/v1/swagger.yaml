@@ -3267,14 +3267,39 @@ components:
     PurchaseItem:
       type: object
       properties:
+        id: { type: integer }
         order_id: { type: integer }
         status: { type: string }
         purchased_at: { type: string, format: date-time }
         product_sku: { type: string }
+        sku: { type: string }
         quantity: { type: integer }
-        price_byn: { type: string }
+        price_byn: { type: string, description: "Цена одной единицы на момент покупки" }
+        unit_price_byn: { type: string, description: "Цена одной единицы на момент покупки" }
+        total_price_byn: { type: string, description: "Сумма за всю позицию" }
         product:
-          $ref: '#/components/schemas/CartProductPayload'
+          $ref: '#/components/schemas/PurchaseProductPayload'
+
+    PurchaseProductPayload:
+      type: object
+      description: Данные товара для ProductCard в разделе «Покупки» (формат как в каталоге)
+      properties:
+        sku: { type: string }
+        slug: { type: string }
+        name: { type: string }
+        name_ru: { type: string }
+        translated_name: { type: string }
+        small_desc_name: { type: string }
+        price_byn: { type: string, description: "Текущая витринная цена товара" }
+        local_images:
+          type: array
+          items: { type: string }
+        variants:
+          type: array
+          description: Каталожная структура вариантов (type + data[].color + data[].item)
+          items:
+            type: object
+            additionalProperties: true
 
     OrderReceipts:
       type: object

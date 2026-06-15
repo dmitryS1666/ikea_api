@@ -8,28 +8,20 @@ module Api
         # Optional params:
         # - sort: newest|oldest|price_asc|price_desc
         def index
-          orders = current_user.orders.purchased.includes(:order_items).order(purchased_at: :desc, created_at: :desc)
+          orders = current_user.orders.purchased
+            .includes(order_items: :product)
+            .order(purchased_at: :desc, created_at: :desc)
+
+          serializer_params = Purchases::ProductCardPayload.default_params
 
           items = orders.flat_map do |order|
-            order.order_items.map do |oi|
-              product = Product.find_by(sku: oi.product_sku)
-              {
-                order_id: order.id,
-                status: order.frontend_status,
-                purchased_at: order.purchased_at&.iso8601,
-                product_sku: oi.product_sku,
-                quantity: oi.quantity,
-                price_byn: sprintf('%.2f', oi.price.to_f),
-                product: product ? {
-                  sku: product.sku,
-                  name: product.name,
-                  price_byn: sprintf('%.2f', product.price.to_f),
-                  images: {
-                    local_images: ProductLocalImages.preview_paths(product.local_images || []),
-                    images: product.images || []
-                  }
-                } : nil
-              }
+            order.order_items.map do |order_item|
+              Purchases::ItemPayload.call(
+                order_item: order_item,
+                order: order,
+                product: order_item.product,
+                serializer_params: serializer_params
+              )
             end
           end
 
@@ -50,11 +42,11 @@ module Api
 
         def sort_items(items, sort)
           case sort.to_s
-          when 'oldest'
+          when "oldest"
             items.sort_by { |i| i[:purchased_at].to_s }
-          when 'price_asc'
+          when "price_asc"
             items.sort_by { |i| i[:price_byn].to_f }
-          when 'price_desc'
+          when "price_desc"
             items.sort_by { |i| -i[:price_byn].to_f }
           else
             # newest
