@@ -144,14 +144,14 @@ RSpec.describe Product, type: :model do
       expect(group[:data].size).to eq(2)
 
       current_item = group[:data].first[:item]
-      expect(current_item[:sku]).to eq("s29545213")
+      expect(current_item[:sku]).to eq("29545213")
       expect(current_item.keys).to contain_exactly(:sku, :small_desc_name)
       expect(current_item).not_to have_key(:price)
       expect(current_item).not_to have_key(:price_byn)
       expect(current_item).not_to have_key(:name_ru)
       expect(current_item).not_to have_key(:quantity)
 
-      other_item = group[:data].find { |v| v.dig(:item, :sku) == "s11111111" }[:item]
+      other_item = group[:data].find { |v| v.dig(:item, :sku) == "11111111" }[:item]
       expect(other_item[:images]).to eq(["/images/a.webp"])
     end
 
