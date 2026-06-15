@@ -147,7 +147,7 @@ class CheckoutPricingPresenter
           unit_price_new_byn: format_byn(unit_after),
           unit_discount_byn: format_byn(line[:unit_discount_byn]),
           line_total_old_byn: format_byn(unit_before * qty),
-          line_total_new_byn: format_byn(line[:line_total_byn]),
+          line_total_new_byn: format_byn((unit_after * qty).round(2)),
           line_discount_byn: format_byn(line[:line_discount_byn]),
           promo_applied: line[:promo_applied] || false,
           promo_code: line[:promo_code]

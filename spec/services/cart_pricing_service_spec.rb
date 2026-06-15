@@ -202,4 +202,24 @@ RSpec.describe CartPricingService do
     expect(pricing[:totals][:total_weight_kg]).to be_within(0.1).of(267.2)
     expect(pricing[:totals][:subtotal_new_byn]).to eq(pricing[:items].sum { |item| item[:line_total_byn].to_f })
   end
+
+  it "keeps unit_price × quantity equal to line_total for multi-qty rows" do
+    user = create(:user)
+    product = create(
+      :product,
+      sku: "SKU-UNIT-LINE",
+      price: 248.0,
+      weight: 26.72,
+      delivery_cost: 5.0,
+      quantity: 20
+    )
+    cart = create(:cart, user: user)
+    create(:cart_item, cart: cart, product_sku: product.sku, quantity: 10)
+
+    pricing = described_class.call(cart: cart)
+    item = pricing[:items].first
+
+    expect(item[:unit_price_byn] * item[:quantity]).to eq(item[:line_total_byn])
+    expect(pricing[:totals][:subtotal_new_byn]).to eq(item[:line_total_byn])
+  end
 end

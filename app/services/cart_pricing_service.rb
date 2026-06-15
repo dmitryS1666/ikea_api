@@ -77,13 +77,15 @@ class CartPricingService
       )
 
       storefront_line_byn_before_discount = (line_byn[:goods_byn] + line_byn[:delivery_poland_byn]).round(2)
+      reconciled_storefront = reconcile_unit_line(storefront_line_byn_before_discount, quantity)
+      unit_price_byn_before_discount = reconciled_storefront[:unit]
+      storefront_line_byn_before_discount = reconciled_storefront[:line]
       # Keep the checkout total consistent with the public cart rows.  The
       # rounded full total from PriceCalculationService may differ by 0.01 from
       # the sum of already displayed rounded components (goods + PL delivery +
       # BY delivery).  The UI shows these components separately, so the payable
       # total must be built from the same rounded components.
       full_line_byn_before_discount = (storefront_line_byn_before_discount + line_byn[:delivery_belarus_byn]).round(2)
-      unit_price_byn_before_discount = quantity.positive? ? (storefront_line_byn_before_discount / quantity).round(2) : 0.0
 
       # Промо применяется к витринной цене позиции (без доставки в Беларусь).
       promo_applied = promo_valid && promo_applicability[item.product_sku]&.any?
@@ -102,13 +104,17 @@ class CartPricingService
 
       line_total_byn = [storefront_line_byn_before_discount - line_discount_byn, 0.0].max.round(2)
       line_total_byn_checkout = [full_line_byn_before_discount - line_discount_byn, 0.0].max.round(2)
+      reconciled_line = reconcile_unit_line(line_total_byn, quantity)
+      unit_price_byn = reconciled_line[:unit]
+      line_total_byn = reconciled_line[:line]
+      reconciled_checkout = reconcile_unit_line(line_total_byn_checkout, quantity)
+      unit_price_byn_checkout = reconciled_checkout[:unit]
+      line_total_byn_checkout = reconciled_checkout[:line]
       line_total_pln = if pln_rate_with_buffer.positive?
                          (line_total_byn_checkout / pln_rate_with_buffer).round(2)
                        else
                          0.0
                        end
-      unit_price_byn = quantity.positive? ? (line_total_byn / quantity).round(2) : 0.0
-      unit_price_byn_checkout = quantity.positive? ? (line_total_byn_checkout / quantity).round(2) : 0.0
 
       delivery_poland_byn += line_byn[:delivery_poland_byn]
       delivery_to_belarus_byn += line_byn[:delivery_belarus_byn]
@@ -241,4 +247,15 @@ class CartPricingService
     (packaging_weight_kg.to_f * quantity.to_i).round(3)
   end
   private_class_method :line_weight_for_item
+
+  # Cart UI shows unit_price × quantity. After component rounding the raw line
+  # total may differ by a few kopecks (e.g. 2620.47 vs 262.05 × 10 = 2620.50).
+  def self.reconcile_unit_line(line_total, quantity)
+    qty = quantity.to_i
+    return { unit: 0.0, line: 0.0 } if qty <= 0
+
+    unit = (line_total.to_f / qty).round(2)
+    { unit: unit, line: (unit * qty).round(2) }
+  end
+  private_class_method :reconcile_unit_line
 end

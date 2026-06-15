@@ -93,7 +93,7 @@ class CartSummaryService
         unit_price_new_byn: format_byn(unit_after),
         unit_discount_byn: format_byn(line[:unit_discount_byn]),
         line_total_old_byn: format_byn(unit_before.to_f * qty),
-        line_total_new_byn: format_byn(line[:line_total_byn]),
+        line_total_new_byn: format_byn((unit_after.to_f * qty).round(2)),
         line_discount_byn: format_byn(line[:line_discount_byn]),
         pricing_mode: line[:pricing_mode],
         promo_applied: line[:promo_applied] || false,

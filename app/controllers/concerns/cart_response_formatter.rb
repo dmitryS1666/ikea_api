@@ -63,7 +63,7 @@ module CartResponseFormatter
       unit_price_new_byn: format_byn(unit_after),
       unit_discount_byn: format_byn(pricing_line[:unit_discount_byn]),
       line_total_old_byn: format_byn(line_before),
-      line_total_new_byn: format_byn(pricing_line[:line_total_byn]),
+      line_total_new_byn: format_byn((unit_after.to_f * quantity).round(2)),
       line_discount_byn: format_byn(pricing_line[:line_discount_byn]),
       customs_duty_byn: format_byn(pricing_line[:customs_duty_byn]),
       customs_fee_byn: format_byn(pricing_line[:customs_fee_byn]),
