@@ -13,8 +13,7 @@ module Categories
       categories =
         if @scope.is_a?(ActiveRecord::Relation)
           @scope
-            .except(:select, :order)
-            .select("#{Category.table_name}.*")
+            .except(:order)
             .with_attached_icon
             .with_attached_pictogram
             .to_a
