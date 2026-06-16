@@ -165,7 +165,7 @@ Trestle.resource :parser_control, model: ParserControl do
           end
 
           # Обработка дополнительных данных (SKUs и т.д.)
-          if task_type == "extended_attributes_by_skus" || task_type == "import_products_by_skus" || task_type == "recover_broken_product_images" || task_type == "update_all_product_images" || task_type == "update_product_variants"
+          if task_type == "extended_attributes_by_skus" || task_type == "import_products_by_skus" || task_type == "recover_broken_product_images" || task_type == "update_all_product_images" || task_type == "update_product_variants" || task_type == "generate_product_image_previews"
             payload[:skus] = extra_data
             payload[:sku_file_path] = sku_file_path if sku_file_path.present?
           end
@@ -265,7 +265,9 @@ Trestle.resource :parser_control, model: ParserControl do
                     skus: payload[:skus],
                     category_ikea_id: payload[:category_ikea_id]
                   )
-                elsif %w[extended_attrs_import extended_attributes_by_skus import_products_by_skus fix_missing_images update_all_product_images update_product_variants].include?(task_type)
+                elsif task_type == "optimize_home_banner_images"
+                  job_class.perform_later
+                elsif %w[extended_attrs_import extended_attributes_by_skus import_products_by_skus fix_missing_images update_all_product_images update_product_variants generate_product_image_previews].include?(task_type)
                   # Для полного обновления картинок передаем cleanup: true по умолчанию
                   cleanup = params[:cleanup] == '1' || params[:cleanup].nil?
                   job_args = { task_id: task.id, reset: reset, cleanup: cleanup, threads: threads, sku: payload[:skus] }
@@ -273,6 +275,8 @@ Trestle.resource :parser_control, model: ParserControl do
                     job_args[:image_contains] = payload[:image_contains]
                     job_args[:images_limit] = payload[:images_limit]
                     job_args[:category_ikea_id] = payload[:category_ikea_id]
+                  elsif task_type == "generate_product_image_previews"
+                    job_args = { task_id: task.id, limit: limit, sku: payload[:skus] }
                   end
                   job_class.perform_later(**job_args)
                 else
@@ -688,6 +692,10 @@ Trestle.resource :parser_control, model: ParserControl do
         UpdateAllProductImagesJob
       when 'update_product_variants'
         UpdateProductVariantsJob
+      when 'generate_product_image_previews'
+        GenerateProductImagePreviewsJob
+      when 'optimize_home_banner_images'
+        OptimizeHomeBannerImagesJob
       when 'recover_missing_weights'
         RecoverMissingWeightsJob
       when 'recover_missing_packaging_dimensions'
@@ -752,6 +760,8 @@ Trestle.resource :parser_control, model: ParserControl do
         'recover_missing_images' => 'Поиск и восполнение ссылок на картинки',
         'recover_broken_product_images' => 'Восстановление битых картинок из лога или по списку SKU',
         'update_all_product_images' => 'Полное обновление всех картинок (WebP + Resumable)',
+        'generate_product_image_previews' => 'Генерация preview-картинок (миниатюры)',
+        'optimize_home_banner_images' => 'Оптимизация картинок главной (WebP ≤ 200KB)',
         'update_product_variants' => 'Актуализация вариантов (цвета/размеры)',
         'recover_missing_weights' => 'Восполнение недостающего веса (2 потока + прокси)',
         'recover_missing_packaging_dimensions' => 'Восполнение размеров упаковки (PL+LT, measurements_modal)',

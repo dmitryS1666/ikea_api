@@ -44,6 +44,8 @@
                     ['Восполнение ссылок на картинки', 'recover_missing_images'],
                     ['Актуализация вариантов (цвета/размеры)', 'update_product_variants'],
                     ['Полное обновление всех картинок (WebP)', 'update_all_product_images'],
+                    ['Генерация preview-картинок (миниатюры)', 'generate_product_image_previews'],
+                    ['Оптимизация картинок главной (WebP ≤ 200KB)', 'optimize_home_banner_images'],
                     ['Восполнение недостающего веса', 'recover_missing_weights'],
                     ['Восполнение размеров упаковки (measurements_modal)', 'recover_missing_packaging_dimensions'],
                     ['Восстановление битых картинок (по логу/SKU)', 'recover_broken_product_images'],
@@ -303,6 +305,8 @@
                         'recover_missing_images' => 'Восполнение ссылок на картинки',
                         'update_product_variants' => 'Актуализация вариантов',
                         'update_all_product_images' => 'Обновление всех картинок (WebP)',
+                        'generate_product_image_previews' => 'Генерация preview-картинок',
+                        'optimize_home_banner_images' => 'Оптимизация картинок главной (WebP ≤ 200KB)',
                         'recover_missing_weights' => 'Восполнение недостающего веса',
                         'recover_missing_packaging_dimensions' => 'Восполнение размеров упаковки',
                         'recover_broken_product_images' => 'Восстановление битых картинок',
@@ -431,6 +435,8 @@
                       'recover_missing_weights' => 'Восполнение недостающего веса',
                       'recover_missing_packaging_dimensions' => 'Восполнение размеров упаковки',
                       'update_all_product_images' => 'Обновление всех картинок (WebP)',
+                      'generate_product_image_previews' => 'Генерация preview-картинок',
+                      'optimize_home_banner_images' => 'Оптимизация картинок главной (WebP ≤ 200KB)',
                       'recover_broken_product_images' => 'Восстановление битых картинок',
                       'refresh_category_lt' => 'Актуализация категории (LT)',
                       'harvest_category_related_products' => 'Сбор category related_products',
@@ -602,6 +608,8 @@
             'recover_missing_weights': 'Восполнение недостающего веса',
             'recover_missing_packaging_dimensions': 'Восполнение размеров упаковки',
             'update_all_product_images': 'Обновление всех картинок (WebP)',
+            'generate_product_image_previews': 'Генерация preview-картинок',
+            'optimize_home_banner_images': 'Оптимизация картинок главной (WebP ≤ 200KB)',
             'recover_broken_product_images': 'Восстановление битых картинок',
             'refresh_category_lt': 'Актуализация категории (LT)',
             'harvest_category_related_products': 'Сбор category related_products',
@@ -789,7 +797,7 @@
       if (extraDataMainLabel) extraDataMainLabel.textContent = 'Список SKU (через пробел или запятую)';
       if (extraDataTextarea) extraDataTextarea.placeholder = 'Например: 123.456.78, 987.654.32';
 
-      if (task === 'extended_attributes_by_skus' || task === 'import_products_by_skus' || task === 'recover_broken_product_images' || task === 'update_product_variants' || task === 'refresh_category_lt' || task === 'harvest_category_related_products' || task === 'refresh_product_lt' || task === 'category_filters_one' || task === 'merge_parent_category_filters' || task === 'rebuild_category_fseries_filters' || task === 'refresh_category_filters_lt') {
+      if (task === 'extended_attributes_by_skus' || task === 'import_products_by_skus' || task === 'recover_broken_product_images' || task === 'update_product_variants' || task === 'refresh_category_lt' || task === 'harvest_category_related_products' || task === 'refresh_product_lt' || task === 'category_filters_one' || task === 'merge_parent_category_filters' || task === 'rebuild_category_fseries_filters' || task === 'refresh_category_filters_lt' || task === 'generate_product_image_previews') {
         extraDataField.classList.remove('d-none');
       } else if (task === 'extended_attrs_import') {
         extraFileField.classList.remove('d-none');
@@ -801,6 +809,9 @@
         cleanupHelp.classList.remove('d-none');
         extraDataField.classList.remove('d-none');
         if (webpImageSearchField) webpImageSearchField.classList.remove('d-none');
+      } else if (task === 'generate_product_image_previews') {
+        if (extraDataMainLabel) extraDataMainLabel.textContent = 'Список SKU (необязательно)';
+        if (extraDataTextarea) extraDataTextarea.placeholder = 'Пусто = все локальные product webp; иначе список SKU: 60580273, 80489850';
       } else if (task === 'pl_prices_stock' || task === 'refresh_category_lt') {
         threadsField.classList.remove('d-none');
         if (task === 'pl_prices_stock' && plPricesStockSkuField) plPricesStockSkuField.classList.remove('d-none');
