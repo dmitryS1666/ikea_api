@@ -627,7 +627,8 @@ class ContentArticle < ApplicationRecord
     blob = blob_for_signed_id(signed_id)
     return unless blob
 
-    body_block_images.attach(blob)
+    optimized_blob = Images::WebpOptimizer.optimize_blob(blob)
+    body_block_images.attach(optimized_blob)
   rescue ActiveSupport::MessageVerifier::InvalidSignature, ActiveRecord::RecordNotFound
     nil
   end

@@ -187,7 +187,7 @@ Trestle.resource(:home_banners, model: HomeBanner) do
             end)
           
             file_field :image, label: "Изображение"
-            content_tag :small, "Разрешены: WebP, AVIF, PNG, JPEG. Размер должен соответствовать выбранному варианту.", class: "text-muted"
+            content_tag :small, "Разрешены: WebP, AVIF, PNG, JPEG. При сохранении автоматически конвертируется в WebP и сжимается до ~200KB. Размер в пикселях должен соответствовать выбранному варианту.", class: "text-muted"
           
             if banner.variant.present?
               expected = banner.expected_dimensions

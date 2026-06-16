@@ -529,6 +529,7 @@ Trestle.resource(:categories, model: Category) do
 
       divider
       h3 "Изображения категории"
+      content_tag :p, "Растровые изображения (icon/background) автоматически конвертируются в WebP и сжимаются до ~200KB при сохранении.", class: "text-muted"
       divider
 
       row do
