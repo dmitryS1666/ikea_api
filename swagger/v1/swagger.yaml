@@ -2896,10 +2896,8 @@ components:
               type: string
             slug:
               type: string
-            price:
-              type: number
-            quantity:
-              type: integer
+            price_byn:
+              type: string
             is_bestseller:
               type: boolean
             is_new:
@@ -2913,14 +2911,8 @@ components:
             rating_avg:
               type: number
               format: float
-            rating_weighted:
-              type: number
-              format: float
             rating_count:
               type: integer
-            rating_updated_at:
-              type: string
-              format: date-time
             local_images:
               type: array
               items:

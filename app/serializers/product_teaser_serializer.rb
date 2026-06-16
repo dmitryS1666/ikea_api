@@ -3,19 +3,14 @@ class ProductTeaserSerializer
 
   attributes :small_desc_name,
              :slug,
-             :price,
-             :price_pln,
              :price_byn,
-             :quantity,
              :is_bestseller,
              :is_new,
              :is_recommended,
              :is_popular,
              :category_id,
              :rating_avg,
-             :rating_weighted,
              :rating_count,
-             :rating_updated_at,
              :local_images,
              :variants,
              :promo
@@ -63,10 +58,6 @@ class ProductTeaserSerializer
         discount_type: best.discount_type
       }
     end
-  end
-
-  attribute :price_pln do |product|
-    product.price.to_f
   end
 
   attribute :delivery_days do |product, params|

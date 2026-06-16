@@ -56,7 +56,6 @@ module Categories
 
       {
         id: category_id,
-        type: "category",
         attributes: {
           translated_name: category.translated_name,
           slug: category.slug,

@@ -57,6 +57,7 @@ RSpec.describe 'Categories tree catalog SEO', type: :request do
       expect(node).to be_present
       expect(node.dig('attributes', 'seo')).to be_nil
       expect(node['attributes'].keys).not_to include('seo')
+      expect(node).not_to have_key('type')
     end
   end
 end

@@ -228,7 +228,7 @@ RSpec.describe ContentArticle, type: :model do
       expect(linked.length).to eq(1)
       expect(linked.first[:sku]).to eq(product.sku)
       expect(linked.first[:name_ru]).to eq("Linked product")
-      expect(linked.first).to include(:slug, :price, :local_images, :type)
+      expect(linked.first).to include(:slug, :price_byn, :local_images, :type)
     end
   end
 end
