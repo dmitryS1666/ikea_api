@@ -266,7 +266,7 @@ Trestle.resource :parser_control, model: ParserControl do
                     category_ikea_id: payload[:category_ikea_id]
                   )
                 elsif task_type == "optimize_home_banner_images"
-                  job_class.perform_later
+                  job_class.perform_later(task_id: task.id, limit: limit)
                 elsif %w[extended_attrs_import extended_attributes_by_skus import_products_by_skus fix_missing_images update_all_product_images update_product_variants generate_product_image_previews].include?(task_type)
                   # Для полного обновления картинок передаем cleanup: true по умолчанию
                   cleanup = params[:cleanup] == '1' || params[:cleanup].nil?
