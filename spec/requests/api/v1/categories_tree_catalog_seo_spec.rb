@@ -38,5 +38,25 @@ RSpec.describe 'Categories tree catalog SEO', type: :request do
         'seo_text' => '<h2>Каталог товаров IKEYA</h2><p>Выбирайте мебель и товары для дома.</p>'
       )
     end
+
+    it 'does not embed per-category seo in tree nodes' do
+      category = create(
+        :category,
+        ikea_id: 'dekor',
+        translated_name: 'Декор',
+        cached_slug: 'dekor',
+        parent_ids: []
+      )
+      create(:seo_metum, seoable: category, seo_text: '<h2>Декор SEO</h2><p>Длинный текст.</p>')
+
+      get '/api/v1/categories/tree'
+
+      expect(response).to have_http_status(:ok)
+
+      node = JSON.parse(response.body).fetch('data').find { |n| n['id'] == 'dekor' }
+      expect(node).to be_present
+      expect(node.dig('attributes', 'seo')).to be_nil
+      expect(node['attributes'].keys).not_to include('seo')
+    end
   end
 end

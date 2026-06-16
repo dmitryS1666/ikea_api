@@ -100,11 +100,10 @@ module Api
       end
       
       def tree
-        cache_key = "categories_tree_v2_#{current_city}"
+        cache_key = "categories_tree_v3_#{current_city}"
         tree = Rails.cache.fetch(cache_key, expires_in: 12.hours) do
           categories = Category
             .where(is_deleted: false)
-            .includes(:seo_meta)
             .select(:id, :ikea_id, :translated_name, :cached_slug, :parent_ids, :top_position, :root_position, :name)
             .with_attached_icon
             .with_attached_pictogram
