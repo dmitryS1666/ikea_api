@@ -154,11 +154,15 @@ class Order < ApplicationRecord
   end
 
   def self.cancel_expired_unpaid!(now: Time.current, grace_period: payment_autocancel_grace_period)
+    cancel_expired_unpaid_for_relation!(all, now: now, grace_period: grace_period)
+  end
+
+  def self.cancel_expired_unpaid_for_relation!(relation, now: Time.current, grace_period: payment_autocancel_grace_period)
     cutoff_time = now - grace_period
     checked = 0
     cancelled = 0
 
-    expired_unpaid_for_autocancel(cutoff_time).find_each do |order|
+    relation.merge(expired_unpaid_for_autocancel(cutoff_time)).find_each do |order|
       checked += 1
       cancelled += 1 if order.cancel_expired_unpaid!(cutoff_time: cutoff_time)
     end

@@ -5,6 +5,7 @@ module Api
         before_action :authenticate_user
 
         def index
+          Order.cancel_expired_unpaid_for_relation!(current_user.orders)
           orders = current_user.orders.visible_in_account_list.includes(order_items: :product).order(created_at: :desc)
           paginated = orders.page(params[:page]).per(params[:per_page] || 10)
 
@@ -19,6 +20,7 @@ module Api
         end
 
         def show
+          Order.cancel_expired_unpaid_for_relation!(current_user.orders)
           order = Order.find_for_account!(current_user, params[:id])
           render json: OrderSerializer.new(order, include: [:order_items])
         end
