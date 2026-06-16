@@ -46,5 +46,19 @@ RSpec.describe CartDisplayTotalsService do
 
       expect(totals[:subtotal_new_byn]).to eq(2620.50)
     end
+
+    it "reconciles total_byn with visible subtotal and delivery fields" do
+      totals = described_class.for_summary(
+        storefront_subtotal_byn: 1034.70,
+        delivery_to_belarus_byn: 20.49,
+        discount_total_byn: 0.0,
+        total_byn: 1055.20
+      )
+
+      expect(totals[:subtotal_new_byn]).to eq(1034.70)
+      expect(totals[:delivery_total_byn]).to eq(20.49)
+      expect(totals[:total_byn]).to eq(1055.19)
+      expect(totals[:subtotal_new_byn] + totals[:delivery_total_byn] - totals[:discount_total_byn]).to eq(totals[:total_byn])
+    end
   end
 end

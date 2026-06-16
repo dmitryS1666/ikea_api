@@ -40,6 +40,12 @@ class CartDisplayTotalsService
           ].max.round(2)
         end
 
+      # Keep totals additive for frontend:
+      # total = subtotal - discount + delivery.
+      # This avoids 0.01 drifts when internal line totals are rounded
+      # differently from visible summary parts.
+      total_byn = [(subtotal_new_byn - discount_total_byn + delivery_total_byn), 0.0].max.round(2)
+
       raw.to_h.symbolize_keys.merge(
         subtotal_new_byn: subtotal_new_byn,
         items_total_byn: subtotal_new_byn,
