@@ -1,6 +1,4 @@
 Trestle.resource(:orders) do
-  HIDDEN_STATUS_OPTIONS = %w[export_eu on_border purchased].freeze
-
   menu do
     item :orders, icon: "fa fa-shopping-cart", group: :sales, priority: 1, label: "Заказы"
   end
@@ -170,8 +168,7 @@ Trestle.resource(:orders) do
 
     sidebar do
       form_group :order_status, label: "Статус заказа" do
-        visible_status_options = Order.statuses.keys - HIDDEN_STATUS_OPTIONS
-        select :status, visible_status_options.map { |s| [I18n.t("activerecord.attributes.order.statuses.#{s}"), s] }, label: "Статус"
+        select :status, Order.statuses.keys.map { |s| [I18n.t("activerecord.attributes.order.statuses.#{s}"), s] }, label: "Статус"
         text_field :track_number, label: "Трек-номер"
       end
 
