@@ -45,12 +45,24 @@ class Order < ApplicationRecord
     "cancelled" => "canceled"
   }.freeze
   PVZ_DELIVERY_TYPES = %w[europost_pickup pickup].freeze
-  CUSTOMER_TRACKING_VISIBLE_STATUSES = %w[
-    customs_belarus
-    shipped
-    arrived_pvz
-    completed
-  ].freeze
+  EUROPOST_TRACKING_VISIBLE_STATUSES_BY_DELIVERY_TYPE = {
+    DeliveryTypeNormalizer::EUROPOST_PICKUP => %w[
+      customs_belarus
+      shipped
+      arrived_pvz
+      completed
+    ].freeze,
+    "pickup" => %w[
+      customs_belarus
+      shipped
+      arrived_pvz
+      completed
+    ].freeze,
+    DeliveryTypeNormalizer::COURIER => %w[
+      handed_to_courier
+      completed
+    ].freeze
+  }.freeze
 
   scope :purchased, -> { where(status: PURCHASED_STATUSES) }
   scope :expired_unpaid_for_autocancel, lambda { |cutoff_time = Time.current|
@@ -263,9 +275,11 @@ class Order < ApplicationRecord
   end
 
   def customer_tracking_visible?
-    track_number.present? &&
-      pvz_delivery_type?(delivery_type) &&
-      status.to_s.in?(CUSTOMER_TRACKING_VISIBLE_STATUSES)
+    return false unless track_number.present?
+
+    normalized_delivery_type = DeliveryTypeNormalizer.normalize(delivery_type)
+    visible_statuses = EUROPOST_TRACKING_VISIBLE_STATUSES_BY_DELIVERY_TYPE[normalized_delivery_type]
+    visible_statuses.present? && status.to_s.in?(visible_statuses)
   end
 
   def ensure_public_uid

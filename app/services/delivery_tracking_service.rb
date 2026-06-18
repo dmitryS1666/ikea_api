@@ -5,12 +5,10 @@ class DeliveryTrackingService
     normalized_delivery_type = DeliveryTypeNormalizer.normalize(order.delivery_type)
 
     info = case normalized_delivery_type
-           when 'europost'
-             EuropostTracker.track(order.track_number)
-           when 'europost_pickup'
+           when "europost", DeliveryTypeNormalizer::EUROPOST_PICKUP, DeliveryTypeNormalizer::COURIER
              EuropostTracker.track(order.track_number)
            else
-             { status: 'Информация об отслеживании недоступна', provider: normalized_delivery_type }
+             { status: "Информация об отслеживании недоступна", provider: normalized_delivery_type }
            end
 
     order.update_columns(tracking_info: info) if info

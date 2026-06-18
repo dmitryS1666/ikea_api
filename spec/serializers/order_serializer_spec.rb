@@ -144,11 +144,26 @@ RSpec.describe OrderSerializer do
       expect(attrs[:tracking_info]).to be_nil
     end
 
-    it "hides track number and tracking info for non-PVZ delivery orders" do
+    it "returns track number and tracking info for Europost courier orders" do
       order = create(
         :order,
-        status: "customs_belarus",
+        status: "handed_to_courier",
         delivery_type: DeliveryTypeNormalizer::COURIER,
+        track_number: "BY080027046773",
+        tracking_info: tracking_info
+      )
+
+      attrs = described_class.new(order).serializable_hash[:data][:attributes]
+
+      expect(attrs[:track_number]).to eq("BY080027046773")
+      expect(attrs[:tracking_info]).to eq(tracking_info)
+    end
+
+    it "hides track number and tracking info for IKEYA delivery orders" do
+      order = create(
+        :order,
+        status: "handed_to_courier_ikeya",
+        delivery_type: DeliveryTypeNormalizer::IKEYA_DELIVERY,
         track_number: "BY080027046773",
         tracking_info: tracking_info
       )

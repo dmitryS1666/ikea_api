@@ -109,6 +109,63 @@ RSpec.describe EuropostCreateShipmentService do
     expect(EuropostApiService).to have_received(:postal_create).with(data: payload)
   end
 
+  it "creates Europost shipment for paid Europost courier order and stores track number" do
+    order = create(
+      :order,
+      user: user,
+      status: :paid,
+      delivery_type: DeliveryTypeNormalizer::COURIER,
+      payment_order_number: "PAY-2002",
+      total_amount: 99.99,
+      full_name: "Иванов Иван Иванович",
+      phone: "+375 (29) 123-45-67",
+      address_json: {
+        "delivery" => {
+          "address" => {
+            "city" => "Минск",
+            "street" => "Победителей",
+            "house_number" => "7",
+            "flat" => "11",
+            "lat" => "53.9045",
+            "lng" => "27.5615"
+          }
+        }
+      }
+    )
+    create(:order_item, order: order, product_sku: product.sku, quantity: 1, price: 10)
+
+    allow(EuropostApiService).to receive(:postal_create).and_return(
+      "number" => "BY080059185809",
+      "status" => { "name" => "Заявка создана", "value" => 0 },
+      "full_price" => 12.5
+    )
+
+    with_env(
+      "EUROPOST_STORE_ID_START" => "70130090",
+      "EUROPOST_CONTRACTOR_UNN" => "193323100",
+      "EUROPOST_COURIER_DELIVERY_TYPE" => "2",
+      "EUROPOST_API_TOKEN" => "token"
+    ) do
+      result = described_class.call(order)
+
+      expect(result).to be_success
+      expect(result.track_number).to eq("BY080059185809")
+    end
+
+    order.reload
+    expect(order.track_number).to eq("BY080059185809")
+    expect(order.tracking_info.dig("europost_create", "status")).to eq("created")
+    expect(EuropostApiService).to have_received(:postal_create).with(
+      data: a_hash_including(
+        "delivery_type" => 2,
+        "address_city" => "Минск",
+        "address_street" => "Победителей",
+        "address_house_number" => "7",
+        "address_full" => "Минск, Победителей, д. 7, кв. 11"
+      )
+    )
+  end
+
   it "does not create shipment twice when track number already exists" do
     order = create(
       :order,
