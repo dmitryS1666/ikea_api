@@ -374,7 +374,7 @@ ru:
           on_border: "На границе"
           customs_belarus: "Таможня Беларусь"
           shipped: "В доставке ПВЗ"
-          arrived_pvz: "Доставлено в ПВЗ"
+          arrived_pvz: "Прибыл в ПВЗ"
           handed_to_courier: "Выдано курьеру Европочта"
           handed_to_courier_ikeya: "Выдано курьеру IKEYA"
           completed: "Доставлено"
