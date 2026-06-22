@@ -9,6 +9,7 @@ class Order < ApplicationRecord
   belongs_to :promo_code, optional: true
   has_many :order_items, dependent: :destroy
   has_many :order_status_events, dependent: :destroy
+  has_many :consent_records, dependent: :nullify
 
   attr_accessor :status_changed_at, :status_change_source, :status_change_raw_payload
 

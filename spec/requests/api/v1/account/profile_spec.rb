@@ -3,9 +3,16 @@
 require "rails_helper"
 
 RSpec.describe "Account Profile API", type: :request do
+  include ActiveJob::TestHelper
+
   let(:user) { create(:user, phone: "375291112233") }
   let(:token) { JwtService.encode(user_id: user.id) }
   let(:headers) { { "Authorization" => "Bearer #{token}" } }
+
+  before do
+    ActiveJob::Base.queue_adapter = :test
+    clear_enqueued_jobs
+  end
 
   let(:passport_payload) do
     {
@@ -142,6 +149,83 @@ RSpec.describe "Account Profile API", type: :request do
       body = JSON.parse(response.body)
       expect(body["gender"]).to eq("Female")
       expect(user.reload.read_attribute(:gender)).to eq("Female")
+    end
+
+    it "updates marketing and privacy consent flags" do
+      patch "/api/v1/account/profile",
+            params: {
+              gdpr_consent: true,
+              newsletter_consent: true,
+              email_marketing: true,
+              telegram_marketing: false
+            },
+            headers: headers
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["gdpr_consent"]).to be(true)
+      expect(body["newsletter_consent"]).to be(true)
+      expect(body["email_marketing"]).to be(true)
+      expect(body["telegram_marketing"]).to be(false)
+
+      user.reload
+      expect(user.gdpr_consent).to be(true)
+      expect(user.newsletter_consent).to be(true)
+      expect(user.email_marketing).to be(true)
+      expect(user.telegram_marketing).to be(false)
+    end
+
+    it "allows unsubscribing from all marketing channels" do
+      user.update!(
+        gdpr_consent: true,
+        newsletter_consent: true,
+        email_marketing: true,
+        telegram_marketing: true
+      )
+
+      expect do
+        patch "/api/v1/account/profile",
+              params: {
+                newsletter_consent: false,
+                email_marketing: false,
+                telegram_marketing: false
+              },
+              headers: headers
+      end.to have_enqueued_job(CrmSyncJob).with("User", user.id)
+         .and have_enqueued_job(SendpulseMarketingSyncJob).with(user.id, "unsubscribe")
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["newsletter_consent"]).to be(false)
+      expect(body["email_marketing"]).to be(false)
+      expect(body["telegram_marketing"]).to be(false)
+
+      user.reload
+      expect(user.newsletter_consent).to be(false)
+      expect(user.email_marketing).to be(false)
+      expect(user.telegram_marketing).to be(false)
+      expect(user.gdpr_consent).to be(true)
+      expect(user.consent_records.for_type(:newsletter_email).last.accepted).to be(false)
+    end
+  end
+
+  describe "GET /api/v1/account/profile" do
+    it "returns marketing and privacy consent flags" do
+      user.update!(
+        gdpr_consent: true,
+        newsletter_consent: false,
+        email_marketing: false,
+        telegram_marketing: true
+      )
+
+      get "/api/v1/account/profile", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["gdpr_consent"]).to be(true)
+      expect(body["newsletter_consent"]).to be(false)
+      expect(body["email_marketing"]).to be(false)
+      expect(body["telegram_marketing"]).to be(true)
     end
   end
 end

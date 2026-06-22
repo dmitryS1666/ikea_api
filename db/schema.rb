@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_15_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_22_092151) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -185,6 +185,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_15_120000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["category_id"], name: "index_category_related_product_lists_on_category_id", unique: true
+  end
+
+  create_table "consent_records", force: :cascade do |t|
+    t.bigint "user_id"
+    t.bigint "order_id"
+    t.string "consent_type", null: false
+    t.boolean "accepted", default: false, null: false
+    t.string "legal_page_slug"
+    t.datetime "legal_page_version_at"
+    t.string "source", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_consent_records_on_created_at"
+    t.index ["order_id", "consent_type"], name: "index_consent_records_on_order_id_and_consent_type"
+    t.index ["order_id"], name: "index_consent_records_on_order_id"
+    t.index ["user_id", "consent_type"], name: "index_consent_records_on_user_id_and_consent_type"
+    t.index ["user_id"], name: "index_consent_records_on_user_id"
   end
 
   create_table "content_article_categories", force: :cascade do |t|
@@ -492,6 +510,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_15_120000) do
     t.datetime "webpay_paid_at"
     t.boolean "checkout_draft", default: false, null: false
     t.string "public_uid", null: false
+    t.boolean "personal_data_consent", default: false, null: false
+    t.boolean "offer_agreement_consent", default: false, null: false
+    t.boolean "customs_broker_consent", default: false, null: false
     t.index ["crm_external_id"], name: "index_orders_on_crm_external_id"
     t.index ["payment_link_token"], name: "index_orders_on_payment_link_token", unique: true
     t.index ["promo_code_id"], name: "index_orders_on_promo_code_id"
@@ -949,6 +970,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_15_120000) do
     t.string "a1_verification_id"
     t.string "crm_contact_id"
     t.string "telegram_chat_id"
+    t.boolean "personal_data_consent", default: false, null: false
+    t.datetime "personal_data_consented_at"
     t.index ["crm_contact_id"], name: "index_users_on_crm_contact_id"
     t.index ["email"], name: "index_users_on_email", unique: true, where: "(email IS NOT NULL)"
     t.index ["phone"], name: "index_users_on_phone", unique: true
@@ -971,6 +994,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_15_120000) do
   add_foreign_key "carts", "users"
   add_foreign_key "category_products", "products"
   add_foreign_key "category_related_product_lists", "categories", primary_key: "ikea_id"
+  add_foreign_key "consent_records", "orders"
+  add_foreign_key "consent_records", "users"
   add_foreign_key "favorite_items", "favorites"
   add_foreign_key "favorites", "users"
   add_foreign_key "home_banners", "categories", primary_key: "ikea_id", on_delete: :nullify

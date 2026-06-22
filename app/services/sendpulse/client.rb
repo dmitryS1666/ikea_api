@@ -19,6 +19,11 @@ module Sendpulse
       parse_response(response, endpoint: path)
     end
 
+    def delete(path, payload = {})
+      response = self.class.delete(url_for(path), headers: headers, body: payload.to_json)
+      parse_response(response, endpoint: path)
+    end
+
     private
 
     def headers

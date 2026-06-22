@@ -27,6 +27,15 @@ Trestle.resource(:users, model: User) do
       status_tag(user.passport_verified? ? 'Верифицирован' : 'Не верифицирован', 
                  user.passport_verified? ? :success : :warning)
     end
+    column :personal_data_consent, label: "ПД" do |user|
+      status_tag(user.personal_data_consent? ? 'Да' : 'Нет', user.personal_data_consent? ? :success : :danger)
+    end
+    column :email_marketing, label: "Email" do |user|
+      status_tag(user.email_marketing? ? 'Да' : 'Нет', user.email_marketing? ? :success : :secondary)
+    end
+    column :newsletter_consent, label: "Рассылка" do |user|
+      status_tag(user.newsletter_consent? ? 'Да' : 'Нет', user.newsletter_consent? ? :success : :secondary)
+    end
     column :is_active do |user|
       status_tag(user.is_active? ? 'Да' : 'Нет', 
                  user.is_active? ? :success : :danger)
@@ -117,6 +126,21 @@ Trestle.resource(:users, model: User) do
       check_box :telegram_marketing, label: "Рассылка через Telegram"
       check_box :newsletter_consent, label: "Общее согласие на рассылку"
       check_box :gdpr_consent, label: "Согласие GDPR"
+      check_box :personal_data_consent, label: "Согласие на обработку ПД"
+      datetime_field :personal_data_consented_at, label: "Дата согласия на ПД"
+    end
+
+    tab :consents, label: "История согласий" do
+      table user.consent_records.ordered.limit(50), admin: :consent_records do
+        column :created_at, label: "Дата"
+        column :consent_type, label: "Тип"
+        column :accepted, label: "Принято" do |record|
+          status_tag(record.accepted? ? "Да" : "Нет", record.accepted? ? :success : :danger)
+        end
+        column :legal_page_slug, label: "Документ"
+        column :legal_page_version_at, label: "Версия документа"
+        column :source, label: "Источник"
+      end
     end
 
     tab :passport, label: "Паспортные данные" do
@@ -230,6 +254,7 @@ Trestle.resource(:users, model: User) do
       :last_name, :first_name, :middle_name, :username, :email, :phone, :country_code,
       :dob, :gender, :region, :city, :postcode, :street, :house, :building, :apartment,
       :address, :email_marketing, :telegram_marketing, :newsletter_consent, :gdpr_consent,
+      :personal_data_consent, :personal_data_consented_at,
       :password, :password_confirmation, :role, :is_active
     )
   end

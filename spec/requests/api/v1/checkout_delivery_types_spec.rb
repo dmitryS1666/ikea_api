@@ -47,7 +47,7 @@ RSpec.describe "Checkout delivery types", type: :request do
   end
 
   def checkout(payload)
-    post "/api/v1/checkout", params: payload, headers: headers
+    post "/api/v1/checkout", params: checkout_consents.merge(payload), headers: headers
   end
 
   it "rejects unsupported delivery type" do

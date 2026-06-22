@@ -3,9 +3,19 @@ require "securerandom"
 class LegalPage < ApplicationRecord
   enum status: { draft: 0, published: 1, disabled: 2 }
 
+  SLUG_PERSONAL_DATA = "personal-data-consent-ikeya-by"
+  SLUG_PUBLIC_OFFER = "public-offer-commission-ikeya"
+  SLUG_CUSTOMS_BROKER = "customs-broker-agreement"
+
+  CONSENT_SLUGS = {
+    "personal_data" => SLUG_PERSONAL_DATA,
+    "offer_agreement" => SLUG_PUBLIC_OFFER,
+    "customs_broker" => SLUG_CUSTOMS_BROKER
+  }.freeze
+
   SEED_PAGES = [
-    ["personal-data-consent-ikeya-by", "СОГЛАСИЕ НА ОБРАБОТКУ ПЕРСОНАЛЬНЫХ ДАННЫХ IKEYA.BY"],
-    ["public-offer-commission-ikeya", "ПУБЛИЧНАЯ ОФЕРТА (ДОГОВОР КОМИССИИ) IKEYA"],
+    [SLUG_PERSONAL_DATA, "СОГЛАСИЕ НА ОБРАБОТКУ ПЕРСОНАЛЬНЫХ ДАННЫХ IKEYA.BY"],
+    [SLUG_PUBLIC_OFFER, "ПУБЛИЧНАЯ ОФЕРТА (ДОГОВОР КОМИССИИ) IKEYA"],
     ["referral-technologies-rules-ikeya-by", "ПРАВИЛА ПРИМЕНЕНИЯ РЕКОМЕНДАТЕЛЬНЫХ ТЕХНОЛОГИЙ IKEYA.BY"],
     ["customs-payments-rules", "ПРАВИЛА ОПЛАТЫ ТАМОЖЕННЫХ ПЛАТЕЖЕЙ"],
     ["content-and-materials-usage-rules-ikeya-by", "ПРАВИЛА ИСПОЛЬЗОВАНИЯ КОНТЕНТА И МАТЕРИАЛОВ IKEYA.BY"],
@@ -14,7 +24,7 @@ class LegalPage < ApplicationRecord
     ["cookie-policy-ikeya-by", "ПОЛИТИКА В ОТНОШЕНИИ ФАЙЛОВ COOKIE IKEYA.BY"],
     ["webpay-services-payment-ikeya-by", "ОПЛАТА УСЛУГ (СЕРВИС WebPay) IKEAYA.BY"],
     ["delivery-international-logistics-ikeya-by", "ДОСТАВКА (INTERNATIONAL LOGISTICS) IKEYA.BY"],
-    ["customs-broker-agreement", "ДОГОВОР С ТАМОЖЕННЫМ БРОКЕРОМ"],
+    [SLUG_CUSTOMS_BROKER, "ДОГОВОР С ТАМОЖЕННЫМ БРОКЕРОМ"],
     ["returns-and-exchange-ikeya-by", "ВОЗВРАТ И ОБМЕН ТОВАРОВ  IKEYA.BY"]
   ].freeze
 
@@ -31,6 +41,10 @@ class LegalPage < ApplicationRecord
 
   def status_label
     I18n.t("activerecord.attributes.legal_page.statuses.#{status}")
+  end
+
+  def self.consent_slug_for(consent_type)
+    CONSENT_SLUGS[consent_type.to_s]
   end
 
   def self.seed_defaults!

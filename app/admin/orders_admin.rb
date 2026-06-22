@@ -144,6 +144,18 @@ Trestle.resource(:orders) do
           safe_join(service_labels.map { |label| status_tag(label, :info) }, tag.br)
         end
       end
+
+      divider
+
+      static_field :personal_data_consent, label: "Согласие на ПД" do
+        status_tag(order.personal_data_consent? ? "Да" : "Нет", order.personal_data_consent? ? :success : :danger)
+      end
+      static_field :offer_agreement_consent, label: "Согласие с офертой" do
+        status_tag(order.offer_agreement_consent? ? "Да" : "Нет", order.offer_agreement_consent? ? :success : :danger)
+      end
+      static_field :customs_broker_consent, label: "Согласие с таможенным брокером" do
+        status_tag(order.customs_broker_consent? ? "Да" : "Нет", order.customs_broker_consent? ? :success : :danger)
+      end
     end
 
     tab :items, label: "Товары" do

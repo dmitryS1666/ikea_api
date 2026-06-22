@@ -69,7 +69,7 @@ class PhoneAuthService
     end
   end
 
-  def self.verify_code(phone:, code:, username: nil, email: nil)
+  def self.verify_code(phone:, code:, username: nil, email: nil, personal_data_consent: nil)
     # Нормализация номера телефона
     phone = phone.to_s.gsub(/\D/, '')
     
@@ -77,18 +77,22 @@ class PhoneAuthService
     
     return { error: 'Неверный или просроченный код' } unless verification
 
-    verification.destroy!
-
     user = User.find_or_initialize_by(phone: phone)
-    
     is_new_user = user.new_record?
-    
+
     if is_new_user
-      # При регистрации обязательно имя (username)
       if username.blank?
         return { error: 'Имя обязательно для регистрации' }
       end
 
+      unless ConsentService.truthy?(personal_data_consent)
+        return { error: 'Требуется согласие на обработку персональных данных', code: 'personal_data_consent_required' }
+      end
+    end
+
+    verification.destroy!
+    
+    if is_new_user
       user.username = username
       user.email = email if email.present?
       user.password = SecureRandom.hex(12)
@@ -97,6 +101,8 @@ class PhoneAuthService
       unless user.save
         return { error: user.errors.full_messages.join(', ') }
       end
+
+      ConsentService.record_registration_personal_data!(user: user)
     else
       # Если пользователь уже существует, обновляем email, если он передан
       user.email = email if email.present?

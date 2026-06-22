@@ -57,7 +57,8 @@ module Api
           phone: params[:phone], 
           code: params[:code],
           username: params[:username],
-          email: params[:email]
+          email: params[:email],
+          personal_data_consent: params[:personal_data_consent]
         )
         
         if result[:success]
@@ -96,7 +97,7 @@ module Api
             is_new: result[:is_new]
           }, status: status
         else
-          render json: { error: result[:error] }, status: :unauthorized
+          render json: { error: result[:error], code: result[:code] }.compact, status: :unauthorized
         end
       end
 

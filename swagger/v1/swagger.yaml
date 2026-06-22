@@ -16,6 +16,14 @@ info:
     2. **Сохранение с подтверждением:** `PATCH /api/v1/account/profile` с полями `passport`, `verification_id` и `code` (последние 4 цифры входящего номера). Паспорт сохраняется в БД только при верном коде; при неверном коде данные не записываются.
     3. **Проверка статуса:** `GET /api/v1/account/profile` — поле `passport_verified`.
     4. **Верификация при оформлении заказа:** `POST /api/v1/checkout` — при изменении паспорта в заказе требуется подтверждение через A1 (см. параметры checkout).
+
+    ## Согласия (ПД, оферта, рассылка)
+    1. **Регистрация:** `POST /api/v1/auth/phone/verify` — для нового пользователя обязательно `personal_data_consent: true`. При отказе код подтверждения не сгорает.
+    2. **Оформление заказа:** `POST /api/v1/checkout` (без `draft`) и `POST /api/v1/checkout/{id}/finalize` — обязательны три флага:
+       `personal_data_consent`, `offer_agreement_consent`, `customs_broker_consent` (все `true`).
+       Документы: `personal-data-consent-ikeya-by`, `public-offer-commission-ikeya`, `customs-broker-agreement` (`GET /api/v1/content/legal_pages/{slug}`).
+    3. **Профиль / рассылка:** `PATCH /api/v1/account/profile` — `email_marketing`, `newsletter_consent`, `telegram_marketing`, `gdpr_consent`; изменения пишутся в историю согласий.
+    4. **Отписка SendPulse (webhook):** `POST /api/v1/webhooks/sendpulse` — события `unsubscribe` снимают флаги рассылки и фиксируют отписку в истории.
     
     **Публичные эндпоинты (Без токена):**
     - `GET /api/v1/products` — Список товаров
@@ -704,7 +712,9 @@ paths:
   /api/v1/auth/phone/verify:
     post:
       summary: Подтвердить код и войти/зарегистрироваться
-      description: Если пользователь с таким телефоном не существует, он будет создан. В этом случае поле username обязательно.
+      description: |
+        Если пользователь с таким телефоном не существует, он будет создан. В этом случае поля `username` и `personal_data_consent` обязательны.
+        При отказе от согласия на ПД (`personal_data_consent: false`) код подтверждения не удаляется — можно повторить запрос с согласием.
       tags:
         - Authentication
       requestBody:
@@ -728,6 +738,11 @@ paths:
                 email:
                   type: string
                   description: Email пользователя (необязательно)
+                personal_data_consent:
+                  type: boolean
+                  description: |
+                    Согласие на обработку персональных данных (обязательно при регистрации нового пользователя).
+                    Документ: `personal-data-consent-ikeya-by`.
                 cart_token:
                   type: string
                   description: Опциональный токен гостевой корзины для привязки к пользователю
@@ -759,7 +774,18 @@ paths:
                   is_new:
                     type: boolean
         '401':
-          description: Неверный или просроченный код
+          description: Неверный или просроченный код, либо отсутствует согласие на ПД при регистрации
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  code:
+                    type: string
+                    enum: [personal_data_consent_required]
+                    nullable: true
         '422':
           description: Ошибка валидации (например, не указано имя при регистрации)
 
@@ -1118,7 +1144,11 @@ paths:
       description: |
         Legacy checkout создаёт заказ по полной форме.
         Draft mode включается через `draft=true` и принимает `cart_token` + `items[]`;
-        при этом `full_name`, `phone`, `delivery_type`, `payment_method` не обязательны.
+        при этом `full_name`, `phone`, `delivery_type`, `payment_method` и согласия не обязательны.
+
+        **Согласия при оформлении (без `draft` или при `finalize`):** обязательны `personal_data_consent`,
+        `offer_agreement_consent`, `customs_broker_consent` (все `true`). Факт согласия сохраняется на заказе
+        и в истории с привязкой к версии правового документа.
       tags:
         - Checkout
       security:
@@ -1128,54 +1158,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                draft:
-                  type: boolean
-                  description: Если true — создать/переиспользовать черновик заказа из selected items.
-                cart_token:
-                  type: string
-                  description: Токен гостевой корзины. Если передан, используется как источник товаров даже после auth.
-                items:
-                  type: array
-                  description: Selected cart items для draft/partial checkout.
-                  items:
-                    type: object
-                    properties:
-                      sku:
-                        type: string
-                      quantity:
-                        type: integer
-                full_name:
-                  type: string
-                  example: "Иван Иванов"
-                phone:
-                  type: string
-                  example: "375291234567"
-                delivery_type:
-                  type: string
-                  enum: [europost_pickup, courier, ikeya_delivery]
-                  description: "Поддерживаемые типы: europost_pickup, courier, ikeya_delivery."
-                payment_method:
-                  type: string
-                  enum: [card, installment, qr, erip, oplati]
-                  description: "card (карта онлайн), installment (рассрочка), qr (QR-код), erip (ЕРИП), oplati (Оплати)"
-                pickup_point_id:
-                  type: integer
-                  description: "ID ПВЗ (обязательно для delivery_type=europost_pickup)"
-                a1_verification_id:
-                  type: string
-                  description: "ID верификации A1"
-                address:
-                  type: object
-                  additionalProperties: true
-                passport:
-                  type: object
-                  additionalProperties: true
-                services:
-                  type: array
-                  items:
-                    type: string
+              $ref: '#/components/schemas/CheckoutRequestPayload'
       responses:
         '201':
           description: Заказ или черновик создан
@@ -1204,7 +1187,13 @@ paths:
         '409':
           description: Уже есть активный черновик checkout
         '422':
-          description: Ошибка валидации
+          description: Ошибка валидации или отсутствует обязательное согласие
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ConsentRequiredError'
+                  - $ref: '#/components/schemas/ValidationErrors'
 
   /api/v1/checkout/draft:
     get:
@@ -1245,6 +1234,9 @@ paths:
           description: Черновик не найден
     patch:
       summary: Обновить checkout draft
+      description: |
+        Обновляет черновик заказа. Поля согласий (`personal_data_consent`, `offer_agreement_consent`,
+        `customs_broker_consent`) на этапе черновика не обязательны — они проверяются при `finalize`.
       tags:
         - Checkout
       security:
@@ -1283,6 +1275,9 @@ paths:
   /api/v1/checkout/{id}/finalize:
     post:
       summary: Финализировать checkout draft
+      description: |
+        Завершает многошаговое оформление. Тело запроса — как у `POST /api/v1/checkout` (доставка, оплата, паспорт, `items[]`).
+        **Обязательны согласия:** `personal_data_consent`, `offer_agreement_consent`, `customs_broker_consent` (все `true`).
       tags:
         - Checkout
       security:
@@ -1293,13 +1288,25 @@ paths:
           required: true
           schema:
             type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequestPayload'
       responses:
         '201':
           description: Заказ оформлен
         '404':
           description: Черновик не найден
         '422':
-          description: Ошибка валидации
+          description: Ошибка валидации или отсутствует обязательное согласие
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ConsentRequiredError'
+                  - $ref: '#/components/schemas/ValidationErrors'
 
   /api/v1/payment_links/{id}:
     get:
@@ -1669,6 +1676,63 @@ paths:
         '200':
           description: Вебхук успешно обработан
 
+  /api/v1/webhooks/sendpulse:
+    post:
+      summary: Прием вебхуков SendPulse (отписка от рассылки)
+      description: |
+        Публичный endpoint для событий SendPulse. Обрабатывает отписку от маркетинговой рассылки:
+        события `unsubscribe`, `unsubscribe_email`, `global_unsubscribe`.
+
+        При отписке снимаются флаги `email_marketing` и `newsletter_consent` у пользователя с совпадающим email,
+        создаётся запись в истории согласий (`source: unsubscribe_webhook`).
+
+        **Настройка:** укажите URL в SendPulse; при необходимости добавьте проверку подписи на стороне прокси.
+      tags:
+        - SendPulse Webhooks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendpulseWebhookPayload'
+      responses:
+        '200':
+          description: Событие обработано или проигнорировано
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  ignored:
+                    type: boolean
+                    nullable: true
+                  event:
+                    type: string
+                    nullable: true
+                  user_id:
+                    type: integer
+                    nullable: true
+                  skipped:
+                    type: boolean
+                    nullable: true
+                  reason:
+                    type: string
+                    nullable: true
+        '422':
+          description: Некорректный payload (например, email не найден)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: string
+
   /api/v1/account/orders:
     get:
       summary: Список заказов пользователя
@@ -1939,6 +2003,10 @@ paths:
       description: |
         При изменении паспортных данных (`passport`) обязательны `verification_id` (из `POST /api/v1/a1/request`)
         и `code` (последние 4 цифры входящего номера). Без успешной проверки кода паспорт не сохраняется.
+
+        Изменения маркетинговых флагов (`email_marketing`, `newsletter_consent`, `telegram_marketing`, `gdpr_consent`)
+        записываются в историю согласий. При подписке/отписке email-рассылки выполняется синхронизация с SendPulse
+        (если задан `SENDPULSE_MAILING_LIST_ID`).
       tags:
         - Account
       security:
@@ -3116,6 +3184,14 @@ components:
         email_marketing: { type: boolean, description: "Подписка на рассылку по Email" }
         gdpr_consent: { type: boolean }
         newsletter_consent: { type: boolean }
+        personal_data_consent:
+          type: boolean
+          description: "Согласие на обработку персональных данных (флаг пользователя)"
+        personal_data_consented_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: "Дата последнего согласия на обработку ПД"
         passport_verified: { type: boolean }
         passport_data:
           $ref: '#/components/schemas/PassportData'
@@ -3320,6 +3396,146 @@ components:
         Ответ при ошибке валидации ActiveRecord (формат может различаться по окружению).
         Часто содержит ключ `errors` с деталями по полям.
       additionalProperties: true
+
+    ConsentRequiredError:
+      type: object
+      description: Отсутствует обязательное согласие при checkout или finalize
+      properties:
+        error:
+          type: string
+          example: "Требуется согласие с публичной офертой"
+        code:
+          type: string
+          enum: [consent_required]
+        field:
+          type: string
+          enum: [personal_data_consent, offer_agreement_consent, customs_broker_consent]
+          description: Имя поля, которое не передано или равно false
+
+    CheckoutConsents:
+      type: object
+      description: |
+        Согласия при оформлении заказа. Обязательны при `POST /checkout` без `draft` и при `POST /checkout/{id}/finalize`.
+        Каждое поле должно быть `true`.
+      properties:
+        personal_data_consent:
+          type: boolean
+          description: "Согласие на обработку ПД. Документ: `personal-data-consent-ikeya-by`"
+        offer_agreement_consent:
+          type: boolean
+          description: "Согласие с публичной офертой. Документ: `public-offer-commission-ikeya`"
+        customs_broker_consent:
+          type: boolean
+          description: "Согласие с договором таможенного брокера. Документ: `customs-broker-agreement`"
+
+    CheckoutRequestPayload:
+      type: object
+      properties:
+        draft:
+          type: boolean
+          description: Если true — создать/переиспользовать черновик заказа из selected items.
+        cart_token:
+          type: string
+          description: Токен гостевой корзины. Если передан, используется как источник товаров даже после auth.
+        items:
+          type: array
+          description: Selected cart items для draft/partial checkout.
+          items:
+            type: object
+            properties:
+              sku:
+                type: string
+              quantity:
+                type: integer
+        full_name:
+          type: string
+          example: "Иван Иванов"
+        phone:
+          type: string
+          example: "375291234567"
+        delivery_type:
+          type: string
+          enum: [europost_pickup, courier, ikeya_delivery]
+          description: "Поддерживаемые типы: europost_pickup, courier, ikeya_delivery."
+        payment_method:
+          type: string
+          enum: [card, installment, qr, erip, oplati]
+          description: "card (карта онлайн), installment (рассрочка), qr (QR-код), erip (ЕРИП), oplati (Оплати)"
+        pickup_point_id:
+          type: integer
+          description: "ID ПВЗ (обязательно для delivery_type=europost_pickup)"
+        a1_verification_id:
+          type: string
+          description: "ID верификации A1"
+        a1_verification_last4:
+          type: string
+          description: "Последние 4 цифры звонка для подтверждения паспорта"
+        verification_code:
+          type: string
+          description: "Синоним a1_verification_last4"
+        address:
+          type: object
+          additionalProperties: true
+        passport:
+          type: object
+          additionalProperties: true
+        services:
+          type: array
+          items:
+            type: string
+        personal_data_consent:
+          type: boolean
+          description: "Согласие на обработку ПД. Документ: `personal-data-consent-ikeya-by`"
+        offer_agreement_consent:
+          type: boolean
+          description: "Согласие с публичной офертой. Документ: `public-offer-commission-ikeya`"
+        customs_broker_consent:
+          type: boolean
+          description: "Согласие с договором таможенного брокера. Документ: `customs-broker-agreement`"
+
+    SendpulseWebhookPayload:
+      type: object
+      description: Упрощённая схема payload SendPulse для отписки (поля могут отличаться по типу события)
+      properties:
+        event:
+          type: string
+          enum: [unsubscribe, unsubscribe_email, global_unsubscribe]
+        email:
+          type: string
+          format: email
+        recipient:
+          type: object
+          properties:
+            email:
+              type: string
+              format: email
+        data:
+          type: object
+          additionalProperties: true
+
+    ConsentRecord:
+      type: object
+      description: Запись истории согласий (хранится в админке, не отдаётся публичным API)
+      properties:
+        id: { type: integer }
+        user_id: { type: integer, nullable: true }
+        order_id: { type: integer, nullable: true }
+        consent_type:
+          type: string
+          enum: [personal_data, offer_agreement, customs_broker, newsletter_email, newsletter_telegram, gdpr]
+        accepted: { type: boolean }
+        legal_page_slug: { type: string, nullable: true }
+        legal_page_version_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: "updated_at правового документа на момент согласия"
+        source:
+          type: string
+          enum: [registration, checkout, profile, admin, cooperation_form, unsubscribe_webhook]
+        created_at:
+          type: string
+          format: date-time
 
     ReturnRequest:
       type: object
@@ -3965,6 +4181,18 @@ components:
             tracking_info:
               type: object
               nullable: true
+            checkout_draft:
+              type: boolean
+              description: "true — заказ в процессе многошагового оформления"
+            personal_data_consent:
+              type: boolean
+              description: "Снимок согласия на ПД на момент оформления"
+            offer_agreement_consent:
+              type: boolean
+              description: "Снимок согласия с офертой на момент оформления"
+            customs_broker_consent:
+              type: boolean
+              description: "Снимок согласия с договором таможенного брокера на момент оформления"
 
     OrderItem:
       type: object
@@ -4161,6 +4389,18 @@ components:
             tracking_info:
               type: object
               nullable: true
+            checkout_draft:
+              type: boolean
+              description: "true — заказ в процессе многошагового оформления"
+            personal_data_consent:
+              type: boolean
+              description: "Снимок согласия на ПД на момент оформления"
+            offer_agreement_consent:
+              type: boolean
+              description: "Снимок согласия с офертой на момент оформления"
+            customs_broker_consent:
+              type: boolean
+              description: "Снимок согласия с договором таможенного брокера на момент оформления"
 
     OrderItem:
       type: object

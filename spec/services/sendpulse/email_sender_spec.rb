@@ -53,6 +53,8 @@ RSpec.describe Sendpulse::EmailSender do
   end
 
   it "does not send without to_email" do
+    allow(client).to receive(:post)
+
     result = service.call(to_email: nil, subject: "x", html: "<p>x</p>")
 
     expect(result.success?).to be(false)

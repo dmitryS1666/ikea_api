@@ -73,13 +73,13 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     }, headers: headers
     expect(response).to have_http_status(:ok)
 
-    post "/api/v1/checkout/#{order.id}/finalize", params: {
+    post "/api/v1/checkout/#{order.id}/finalize", params: checkout_consents.merge(
       full_name: "User",
       phone: "375291112233",
       delivery_type: "europost_pickup",
       payment_method: "card",
       pickup_point_id: "70130010"
-    }, headers: headers
+    ), headers: headers
 
     expect(response).to have_http_status(:created)
     order.reload

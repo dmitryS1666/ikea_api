@@ -3,6 +3,12 @@
 require "rails_helper"
 
 RSpec.describe User, type: :model do
+  include ActiveJob::TestHelper
+
+  before do
+    ActiveJob::Base.queue_adapter = :test
+    clear_enqueued_jobs
+  end
   describe ".normalize_gender" do
     it "maps lowercase and localized aliases to canonical values" do
       expect(described_class.normalize_gender("male")).to eq("Male")
@@ -23,6 +29,32 @@ RSpec.describe User, type: :model do
       user.write_attribute(:gender, "male")
 
       expect(user.gender).to eq("Male")
+    end
+  end
+
+  describe "consent CRM sync" do
+    it "enqueues CrmSyncJob when newsletter consent changes" do
+      user = create(:user, newsletter_consent: true)
+
+      expect do
+        user.update!(newsletter_consent: false)
+      end.to have_enqueued_job(CrmSyncJob).with("User", user.id)
+    end
+
+    it "enqueues CrmSyncJob when email_marketing changes" do
+      user = create(:user, email_marketing: true)
+
+      expect do
+        user.update!(email_marketing: false)
+      end.to have_enqueued_job(CrmSyncJob).with("User", user.id)
+    end
+
+    it "does not enqueue CrmSyncJob when unrelated profile field changes" do
+      user = create(:user, city: "Минск")
+
+      expect do
+        user.update!(city: "Гродно")
+      end.not_to have_enqueued_job(CrmSyncJob)
     end
   end
 end

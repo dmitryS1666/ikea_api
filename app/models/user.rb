@@ -38,6 +38,7 @@ class User < ApplicationRecord
   has_many :return_requests, dependent: :destroy
   has_one :cart, dependent: :destroy
   has_one :favorite, dependent: :destroy
+  has_many :consent_records, dependent: :destroy
   
   def admin?
     role == 'admin'
@@ -93,6 +94,7 @@ class User < ApplicationRecord
   end
 
   after_commit :sync_with_crm, on: [:create, :update], if: :should_sync_crm?
+  after_commit :sync_marketing_subscription, on: [:create, :update], if: :should_sync_marketing_subscription?
 
   private
 
@@ -102,11 +104,22 @@ class User < ApplicationRecord
     saved_change_to_username? || saved_change_to_email? || saved_change_to_phone? || 
     saved_change_to_first_name? || saved_change_to_last_name? || saved_change_to_middle_name? ||
     saved_change_to_encrypted_passport_json? || saved_change_to_gdpr_consent? || 
+    saved_change_to_personal_data_consent? ||
     saved_change_to_newsletter_consent? || saved_change_to_telegram_marketing? ||
     saved_change_to_email_marketing?
   end
 
+  def should_sync_marketing_subscription?
+    return false if email.blank?
+
+    saved_change_to_email_marketing? || saved_change_to_newsletter_consent? || saved_change_to_email?
+  end
+
   def sync_with_crm
     CrmSyncJob.perform_later('User', id)
+  end
+
+  def sync_marketing_subscription
+    MarketingSubscriptionService.sync_user!(self)
   end
 end

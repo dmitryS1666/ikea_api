@@ -19,7 +19,19 @@ module Api
           passport_error = save_passport_if_verified
           return passport_error if passport_error
 
+          @previous_consent_values = {
+            gdpr_consent: current_user.gdpr_consent,
+            newsletter_consent: current_user.newsletter_consent,
+            email_marketing: current_user.email_marketing,
+            telegram_marketing: current_user.telegram_marketing
+          }
+
           if current_user.update(profile_params)
+            ConsentService.record_profile_consent_changes!(
+              user: current_user,
+              previous_values: @previous_consent_values,
+              new_values: profile_params.to_h.symbolize_keys
+            )
             # Передача данных в CRM теперь через callback в модели User
             render json: user_payload(current_user)
           else
@@ -172,6 +184,8 @@ module Api
             email_marketing: user.email_marketing,
             gdpr_consent: user.gdpr_consent,
             newsletter_consent: user.newsletter_consent,
+            personal_data_consent: user.personal_data_consent,
+            personal_data_consented_at: user.personal_data_consented_at&.iso8601,
             passport_verified: user.passport_verified?,
             passport_data: user.passport_data,
             a1_verification_id: user.a1_verification_id

@@ -190,6 +190,7 @@ Rails.application.routes.draw do
       namespace :webhooks do
         post 'amo_crm', to: 'amo_crm#receive'
         post 'webpay', to: 'webpay#create'
+        post 'sendpulse', to: 'sendpulse#create'
       end
     end
   end

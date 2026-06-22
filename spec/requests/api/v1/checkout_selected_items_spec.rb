@@ -57,6 +57,7 @@ RSpec.describe "Checkout with selected cart items", type: :request do
     allow(EuropostApiService).to receive(:offices_out).and_return(
       [{ "WarehouseId" => "70130010", "WarehouseWeightLimit" => "50" }]
     )
+    allow(EuropostApiService).to receive(:external_stores_for_merge).and_return([])
     allow(ExchangeRate).to receive(:fetch_or_create).and_return(double(rate_per_unit: 3.2))
     allow(CrmIntegrationService).to receive(:sync_order).and_return({ success: true })
     allow(WebpayPaymentLinkService).to receive(:issue_link!).and_call_original
@@ -100,14 +101,14 @@ RSpec.describe "Checkout with selected cart items", type: :request do
     expect(response).to have_http_status(:ok)
 
     post "/api/v1/checkout/#{order.id}/finalize",
-         params: {
+         params: checkout_consents.merge(
            full_name: "User",
            phone: "375291112233",
            delivery_type: "europost_pickup",
            payment_method: "card",
            pickup_point_id: "70130010",
            items: [{ sku: product_a.sku, quantity: 1 }]
-         },
+         ),
          headers: headers
 
     expect(response).to have_http_status(:created)

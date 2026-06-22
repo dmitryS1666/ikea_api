@@ -129,6 +129,9 @@ class CheckoutService
     merged = merge_params_for_finalize(order, params)
     merged_params = ActiveSupport::HashWithIndifferentAccess.new(merged)
 
+    consent_check = ConsentService.validate_checkout_consents!(merged_params)
+    return consent_check if consent_check
+
     passport_result = verify_passport!(user: user, params: merged_params)
     return passport_result if passport_result[:error]
 
@@ -245,6 +248,8 @@ class CheckoutService
     end
 
     if order.reload.persisted? && !order.checkout_draft
+      ConsentService.record_checkout_consents!(user: user, order: order, params: merged_params)
+
       user_cart = user.cart
       if user_cart
         consume_selections = CartSelectionService.selections_from_order(order)
@@ -286,6 +291,9 @@ class CheckoutService
 
     checkout_cart = cart_context[:cart]
     selections = cart_context[:selections]
+
+    consent_check = ConsentService.validate_checkout_consents!(params)
+    return consent_check if consent_check
 
     passport_input = params[:passport].is_a?(Hash) ? params[:passport] : (params[:passport].to_unsafe_h rescue nil)
     if passport_input.present?
@@ -440,6 +448,8 @@ class CheckoutService
     end
 
     if order&.persisted?
+      ConsentService.record_checkout_consents!(user: user, order: order, params: params)
+
       WebpayPaymentLinkService.issue_link!(order)
       OrderNotificationService.call(order)
       { success: true, order: order }
@@ -811,7 +821,10 @@ class CheckoutService
       services: h["services"],
       pickup_point: h["pickup_point"],
       address: h["address"],
-      passport: h["passport"]
+      passport: h["passport"],
+      personal_data_consent: h["personal_data_consent"],
+      offer_agreement_consent: h["offer_agreement_consent"],
+      customs_broker_consent: h["customs_broker_consent"]
     }
   end
 

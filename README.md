@@ -146,6 +146,7 @@ SENDPULSE_API_BASE_URL=https://api.sendpulse.com
 SENDPULSE_FROM_EMAIL=
 SENDPULSE_FROM_NAME=IKEA
 SENDPULSE_ADMIN_NOTIFY_EMAIL=
+SENDPULSE_MAILING_LIST_ID=
 SENDPULSE_ORDER_CREATED_TEMPLATE_ID=
 SENDPULSE_ORDER_STATUS_TEMPLATE_ID=
 SENDPULSE_PASSWORD_RESET_TEMPLATE_ID=
@@ -192,6 +193,7 @@ rails server
 | `SENDPULSE_FROM_EMAIL` | Подтвержденный отправитель SendPulse | Нет |
 | `SENDPULSE_FROM_NAME` | Имя отправителя SendPulse | Нет |
 | `SENDPULSE_ADMIN_NOTIFY_EMAIL` | Email менеджера для уведомлений о новых заказах | Нет |
+| `SENDPULSE_MAILING_LIST_ID` | ID адресной книги SendPulse для маркетинговых рассылок | Нет |
 | `SENDPULSE_ORDER_CREATED_TEMPLATE_ID` | Template ID для письма о создании заказа | Нет |
 | `SENDPULSE_ORDER_STATUS_TEMPLATE_ID` | Template ID для письма о смене статуса | Нет |
 | `SENDPULSE_PASSWORD_RESET_TEMPLATE_ID` | Template ID для reset password | Нет |
