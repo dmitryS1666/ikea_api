@@ -122,7 +122,7 @@ Trestle.resource(:seo_catalog_pages, model: SeoCatalogPage) do
             safe_join([
               content_tag(:strong, "filter_config — источник истины для генерации подборки."),
               tag.br,
-              "Категории указываются по ikea_id. Фильтры — по параметрам витрины/ProductFilterValue, например f-colors, f-materials. Также поддержаны алиасы color/material/size."
+              "Категории — по ikea_id. В filters допустимы только коллекция (f-series, алиас series) и ценовые корзины (f-price-buckets). Диапазон цены также можно задать через min_price / max_price."
             ])
           end
         end
@@ -133,7 +133,7 @@ Trestle.resource(:seo_catalog_pages, model: SeoCatalogPage) do
           text_area :filter_config_json_input,
                     rows: 18,
                     label: "filter_config JSON",
-                    help: "Пример: {\"category_ids\":[\"fb001\"],\"max_price\":1000,\"filters\":{\"f-colors\":[\"white\"]},\"only_available\":true,\"sort\":\"popular\",\"limit\":60}"
+                    help: "Пример: {\"category_ids\":[\"fb001\"],\"max_price\":1000,\"filters\":{\"f-series\":[\"PAX\"]},\"only_available\":true,\"sort\":\"popular\",\"limit\":60}"
         end
       end
     end

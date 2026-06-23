@@ -5,6 +5,12 @@ require "json"
 class SeoCatalogPage < ApplicationRecord
   SEO_PATH_PREFIX = "/catalog/seo".freeze
   SLUG_FORMAT = /\A[a-z0-9]+(?:-[a-z0-9]+)*\z/.freeze
+  # В filter_config.filters и в filters_snapshot для фронта — только цена и коллекция.
+  ALLOWED_FILTER_PARAMETERS = %w[f-series f-price-buckets].freeze
+  FILTER_PARAMETER_ALIASES = {
+    "series" => "f-series",
+    "collection" => "f-series"
+  }.freeze
   META_TITLE_MAX_LENGTH = 90
   META_DESCRIPTION_MAX_LENGTH = 220
   STATUS_LABELS = {
@@ -45,6 +51,14 @@ class SeoCatalogPage < ApplicationRecord
 
   def self.human_status(value)
     STATUS_LABELS.fetch(value.to_s, value.to_s)
+  end
+
+  def self.normalize_filter_parameter(key)
+    FILTER_PARAMETER_ALIASES.fetch(key.to_s, key.to_s)
+  end
+
+  def self.allowed_filter_parameter?(parameter)
+    ALLOWED_FILTER_PARAMETERS.include?(parameter.to_s)
   end
 
   def path
@@ -146,9 +160,32 @@ class SeoCatalogPage < ApplicationRecord
   end
 
   def validate_filter_config
-    return if filter_config.is_a?(Hash)
+    unless filter_config.is_a?(Hash)
+      errors.add(:filter_config, "должен быть JSON-объектом")
+      return
+    end
 
-    errors.add(:filter_config, "должен быть JSON-объектом")
+    validate_filter_config_filters
+  end
+
+  def validate_filter_config_filters
+    raw = filter_config["filters"]
+    return if raw.blank?
+
+    unless raw.is_a?(Hash)
+      errors.add(:filter_config, "filters должен быть объектом")
+      return
+    end
+
+    raw.each_key do |key|
+      normalized = self.class.normalize_filter_parameter(key)
+      next if self.class.allowed_filter_parameter?(normalized)
+
+      errors.add(
+        :filter_config,
+        "фильтр «#{key}» не поддерживается. Допустимы только коллекция (f-series) и цена (f-price-buckets); min_price/max_price задаются отдельно"
+      )
+    end
   end
 
   def validate_published_payload

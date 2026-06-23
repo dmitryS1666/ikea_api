@@ -4,14 +4,6 @@ module SeoCatalogPages
   class GenerateSnapshotService
     DEFAULT_LIMIT = 60
     MAX_LIMIT = 240
-    FILTER_ALIASES = {
-      "color" => "f-colors",
-      "colors" => "f-colors",
-      "material" => "f-materials",
-      "materials" => "f-materials",
-      "size" => "f-measurement-buckets",
-      "sizes" => "f-measurement-buckets"
-    }.freeze
 
     Result = Struct.new(
       :page,
@@ -105,9 +97,11 @@ module SeoCatalogPages
       return {} unless raw.is_a?(Hash)
 
       raw.each_with_object({}) do |(key, value), memo|
-        normalized_key = FILTER_ALIASES.fetch(key.to_s, key.to_s)
+        normalized_key = SeoCatalogPage.normalize_filter_parameter(key)
+        next unless SeoCatalogPage.allowed_filter_parameter?(normalized_key)
+
         values = Array(value).map(&:to_s).map(&:strip).reject(&:blank?)
-        memo[normalized_key] = values if normalized_key.present? && values.any?
+        memo[normalized_key] = values if values.any?
       end
     end
 
@@ -212,7 +206,7 @@ module SeoCatalogPages
 
     def build_filters_snapshot(products)
       filters = filter_categories(products).flat_map(&:display_filters_for_api)
-      merge_filters(filters)
+      merge_filters(filters).select { |filter| SeoCatalogPage.allowed_filter_parameter?(filter["parameter"]) }
     end
 
     def filter_categories(products)

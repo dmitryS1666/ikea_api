@@ -26,6 +26,25 @@ RSpec.describe SeoCatalogPage, type: :model do
     expect(page.filter_config).to eq("category_ids" => ["fb001"], "only_available" => true)
   end
 
+  it 'rejects unsupported filters in filter_config' do
+    page = build(:seo_catalog_page)
+    page.filter_config_json_input = '{"category_ids":["fb001"],"filters":{"f-colors":["white"]}}'
+
+    expect(page).not_to be_valid
+    expect(page.errors[:filter_config]).to be_present
+  end
+
+  it 'accepts collection filter in filter_config' do
+    page = build(:seo_catalog_page)
+    page.filter_config_json_input = '{"category_ids":["fb001"],"filters":{"series":["PAX"]}}'
+
+    expect(page).to be_valid
+    expect(page.filter_config).to eq(
+      "category_ids" => ["fb001"],
+      "filters" => { "series" => ["PAX"] }
+    )
+  end
+
   it 'rejects invalid filter_config_json_input' do
     page = build(:seo_catalog_page)
     page.filter_config_json_input = '{bad json'
@@ -33,7 +52,6 @@ RSpec.describe SeoCatalogPage, type: :model do
     expect(page).not_to be_valid
     expect(page.errors[:filter_config]).to be_present
   end
-
 
   it 'normalizes legacy products array snapshot for API' do
     page = build(:seo_catalog_page, products_snapshot: [{ 'sku' => '12345678' }])

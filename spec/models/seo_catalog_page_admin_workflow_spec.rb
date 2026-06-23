@@ -8,7 +8,7 @@ RSpec.describe "SeoCatalogPage admin workflow", type: :model do
       {
         "category_ids": ["fb001"],
         "max_price": 1000,
-        "filters": {"f-colors": ["white"]},
+        "filters": {"f-series": ["PAX"]},
         "only_available": true,
         "sort": "popular",
         "limit": 60
@@ -27,7 +27,16 @@ RSpec.describe "SeoCatalogPage admin workflow", type: :model do
         meta_title: "Диваны до 1000 BYN — купить с доставкой",
         meta_description: "Подборка диванов до 1000 BYN с доставкой в Беларусь."
       )
-      page.filter_config_json_input = filter_config_json
+      page.filter_config_json_input = <<~JSON.squish
+        {
+          "category_ids": ["fb001"],
+          "max_price": 1000,
+          "filters": {"f-series": ["PAX"]},
+          "only_available": true,
+          "sort": "popular",
+          "limit": 60
+        }
+      JSON
 
       expect(page).to be_valid
       expect { page.save! }.not_to raise_error

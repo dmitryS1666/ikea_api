@@ -7,6 +7,11 @@ RSpec.describe SeoCatalogPages::GenerateSnapshotService do
       ikea_id: 'sofas',
       available_filters: [
         {
+          'name' => 'Коллекция',
+          'parameter' => 'f-series',
+          'values' => [{ 'id' => 'PAX', 'name' => 'PAX' }]
+        },
+        {
           'name' => 'Цвет',
           'parameter' => 'f-colors',
           'values' => [{ 'id' => 'white', 'name' => 'Белый' }]
@@ -42,8 +47,8 @@ RSpec.describe SeoCatalogPages::GenerateSnapshotService do
       :product_filter_value,
       product: matching_product,
       category_id: category.ikea_id,
-      parameter: 'f-colors',
-      value_id: 'white'
+      parameter: 'f-series',
+      value_id: 'PAX'
     )
   end
   let(:page) do
@@ -83,12 +88,13 @@ RSpec.describe SeoCatalogPages::GenerateSnapshotService do
     )
     expect(first_resource['attributes']['price_byn']).to be_present
 
-    expect(page.filters_snapshot.first).to include('parameter' => 'f-colors')
+    expect(page.filters_snapshot.map { |filter| filter['parameter'] }).to eq(['f-series'])
     expect(page.filters_snapshot.first['values'].first).to include(
-      'id' => 'white',
-      'name' => 'Белый',
+      'id' => 'PAX',
+      'name' => 'PAX',
       'count' => 1
     )
+    expect(page.filters_snapshot.map { |filter| filter['parameter'] }).not_to include('f-colors')
   end
 
   it 'sets indexable false for empty published page' do
@@ -100,12 +106,32 @@ RSpec.describe SeoCatalogPages::GenerateSnapshotService do
     expect(page.indexable).to eq(false)
   end
 
+  it 'ignores unsupported filters from filter_config during generation' do
+    page.update_columns(
+      filter_config: {
+        'category_ids' => [category.ikea_id],
+        'only_available' => true,
+        'sort' => 'popular',
+        'limit' => 10,
+        'filters' => {
+          'f-colors' => ['white'],
+          'f-series' => ['PAX']
+        }
+      }
+    )
+
+    result = described_class.call(page.reload)
+
+    expect(result.products_count).to eq(1)
+    expect(result.filters_snapshot.map { |filter| filter['parameter'] }).to eq(['f-series'])
+  end
+
   it 'supports preview without persisting snapshot' do
     result = described_class.new(page, persist: false).preview
 
     expect(result.products_count).to eq(1)
     expect(result.products_data.first['attributes']['sku']).to eq('12345678')
-    expect(result.filters_snapshot.first['parameter']).to eq('f-colors')
+    expect(result.filters_snapshot.map { |filter| filter['parameter'] }).to eq(['f-series'])
     expect(page.reload.products_count).to eq(0)
     expect(page.products_snapshot).to eq([])
     expect(page.filters_snapshot).to eq([])
