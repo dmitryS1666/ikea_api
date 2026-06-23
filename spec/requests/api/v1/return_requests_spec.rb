@@ -1,10 +1,16 @@
 require 'rails_helper'
 
 RSpec.describe 'Public Return Requests API', type: :request do
+  include ActiveJob::TestHelper
   let(:user) { create(:user) }
   let!(:order) { create(:order, user: user, public_uid: '1234567') }
   let(:token) { JwtService.encode(user_id: user.id) }
   let(:auth_headers) { { "Authorization" => "Bearer #{token}" } }
+
+  before do
+    ActiveJob::Base.queue_adapter = :test
+    clear_enqueued_jobs
+  end
 
   describe 'POST /api/v1/return_requests' do
     let(:payload) do
@@ -14,7 +20,7 @@ RSpec.describe 'Public Return Requests API', type: :request do
         order_number: order.public_uid,
         phone: '+375291234567',
         email: 'ivan@example.com',
-        reason: 'Товар повреждён при доставке',
+        reason: 'damaged',
         comment: 'Упаковка вмята',
         compensation_type: 'refund'
       }
@@ -24,6 +30,7 @@ RSpec.describe 'Public Return Requests API', type: :request do
       expect do
         post '/api/v1/return_requests', params: payload, as: :json
       end.to change(ReturnRequest, :count).by(1)
+         .and have_enqueued_job(CrmSyncJob).with('ReturnRequest', kind_of(Integer))
 
       expect(response).to have_http_status(:created)
       body = JSON.parse(response.body)
@@ -48,7 +55,7 @@ RSpec.describe 'Public Return Requests API', type: :request do
       post '/api/v1/return_requests', params: payload.merge(order_number: 'fewf'), as: :json
 
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(JSON.parse(response.body)['error']).to include('6–8 цифр')
+      expect(JSON.parse(response.body)['error']).to include('6–10 цифр')
     end
 
     it 'maps compensation_method values from the storefront form' do
@@ -61,27 +68,28 @@ RSpec.describe 'Public Return Requests API', type: :request do
     end
   end
 
-  describe 'POST /api/v1/account/returns without JWT' do
-    it 'creates a return request (storefront modal uses this URL)' do
+  describe 'POST /api/v1/account/returns' do
+    it 'creates a return request for the authenticated user' do
       post '/api/v1/account/returns',
            params: {
              order_id: order.public_uid,
              reason: 'damaged',
              comment: "test\nКомпенсация: возврат"
            },
+           headers: auth_headers,
            as: :json
 
       expect(response).to have_http_status(:created)
       expect(ReturnRequest.last.compensation_type).to eq('refund')
     end
 
-    it 'does not require Authorization header' do
+    it 'requires authorization' do
       post '/api/v1/account/returns',
            params: { order_id: '9999999', reason: 'damaged' },
            as: :json
 
-      expect(response).to have_http_status(:not_found)
-      expect(JSON.parse(response.body)['error']).not_to eq('Не авторизован')
+      expect(response).to have_http_status(:unauthorized)
+      expect(JSON.parse(response.body)['error']).to eq('Не авторизован')
     end
 
     it 'returns 422 for invalid order_id when authorized' do
@@ -91,7 +99,7 @@ RSpec.describe 'Public Return Requests API', type: :request do
            as: :json
 
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(JSON.parse(response.body)['error']).to include('6–8 цифр')
+      expect(JSON.parse(response.body)['error']).to include('6–10 цифр')
     end
   end
 end

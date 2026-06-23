@@ -115,7 +115,7 @@ module Api
 
             raw_values = cf[:values] || cf['values']
             first = Array(raw_values).first
-            value = if first.is_a?(Hash)
+            value = if first.respond_to?(:[])
                       first[:value] || first['value']
                     else
                       first

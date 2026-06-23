@@ -115,7 +115,8 @@ RSpec.describe CrmIntegrationService do
         :product,
         sku: 'SKU123',
         name_ru: 'Мягкая развивающая книжка, Занятые строители, синяя',
-        cached_slug: 'soft-activity-book-busy-builders-sebra-play-blue'
+        cached_slug: 'soft-activity-book-busy-builders-sebra-play-blue',
+        url: '/products/soft-activity-book-busy-builders-sebra-play-blue'
       )
       order_item.update!(product: product, price: 71.26, quantity: 1)
 
@@ -129,7 +130,7 @@ RSpec.describe CrmIntegrationService do
       expect(result[:success]).to be_truthy
       expect(leads_request).to have_been_requested
 
-      expect(WebMock).to have_requested(:post, "#{base_url}/api/v4/leads").with do |request|
+      expect(WebMock).to have_requested(:post, "#{base_url}/api/v4/leads").with { |request|
         lead_payload = JSON.parse(request.body).first
         order_number_field = lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 578801 }
         items_field = lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 578789 }
@@ -139,7 +140,98 @@ RSpec.describe CrmIntegrationService do
           order_number_field.dig('values', 0, 'value') == order.public_uid &&
           items_text.include?("1. Мягкая развивающая книжка, Занятые строители, синяя (SKU123) x1 ----- 71.26 PLN") &&
           items_text.include?(product.url)
+      }
+    end
+  end
+
+  describe '.update_last_login' do
+    before { user.update_columns(crm_contact_id: '456') }
+
+    it 'patches LAST_LOGIN custom field on the contact' do
+      freeze_time do
+        stub_request(:patch, "#{base_url}/api/v4/contacts/456")
+          .to_return(status: 200, body: '{}', headers: { 'Content-Type' => 'application/json' })
+
+        described_class.update_last_login(user)
+
+        expect(WebMock).to have_requested(:patch, "#{base_url}/api/v4/contacts/456").with { |request|
+          payload = JSON.parse(request.body)
+          field = payload.fetch('custom_fields_values').find { |f| f['field_id'] == 578_901 }
+          field.dig('values', 0, 'value') == Time.current.strftime('%d.%m.%Y %H:%M:%S')
+        }
       end
+    end
+
+    it 'does nothing when contact id is missing' do
+      user.update_columns(crm_contact_id: nil)
+      stub_request(:get, %r{#{base_url}/api/v4/contacts}).to_return(status: 204, body: '')
+
+      described_class.update_last_login(user)
+
+      expect(WebMock).not_to have_requested(:patch, %r{#{base_url}/api/v4/contacts})
+    end
+  end
+
+  describe '.notify_return' do
+    let(:order) { create(:order, user: user, total_amount: 500) }
+    let(:return_request) do
+      build(:return_request, order: order, user: user, compensation_type: 'refund', reason: 'damaged').tap do |req|
+        allow(CrmSyncJob).to receive(:perform_later)
+        req.save!
+      end
+    end
+
+    before do
+      user.update_columns(crm_contact_id: '123')
+      stub_request(:post, %r{#{base_url}/api/v4/leads})
+        .to_return(status: 200, body: { _embedded: { leads: [{ id: 555 }] } }.to_json, headers: { 'Content-Type' => 'application/json' })
+    end
+
+    it 'creates a return lead linked to the contact' do
+      expect(described_class.notify_return(return_request)).to be(true)
+
+      expect(WebMock).to have_requested(:post, "#{base_url}/api/v4/leads").with { |request|
+        lead = JSON.parse(request.body).first
+        lead['name'].include?('Возврат') &&
+          lead.dig('_embedded', 'contacts', 0, 'id').to_s == '123' &&
+          lead.fetch('custom_fields_values').any? { |f| f['field_id'] == 578_807 }
+      }
+    end
+
+    it 'returns false when contact cannot be resolved' do
+      user.update_columns(crm_contact_id: nil)
+      stub_request(:get, %r{#{base_url}/api/v4/contacts}).to_return(status: 500)
+
+      expect(described_class.notify_return(return_request)).to be(false)
+    end
+  end
+
+  describe '.notify_cooperation' do
+    before do
+      stub_request(:get, %r{#{base_url}/api/v4/contacts})
+        .to_return(
+          status: 200,
+          body: { _embedded: { contacts: [] } }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        )
+      stub_request(:post, %r{#{base_url}/api/v4/contacts})
+        .to_return(status: 200, body: { _embedded: { contacts: [{ id: 777 }] } }.to_json, headers: { 'Content-Type' => 'application/json' })
+      stub_request(:post, %r{#{base_url}/api/v4/leads})
+        .to_return(status: 200, body: { _embedded: { leads: [{ id: 888 }] } }.to_json, headers: { 'Content-Type' => 'application/json' })
+    end
+
+    it 'creates a cooperation lead with applicant data' do
+      cooperation_request = build(:cooperation_request)
+      allow(CrmSyncJob).to receive(:perform_later)
+      cooperation_request.save!
+
+      expect(described_class.notify_cooperation(cooperation_request)).to be(true)
+
+      expect(WebMock).to have_requested(:post, "#{base_url}/api/v4/leads").with { |request|
+        lead = JSON.parse(request.body).first
+        lead['name'].include?(cooperation_request.full_name) &&
+          lead.dig('_embedded', 'contacts', 0, 'id') == 777
+      }
     end
   end
 end

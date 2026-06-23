@@ -3,9 +3,13 @@
 require "rails_helper"
 
 RSpec.describe "Auth registration consent", type: :request do
+  include ActiveJob::TestHelper
+
   let(:phone) { "375291112233" }
 
   before do
+    ActiveJob::Base.queue_adapter = :test
+    clear_enqueued_jobs
     LegalPage.create!(title: "ПД", slug: LegalPage::SLUG_PERSONAL_DATA, body: "x", status: :published)
   end
 
@@ -50,5 +54,6 @@ RSpec.describe "Auth registration consent", type: :request do
     user = User.find_by!(phone: phone)
     expect(user.personal_data_consent).to be(true)
     expect(user.consent_records.for_type(:personal_data).last.source).to eq("registration")
+    expect(CrmSyncJob).to have_been_enqueued.with("User", user.id).at_least(:once)
   end
 end
