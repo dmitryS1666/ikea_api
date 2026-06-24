@@ -34,7 +34,9 @@ class User < ApplicationRecord
   has_many :orders, dependent: :nullify
   has_many :user_delivery_addresses, dependent: :destroy
   has_many :user_pickup_points, dependent: :destroy
-  has_many :reviews, dependent: :nullify
+  has_many :reviews, dependent: :destroy
+  has_many :review_helpful_votes, dependent: :destroy
+  has_many :search_query_logs, foreign_key: :customer_id, dependent: :nullify, inverse_of: :customer
   has_many :return_requests, dependent: :destroy
   has_one :cart, dependent: :destroy
   has_one :favorite, dependent: :destroy

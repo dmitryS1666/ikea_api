@@ -32,6 +32,41 @@ RSpec.describe User, type: :model do
     end
   end
 
+  describe "#destroy" do
+    it "detaches orders instead of blocking deletion" do
+      user = create(:user)
+      order = create(:order, user: user)
+
+      expect { user.destroy! }.to change(described_class, :count).by(-1)
+      expect(order.reload.user_id).to be_nil
+    end
+
+    it "destroys reviews and helpful votes" do
+      user = create(:user)
+      review = create(:review, user: user)
+      other_user = create(:user)
+      other_review = create(:review, user: other_user)
+      vote = ReviewHelpfulVote.create!(review: other_review, user: user)
+
+      expect { user.destroy! }.to change(described_class, :count).by(-1)
+        .and change(Review, :count).by(-1)
+        .and change(ReviewHelpfulVote, :count).by(-1)
+
+      expect(Review.exists?(review.id)).to be(false)
+      expect(Review.exists?(other_review.id)).to be(true)
+      expect(ReviewHelpfulVote.exists?(vote.id)).to be(false)
+    end
+
+    it "nullifies search query logs" do
+      user = create(:user)
+      log = SearchQueryLog.create!(customer: user, query: "стол")
+
+      user.destroy!
+
+      expect(log.reload.customer_id).to be_nil
+    end
+  end
+
   describe "consent CRM sync" do
     it "enqueues CrmSyncJob when newsletter consent changes" do
       user = create(:user, newsletter_consent: true)

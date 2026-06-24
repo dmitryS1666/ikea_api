@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_22_092151) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_24_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -482,7 +482,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_22_092151) do
   end
 
   create_table "orders", force: :cascade do |t|
-    t.bigint "user_id", null: false
+    t.bigint "user_id"
     t.string "crm_external_id"
     t.string "country"
     t.integer "status", default: 0, null: false
@@ -904,7 +904,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_22_092151) do
     t.string "apartment"
     t.string "entrance"
     t.string "floor"
-    t.string "elevator_type"
     t.string "intercom"
     t.boolean "is_private_house", default: false, null: false
     t.decimal "lat", precision: 10, scale: 6
@@ -913,6 +912,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_22_092151) do
     t.datetime "deleted_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "elevator_type"
     t.index ["user_id", "deleted_at"], name: "index_user_delivery_addresses_on_user_id_and_deleted_at"
     t.index ["user_id"], name: "index_user_delivery_addresses_on_user_id"
   end

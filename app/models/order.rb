@@ -5,7 +5,7 @@ class Order < ApplicationRecord
     ENV.fetch("PAYMENT_TIMEOUT_MINUTES", DEFAULT_PAYMENT_TIMEOUT_MINUTES).to_i.minutes
   end
 
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :promo_code, optional: true
   has_many :order_items, dependent: :destroy
   has_many :order_status_events, dependent: :destroy
