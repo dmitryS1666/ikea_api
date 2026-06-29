@@ -79,4 +79,38 @@ RSpec.describe "Checkout consents", type: :request do
     expect(ConsentRecord.where(order: order).count).to eq(3)
     expect(user.reload.personal_data_consent).to be(true)
   end
+
+  it "accepts personal_data_consent from registered user on finalize without resending it" do
+    user.update!(personal_data_consent: true, personal_data_consented_at: 1.day.ago)
+
+    post "/api/v1/checkout", params: { draft: true }, headers: headers
+    order = Order.last
+
+    patch "/api/v1/checkout/#{order.id}",
+          params: {
+            delivery_type: "europost_pickup",
+            pickup_point_id: "70130010",
+            full_name: "User",
+            phone: "375291112233",
+            payment_method: "card"
+          },
+          headers: headers
+
+    post "/api/v1/checkout/#{order.id}/finalize",
+         params: {
+           full_name: "User",
+           phone: "375291112233",
+           delivery_type: "europost_pickup",
+           payment_method: "card",
+           pickup_point_id: "70130010",
+           offer_agreement_consent: true,
+           customs_broker_consent: true
+         },
+         headers: headers
+
+    expect(response).to have_http_status(:created)
+    order.reload
+    expect(order.personal_data_consent).to be(true)
+    expect(ConsentRecord.where(order: order, consent_type: "personal_data").count).to eq(1)
+  end
 end

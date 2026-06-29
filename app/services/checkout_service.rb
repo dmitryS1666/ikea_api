@@ -129,7 +129,7 @@ class CheckoutService
     merged = merge_params_for_finalize(order, params)
     merged_params = ActiveSupport::HashWithIndifferentAccess.new(merged)
 
-    consent_check = ConsentService.validate_checkout_consents!(merged_params)
+    consent_check = ConsentService.validate_checkout_consents!(merged_params, user: user)
     return consent_check if consent_check
 
     passport_result = verify_passport!(user: user, params: merged_params)
@@ -292,7 +292,7 @@ class CheckoutService
     checkout_cart = cart_context[:cart]
     selections = cart_context[:selections]
 
-    consent_check = ConsentService.validate_checkout_consents!(params)
+    consent_check = ConsentService.validate_checkout_consents!(params, user: user)
     return consent_check if consent_check
 
     passport_input = params[:passport].is_a?(Hash) ? params[:passport] : (params[:passport].to_unsafe_h rescue nil)

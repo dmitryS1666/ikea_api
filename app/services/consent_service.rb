@@ -18,9 +18,11 @@ class ConsentService
     customs_broker_consent: "Требуется согласие с договором таможенного брокера"
   }.freeze
 
-  def self.validate_checkout_consents!(params)
+  def self.validate_checkout_consents!(params, user: nil)
+    resolved = resolve_checkout_consents(user: user, params: params)
+
     CHECKOUT_CONSENT_FIELDS.each_key do |field|
-      next if truthy?(params[field])
+      next if truthy?(resolved[field])
 
       return {
         error: CONSENT_ERROR_MESSAGES.fetch(field),
@@ -32,9 +34,29 @@ class ConsentService
     nil
   end
 
+  def self.resolve_checkout_consents(user:, params:)
+    resolved =
+      if params.respond_to?(:to_unsafe_h)
+        params.to_unsafe_h
+      elsif params.is_a?(Hash)
+        params
+      else
+        {}
+      end
+    resolved = ActiveSupport::HashWithIndifferentAccess.new(resolved)
+
+    if user&.personal_data_consent? && !truthy?(resolved[:personal_data_consent])
+      resolved[:personal_data_consent] = true
+    end
+
+    resolved
+  end
+
   def self.record_checkout_consents!(user:, order:, params:)
+    resolved = resolve_checkout_consents(user: user, params: params)
+
     CHECKOUT_CONSENT_FIELDS.each do |field, consent_type|
-      next unless truthy?(params[field])
+      next unless truthy?(resolved[field])
 
       record!(
         user: user,
@@ -46,15 +68,15 @@ class ConsentService
     end
 
     order.update!(
-      personal_data_consent: truthy?(params[:personal_data_consent]),
-      offer_agreement_consent: truthy?(params[:offer_agreement_consent]),
-      customs_broker_consent: truthy?(params[:customs_broker_consent])
+      personal_data_consent: truthy?(resolved[:personal_data_consent]),
+      offer_agreement_consent: truthy?(resolved[:offer_agreement_consent]),
+      customs_broker_consent: truthy?(resolved[:customs_broker_consent])
     )
 
-    if truthy?(params[:personal_data_consent])
+    if truthy?(resolved[:personal_data_consent])
       user.update!(
         personal_data_consent: true,
-        personal_data_consented_at: Time.current
+        personal_data_consented_at: user.personal_data_consented_at || Time.current
       )
     end
   end

@@ -34,24 +34,50 @@ RSpec.describe ConsentService do
 
   describe ".validate_checkout_consents!" do
     it "returns nil when all required consents are accepted" do
-      result = described_class.validate_checkout_consents!(
+      result = described_class.validate_checkout_consents!({
         personal_data_consent: true,
         offer_agreement_consent: true,
         customs_broker_consent: true
-      )
+      })
 
       expect(result).to be_nil
     end
 
     it "returns error when offer agreement is missing" do
-      result = described_class.validate_checkout_consents!(
+      result = described_class.validate_checkout_consents!({
         personal_data_consent: true,
         offer_agreement_consent: false,
         customs_broker_consent: true
-      )
+      })
 
       expect(result[:code]).to eq("consent_required")
       expect(result[:field]).to eq("offer_agreement_consent")
+    end
+
+    it "accepts personal data consent from registered user when params omit it" do
+      registered_user = create(:user, personal_data_consent: true, personal_data_consented_at: 1.day.ago)
+
+      result = described_class.validate_checkout_consents!(
+        {
+          offer_agreement_consent: true,
+          customs_broker_consent: true
+        },
+        user: registered_user
+      )
+
+      expect(result).to be_nil
+    end
+
+    it "does not accept personal data consent from user who has not consented" do
+      result = described_class.validate_checkout_consents!(
+        {
+          offer_agreement_consent: true,
+          customs_broker_consent: true
+        },
+        user: user
+      )
+
+      expect(result[:field]).to eq("personal_data_consent")
     end
   end
 
@@ -87,6 +113,27 @@ RSpec.describe ConsentService do
       )
       expect(records.find_by(consent_type: "offer_agreement").legal_page_version_at)
         .to eq(offer_page.updated_at)
+    end
+
+    it "records personal data consent from registered user when params omit it" do
+      user.update!(personal_data_consent: true, personal_data_consented_at: 2.days.ago)
+      consented_at = user.personal_data_consented_at
+
+      described_class.record_checkout_consents!(
+        user: user,
+        order: order,
+        params: {
+          offer_agreement_consent: true,
+          customs_broker_consent: true
+        }
+      )
+
+      order.reload
+      user.reload
+
+      expect(order.personal_data_consent).to be(true)
+      expect(ConsentRecord.where(order: order, consent_type: "personal_data").count).to eq(1)
+      expect(user.personal_data_consented_at).to eq(consented_at)
     end
   end
 
