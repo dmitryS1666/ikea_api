@@ -57,25 +57,13 @@ RSpec.describe ConsentService do
     it "accepts personal data consent from registered user when params omit it" do
       registered_user = create(:user, personal_data_consent: true, personal_data_consented_at: 1.day.ago)
 
-      result = described_class.validate_checkout_consents!(
-        {
-          offer_agreement_consent: true,
-          customs_broker_consent: true
-        },
-        user: registered_user
-      )
+      result = described_class.validate_checkout_consents!({}, user: registered_user)
 
       expect(result).to be_nil
     end
 
     it "does not accept personal data consent from user who has not consented" do
-      result = described_class.validate_checkout_consents!(
-        {
-          offer_agreement_consent: true,
-          customs_broker_consent: true
-        },
-        user: user
-      )
+      result = described_class.validate_checkout_consents!({}, user: user)
 
       expect(result[:field]).to eq("personal_data_consent")
     end
@@ -122,17 +110,16 @@ RSpec.describe ConsentService do
       described_class.record_checkout_consents!(
         user: user,
         order: order,
-        params: {
-          offer_agreement_consent: true,
-          customs_broker_consent: true
-        }
+        params: {}
       )
 
       order.reload
       user.reload
 
       expect(order.personal_data_consent).to be(true)
-      expect(ConsentRecord.where(order: order, consent_type: "personal_data").count).to eq(1)
+      expect(order.offer_agreement_consent).to be(true)
+      expect(order.customs_broker_consent).to be(true)
+      expect(ConsentRecord.where(order: order).count).to eq(3)
       expect(user.personal_data_consented_at).to eq(consented_at)
     end
   end

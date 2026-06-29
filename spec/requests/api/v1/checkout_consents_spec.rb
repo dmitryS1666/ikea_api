@@ -102,15 +102,15 @@ RSpec.describe "Checkout consents", type: :request do
            phone: "375291112233",
            delivery_type: "europost_pickup",
            payment_method: "card",
-           pickup_point_id: "70130010",
-           offer_agreement_consent: true,
-           customs_broker_consent: true
+           pickup_point_id: "70130010"
          },
          headers: headers
 
     expect(response).to have_http_status(:created)
     order.reload
     expect(order.personal_data_consent).to be(true)
-    expect(ConsentRecord.where(order: order, consent_type: "personal_data").count).to eq(1)
+    expect(order.offer_agreement_consent).to be(true)
+    expect(order.customs_broker_consent).to be(true)
+    expect(ConsentRecord.where(order: order).count).to eq(3)
   end
 end

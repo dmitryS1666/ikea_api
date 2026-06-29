@@ -45,8 +45,10 @@ class ConsentService
       end
     resolved = ActiveSupport::HashWithIndifferentAccess.new(resolved)
 
-    if user&.personal_data_consent? && !truthy?(resolved[:personal_data_consent])
-      resolved[:personal_data_consent] = true
+    if user&.personal_data_consent?
+      CHECKOUT_CONSENT_FIELDS.each_key do |field|
+        resolved[field] = true unless truthy?(resolved[field])
+      end
     end
 
     resolved
