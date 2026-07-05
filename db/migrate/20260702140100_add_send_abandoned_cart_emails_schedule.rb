@@ -7,8 +7,7 @@ class AddSendAbandonedCartEmailsSchedule < ActiveRecord::Migration[7.1]
     CronSchedule.create!(
       task_type: TASK_TYPE,
       schedule: "0 * * * *",
-      enabled: true,
-      description: "Напоминание о брошенной корзине (черновик заказа)"
+      enabled: true
     )
   end
 

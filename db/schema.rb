@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_24_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_02_140100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -298,6 +298,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_24_120000) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "email_verification_tokens", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "email", null: false
+    t.string "token", null: false
+    t.string "purpose", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "verified_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["token"], name: "index_email_verification_tokens_on_token", unique: true
+    t.index ["user_id", "purpose"], name: "index_email_verification_tokens_on_user_id_and_purpose"
+    t.index ["user_id"], name: "index_email_verification_tokens_on_user_id"
+  end
+
   create_table "exchange_rates", force: :cascade do |t|
     t.date "date", null: false
     t.string "currency_code", null: false
@@ -513,6 +527,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_24_120000) do
     t.boolean "personal_data_consent", default: false, null: false
     t.boolean "offer_agreement_consent", default: false, null: false
     t.boolean "customs_broker_consent", default: false, null: false
+    t.datetime "abandoned_cart_email_sent_at"
     t.index ["crm_external_id"], name: "index_orders_on_crm_external_id"
     t.index ["payment_link_token"], name: "index_orders_on_payment_link_token", unique: true
     t.index ["promo_code_id"], name: "index_orders_on_promo_code_id"
@@ -996,6 +1011,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_24_120000) do
   add_foreign_key "category_related_product_lists", "categories", primary_key: "ikea_id"
   add_foreign_key "consent_records", "orders"
   add_foreign_key "consent_records", "users"
+  add_foreign_key "email_verification_tokens", "users"
   add_foreign_key "favorite_items", "favorites"
   add_foreign_key "favorites", "users"
   add_foreign_key "home_banners", "categories", primary_key: "ikea_id", on_delete: :nullify
