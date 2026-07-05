@@ -12,12 +12,13 @@ module Api
         # PATCH /api/v1/account/profile
         def update
           pending_email = nil
+          passport_input = extract_passport_input
           if params[:email].present? && params[:email] != current_user.email
             pending_email = params[:email]
             EmailVerificationService.send_code(current_user, pending_email)
           end
 
-          passport_error = save_passport_if_verified
+          passport_error = save_passport_if_verified(passport_input)
           return passport_error if passport_error
 
           @previous_consent_values = {
@@ -27,8 +28,9 @@ module Api
             telegram_marketing: current_user.telegram_marketing
           }
 
-          update_params = profile_params
+          update_params = profile_params.to_h.symbolize_keys
           update_params = update_params.except(:email) if pending_email.present?
+          update_params.merge!(UserPassportService.profile_attributes(passport_input)) if passport_input.present?
 
           if current_user.update(update_params)
             ConsentService.record_profile_consent_changes!(
@@ -106,8 +108,7 @@ module Api
           )
         end
 
-        def save_passport_if_verified
-          passport_input = extract_passport_input
+        def save_passport_if_verified(passport_input)
           return nil if passport_input.blank?
 
           current_passport = current_user.passport_data
@@ -161,16 +162,18 @@ module Api
         end
 
         def user_payload(user)
+          passport_data = UserPassportService.with_profile_fields(user: user, passport_hash: user.passport_data)
+
           {
             id: user.id,
             username: user.username,
-            first_name: user.first_name,
-            last_name: user.last_name,
-            middle_name: user.middle_name,
+            first_name: user.first_name.presence || passport_data&.dig('first_name'),
+            last_name: user.last_name.presence || passport_data&.dig('last_name'),
+            middle_name: user.middle_name.presence || passport_data&.dig('middle_name'),
             email: user.email,
             phone: user.phone,
             country_code: user.country_code,
-            dob: user.dob,
+            dob: user.dob.presence || passport_data&.dig('dob'),
             gender: user.gender,
             address: user.address,
             region: user.region,
@@ -187,7 +190,7 @@ module Api
             personal_data_consent: user.personal_data_consent,
             personal_data_consented_at: user.personal_data_consented_at&.iso8601,
             passport_verified: user.passport_verified?,
-            passport_data: user.passport_data,
+            passport_data: passport_data,
             a1_verification_id: user.a1_verification_id
           }
         end
