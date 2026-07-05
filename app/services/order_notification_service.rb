@@ -3,48 +3,33 @@ class OrderNotificationService
     if status_changed
       handle_status_change(order)
     else
-      enqueue_sendpulse_order_created_emails(order)
+      # Заказ финализирован — ожидает оплаты
+      TransactionalEmailService.send_order_email(:order_awaiting_payment, order)
+      enqueue_admin_order_created_email(order)
       send_telegram_manager_notification(order)
     end
+  end
+
+  def self.notify_draft_created(order)
+    return unless order.checkout_draft?
+    return if order.user&.email.blank?
+
+    TransactionalEmailService.send_order_email(:order_created, order)
   end
 
   private
 
   def self.handle_status_change(order)
-    # Согласно таблице БП:
-    # Email notify: Новый, Подтвержден, Оплачен, Выкуплен, Получен на склад, Подготовка к отправке, Экспорт из ЕС, Передано в доставку, Прибыло в отделение, Выдано курьеру, Доставлено
-    # TG/Viber: Подтвержден, Оплачен, Выкуплен, Получен на склад, Экспорт из ЕС, Прибыло в отделение, Выдано курьеру
+    template_key = EmailTemplates::Renderer.template_for_status(order.status)
 
-    email_statuses = %w[created confirmed paid purchased received_poland preparing_for_shipment export_eu shipped arrived_pvz handed_to_courier handed_to_courier_ikeya completed]
-    tg_statuses = %w[confirmed paid purchased received_poland export_eu arrived_pvz handed_to_courier handed_to_courier_ikeya]
-
-    if email_statuses.include?(order.status)
-      OrderMailer.status_updated(order).deliver_later if order.user&.email.present?
+    if template_key
+      TransactionalEmailService.send_order_email(template_key, order)
     end
 
+    tg_statuses = %w[confirmed paid purchased received_poland export_eu arrived_pvz handed_to_courier handed_to_courier_ikeya]
     if tg_statuses.include?(order.status)
       send_telegram_status_notification(order)
     end
-  end
-
-  def self.enqueue_sendpulse_order_created_emails(order)
-    enqueue_client_order_created_email(order)
-    enqueue_admin_order_created_email(order)
-  end
-
-  def self.enqueue_client_order_created_email(order)
-    customer_email = order.user&.email
-    return if customer_email.blank?
-
-    SendpulseEmailJob.perform_later(
-      to_email: customer_email,
-      to_name: order.full_name.presence || order.user&.full_name,
-      subject: "Ваш заказ принят",
-      html: build_customer_order_created_html(order),
-      text: build_customer_order_created_text(order)
-    )
-  rescue StandardError => e
-    Rails.logger.error("[SendPulse] Failed to enqueue client order created email for order=#{order.id}: #{e.class} #{e.message}")
   end
 
   def self.enqueue_admin_order_created_email(order)
@@ -59,28 +44,6 @@ class OrderNotificationService
     )
   rescue StandardError => e
     Rails.logger.error("[SendPulse] Failed to enqueue admin order created email for order=#{order.id}: #{e.class} #{e.message}")
-  end
-
-  def self.build_customer_order_created_html(order)
-    <<~HTML
-      <h2>Ваш заказ принят</h2>
-      <p>Номер заказа: #{order.id}</p>
-      <p>Имя клиента: #{order.full_name.presence || order.user&.full_name || "—"}</p>
-      <p>Сумма заказа: #{order.total_amount || "—"} BYN</p>
-      <p>Статус заказа: #{order.status}</p>
-      <p>Контакты магазина: #{ENV.fetch("STORE_CONTACT_INFO", "Свяжитесь с нами через поддержку IKEA.")}</p>
-    HTML
-  end
-
-  def self.build_customer_order_created_text(order)
-    [
-      "Ваш заказ принят",
-      "Номер заказа: #{order.id}",
-      "Имя клиента: #{order.full_name.presence || order.user&.full_name || '—'}",
-      "Сумма заказа: #{order.total_amount || '—'} BYN",
-      "Статус заказа: #{order.status}",
-      "Контакты магазина: #{ENV.fetch('STORE_CONTACT_INFO', 'Свяжитесь с нами через поддержку IKEA.')}"
-    ].join("\n")
   end
 
   def self.build_admin_order_created_html(order)
@@ -131,14 +94,14 @@ class OrderNotificationService
     message += "💰 Сумма: #{order.total_amount} BYN\n"
     message += "🚚 Доставка: #{order.delivery_type}\n"
     message += "💳 Оплата: #{order.payment_method}\n"
-    
+
     if (service_labels = OrderServicesFormatter.labels(order.address_json["services"])).present?
       message += "\n🛠 <b>Доп. услуги:</b>\n"
       service_labels.each { |label| message += "- <b>#{label}</b>\n" }
     end
 
     message += "\n<i>Менеджеру необходимо связаться с клиентом в течение 30 минут.</i>"
-    
+
     TelegramService.send_message(message)
   end
 
@@ -161,9 +124,7 @@ class OrderNotificationService
     status_text = I18n.t("activerecord.attributes.order.statuses.#{order.status}")
     message = "📦 <b>Заказ №#{order.id}</b>\n"
     message += "Статус изменен на: <b>#{status_text}</b>"
-    
-    # Здесь логика отправки клиенту в ТГ/Viber если он подписан
-    # Пока используем общий сервис
+
     if order.user&.respond_to?(:telegram_chat_id) && order.user.telegram_chat_id.present?
       TelegramService.send_message(message)
     end

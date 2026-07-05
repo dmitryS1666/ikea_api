@@ -28,9 +28,21 @@ module Sendpulse
 
     def headers
       {
-        "Authorization" => "Bearer #{@api_key}",
+        "Authorization" => "Bearer #{api_key!}",
         "Content-Type" => "application/json"
       }
+    end
+
+    def api_key!
+      key = @api_key.to_s.strip
+      return key if key.present?
+
+      raise Sendpulse::Error.new(
+        message: "SENDPULSE_API_KEY is not configured",
+        status: nil,
+        response_body: {},
+        endpoint: "client_init"
+      )
     end
 
     def url_for(path)

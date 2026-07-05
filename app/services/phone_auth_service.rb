@@ -103,6 +103,7 @@ class PhoneAuthService
       end
 
       ConsentService.record_registration_personal_data!(user: user)
+      TransactionalEmailService.send_welcome(user) if user.email.present?
     else
       # Если пользователь уже существует, обновляем email, если он передан
       user.email = email if email.present?

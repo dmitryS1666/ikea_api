@@ -500,6 +500,7 @@ class CheckoutService
 
     pricing_for_response = nil
     if order&.persisted?
+      OrderNotificationService.notify_draft_created(order)
       if order.delivery_type.present?
         update_result = update_draft(user: user, order_id: order.id, params: params)
         return update_result unless update_result[:success]

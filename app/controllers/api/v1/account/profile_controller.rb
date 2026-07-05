@@ -11,9 +11,10 @@ module Api
 
         # PATCH /api/v1/account/profile
         def update
+          pending_email = nil
           if params[:email].present? && params[:email] != current_user.email
-            # Вызов сервиса рассылки для верификации (заглушка)
-            EmailVerificationService.send_code(current_user, params[:email])
+            pending_email = params[:email]
+            EmailVerificationService.send_code(current_user, pending_email)
           end
 
           passport_error = save_passport_if_verified
@@ -26,7 +27,10 @@ module Api
             telegram_marketing: current_user.telegram_marketing
           }
 
-          if current_user.update(profile_params)
+          update_params = profile_params
+          update_params = update_params.except(:email) if pending_email.present?
+
+          if current_user.update(update_params)
             ConsentService.record_profile_consent_changes!(
               user: current_user,
               previous_values: @previous_consent_values,
@@ -78,18 +82,14 @@ module Api
 
         # POST /api/v1/account/profile/change_email_verify
         def change_email_verify
-          # Заглушка: в реальности здесь была бы проверка кода из письма
-          code = params[:code]
+          token = params[:token].presence || params[:code]
           new_email = params[:email]
 
-          if code == '1234' # Заглушка кода
-            if current_user.update(email: new_email)
-              render json: user_payload(current_user)
-            else
-              render json: { errors: current_user.errors.full_messages }, status: :unprocessable_entity
-            end
+          result = EmailVerificationService.verify!(token: token, email: new_email)
+          if result[:success]
+            render json: user_payload(result[:user])
           else
-            render json: { error: 'Неверный код подтверждения' }, status: :unauthorized
+            render json: { error: result[:error] || 'Неверный код подтверждения' }, status: :unauthorized
           end
         end
 

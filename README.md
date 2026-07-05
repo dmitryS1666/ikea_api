@@ -151,7 +151,9 @@ SENDPULSE_ORDER_CREATED_TEMPLATE_ID=
 SENDPULSE_ORDER_STATUS_TEMPLATE_ID=
 SENDPULSE_PASSWORD_RESET_TEMPLATE_ID=
 
-# Европочта: REST v1.8.0 (ПВЗ / postal) — только https://api-kassa.evropochta.by; не использовать api.eurotorg.by для REST
+# Транзакционные письма (HTML-шаблоны в app/views/email_templates/, отправка через SendPulse)
+ABANDONED_CART_EMAIL_DELAY_HOURS=2
+PUBLIC_SITE_URL=https://ikeya.by
 EUROPOST_API_BASE_URL=https://api-kassa.evropochta.by
 EUROPOST_API_TOKEN=replace_me
 
@@ -188,7 +190,7 @@ rails server
 | `REDIS_URL` | URL подключения к Redis | Нет |
 | `MONGODB_URI` | URI подключения к MongoDB | Нет |
 | `JWT_SECRET` | Секретный ключ для JWT | Да |
-| `SENDPULSE_API_KEY` | API key для SendPulse (backend only) | Нет |
+| `SENDPULSE_API_KEY` | Статический API key SendPulse (`sp_apikey_...`) | Нет |
 | `SENDPULSE_API_BASE_URL` | Базовый URL SendPulse API | Нет |
 | `SENDPULSE_FROM_EMAIL` | Подтвержденный отправитель SendPulse | Нет |
 | `SENDPULSE_FROM_NAME` | Имя отправителя SendPulse | Нет |

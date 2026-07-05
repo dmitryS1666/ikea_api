@@ -88,6 +88,8 @@ class CronManagerService
         RegenerateSeoCatalogPagesJob
       when 'cancel_expired_unpaid_orders'
         CancelExpiredUnpaidOrdersJob
+      when 'send_abandoned_cart_emails'
+        SendAbandonedCartEmailsJob
       else
         raise ArgumentError, "Unknown task type: #{task_type}"
       end
