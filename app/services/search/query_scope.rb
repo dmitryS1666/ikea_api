@@ -8,6 +8,7 @@ module Search
     def initialize(query)
       @query = query.to_s.strip
       @terms = QueryTerms.for(@query)
+      @term_groups = QueryTerms.groups_for(@query)
     end
 
     def call
@@ -42,23 +43,30 @@ module Search
       base = Product.with_available_stock
       sku_query = normalized_sku_query(@query)
 
-      clauses = []
+      and_clauses = []
       binds = {}
 
-      @terms.each_with_index do |term, index|
-        key = :"term_#{index}"
-        binds[key] = "%#{term}%"
-        clauses << <<~SQL.squish
-          (name ILIKE :#{key} OR name_ru ILIKE :#{key} OR small_desc_name ILIKE :#{key} OR sku ILIKE :#{key})
-        SQL
+      @term_groups.each_with_index do |group, group_index|
+        next if group.blank?
+
+        group_clauses = group.each_with_index.map do |term, term_index|
+          key = :"group_#{group_index}_term_#{term_index}"
+          binds[key] = "%#{term}%"
+          fields_match_sql(key)
+        end
+
+        and_clauses << "(#{group_clauses.join(' OR ')})" if group_clauses.present?
       end
 
       if sku_query.present?
         binds[:sku_term] = "%#{sku_query}%"
-        clauses << "regexp_replace(sku, '[^A-Za-z0-9]', '', 'g') ILIKE :sku_term"
+        sku_clause = "regexp_replace(sku, '[^A-Za-z0-9]', '', 'g') ILIKE :sku_term"
+        and_clauses << "(#{sku_clause})" if and_clauses.blank?
       end
 
-      base.where(clauses.join(" OR "), binds)
+      return base.none if and_clauses.blank?
+
+      base.where(and_clauses.join(" AND "), binds)
     end
 
     def products_from_matching_categories
@@ -69,22 +77,41 @@ module Search
     end
 
     def matching_category_ikea_ids
-      ids = []
+      return [] if @term_groups.blank?
 
-      @terms.each do |term|
-        ids.concat(
-          Category.active
-                  .where("translated_name ILIKE :term OR name ILIKE :term", term: "%#{term}%")
-                  .order(Arel.sql("translated_name ASC"))
-                  .limit(CATEGORY_MATCH_LIMIT)
-                  .pluck(:ikea_id)
-        )
-      end
+      @term_groups.each_with_index.reduce(nil) do |intersection, (group, group_index)|
+        group_ids = category_ids_for_group(group, group_index)
+        return [] if group_ids.blank?
 
-      ids.map(&:to_s).uniq
+        intersection.nil? ? group_ids : (intersection & group_ids)
+      end || []
     end
 
     def text_relevance_sql
+      phrase_pattern = ActiveRecord::Base.connection.quote("%#{@query}%")
+      phrase_in_name_sql = "name ILIKE #{phrase_pattern} OR name_ru ILIKE #{phrase_pattern}"
+      phrase_in_desc_sql = "small_desc_name ILIKE #{phrase_pattern}"
+      all_groups_in_name_sql = all_groups_match_sql(%w[name name_ru])
+      all_groups_in_desc_sql = all_groups_match_sql(%w[small_desc_name])
+      all_groups_anywhere_sql = all_groups_match_sql(%w[name name_ru small_desc_name sku])
+
+      priority_sql = <<~SQL.squish
+        CASE
+          WHEN #{phrase_in_name_sql} THEN 0
+          WHEN #{all_groups_in_name_sql} THEN 1
+          WHEN #{phrase_in_desc_sql} THEN 2
+          WHEN #{all_groups_in_desc_sql} THEN 3
+          WHEN #{all_groups_anywhere_sql} THEN 4
+          ELSE 5
+        END
+      SQL
+
+      "(#{priority_sql} * 1000 + #{fallback_terms_rank_sql})"
+    end
+
+    def fallback_terms_rank_sql
+      return "0" if @terms.blank?
+
       parts = @terms.each_with_index.map do |term, index|
         sanitized = ActiveRecord::Base.connection.quote("%#{term}%")
         <<~SQL.squish
@@ -98,8 +125,56 @@ module Search
       "(#{parts.join(" + ")})"
     end
 
+    def fields_match_sql(key)
+      <<~SQL.squish
+        (name ILIKE :#{key} OR name_ru ILIKE :#{key} OR small_desc_name ILIKE :#{key} OR sku ILIKE :#{key})
+      SQL
+    end
+
+    def category_ids_for_group(group, group_index)
+      return [] if group.blank?
+
+      clauses = []
+      binds = {}
+
+      group.each_with_index do |term, term_index|
+        key = :"category_#{group_index}_term_#{term_index}"
+        binds[key] = "%#{term}%"
+        clauses << "(translated_name ILIKE :#{key} OR name ILIKE :#{key})"
+      end
+
+      return [] if clauses.blank?
+
+      Category.active
+              .where(clauses.join(" OR "), binds)
+              .order(Arel.sql("translated_name ASC"))
+              .limit(CATEGORY_MATCH_LIMIT)
+              .pluck(:ikea_id)
+              .map(&:to_s)
+              .uniq
+    end
+
     def normalized_sku_query(query)
       query.to_s.gsub(/[^[:alnum:]]/, "")
+    end
+
+    def all_groups_match_sql(fields)
+      return "FALSE" if @term_groups.blank?
+
+      group_clauses = @term_groups.map do |group|
+        next nil if group.blank?
+
+        terms_sql = group.map do |term|
+          pattern = ActiveRecord::Base.connection.quote("%#{term}%")
+          fields.map { |field| "#{field} ILIKE #{pattern}" }.join(" OR ")
+        end
+
+        "(#{terms_sql.map { |condition| "(#{condition})" }.join(' OR ')})"
+      end.compact
+
+      return "FALSE" if group_clauses.blank?
+
+      group_clauses.join(" AND ")
     end
   end
 end
