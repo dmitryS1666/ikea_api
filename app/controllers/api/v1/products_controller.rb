@@ -27,7 +27,7 @@ module Api
       def show
         resolved = Products::ListingSkuResolver.find_product(params[:sku])
         unless resolved&.available_in_stock?
-          return render json: { error: 'Product not found' }, status: :not_found
+          return render json: unavailable_product_payload(resolved), status: :not_found
         end
 
         scope =
@@ -130,6 +130,29 @@ module Api
       end
 
       private
+
+      def unavailable_product_payload(product)
+        {
+          error: 'Product not found',
+          code: product.present? ? 'product_unavailable' : 'product_not_found',
+          issue_reason: product.present? ? 'discontinued' : 'not_found',
+          similar_products: unavailable_similar_products(product)
+        }
+      end
+
+      def unavailable_similar_products(product)
+        return [] unless product.present?
+
+        SimilarProductsService.for(product: product, limit: 8).map do |similar|
+          {
+            sku: Product.public_sku(similar.sku),
+            name: similar.name,
+            slug: similar.slug,
+            category_id: similar.category_id,
+            local_images: ProductLocalImages.preview_paths(similar.local_images || [])
+          }
+        end
+      end
 
       def apply_sort(scope, sort)
         case sort

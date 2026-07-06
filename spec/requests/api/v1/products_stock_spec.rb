@@ -10,6 +10,9 @@ RSpec.describe "Products API stock filtering", type: :request do
       get "/api/v1/products/#{product.sku}"
 
       expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body["code"]).to eq("product_unavailable")
+      expect(response.parsed_body["issue_reason"]).to eq("discontinued")
+      expect(response.parsed_body["similar_products"]).to be_an(Array)
     end
 
     it "returns product when in stock" do
@@ -19,6 +22,15 @@ RSpec.describe "Products API stock filtering", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body.dig("data", "attributes", "sku")).to eq(product.sku)
+    end
+
+    it "returns 404 with not_found reason for unknown sku" do
+      get "/api/v1/products/NON_EXISTING_SKU"
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body["code"]).to eq("product_not_found")
+      expect(response.parsed_body["issue_reason"]).to eq("not_found")
+      expect(response.parsed_body["similar_products"]).to eq([])
     end
   end
 
