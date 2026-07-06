@@ -162,6 +162,40 @@ RSpec.describe Product, type: :model do
       expect(colors).to include("темно зеленый", "темно синий")
       expect(colors).not_to include("40x60 см")
     end
+
+    it "prefers color from small_desc_name when raw color label is generic" do
+      create(:product, sku: "s20609389", quantity: 3)
+
+      product.variants_payload = [
+        {
+          "type" => "color",
+          "data" => [
+            {
+              "color" => "полотенце",
+              "item" => {
+                "sku" => "s20609389",
+                "price" => "9.99",
+                "small_desc_name" => "полотенце, оранжево красный, 30x30 см"
+              }
+            },
+            {
+              "color" => "полотенце",
+              "item" => {
+                "sku" => "s29545213",
+                "price" => "9.99",
+                "small_desc_name" => "полотенце, темно серый, 30x30 см"
+              }
+            }
+          ]
+        }
+      ].to_json
+
+      out = product.normalized_variants_for_api
+      colors = out.first[:data].map { |row| row[:color] }
+
+      expect(colors).to include("оранжево красный", "темно серый")
+      expect(colors).not_to include("полотенце")
+    end
   end
 
   describe "#normalized_variants_teaser_for_api" do

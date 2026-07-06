@@ -17,11 +17,13 @@ class Product < ApplicationRecord
     f-shape
   ].freeze
   COLOR_HINT_RE = /
-    \b(
-      бел|черн|беж|сер|темн|светл|желт|зелен|син|красн|коричнев|розов|оранж|фиолет|крем|антрацит|графит|
-      bial|czarn|bez|szar|ciemn|jasn|zol|zielon|niebiesk|czerwon|brazow|rozow|pomarancz|fioletow|kremow|antracyt|grafit|
-      white|black|beige|gray|grey|dark|light|yellow|green|blue|red|brown|pink|orange|purple|cream|anthracite|graphite
-    )\w*\b
+    (
+      бел\p{L}*|черн\p{L}*|беж\p{L}*|сер\p{L}*|темн\p{L}*|светл\p{L}*|желт\p{L}*|зелен\p{L}*|син\p{L}*|красн\p{L}*|
+      коричнев\p{L}*|розов\p{L}*|оранж\p{L}*|фиолет\p{L}*|крем\p{L}*|антрацит\p{L}*|графит\p{L}*|
+      bial\p{L}*|czarn\p{L}*|bez\p{L}*|szar\p{L}*|ciemn\p{L}*|jasn\p{L}*|zol\p{L}*|zielon\p{L}*|niebiesk\p{L}*|czerwon\p{L}*|
+      brazow\p{L}*|rozow\p{L}*|pomarancz\p{L}*|fioletow\p{L}*|kremow\p{L}*|antracyt\p{L}*|grafit\p{L}*|
+      white\w*|black\w*|beige\w*|gray\w*|grey\w*|dark\w*|light\w*|yellow\w*|green\w*|blue\w*|red\w*|brown\w*|pink\w*|orange\w*|purple\w*|cream\w*|anthracite\w*|graphite\w*
+    )
   /ix.freeze
   GENERIC_VARIANT_TEXT_RE = /
     \b(
@@ -775,7 +777,10 @@ class Product < ApplicationRecord
   end
 
   def normalized_color_label(raw_label, small_desc)
-    candidate = pick_best_color_candidate(raw_label, small_desc)
+    # Для цветовых групп small_desc_name обычно самый надёжный источник:
+    # "тип товара, цвет, размер". Даже если raw_label уже испорчен (например, "полотенце"),
+    # цвет должен браться именно из small_desc_name.
+    candidate = pick_best_color_candidate(small_desc, raw_label)
     normalize_variant_small_desc_label(candidate) ||
       small_desc.to_s.strip.presence ||
       raw_label.to_s.strip
@@ -880,7 +885,7 @@ class Product < ApplicationRecord
     return -100 if s.blank?
 
     score = 0
-    score += 6 if s.match?(COLOR_HINT_RE)
+    score += 8 if s.match?(COLOR_HINT_RE)
     score += 2 if s.split(/\s+/).size <= 3
     score -= 4 if s.match?(GENERIC_VARIANT_TEXT_RE)
     score
