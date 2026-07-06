@@ -94,6 +94,74 @@ RSpec.describe Product, type: :model do
 
       expect(color).to eq("с широкими подлокотниками hillared антрацит")
     end
+
+    it "uses color segment from small_desc_name when trailing segment is size" do
+      create(:product, sku: "s70556072", quantity: 3)
+
+      product.variants_payload = [
+        {
+          "type" => "color",
+          "data" => [
+            {
+              "color" => "Придверный коврик, темно-зеленый, 40x60 см",
+              "item" => {
+                "sku" => "s29545213",
+                "price" => "49.99",
+                "small_desc_name" => "Придверный коврик, темно-зеленый, 40x60 см"
+              }
+            },
+            {
+              "color" => "Придверный коврик, темно-синий, 40x60 см",
+              "item" => {
+                "sku" => "s70556072",
+                "price" => "49.99",
+                "small_desc_name" => "Придверный коврик, темно-синий, 40x60 см"
+              }
+            }
+          ]
+        }
+      ].to_json
+
+      out = product.normalized_variants_for_api
+      colors = out.first[:data].map { |row| row[:color] }
+
+      expect(colors).to include("темно зеленый", "темно синий")
+      expect(colors).not_to include("40x60 см")
+    end
+
+    it "detects color even when segment order is different" do
+      create(:product, sku: "s70556072", quantity: 3)
+
+      product.variants_payload = [
+        {
+          "type" => "color",
+          "data" => [
+            {
+              "color" => "темно-зеленый, Придверный коврик, 40x60 см",
+              "item" => {
+                "sku" => "s29545213",
+                "price" => "49.99",
+                "small_desc_name" => "Придверный коврик, 40x60 см, темно-зеленый"
+              }
+            },
+            {
+              "color" => "40x60 см, Придверный коврик, темно-синий",
+              "item" => {
+                "sku" => "s70556072",
+                "price" => "49.99",
+                "small_desc_name" => "темно-синий, Придверный коврик, 40x60 см"
+              }
+            }
+          ]
+        }
+      ].to_json
+
+      out = product.normalized_variants_for_api
+      colors = out.first[:data].map { |row| row[:color] }
+
+      expect(colors).to include("темно зеленый", "темно синий")
+      expect(colors).not_to include("40x60 см")
+    end
   end
 
   describe "#normalized_variants_teaser_for_api" do

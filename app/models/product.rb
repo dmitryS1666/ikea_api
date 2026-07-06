@@ -16,6 +16,19 @@ class Product < ApplicationRecord
     f-measurement-buckets
     f-shape
   ].freeze
+  COLOR_HINT_RE = /
+    \b(
+      бел|черн|беж|сер|темн|светл|желт|зелен|син|красн|коричнев|розов|оранж|фиолет|крем|антрацит|графит|
+      bial|czarn|bez|szar|ciemn|jasn|zol|zielon|niebiesk|czerwon|brazow|rozow|pomarancz|fioletow|kremow|antracyt|grafit|
+      white|black|beige|gray|grey|dark|light|yellow|green|blue|red|brown|pink|orange|purple|cream|anthracite|graphite
+    )\w*\b
+  /ix.freeze
+  GENERIC_VARIANT_TEXT_RE = /
+    \b(
+      коврик|придверный|sofa|диван|chair|стул|table|стол|комод|шкаф|lamp|лампа|
+      табурет|кровать|матрас|подушка|одеяло|полка|зеркало|тумба
+    )\b
+  /ix.freeze
 
   # Валидации
   validates :sku, presence: true, uniqueness: true
@@ -762,9 +775,10 @@ class Product < ApplicationRecord
   end
 
   def normalized_color_label(raw_label, small_desc)
-    from_desc = normalize_variant_small_desc_label(small_desc.to_s.split(",").last)
-    from_label = normalize_variant_small_desc_label(raw_label.to_s.split(",").last)
-    from_desc || from_label || small_desc.to_s.strip.presence || raw_label.to_s.strip
+    candidate = pick_best_color_candidate(raw_label, small_desc)
+    normalize_variant_small_desc_label(candidate) ||
+      small_desc.to_s.strip.presence ||
+      raw_label.to_s.strip
   end
 
   def normalize_variant_item_images(value)
@@ -839,6 +853,45 @@ class Product < ApplicationRecord
     phrase_map.each { |src, dst| normalized.gsub!(src, dst) }
     translated = normalized.split(/\s+/).map { |w| words_map[w] || w }.join(" ")
     translated.gsub(/\s+/, " ").strip.presence || text
+  end
+
+  def pick_best_color_candidate(*raw_values)
+    candidates = raw_values.flat_map { |raw| extract_color_candidates(raw) }
+    return nil if candidates.empty?
+
+    candidates.max_by do |part|
+      score = color_candidate_score(part)
+      # При равном score предпочитаем более короткие сегменты (обычно это и есть цвет).
+      [score, -part.length]
+    end
+  end
+
+  def extract_color_candidates(raw)
+    text = raw.to_s.strip
+    return [] if text.blank?
+
+    parts = text.split(",").map { |p| p.to_s.strip }.reject(&:blank?)
+    parts = [text] if parts.empty?
+    parts.reject { |part| variant_size_like_label?(part) }
+  end
+
+  def color_candidate_score(text)
+    s = text.to_s.downcase.strip
+    return -100 if s.blank?
+
+    score = 0
+    score += 6 if s.match?(COLOR_HINT_RE)
+    score += 2 if s.split(/\s+/).size <= 3
+    score -= 4 if s.match?(GENERIC_VARIANT_TEXT_RE)
+    score
+  end
+
+  def variant_size_like_label?(text)
+    s = text.to_s.downcase
+    return true if s.match?(/\b\d{1,4}\s*[xх]\s*\d{1,4}(\s*[xх]\s*\d{1,4})?\b/)
+    return true if s.match?(/\b\d+[.,]?\d*\s*(см|cm|мм|mm|м|m|м²|m²)\b/)
+
+    false
   end
 
   def cache_slug
