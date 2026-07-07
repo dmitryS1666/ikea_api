@@ -70,7 +70,8 @@ module EmailTemplates
     def render
       html = load_template
       html = apply_common_replacements(html)
-      apply_template_specific_replacements(html)
+      html = apply_template_specific_replacements(html)
+      apply_fallback_links(html)
     end
 
     private
@@ -113,6 +114,15 @@ module EmailTemplates
       end
     end
 
+    def apply_fallback_links(html)
+      site_root = "#{public_site_url}/"
+      escaped = ERB::Util.html_escape(site_root)
+
+      html.gsub!('href="#"', "href=\"#{escaped}\"")
+      html.gsub!("href='#'", "href='#{escaped}'")
+      html
+    end
+
     def apply_order_replacements(html)
       return html unless order
 
@@ -120,8 +130,10 @@ module EmailTemplates
       replace_order_items_block!(html, built[:items_html])
       apply_totals!(html, built[:totals_html])
 
-      html.gsub!('class="status-btn" href="#"', "class=\"status-btn\" href=\"#{ERB::Util.html_escape(account_order_url)}\"")
+      cta_url = template_key == :order_cancelled ? account_orders_url : account_order_url
+      html.gsub!('class="status-btn" href="#"', "class=\"status-btn\" href=\"#{ERB::Util.html_escape(cta_url)}\"")
       html.gsub!('class="check-link" href="#"', "class=\"check-link\" href=\"#{ERB::Util.html_escape(account_order_url)}\"")
+      html.gsub!('class="customs-duty-link" href="#"', "class=\"customs-duty-link\" href=\"#{ERB::Util.html_escape(customs_help_url)}\"")
 
       if template_key == :order_awaiting_payment && order.payment_url.present?
         payment_url = ERB::Util.html_escape(order.payment_url)
@@ -207,6 +219,14 @@ module EmailTemplates
 
     def account_order_url
       "#{public_site_url}/account/orders/#{order_number}"
+    end
+
+    def account_orders_url
+      "#{public_site_url}/account/orders"
+    end
+
+    def customs_help_url
+      "#{public_site_url}/help/customs/"
     end
 
     def verification_pixel_url

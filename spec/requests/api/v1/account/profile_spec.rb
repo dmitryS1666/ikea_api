@@ -299,4 +299,33 @@ RSpec.describe "Account Profile API", type: :request do
       expect(body.dig("passport_data", "first_name")).to eq("Анна")
     end
   end
+
+  describe "POST /api/v1/account/profile/change_email_verify" do
+    it "verifies email by token without authorization header" do
+      pending_email = "new_email_#{SecureRandom.hex(4)}@example.com"
+      token_record = EmailVerificationService.issue_token!(
+        user: user,
+        email: pending_email,
+        purpose: "email_change"
+      )
+
+      post "/api/v1/account/profile/change_email_verify",
+           params: { token: token_record.token }
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["email"]).to eq(pending_email)
+      expect(user.reload.email).to eq(pending_email)
+      expect(token_record.reload.verified_at).to be_present
+    end
+
+    it "returns unauthorized for invalid token" do
+      post "/api/v1/account/profile/change_email_verify",
+           params: { token: "invalid-token" }
+
+      expect(response).to have_http_status(:unauthorized)
+      body = JSON.parse(response.body)
+      expect(body["error"]).to eq("Неверный или просроченный токен")
+    end
+  end
 end

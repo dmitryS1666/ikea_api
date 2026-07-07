@@ -140,7 +140,37 @@ module EmailTemplates
     def product_description(product)
       return "" unless product
 
-      [product.dimensions_ru, product.dimensions].compact_blank.first.to_s
+      raw = [product.dimensions_ru, product.dimensions].compact_blank.first
+      format_dimensions(raw)
+    end
+
+    def format_dimensions(raw)
+      return "" if raw.blank?
+      return hash_to_dimensions_text(raw) if raw.is_a?(Hash)
+
+      text = raw.to_s.strip
+      return text if text.blank?
+
+      parsed = parse_json_hash(text)
+      return text unless parsed
+
+      hash_to_dimensions_text(parsed)
+    end
+
+    def parse_json_hash(text)
+      return nil unless text.start_with?("{") && text.end_with?("}")
+
+      JSON.parse(text)
+    rescue JSON::ParserError
+      nil
+    end
+
+    def hash_to_dimensions_text(hash)
+      hash.filter_map do |key, value|
+        next if value.blank?
+
+        "#{key}: #{value}"
+      end.join(", ")
     end
 
     def format_price(value)

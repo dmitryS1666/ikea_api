@@ -3,6 +3,7 @@ module Api
     module Account
       class ProfileController < ApplicationController
         before_action :authenticate_user
+        skip_before_action :authenticate_user, only: [:change_email_verify]
 
         # GET /api/v1/account/profile
         def show
