@@ -8,12 +8,19 @@ class ProductTeaserSerializer
              :is_new,
              :is_recommended,
              :is_popular,
-             :category_id,
              :rating_avg,
              :rating_count,
              :local_images,
              :variants,
              :promo
+
+  attribute :category_id do |product, params|
+    if params&.[](:root_categories_only)
+      root_category_id_for(product)
+    else
+      product.category_id
+    end
+  end
 
   attribute :name do |product|
     product.name.to_s.presence
@@ -120,6 +127,23 @@ class ProductTeaserSerializer
     return path if base.blank?
 
     path.start_with?("/") ? "#{base}#{path}" : "#{base}/#{path}"
+  end
+
+  def self.root_category_id_for(product)
+    category = product.primary_category || product.category
+    return product.category_id if category.blank?
+
+    category_ikea_id = category.ikea_id.to_s.presence
+    parent_ids = Category.normalize_parent_ids(category.parent_ids)
+
+    root_id =
+      if parent_ids.blank?
+        category_ikea_id
+      else
+        parent_ids.find { |id| id.to_s != category_ikea_id }&.to_s.presence || parent_ids.first.to_s.presence
+      end
+
+    root_id || category_ikea_id || product.category_id
   end
 
   attribute :sku do |product|

@@ -58,6 +58,7 @@ module Api
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
         render json: ProductTeaserSerializer.new(products, {
           params: serialization_params.merge(
+            root_categories_only: true,
             active_promos: promos,
             promo_applicability: get_promo_applicability(products, promos)
           ),
@@ -77,6 +78,7 @@ module Api
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
         render json: ProductTeaserSerializer.new(products, {
           params: serialization_params.merge(
+            root_categories_only: true,
             active_promos: promos,
             promo_applicability: get_promo_applicability(products, promos)
           ),
@@ -96,6 +98,7 @@ module Api
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
         render json: ProductTeaserSerializer.new(products, {
           params: serialization_params.merge(
+            root_categories_only: true,
             active_promos: promos,
             promo_applicability: get_promo_applicability(products, promos)
           ),
@@ -115,6 +118,7 @@ module Api
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
         render json: ProductTeaserSerializer.new(products, {
           params: serialization_params.merge(
+            root_categories_only: true,
             active_promos: promos,
             promo_applicability: get_promo_applicability(products, promos)
           ),

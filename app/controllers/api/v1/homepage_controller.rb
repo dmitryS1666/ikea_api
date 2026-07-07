@@ -42,6 +42,7 @@ module Api
 
         render json: ProductTeaserSerializer.new(products, {
           params: serialization_params.merge(
+            root_categories_only: true,
             active_promos: promos,
             promo_applicability: get_promo_applicability(products, promos)
           ),
