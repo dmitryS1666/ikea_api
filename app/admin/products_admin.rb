@@ -293,16 +293,22 @@ Trestle.resource(:products, model: Product) do
           require 'csv'
           skus = []
           CSV.foreach(file.path, headers: false) do |row|
-            skus << row[0].to_s.strip if row[0].present?
+            next if row.blank?
+
+            sku = row[0].to_s.sub(/\A\uFEFF/, "").strip
+            skus << sku if sku.present?
           end
           
           skus.uniq!
           
-          # Reset flag for all products not in the list
-          Product.where(flag => true).update_all(flag => false)
-          
-          # Set flag for products in the list
-          updated_count = Product.where(sku: skus).update_all(flag => true)
+          updated_count = 0
+          Product.transaction do
+            # Всегда очищаем предыдущий список для выбранного статуса
+            Product.update_all(flag => false)
+
+            # И выставляем статус только товарам из нового CSV
+            updated_count = Product.where(sku: skus).update_all(flag => true)
+          end
           
           flash[:notice] = "Импортировано #{updated_count} товаров в список '#{label}'."
         rescue => e
