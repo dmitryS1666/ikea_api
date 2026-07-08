@@ -62,10 +62,13 @@ RSpec.describe ConsentService do
       expect(result).to be_nil
     end
 
-    it "does not accept personal data consent from user who has not consented" do
-      result = described_class.validate_checkout_consents!({}, user: user)
+    it "does not require personal data consent at checkout" do
+      result = described_class.validate_checkout_consents!({
+        offer_agreement_consent: true,
+        customs_broker_consent: true
+      }, user: user)
 
-      expect(result[:field]).to eq("personal_data_consent")
+      expect(result).to be_nil
     end
   end
 

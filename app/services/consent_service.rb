@@ -4,6 +4,10 @@ class ConsentService
     offer_agreement_consent: :offer_agreement,
     customs_broker_consent: :customs_broker
   }.freeze
+  REQUIRED_CHECKOUT_CONSENT_FIELDS = %i[
+    offer_agreement_consent
+    customs_broker_consent
+  ].freeze
 
   PROFILE_CONSENT_FIELDS = {
     gdpr_consent: :gdpr,
@@ -21,7 +25,7 @@ class ConsentService
   def self.validate_checkout_consents!(params, user: nil)
     resolved = resolve_checkout_consents(user: user, params: params)
 
-    CHECKOUT_CONSENT_FIELDS.each_key do |field|
+    REQUIRED_CHECKOUT_CONSENT_FIELDS.each do |field|
       next if truthy?(resolved[field])
 
       return {

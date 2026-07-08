@@ -59,9 +59,9 @@ RSpec.describe "Checkout consents", type: :request do
     expect(Order.count).to eq(0)
   end
 
-  it "stores checkout consents and history on successful order create" do
+  it "allows checkout without personal data consent and stores other consents" do
     post "/api/v1/checkout",
-         params: checkout_consents.merge(
+         params: checkout_consents(personal_data_consent: false).merge(
            full_name: "User",
            phone: "375291112233",
            delivery_type: "europost_pickup",
@@ -75,9 +75,9 @@ RSpec.describe "Checkout consents", type: :request do
     order = Order.last
     expect(order.offer_agreement_consent).to be(true)
     expect(order.customs_broker_consent).to be(true)
-    expect(order.personal_data_consent).to be(true)
-    expect(ConsentRecord.where(order: order).count).to eq(3)
-    expect(user.reload.personal_data_consent).to be(true)
+    expect(order.personal_data_consent).to be(false)
+    expect(ConsentRecord.where(order: order).count).to eq(2)
+    expect(user.reload.personal_data_consent).to be(false)
   end
 
   it "accepts personal_data_consent from registered user on finalize without resending it" do
