@@ -37,12 +37,20 @@ module Api
       end
 
       def recommendations
-        products = ProductRecommendationsResolver.call(placement: :homepage, limit: per_page)
+        configured = Products::FeaturedTabProductsResolver.call(list_key: :homepage_recommendations)
+        if configured.present?
+          products = configured.products.first(per_page)
+          category_id_overrides = configured.category_id_overrides
+        else
+          products = ProductRecommendationsResolver.call(placement: :homepage, limit: per_page)
+          category_id_overrides = {}
+        end
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
 
         render json: ProductTeaserSerializer.new(products, {
           params: serialization_params.merge(
             root_categories_only: true,
+            category_id_overrides: category_id_overrides,
             active_promos: promos,
             promo_applicability: get_promo_applicability(products, promos)
           ),

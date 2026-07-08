@@ -15,7 +15,10 @@ class ProductTeaserSerializer
              :promo
 
   attribute :category_id do |product, params|
-    if params&.[](:root_categories_only)
+    override = params&.dig(:category_id_overrides, product.sku.to_s)
+    if override.present?
+      override
+    elsif params&.[](:root_categories_only)
       root_category_id_for(product)
     else
       product.category_id

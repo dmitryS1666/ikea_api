@@ -50,15 +50,16 @@ module Api
       end
       
       def bestsellers
-        products = Product.bestsellers.with_available_stock
-                         .includes(:category, :seo_meta, :category_products)
-                         .page(params[:page])
-                         .per(params[:per_page] || 10)
+        products, category_id_overrides = featured_products_with_overrides(
+          Product.bestsellers.with_available_stock,
+          list_key: :bestsellers
+        )
         
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
         render json: ProductTeaserSerializer.new(products, {
           params: serialization_params.merge(
             root_categories_only: true,
+            category_id_overrides: category_id_overrides,
             active_promos: promos,
             promo_applicability: get_promo_applicability(products, promos)
           ),
@@ -70,15 +71,16 @@ module Api
       end
 
       def new_arrivals
-        products = Product.new_arrivals.with_available_stock
-                         .includes(:category, :seo_meta, :category_products)
-                         .page(params[:page])
-                         .per(params[:per_page] || 10)
+        products, category_id_overrides = featured_products_with_overrides(
+          Product.new_arrivals.with_available_stock,
+          list_key: :new_arrivals
+        )
         
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
         render json: ProductTeaserSerializer.new(products, {
           params: serialization_params.merge(
             root_categories_only: true,
+            category_id_overrides: category_id_overrides,
             active_promos: promos,
             promo_applicability: get_promo_applicability(products, promos)
           ),
@@ -90,15 +92,16 @@ module Api
       end
 
       def recommended
-        products = Product.recommended.with_available_stock
-                         .includes(:category, :seo_meta, :category_products)
-                         .page(params[:page])
-                         .per(params[:per_page] || 10)
+        products, category_id_overrides = featured_products_with_overrides(
+          Product.recommended.with_available_stock,
+          list_key: :recommended
+        )
         
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
         render json: ProductTeaserSerializer.new(products, {
           params: serialization_params.merge(
             root_categories_only: true,
+            category_id_overrides: category_id_overrides,
             active_promos: promos,
             promo_applicability: get_promo_applicability(products, promos)
           ),
@@ -110,15 +113,16 @@ module Api
       end
       
       def popular
-        products = Product.popular.with_available_stock
-                         .includes(:category, :seo_meta, :category_products)
-                         .page(params[:page])
-                         .per(params[:per_page] || 10)
+        products, category_id_overrides = featured_products_with_overrides(
+          Product.popular.with_available_stock,
+          list_key: :popular
+        )
         
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
         render json: ProductTeaserSerializer.new(products, {
           params: serialization_params.merge(
             root_categories_only: true,
+            category_id_overrides: category_id_overrides,
             active_promos: promos,
             promo_applicability: get_promo_applicability(products, promos)
           ),
@@ -191,6 +195,19 @@ module Api
           rates: rates,
           calculator_settings: calculator_settings
         }
+      end
+
+      def featured_products_with_overrides(scope, list_key:)
+        configured = Products::FeaturedTabProductsResolver.call(list_key: list_key)
+        if configured.present?
+          products = Kaminari.paginate_array(configured.products).page(params[:page]).per(params[:per_page] || 10)
+          [products, configured.category_id_overrides]
+        else
+          products = scope.includes(:category, :seo_meta, :category_products)
+                          .page(params[:page])
+                          .per(params[:per_page] || 10)
+          [products, {}]
+        end
       end
     end
   end
