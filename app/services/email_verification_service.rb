@@ -19,7 +19,7 @@ class EmailVerificationService
 
     def verify_url(token_record)
       base = Seo::PublicSiteUrl.resolve
-      "#{base}/account/verify-email?token=#{CGI.escape(token_record.token)}"
+      "#{base}/api/v1/account/profile/change_email_verify?token=#{CGI.escape(token_record.token)}"
     end
 
     def verify!(token:, email: nil)

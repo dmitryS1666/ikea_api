@@ -328,4 +328,32 @@ RSpec.describe "Account Profile API", type: :request do
       expect(body["error"]).to eq("Неверный или просроченный токен")
     end
   end
+
+  describe "GET /api/v1/account/profile/change_email_verify" do
+    it "verifies token and redirects to personal data page" do
+      pending_email = "new_email_#{SecureRandom.hex(4)}@example.com"
+      token_record = EmailVerificationService.issue_token!(
+        user: user,
+        email: pending_email,
+        purpose: "email_change"
+      )
+
+      get "/api/v1/account/profile/change_email_verify",
+          params: { token: token_record.token }
+
+      expect(response).to have_http_status(:found)
+      expect(response).to redirect_to("https://ikeya.by/profile/personal-data/?email_verified=1")
+      expect(user.reload.email).to eq(pending_email)
+      expect(token_record.reload.verified_at).to be_present
+    end
+
+    it "redirects with error when token is invalid" do
+      get "/api/v1/account/profile/change_email_verify",
+          params: { token: "invalid-token" }
+
+      expect(response).to have_http_status(:found)
+      expect(response.location).to include("/profile/personal-data/?email_verified=0")
+      expect(response.location).to include("error=")
+    end
+  end
 end

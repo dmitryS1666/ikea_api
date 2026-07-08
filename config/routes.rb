@@ -72,6 +72,7 @@ Rails.application.routes.draw do
         resource :profile, only: [:show, :update], controller: 'profile' do
           post :change_phone_request
           post :change_phone_verify
+          get :change_email_verify
           post :change_email_verify
         end
 

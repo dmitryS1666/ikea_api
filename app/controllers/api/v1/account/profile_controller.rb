@@ -90,9 +90,17 @@ module Api
 
           result = EmailVerificationService.verify!(token: token, email: new_email)
           if result[:success]
-            render json: user_payload(result[:user])
+            if request.get?
+              redirect_to verified_email_redirect_url, allow_other_host: true
+            else
+              render json: user_payload(result[:user])
+            end
           else
-            render json: { error: result[:error] || 'Неверный код подтверждения' }, status: :unauthorized
+            if request.get?
+              redirect_to verified_email_redirect_url(error: result[:error]), allow_other_host: true
+            else
+              render json: { error: result[:error] || 'Неверный код подтверждения' }, status: :unauthorized
+            end
           end
         end
 
@@ -194,6 +202,15 @@ module Api
             passport_data: passport_data,
             a1_verification_id: user.a1_verification_id
           }
+        end
+
+        def verified_email_redirect_url(error: nil)
+          base = Seo::PublicSiteUrl.resolve(request)
+          target = "#{base}/profile/personal-data/"
+          return "#{target}?email_verified=1" if error.blank?
+
+          encoded_error = CGI.escape(error.to_s)
+          "#{target}?email_verified=0&error=#{encoded_error}"
         end
       end
     end
