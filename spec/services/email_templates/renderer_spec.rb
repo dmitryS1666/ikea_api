@@ -22,4 +22,13 @@ RSpec.describe EmailTemplates::Renderer do
     expect(described_class.template_for_status("shipped")).to eq(:shipped_to_pvz)
     expect(described_class.template_for_status("cancelled")).to eq(:order_cancelled)
   end
+
+  it "injects verification URL for email_changed status button" do
+    verify_url = "https://ikeya.by/account/verify-email?token=abc123"
+
+    html = described_class.render(:email_changed, verify_email_url: verify_url)
+
+    expect(html).to include("href=\"#{verify_url}\"")
+    expect(html).not_to include("href=\"#\" class=\"status-btn\"")
+  end
 end

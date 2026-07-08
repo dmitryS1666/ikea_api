@@ -155,14 +155,12 @@ module EmailTemplates
       verify_url = locals[:verify_email_url].to_s
       return html if verify_url.blank?
 
+      escaped_verify_url = ERB::Util.html_escape(verify_url)
       html.gsub!(
-        'class="status-btn" href="#" style="text-decoration: none !important; font-family: \'HelveticaNeueCyr\', Arial, sans-serif; font-weight: 700; font-size: 14px; line-height: 20px; color: #FFFFFF !important; background-color: #0058a3; padding: 10px 26px; display: inline-block; box-sizing: border-box; text-align: center; border-radius: 8px;">Подтвердить',
-        "class=\"status-btn\" href=\"#{ERB::Util.html_escape(verify_url)}\" style=\"text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 700; font-size: 14px; line-height: 20px; color: #FFFFFF !important; background-color: #0058a3; padding: 10px 26px; display: inline-block; box-sizing: border-box; text-align: center; border-radius: 8px;\">Подтвердить"
-      )
-      html.gsub!(
-        'class="status-btn" href="#" style="text-decoration: none !important; font-family: \'HelveticaNeueCyr\', Arial, sans-serif; font-weight: 700; font-size: 14px; line-height: 20px; color: #FFFFFF !important; background-color: #0058a3; padding: 10px 26px; display: inline-block; box-sizing: border-box; text-align: center; border-radius: 8px;">Подтвердить',
-        "class=\"status-btn\" href=\"#{ERB::Util.html_escape(verify_url)}\" style=\"text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 700; font-size: 14px; line-height: 20px; color: #FFFFFF !important; background-color: #0058a3; padding: 10px 26px; display: inline-block; box-sizing: border-box; text-align: center; border-radius: 8px;\">Подтвердить"
-      )
+        /<a\b(?=[^>]*\bclass=(['"])[^'"]*\bstatus-btn\b[^'"]*\1)(?=[^>]*\bhref=(['"])#\2)[^>]*>/i
+      ) do |tag|
+        tag.sub(/\bhref=(['"])#\1/i, "href=\"#{escaped_verify_url}\"")
+      end
       html
     end
 
