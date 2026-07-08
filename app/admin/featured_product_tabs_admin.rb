@@ -23,10 +23,9 @@ Trestle.resource(:featured_product_tabs, model: FeaturedProductTab) do
   end
 
   form do |tab|
-    root_categories =
+    available_categories =
       Category.active
-              .top_level
-              .order(:root_position, :translated_name, :name)
+              .order(:translated_name, :name, :ikea_id)
               .map { |category| ["#{category.translated_name.presence || category.name} (#{category.ikea_id})", category.ikea_id] }
 
     row do
@@ -42,7 +41,7 @@ Trestle.resource(:featured_product_tabs, model: FeaturedProductTab) do
     row do
       col(sm: 12) do
         select :category_id,
-               root_categories,
+               available_categories,
                { label: "Категория таба", include_blank: "Выберите категорию" },
                { data: { ui: "select2" } }
       end
