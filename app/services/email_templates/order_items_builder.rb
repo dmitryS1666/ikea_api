@@ -26,13 +26,21 @@ module EmailTemplates
     attr_reader :order, :pricing
 
     def build_items_html
-      lines = pricing&.dig(:items) || fallback_items
+      lines = item_lines
       return "" if lines.blank?
 
       lines.each_with_index.map do |line, index|
         spacer = index.positive? ? spacer_row : ""
         "#{spacer}#{product_row(line)}"
       end.join
+    end
+
+    def item_lines
+      if order.persisted? && !order.checkout_draft?
+        fallback_items
+      else
+        pricing&.dig(:items) || fallback_items
+      end
     end
 
     def fallback_items

@@ -127,11 +127,13 @@ module EmailTemplates
       return html unless order
 
       built = EmailTemplates::OrderItemsBuilder.call(order)
+      details = EmailTemplates::OrderDetailsBuilder.call(order, template_key:)
       replace_order_items_block!(html, built[:items_html])
       apply_totals!(html, built[:totals_html])
+      apply_order_details!(html, details)
 
       cta_url = template_key == :order_cancelled ? cart_url : profile_order_url
-      html.gsub!('class="status-btn" href="#"', "class=\"status-btn\" href=\"#{ERB::Util.html_escape(cta_url)}\"")
+      replace_status_button_link!(html, cta_url)
       html.gsub!('class="check-link" href="#"', "class=\"check-link\" href=\"#{ERB::Util.html_escape(profile_orders_url)}\"")
       html.gsub!('class="customs-duty-link" href="#"', "class=\"customs-duty-link\" href=\"#{ERB::Util.html_escape(customs_help_url)}\"")
       apply_customs_duty!(html, built[:totals_html])
@@ -185,7 +187,10 @@ module EmailTemplates
       if totals[:discount_row].blank?
         updated.gsub!(%r{<tr>(?:(?!</tr>)[\s\S])*Скидка по промокоду(?:(?!</tr>)[\s\S])*</tr>}m, "")
       else
-        updated.sub!(/<!-- ORDER: totals spacer -->/, "#{totals[:discount_row]}<!-- ORDER: totals spacer -->")
+        updated.sub!(
+          %r{<tr>(?:(?!</tr>)[\s\S])*Скидка по промокоду(?:(?!</tr>)[\s\S])*</tr>}m,
+          totals[:discount_row].strip
+        )
       end
 
       if updated.include?("Доставка в Беларусь")
@@ -199,6 +204,88 @@ module EmailTemplates
 
       html.gsub!(/<span class="span-total-value"[^>]*>[\s\S]*?<\/span>/m, "<span class=\"span-total-value\">#{totals[:grand_total]}</span>")
       html
+    end
+
+    def apply_order_details!(html, details)
+      replace_first_paragraph_content!(html, "warehouse-address", details[:delivery_address], scope: warehouse_section_pattern)
+      replace_first_paragraph_content!(html, "warehouse-address-sub", details[:delivery_subtitle], scope: warehouse_section_pattern)
+
+      replace_first_paragraph_content!(html, "warehouse-address", details[:payment_method_label], scope: payment_section_pattern)
+      replace_payment_status!(html, details)
+
+      if details[:services_present]
+        replace_services_items!(html, details[:service_items_html])
+      else
+        remove_services_sections!(html)
+      end
+
+      html
+    end
+
+    def warehouse_section_pattern
+      /<!-- WAREHOUSE -->.*?<!-- WAREHOUSE(?:_PAYMENT)?_CONDITIONS_SERVICES: divider 1 -->/m
+    end
+
+    def payment_section_pattern
+      /<!-- PAYMENT -->.*?<!-- PAYMENT to CONDITIONS: gap 8px -->/m
+    end
+
+    def replace_first_paragraph_content!(html, css_class, content, scope: nil)
+      escaped = ERB::Util.html_escape(content.to_s)
+      target = scope ? html[scope] : html
+      return html unless target
+
+      updated = target.sub(
+        %r{<p\b(?=[^>]*\bclass=(['"])[^'"]*\b#{Regexp.escape(css_class)}\b[^'"]*\1)[^>]*>[\s\S]*?</p>}m
+      ) do |paragraph|
+        paragraph.sub(/>[\s\S]*?</m, ">#{escaped}<")
+      end
+
+      if scope
+        html.sub!(scope, updated)
+      else
+        html.replace(updated)
+      end
+      html
+    end
+
+    def replace_payment_status!(html, details)
+      pattern = %r{<p\b(?=[^>]*\bclass=(['"])[^'"]*\bwarehouse-address-sub\b[^'"]*\1)(?=[^>]*\bpayment-status-(?:green|red)\b)[^>]*>[\s\S]*?</p>}m
+      color = details[:payment_status_class] == "payment-status-green" ? "#00910A" : "#B71C1C"
+      replacement = <<~HTML.strip
+        <p class="warehouse-address-sub #{details[:payment_status_class]}" style='font-family: "HelveticaNeueCyr", Arial, sans-serif; font-size: 14px; line-height: 20px; color: #{color} !important; letter-spacing: 0.25px; margin: 4px 0 0 0'>#{ERB::Util.html_escape(details[:payment_status_label])}</p>
+      HTML
+
+      if html.match?(payment_section_pattern)
+        section = html[payment_section_pattern]
+        html.sub!(payment_section_pattern, section.sub(pattern, replacement))
+      else
+        html.sub!(pattern, replacement)
+      end
+    end
+
+    def replace_services_items!(html, service_items_html)
+      pattern = %r{(<!-- SERVICES -->[\s\S]*?<p class="services-text services-heading"[^>]*>[\s\S]*?</p>)([\s\S]*?)(</td>)}m
+      return html unless html.match?(pattern)
+
+      html.sub!(pattern, "\\1#{service_items_html}\\3")
+    end
+
+    def remove_services_sections!(html)
+      html.gsub!(
+        %r{<!-- PAYMENT to CONDITIONS: gap 8px -->[\s\S]*?<!-- SERVICES bottom spacer 8px -->[\s\S]*?</table>}m,
+        ""
+      )
+      html
+    end
+
+    def replace_status_button_link!(html, url)
+      escaped = ERB::Util.html_escape(url)
+      html.gsub!(
+        /<a\b(?=[^>]*\bclass=(['"])[^'"]*\bstatus-btn\b[^'"]*\1)(?=[^>]*\bhref=(['"])#\2)[^>]*>/i
+      ) do |tag|
+        tag.sub(/\bhref=(['"])#\1/i, "href=\"#{escaped}\"")
+      end
     end
 
     def apply_customs_duty!(html, totals)
@@ -221,11 +308,17 @@ module EmailTemplates
     end
 
     def user_greeting
-      order_first_name = order&.full_name.to_s.split(/\s+/).first
-      order_first_name.presence ||
+      given_name_from_full_name(order&.full_name).presence ||
         user&.first_name_display.presence ||
         user&.username.presence ||
         "клиент"
+    end
+
+    def given_name_from_full_name(full_name)
+      parts = full_name.to_s.split(/\s+/).map(&:strip).reject(&:blank?)
+      return if parts.empty?
+
+      parts.length >= 2 ? parts[1] : parts.first
     end
 
     def order_number
