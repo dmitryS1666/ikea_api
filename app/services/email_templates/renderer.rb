@@ -130,9 +130,9 @@ module EmailTemplates
       replace_order_items_block!(html, built[:items_html])
       apply_totals!(html, built[:totals_html])
 
-      cta_url = template_key == :order_cancelled ? profile_orders_url : profile_order_url
+      cta_url = template_key == :order_cancelled ? cart_url : profile_order_url
       html.gsub!('class="status-btn" href="#"', "class=\"status-btn\" href=\"#{ERB::Util.html_escape(cta_url)}\"")
-      html.gsub!('class="check-link" href="#"', "class=\"check-link\" href=\"#{ERB::Util.html_escape(profile_order_url)}\"")
+      html.gsub!('class="check-link" href="#"', "class=\"check-link\" href=\"#{ERB::Util.html_escape(profile_orders_url)}\"")
       html.gsub!('class="customs-duty-link" href="#"', "class=\"customs-duty-link\" href=\"#{ERB::Util.html_escape(customs_help_url)}\"")
       apply_customs_duty!(html, built[:totals_html])
 
@@ -244,6 +244,10 @@ module EmailTemplates
 
     def profile_orders_url
       "#{public_site_url}/profile/orders"
+    end
+
+    def cart_url
+      "#{public_site_url}/cart"
     end
 
     def customs_help_url

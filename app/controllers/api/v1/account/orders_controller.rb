@@ -72,28 +72,13 @@ module Api
 
         def reorder
           order = Order.find_for_account!(current_user, params[:id])
-          cart = current_user.cart || current_user.create_cart
-
-          added_items = []
-          missing_items = []
-
-          order.order_items.each do |item|
-            product = Product.with_available_stock.find_by(sku: item.product_sku)
-            if product
-              cart_item = cart.cart_items.find_or_initialize_by(product_sku: item.product_sku)
-              cart_item.quantity = (cart_item.quantity || 0) + item.quantity
-              cart_item.save!
-              added_items << item.product_sku
-            else
-              missing_items << item.product_sku
-            end
-          end
+          result = OrderReorderService.call(order: order, user: current_user)
 
           render json: {
             message: 'Товары добавлены в корзину',
-            added_skus: added_items,
-            missing_skus: missing_items,
-            has_missing: missing_items.any?
+            added_skus: result[:added_skus],
+            missing_skus: result[:missing_skus],
+            has_missing: result[:has_missing]
           }
         end
       end

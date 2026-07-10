@@ -56,4 +56,18 @@ RSpec.describe EmailTemplates::Renderer do
     expect(html).to include("href=\"#{verify_url}\"")
     expect(html).not_to include("href=\"#\" class=\"status-btn\"")
   end
+
+  it "links repeat order button to cart for cancelled orders" do
+    html = described_class.render(:order_cancelled, order: order, user: user)
+
+    expect(html).to include("href=\"https://ikeya.by/cart\"")
+    expect(html).not_to include("href=\"https://ikeya.by/profile/orders\" class=\"status-btn\"")
+  end
+
+  it "links personal account info box to profile orders list" do
+    html = described_class.render(:order_placed, order: order, user: user)
+
+    expect(html).to include("href=\"https://ikeya.by/profile/orders\"")
+    expect(html).not_to include("href=\"https://ikeya.by/profile/orders/7654321\" class=\"check-link\"")
+  end
 end

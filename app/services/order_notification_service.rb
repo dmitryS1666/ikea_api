@@ -20,6 +20,8 @@ class OrderNotificationService
   private
 
   def self.handle_status_change(order)
+    OrderReorderService.call(order: order) if order.cancelled?
+
     template_key = EmailTemplates::Renderer.template_for_status(order.status)
 
     if template_key
