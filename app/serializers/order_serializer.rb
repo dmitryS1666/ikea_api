@@ -37,5 +37,11 @@ class OrderSerializer
     order.frontend_status_title
   end
 
+  attribute :profile_order_url do |order|
+    site = Seo::PublicSiteUrl.resolve
+    uid = order.public_uid.presence
+    uid ? "#{site}/profile/orders/#{uid}" : "#{site}/profile/orders"
+  end
+
   has_many :order_items
 end

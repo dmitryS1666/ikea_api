@@ -56,6 +56,16 @@ RSpec.describe 'WebPay payment success redirect', type: :request do
         expect(response).to redirect_to('https://ikeya.by/profile/orders?wsb_tid=abc')
       end
     end
+
+    context 'when legacy WEBPAY_SUCCESS_REDIRECT_URL points to removed /account/orders/:id route' do
+      let(:redirect_target) { 'https://ikeya.by/account/orders/32618629/' }
+
+      it 'rewrites redirect to current storefront profile order route' do
+        get path, params: { wsb_tid: 'abc' }
+
+        expect(response).to redirect_to('https://ikeya.by/profile/orders/32618629?wsb_tid=abc')
+      end
+    end
   end
 
   describe 'GET /payment/success' do

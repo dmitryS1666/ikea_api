@@ -15,6 +15,8 @@ RSpec.describe EmailTemplates::Renderer do
 
     expect(html).to include("Иван")
     expect(html).to include("№7654321")
+    expect(html).to include('href="https://ikeya.by/profile/orders/7654321"')
+    expect(html).not_to include("/account/orders")
     expect(html).not_to include("№1234567")
     expect(html).not_to match(/>\s*Имя\s*</)
   end

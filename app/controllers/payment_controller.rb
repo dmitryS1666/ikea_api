@@ -40,12 +40,13 @@ class PaymentController < ApplicationController
     uri = URI.parse(target)
     path = uri.path.to_s.delete_suffix('/')
 
-    if path.casecmp?('/account/orders')
-      uri.path = '/profile/orders'
-      uri.to_s
-    else
-      target
+    if path.match?(%r{\A/account/orders(?:/|\z)}i)
+      suffix = path.sub(%r{\A/account/orders}i, '')
+      uri.path = "/profile/orders#{suffix}"
+      return uri.to_s
     end
+
+    target
   rescue URI::InvalidURIError
     target
   end

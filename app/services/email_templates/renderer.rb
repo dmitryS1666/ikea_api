@@ -130,9 +130,9 @@ module EmailTemplates
       replace_order_items_block!(html, built[:items_html])
       apply_totals!(html, built[:totals_html])
 
-      cta_url = template_key == :order_cancelled ? account_orders_url : account_order_url
+      cta_url = template_key == :order_cancelled ? profile_orders_url : profile_order_url
       html.gsub!('class="status-btn" href="#"', "class=\"status-btn\" href=\"#{ERB::Util.html_escape(cta_url)}\"")
-      html.gsub!('class="check-link" href="#"', "class=\"check-link\" href=\"#{ERB::Util.html_escape(account_order_url)}\"")
+      html.gsub!('class="check-link" href="#"', "class=\"check-link\" href=\"#{ERB::Util.html_escape(profile_order_url)}\"")
       html.gsub!('class="customs-duty-link" href="#"', "class=\"customs-duty-link\" href=\"#{ERB::Util.html_escape(customs_help_url)}\"")
       apply_customs_duty!(html, built[:totals_html])
 
@@ -229,19 +229,21 @@ module EmailTemplates
     end
 
     def order_number
-      order&.public_uid.presence || order&.id
+      order&.public_uid
     end
 
     def public_site_url
       Seo::PublicSiteUrl.resolve
     end
 
-    def account_order_url
-      "#{public_site_url}/account/orders/#{order_number}"
+    def profile_order_url
+      return profile_orders_url if order_number.blank?
+
+      "#{public_site_url}/profile/orders/#{order_number}"
     end
 
-    def account_orders_url
-      "#{public_site_url}/account/orders"
+    def profile_orders_url
+      "#{public_site_url}/profile/orders"
     end
 
     def customs_help_url
