@@ -28,8 +28,7 @@ class EmailVerificationService
       return { error: "Email не совпадает" } if email.present? && record.email != email.to_s.strip.downcase
 
       user = record.user
-      user.email = record.email
-      unless user.save
+      unless user.update(email: record.email, email_verified_at: Time.current)
         return { error: user.errors.full_messages.join(", ") }
       end
 

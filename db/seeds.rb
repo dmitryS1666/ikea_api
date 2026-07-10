@@ -2,63 +2,80 @@
 # development, test). The code here should be idempotent so that it can be executed at any point in every environment.
 # The data can then be loaded with the bin/rails db:seed command (or created alongside the database with db:setup).
 
-# Создание дефолтного системного администратора
-admin_username = 'admin'
-admin_password = ENV['ADMIN_PASSWORD'] || 'admin123'
-admin_email = ENV['ADMIN_EMAIL'] || 'admin@ikea_api.local'
+# Дефолтные пользователи по ролевой модели
+seed_users = [
+  {
+    key: "DIRECTOR",
+    username: "director",
+    email: "director@ikea_api.local",
+    role: "admin"
+  },
+  {
+    key: "SITE_ADMIN",
+    username: "site_admin",
+    email: "site_admin@ikea_api.local",
+    role: "site_admin"
+  },
+  {
+    key: "REQUEST_MANAGER",
+    username: "requests_manager",
+    email: "requests_manager@ikea_api.local",
+    role: "manager_requests"
+  },
+  {
+    key: "CONTENT_MANAGER",
+    username: "content_manager",
+    email: "content_manager@ikea_api.local",
+    role: "content_manager"
+  },
+  {
+    key: "ACCOUNTANT",
+    username: "accountant",
+    email: "accountant@ikea_api.local",
+    role: "accountant"
+  },
+  {
+    key: "TECHNICIAN",
+    username: "technician",
+    email: "technician@ikea_api.local",
+    role: "technician"
+  },
+  {
+    key: "OBSERVER",
+    username: "observer",
+    email: "observer@ikea_api.local",
+    role: "observer"
+  }
+]
 
-admin = User.find_or_initialize_by(username: admin_username)
-admin.assign_attributes(
-  email: admin_email,
-  password: admin_password,
-  password_confirmation: admin_password,
-  role: 'admin',
-  is_active: true
-)
+seed_users.each do |entry|
+  password = ENV["#{entry[:key]}_PASSWORD"] || "ChangeMe_#{entry[:key].downcase}_123"
+  email = ENV["#{entry[:key]}_EMAIL"] || entry[:email]
 
-if admin.save
-  puts "✅ Системный администратор создан/обновлен:"
-  puts "   Username: #{admin.username}"
-  puts "   Email: #{admin.email}"
-  puts "   Role: #{admin.role}"
-  puts ""
-  puts "⚠️  ВНИМАНИЕ: Измените пароль по умолчанию в production!"
-  puts "   Для изменения пароля используйте переменную окружения ADMIN_PASSWORD"
-else
-  puts "❌ Ошибка при создании администратора:"
-  admin.errors.full_messages.each do |message|
-    puts "   - #{message}"
+  user = User.find_or_initialize_by(username: entry[:username])
+  user.assign_attributes(
+    email: email,
+    password: password,
+    password_confirmation: password,
+    role: entry[:role],
+    is_active: true
+  )
+
+  if user.save
+    puts "✅ Пользователь роли '#{entry[:role]}' создан/обновлен:"
+    puts "   Username: #{user.username}"
+    puts "   Email: #{user.email}"
+    puts "   Role: #{user.role}"
+  else
+    puts "❌ Ошибка при создании пользователя #{entry[:username]}:"
+    user.errors.full_messages.each do |message|
+      puts "   - #{message}"
+    end
   end
 end
 
-# Создание дефолтного менеджера
-manager_username = 'manager'
-manager_password = ENV['MANAGER_PASSWORD'] || 'manager123'
-manager_email = ENV['MANAGER_EMAIL'] || 'manager@ikea_api.local'
-
-manager = User.find_or_initialize_by(username: manager_username)
-manager.assign_attributes(
-  email: manager_email,
-  password: manager_password,
-  password_confirmation: manager_password,
-  role: 'manager',
-  is_active: true
-)
-
-if manager.save
-  puts "✅ Менеджер создан/обновлен:"
-  puts "   Username: #{manager.username}"
-  puts "   Email: #{manager.email}"
-  puts "   Role: #{manager.role}"
-  puts ""
-  puts "⚠️  ВНИМАНИЕ: Измените пароль по умолчанию в production!"
-  puts "   Для изменения пароля используйте переменную окружения MANAGER_PASSWORD"
-else
-  puts "❌ Ошибка при создании менеджера:"
-  manager.errors.full_messages.each do |message|
-    puts "   - #{message}"
-  end
-end
+puts ""
+puts "⚠️  ВНИМАНИЕ: задайте пароли через ENV (*_PASSWORD) для production."
 
 LegalPage.seed_defaults!
 puts "✅ Правовые страницы (дефолтный набор): проверены/созданы."

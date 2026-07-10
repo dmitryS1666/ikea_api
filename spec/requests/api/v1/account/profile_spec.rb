@@ -253,6 +253,17 @@ RSpec.describe "Account Profile API", type: :request do
       expect(body["newsletter_consent"]).to be(false)
       expect(body["email_marketing"]).to be(false)
       expect(body["telegram_marketing"]).to be(true)
+      expect(body["email_verified"]).to be(false)
+    end
+
+    it "returns email_verified when email was confirmed" do
+      user.update!(email_verified_at: 1.day.ago)
+
+      get "/api/v1/account/profile", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["email_verified"]).to be(true)
     end
 
     it "returns profile names and birth date from passport for legacy records" do
@@ -315,7 +326,9 @@ RSpec.describe "Account Profile API", type: :request do
       expect(response).to have_http_status(:ok)
       body = JSON.parse(response.body)
       expect(body["email"]).to eq(pending_email)
+      expect(body["email_verified"]).to be(true)
       expect(user.reload.email).to eq(pending_email)
+      expect(user.email_verified?).to be(true)
       expect(token_record.reload.verified_at).to be_present
     end
 
@@ -344,6 +357,7 @@ RSpec.describe "Account Profile API", type: :request do
       expect(response).to have_http_status(:found)
       expect(response).to redirect_to("https://ikeya.by/profile/personal-data/?email_verified=1")
       expect(user.reload.email).to eq(pending_email)
+      expect(user.email_verified?).to be(true)
       expect(token_record.reload.verified_at).to be_present
     end
 

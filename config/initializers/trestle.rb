@@ -140,8 +140,8 @@ Trestle.configure do |config|
   # Используем существующую модель User
   config.auth.user_class = -> { User }
   
-  # Указываем scope для администраторов и менеджеров
-  config.auth.user_scope = -> { User.where(role: ['admin', 'manager']).where(is_active: true) }
+  # Указываем scope для доступа в админку по ролевой модели
+  config.auth.user_scope = -> { User.where(role: User::ADMIN_PANEL_ROLES).where(is_active: true) }
   
   # Настройка аутентификации через username
   config.auth.authenticate_with = :username
@@ -149,13 +149,28 @@ Trestle.configure do |config|
   # Метод аутентификации
   config.auth.authenticate = ->(params) {
     user = User.find_by(username: params[:username])
-    user if user&.authenticate(params[:password]) && (user.admin? || user.manager?)
+    user if user&.authenticate(params[:password]) && user.can_access_admin_panel?
   }
   
   # Метод поиска пользователя по ID
   config.auth.find_user = ->(id) {
     User.find_by(id: id)
   }
+
+  # Централизованная авторизация по разделам админки.
+  config.before_action do |controller|
+    user = controller.try(:current_user)
+    next unless user
+
+    admin_resource = controller.try(:admin)&.name || controller.try(:admin)&.id
+    next if admin_resource.nil?
+
+    allowed = user.allowed_for_admin_resource?(admin_resource, controller.action_name)
+    next if allowed
+
+    controller.flash[:error] = "Недостаточно прав для раздела #{admin_resource}"
+    controller.redirect_to(Trestle.config.root)
+  end
 
   # Specify the scope for valid admin users.
   # Defaults to config.auth.user_class (unscoped).

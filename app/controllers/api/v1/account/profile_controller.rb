@@ -198,6 +198,7 @@ module Api
             newsletter_consent: user.newsletter_consent,
             personal_data_consent: user.personal_data_consent,
             personal_data_consented_at: user.personal_data_consented_at&.iso8601,
+            email_verified: user.email_verified?,
             passport_verified: user.passport_verified?,
             passport_data: passport_data,
             a1_verification_id: user.a1_verification_id

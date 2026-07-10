@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_02_140100) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_10_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -343,6 +343,29 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_02_140100) do
     t.index ["expires_at"], name: "index_favorites_on_expires_at"
     t.index ["guest_token"], name: "index_favorites_on_guest_token"
     t.index ["user_id"], name: "index_favorites_on_user_id"
+  end
+
+  create_table "featured_category_order_settings", force: :cascade do |t|
+    t.jsonb "bestsellers_category_ids", default: [], null: false
+    t.jsonb "popular_category_ids", default: [], null: false
+    t.jsonb "recommended_category_ids", default: [], null: false
+    t.jsonb "new_arrivals_category_ids", default: [], null: false
+    t.jsonb "homepage_recommendations_category_ids", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "featured_product_tabs", force: :cascade do |t|
+    t.string "list_key", null: false
+    t.string "category_id", null: false
+    t.jsonb "product_skus", default: [], null: false
+    t.integer "position", default: 0, null: false
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_featured_product_tabs_on_active"
+    t.index ["category_id"], name: "index_featured_product_tabs_on_category_id"
+    t.index ["list_key", "position"], name: "index_featured_product_tabs_on_list_key_and_position"
   end
 
   create_table "feed_settings", force: :cascade do |t|
@@ -987,6 +1010,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_02_140100) do
     t.string "telegram_chat_id"
     t.boolean "personal_data_consent", default: false, null: false
     t.datetime "personal_data_consented_at"
+    t.jsonb "custom_permissions", default: {}, null: false
+    t.datetime "email_verified_at"
     t.index ["crm_contact_id"], name: "index_users_on_crm_contact_id"
     t.index ["email"], name: "index_users_on_email", unique: true, where: "(email IS NOT NULL)"
     t.index ["phone"], name: "index_users_on_phone", unique: true

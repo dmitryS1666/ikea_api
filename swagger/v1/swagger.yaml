@@ -3192,6 +3192,9 @@ components:
           format: date-time
           nullable: true
           description: "Дата последнего согласия на обработку ПД"
+        email_verified:
+          type: boolean
+          description: "Подтверждение электронной почты"
         passport_verified: { type: boolean }
         passport_data:
           $ref: '#/components/schemas/PassportData'

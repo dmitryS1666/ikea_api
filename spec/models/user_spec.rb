@@ -32,6 +32,36 @@ RSpec.describe User, type: :model do
     end
   end
 
+  describe "admin permissions" do
+    it "normalizes legacy manager role to manager_requests" do
+      user = build(:user, role: "manager")
+      user.valid?
+
+      expect(user.role).to eq("manager_requests")
+    end
+
+    it "allows manager_requests to manage orders but not content" do
+      user = build(:user, role: "manager_requests")
+
+      expect(user.has_admin_permission?(:orders_manage)).to be(true)
+      expect(user.has_admin_permission?(:content_manage)).to be(false)
+    end
+
+    it "applies custom permissions overrides" do
+      user = build(:user, role: "observer", custom_permissions: { content_manage: true })
+
+      expect(user.has_admin_permission?(:content_manage)).to be(true)
+      expect(user.has_admin_permission?(:orders_manage)).to be(false)
+    end
+
+    it "checks access by admin resource and action" do
+      accountant = build(:user, role: "accountant", is_active: true)
+
+      expect(accountant.allowed_for_admin_resource?("orders", "index")).to be(true)
+      expect(accountant.allowed_for_admin_resource?("orders", "update")).to be(false)
+    end
+  end
+
   describe "#destroy" do
     it "detaches orders instead of blocking deletion" do
       user = create(:user)

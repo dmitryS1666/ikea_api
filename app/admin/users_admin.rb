@@ -11,14 +11,28 @@ Trestle.resource(:users, model: User) do
   table do
     column :id
     column :username, link: true
-    column :phone
-    column :email, label: "Электронная почта"
+    column :phone do |user|
+      current_user&.can_view_personal_data? ? user.phone : "Скрыто"
+    end
+    column :email, label: "Электронная почта" do |user|
+      current_user&.can_view_personal_data? ? user.email : "Скрыто"
+    end
     column :role do |user|
       case user.role
       when 'admin'
-        status_tag('Администратор', :success)
-      when 'manager'
-        status_tag('Менеджер', :info)
+        status_tag('Директор / Владелец', :success)
+      when 'site_admin'
+        status_tag('Администратор сайта', :info)
+      when 'manager_requests'
+        status_tag('Менеджер по заявкам', :primary)
+      when 'content_manager'
+        status_tag('Контент-менеджер', :info)
+      when 'accountant'
+        status_tag('Бухгалтер', :warning)
+      when 'technician'
+        status_tag('Технический специалист', :secondary)
+      when 'observer'
+        status_tag('Наблюдатель', :dark)
       else
         status_tag('Пользователь', :secondary)
       end
@@ -26,6 +40,10 @@ Trestle.resource(:users, model: User) do
     column :passport_verified?, label: "Паспорт" do |user|
       status_tag(user.passport_verified? ? 'Верифицирован' : 'Не верифицирован', 
                  user.passport_verified? ? :success : :warning)
+    end
+    column :email_verified?, label: "Почта" do |user|
+      status_tag(user.email_verified? ? 'Подтверждена' : 'Не подтверждена',
+                 user.email_verified? ? :success : :warning)
     end
     column :personal_data_consent, label: "ПД" do |user|
       status_tag(user.personal_data_consent? ? 'Да' : 'Нет', user.personal_data_consent? ? :success : :danger)
@@ -96,10 +114,26 @@ Trestle.resource(:users, model: User) do
       end
       row do
         col(sm: 6) { text_field :username, label: "Логин (публичный)" }
-        col(sm: 6) { text_field :email, label: "Электронная почта" }
+        if current_user&.can_view_personal_data?
+          col(sm: 6) { text_field :email, label: "Электронная почта" }
+        else
+          col(sm: 6) do
+            static_field :email, label: "Электронная почта" do
+              "Скрыто (нет права на ПД)"
+            end
+          end
+        end
       end
       row do
-        col(sm: 6) { text_field :phone, label: "Телефон" }
+        if current_user&.can_view_personal_data?
+          col(sm: 6) { text_field :phone, label: "Телефон" }
+        else
+          col(sm: 6) do
+            static_field :phone, label: "Телефон" do
+              "Скрыто (нет права на ПД)"
+            end
+          end
+        end
         col(sm: 6) { select :country_code, %w[RB РФ РК], label: "Страна" }
       end
       row do
@@ -128,6 +162,21 @@ Trestle.resource(:users, model: User) do
       check_box :gdpr_consent, label: "Согласие GDPR"
       check_box :personal_data_consent, label: "Согласие на обработку ПД"
       datetime_field :personal_data_consented_at, label: "Дата согласия на ПД"
+    end
+
+    if current_user&.can_manage_restrictions?
+      tab :restrictions, label: "Ограничения" do
+        static_field :restrictions_note, label: "Настройка прав" do
+          "Кастомные ограничения дополняют ролевую модель и доступны только администратору."
+        end
+
+        User::ADMIN_PERMISSION_KEYS.each do |permission_key|
+          next if permission_key == :restrictions_manage
+
+          check_box :"custom_permission_#{permission_key}",
+                    label: User.permission_label(permission_key)
+        end
+      end
     end
 
     tab :consents, label: "История согласий" do
@@ -168,7 +217,8 @@ Trestle.resource(:users, model: User) do
           end
         end
         
-        datetime_field :passport_verified_at, label: "Дата верификации"
+        datetime_field :passport_verified_at, label: "Дата верификации паспорта"
+        datetime_field :email_verified_at, label: "Дата подтверждения почты"
 
         divider
 
@@ -235,7 +285,11 @@ Trestle.resource(:users, model: User) do
       password_field :password_confirmation, label: "Подтверждение пароля"
       
       row do
-        col(sm: 12) { select :role, { 'Пользователь' => 'user', 'Менеджер' => 'manager', 'Администратор' => 'admin' }, label: "Роль" }
+        if current_user&.can_manage_users?
+          col(sm: 12) { select :role, User::ROLE_OPTIONS, label: "Роль" }
+        else
+          col(sm: 12) { static_field :role, label: "Роль" }
+        end
       end
       row do
         col(sm: 12) { check_box :is_active, label: "Активен" }
@@ -255,7 +309,8 @@ Trestle.resource(:users, model: User) do
       :dob, :gender, :region, :city, :postcode, :street, :house, :building, :apartment,
       :address, :email_marketing, :telegram_marketing, :newsletter_consent, :gdpr_consent,
       :personal_data_consent, :personal_data_consented_at,
-      :password, :password_confirmation, :role, :is_active
+      :password, :password_confirmation, :role, :is_active,
+      *User::ADMIN_PERMISSION_KEYS.map { |key| :"custom_permission_#{key}" }
     )
   end
 end
