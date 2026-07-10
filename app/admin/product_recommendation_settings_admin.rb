@@ -1,37 +1,37 @@
-Trestle.resource(:product_recommendation_settings, model: ProductRecommendationSetting) do
+Trestle.resource(:product_recommendation_settings, model: ProductRecommendationSetting, singleton: true) do
   menu do
-    item :product_recommendation_settings, icon: "fa fa-magic", group: :catalog, priority: 10, label: "Рекомендации товаров"
+    item :product_recommendation_settings, icon: "fa fa-magic", group: :catalog, priority: 10, label: "Рекомендации в корзине"
   end
 
-  table do
-    column :placement do |setting|
-      setting.homepage? ? "Главная страница" : "Корзина"
+  controller do
+    def update
+      setting = admin.find_instance(params)
+
+      if setting.update(product_recommendation_setting_params)
+        flash[:message] = "Настройки рекомендаций в корзине сохранены"
+        redirect_to admin.instance_path(setting)
+      else
+        flash.now[:error] = "Ошибка: #{setting.errors.full_messages.join(', ')}"
+        render :edit
+      end
     end
-    column :source_type do |setting|
-      {
-        "sku_list" => "Через SKU",
-        "product_list" => "Через поиск товаров",
-        "category" => "Через категорию"
-      }[setting.source_type]
+
+    private
+
+    def product_recommendation_setting_params
+      params.require(:product_recommendation_setting).permit(
+        :source_type,
+        :active,
+        :category_id,
+        :product_skus_input,
+        product_skus: []
+      )
     end
-    column :active do |setting|
-      setting.active? ? "Да" : "Нет"
-    end
-    column :category_id, label: "Категория"
-    column :product_skus, label: "SKU" do |setting|
-      Array(setting.product_skus).join(", ")
-    end
-    actions
   end
 
   form do |setting|
     row do
-      col(sm: 6) do
-        select :placement,
-               [["Главная страница", :homepage], ["Корзина", :cart]],
-               label: "Размещение"
-      end
-      col(sm: 6) do
+      col(sm: 12) do
         select :source_type,
                [["Через SKU", :sku_list], ["Через поиск товаров", :product_list], ["Через категорию", :category]],
                { label: "Источник" },
@@ -92,16 +92,5 @@ Trestle.resource(:product_recommendation_settings, model: ProductRecommendationS
         end
       end
     end
-  end
-
-  params do |params|
-    params.require(:product_recommendation_setting).permit(
-      :placement,
-      :source_type,
-      :active,
-      :category_id,
-      :product_skus_input,
-      product_skus: []
-    )
   end
 end

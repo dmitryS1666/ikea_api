@@ -16,7 +16,9 @@ class ProductRecommendationsResolver
   end
 
   def call
-    setting = ProductRecommendationSetting.active.find_by(placement: @placement)
+    return [] unless @placement == "cart"
+
+    setting = ProductRecommendationSetting.active.cart.first
     return [] unless setting
 
     products =

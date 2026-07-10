@@ -1,17 +1,25 @@
 class ProductRecommendationSetting < ApplicationRecord
-  enum placement: { homepage: 0, cart: 1 }
+  enum placement: { cart: 1 }
   enum source_type: { sku_list: 0, product_list: 1, category: 2 }
 
   attr_accessor :product_skus_input
 
-  validates :placement, presence: true, uniqueness: true
+  validates :placement, presence: true, inclusion: { in: placements.keys }
   validates :source_type, presence: true
   validates :category_id, presence: true, if: :category?
   validate :validate_product_skus_presence
 
   before_validation :normalize_configuration
+  before_validation :ensure_cart_placement
 
   scope :active, -> { where(active: true) }
+
+  def self.instance
+    cart.first_or_create! do |setting|
+      setting.source_type = :sku_list
+      setting.active = true
+    end
+  end
 
   def product_skus_input
     return @product_skus_input if instance_variable_defined?(:@product_skus_input)
@@ -20,6 +28,10 @@ class ProductRecommendationSetting < ApplicationRecord
   end
 
   private
+
+  def ensure_cart_placement
+    self.placement = :cart
+  end
 
   def normalize_configuration
     self.product_skus = normalize_skus(product_skus)
