@@ -500,13 +500,16 @@ class CheckoutService
 
     pricing_for_response = nil
     if order&.persisted?
-      OrderNotificationService.notify_draft_created(order)
       if order.delivery_type.present?
         update_result = update_draft(user: user, order_id: order.id, params: params)
         return update_result unless update_result[:success]
+
         order = update_result[:order]
         pricing_for_response = update_result[:pricing]
       end
+
+      OrderNotificationService.notify_draft_created(order.reload)
+
       {
         success: true,
         order: order,
@@ -798,6 +801,21 @@ class CheckoutService
     end
   end
 
+  def self.pickup_point_id_from_payload(payload)
+    return nil if payload.blank?
+
+    data =
+      if payload.respond_to?(:to_unsafe_h)
+        payload.to_unsafe_h
+      elsif payload.is_a?(Hash)
+        payload
+      end
+    return nil unless data.is_a?(Hash)
+
+    data["id"] || data[:id] || data["external_id"] || data[:external_id]
+  end
+  private_class_method :pickup_point_id_from_payload
+
   def self.merge_params_for_finalize(order, params)
     p =
       if params.respond_to?(:to_unsafe_h)
@@ -814,7 +832,7 @@ class CheckoutService
       phone: h["phone"].presence || order.phone,
       delivery_type: h["delivery_type"].presence || order.delivery_type,
       payment_method: h["payment_method"].presence || order.payment_method,
-      pickup_point_id: h["pickup_point_id"].presence || aj["pickup_point_id"],
+      pickup_point_id: h["pickup_point_id"].presence || pickup_point_id_from_payload(h["pickup_point"]) || aj["pickup_point_id"],
       delivery_address_id: h["delivery_address_id"].presence,
       a1_verification_id: h["a1_verification_id"],
       a1_verification_last4: h["a1_verification_last4"],

@@ -15,6 +15,29 @@ RSpec.describe EmailTemplates::Renderer do
 
     expect(html).to include("Иван")
     expect(html).to include("№7654321")
+    expect(html).not_to include("№1234567")
+    expect(html).not_to match(/>\s*Имя\s*</)
+  end
+
+  it "renders order_awaiting_payment totals when template spans have inline styles" do
+    order.update!(
+      checkout_draft: false,
+      total_amount: 248.55,
+      delivery_price: 56.0,
+      discount_amount: 0.0,
+      full_name: "Позняк Татьяна"
+    )
+    create(:order_item, order: order, product_sku: "456", quantity: 5, price: 38.51)
+
+    html = described_class.render(:order_awaiting_payment, order: order.reload, user: user)
+
+    expect(html).to include("6 товаров")
+    expect(html).to include("202,55 р.")
+    expect(html).to include("248,55 р.")
+    expect(html).not_to include("2 430.93")
+    expect(html).not_to include("2 556.93")
+    expect(html).not_to include("Скидка по промокоду")
+    expect(html).not_to include("≈65")
   end
 
   it "maps paid status to order_placed template" do

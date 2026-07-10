@@ -21,6 +21,7 @@ class TransactionalEmailService
     end
 
     def send_order_email(template_key, order)
+      order = order.reload if order.persisted?
       customer_email = order.user&.email
       return if customer_email.blank?
 

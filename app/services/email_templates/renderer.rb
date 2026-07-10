@@ -88,9 +88,9 @@ module EmailTemplates
       html.gsub!("№1234567", "№#{order_number}") if order
       html.gsub!("№1234567", "") unless order
 
-      html.gsub!("Здравствуйте, Имя", "Здравствуйте, #{user_greeting}")
+      html.gsub!(/Здравствуйте,\s*Имя/m, "Здравствуйте, #{user_greeting}")
       html.gsub!(/>\s*Имя\s*</, ">#{user_greeting}<")
-      html.gsub!("Имя</span>", "#{user_greeting}</span>")
+      html.gsub!(/Имя\s*<\/span>/m, "#{user_greeting}</span>")
 
       if verification_pixel_url.present?
         html.sub!(
@@ -134,6 +134,7 @@ module EmailTemplates
       html.gsub!('class="status-btn" href="#"', "class=\"status-btn\" href=\"#{ERB::Util.html_escape(cta_url)}\"")
       html.gsub!('class="check-link" href="#"', "class=\"check-link\" href=\"#{ERB::Util.html_escape(account_order_url)}\"")
       html.gsub!('class="customs-duty-link" href="#"', "class=\"customs-duty-link\" href=\"#{ERB::Util.html_escape(customs_help_url)}\"")
+      apply_customs_duty!(html, built[:totals_html])
 
       if template_key == :order_awaiting_payment && order.payment_url.present?
         payment_url = ERB::Util.html_escape(order.payment_url)
@@ -172,27 +173,43 @@ module EmailTemplates
     end
 
     def apply_totals!(html, totals)
-      html.gsub!(/<span class="span-count">.*?<\/span>/m, "<span class=\"span-count\">#{totals[:items_count_label]}</span>")
+      totals_section_pattern = /(<!-- ORDER: totals -->)[\s\S]*?(<!-- ORDER: totals spacer -->)/m
+      return html unless html.match?(totals_section_pattern)
 
-      price_matches = html.scan(/<span class="span-price">.*?<\/span>/m)
-      if price_matches.any?
-        html.sub!(price_matches.first, "<span class=\"span-price\">#{totals[:items_total]}</span>")
-      end
+      section = html[totals_section_pattern]
+      updated = section.dup
 
-      html.gsub!(/<span class="span-total-value">.*?<\/span>/m, "<span class=\"span-total-value\">#{totals[:grand_total]}</span>")
+      updated.gsub!(/<span class="span-count"[^>]*>[\s\S]*?<\/span>/m, "<span class=\"span-count\">#{totals[:items_count_label]}</span>")
+      updated.sub!(/<span class="span-price"[^>]*>[\s\S]*?<\/span>/m, "<span class=\"span-price\">#{totals[:items_total]}</span>")
 
       if totals[:discount_row].blank?
-        html.gsub!(%r{<tr>\s*<td class="totals-label"[^>]*><span>Скидка по промокоду</span></td>.*?</tr>}m, "")
+        updated.gsub!(%r{<tr>(?:(?!</tr>)[\s\S])*Скидка по промокоду(?:(?!</tr>)[\s\S])*</tr>}m, "")
       else
-        html.sub!(/<!-- ORDER: totals spacer -->/, "#{totals[:discount_row]}<!-- ORDER: totals spacer -->")
+        updated.sub!(/<!-- ORDER: totals spacer -->/, "#{totals[:discount_row]}<!-- ORDER: totals spacer -->")
       end
 
-      if html.include?("Доставка в Беларусь")
-        html.sub!(
-          /(<span>Доставка в Беларусь<\/span>.*?<td class="totals-value[^"]*"[^>]*>)(<span class="span-free">бесплатно<\/span>|<span class="span-price">[^<]*<\/span>)/m,
-          "\\1#{totals[:delivery_price]}"
+      if updated.include?("Доставка в Беларусь")
+        updated.sub!(
+          %r{(<tr>(?:(?!</tr>)[\s\S])*Доставка в Беларусь(?:(?!</tr>)[\s\S])*<td class="totals-value[^"]*"[^>]*>)[\s\S]*?(</td>)}m,
+          "\\1#{totals[:delivery_price]}\\2"
         )
       end
+
+      html.sub!(totals_section_pattern, updated)
+
+      html.gsub!(/<span class="span-total-value"[^>]*>[\s\S]*?<\/span>/m, "<span class=\"span-total-value\">#{totals[:grand_total]}</span>")
+      html
+    end
+
+    def apply_customs_duty!(html, totals)
+      customs_amount = totals[:customs_total].to_s
+      if customs_amount.blank?
+        html.gsub!(%r{<!-- CUSTOMS_DUTY -->.*?<!-- /CUSTOMS_DUTY -->}m, "")
+        html.gsub!(%r{<table[^>]*class="wrapper customs-duty"[^>]*>.*?</table>}m, "")
+        return
+      end
+
+      html.gsub!(/<span class="customs-duty-amount"[^>]*>.*?<\/span>/m, "<span class=\"customs-duty-amount\">#{customs_amount}</span>")
     end
 
     def order
@@ -204,7 +221,11 @@ module EmailTemplates
     end
 
     def user_greeting
-      user&.first_name_display.presence || user&.username.presence || "клиент"
+      order_first_name = order&.full_name.to_s.split(/\s+/).first
+      order_first_name.presence ||
+        user&.first_name_display.presence ||
+        user&.username.presence ||
+        "клиент"
     end
 
     def order_number
