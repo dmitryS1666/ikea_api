@@ -309,6 +309,16 @@ RSpec.describe "Account Profile API", type: :request do
       expect(body["first_name"]).to eq("Анна")
       expect(body.dig("passport_data", "first_name")).to eq("Анна")
     end
+
+    it "returns profile when passport json is invalid" do
+      user.update_columns(encrypted_passport_json: "not-json")
+
+      get "/api/v1/account/profile", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["passport_data"]).to be_nil
+    end
   end
 
   describe "POST /api/v1/account/profile/change_email_verify" do

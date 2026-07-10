@@ -29,6 +29,8 @@ class UserPassportService
   end
 
   def self.profile_attributes(passport_hash)
+    return {} if passport_hash.blank?
+
     hash = normalize(passport_hash)
     return {} if hash.blank?
 
@@ -41,6 +43,8 @@ class UserPassportService
   end
 
   def self.with_profile_fields(user:, passport_hash:)
+    return nil if passport_hash.blank?
+
     hash = normalize(passport_hash)
     return nil if hash.blank?
 
@@ -73,6 +77,8 @@ class UserPassportService
   private_class_method :passport_full_number
 
   def self.normalize(hash)
+    return {} if hash.blank?
+
     hash.deep_stringify_keys.transform_values do |v|
       v.is_a?(String) ? v.strip : v
     end
