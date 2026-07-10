@@ -183,4 +183,66 @@ RSpec.describe EmailTemplates::Renderer do
     expect(html).to include("Сборка мебели")
     expect(html).not_to include("Подъём и занос мебели")
   end
+
+  it "renders shipped_to_pvz template with order totals and delivery details" do
+    order.update!(
+      checkout_draft: false,
+      total_amount: 348.59,
+      delivery_price: 56.0,
+      discount_amount: 30.0,
+      delivery_type: DeliveryTypeNormalizer::EUROPOST_PICKUP,
+      payment_method: "card",
+      full_name: "Позняк Татьяна",
+      address_json: {
+        "delivery" => {
+          "pickup_point" => {
+            "name" => "ПВЗ Марьина Горка",
+            "city" => "Марьина Горка",
+            "address" => "ул. Новая Заря, 6"
+          }
+        }
+      }
+    )
+    create(:order_item, order: order, product_sku: "789", quantity: 2, price: 93.66)
+    order.update_column(:status, Order.statuses[:shipped])
+
+    allow(CheckoutPricingPresenter).to receive(:for_order).and_return(
+      items: [
+        {
+          sku: "123",
+          quantity: 1,
+          pricing: { unit_price_new_byn: "10.00", line_total_new_byn: "10.00" }
+        },
+        {
+          sku: "789",
+          quantity: 2,
+          pricing: { unit_price_new_byn: "93.66", line_total_new_byn: "187.32" }
+        }
+      ],
+      totals: {
+        subtotal_new_byn: "197.32",
+        delivery_to_belarus_byn: "56.00",
+        discount_total_byn: "0.00",
+        final_total_byn: "348.59",
+        customs_total_byn: "0.00"
+      }
+    )
+
+    html = described_class.render(:shipped_to_pvz, order: order.reload, user: user)
+
+    expect(html).to include("Ваш заказ в доставке на")
+    expect(html).to include("Татьяна")
+    expect(html).to include("№#{order.public_uid}")
+    expect(html).to include("3 товара")
+    expect(html).to include("197,32 р.")
+    expect(html).to include("348,59 р.")
+    expect(html).not_to include("2 430.93")
+    expect(html).not_to include("NATTSLÄNDA")
+    expect(html).not_to include("Минская обл.")
+    expect(html).to include("ПВЗ Марьина Горка")
+    expect(html).to include("Европочта")
+    expect(html).to include("Оплата картой онлайн")
+    expect(html).to include("Оплачено")
+    expect(html).not_to include("Подъём и занос мебели")
+  end
 end

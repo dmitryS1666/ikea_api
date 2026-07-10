@@ -296,7 +296,7 @@ module EmailTemplates
         return
       end
 
-      html.gsub!(/<span class="customs-duty-amount"[^>]*>.*?<\/span>/m, "<span class=\"customs-duty-amount\">#{customs_amount}</span>")
+      html.gsub!(/<span class="customs-duty-amount"[^>]*>[\s\S]*?<\/span>/m, "<span class=\"customs-duty-amount\">#{customs_amount}</span>")
     end
 
     def order
