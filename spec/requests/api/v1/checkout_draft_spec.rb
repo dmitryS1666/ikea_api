@@ -349,4 +349,48 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(order.reload.total_amount.to_f).to be_within(0.02).of(refreshed_totals["total_byn"].to_f)
   end
 
+
+  it "uses the current cart promo and preserves saved delivery data on finalize" do
+    promo = PromoCode.create!(
+      code: "OLD30",
+      discount_type: :fixed_byn,
+      discount_value: 30,
+      active: true
+    )
+    cart.update!(promo_code: promo)
+
+    post "/api/v1/checkout", params: { draft: true }, headers: headers
+    expect(response).to have_http_status(:created)
+    order = Order.find(JSON.parse(response.body)["order_id"])
+    expect(order.promo_code).to eq(promo)
+
+    patch "/api/v1/checkout/#{order.id}", params: {
+      delivery_type: "europost_pickup",
+      pickup_point_id: "70130010",
+      full_name: "Позняк Татьяна Николаевна",
+      phone: "375291112233",
+      payment_method: "card",
+      services: ["furniture_assembly"]
+    }, headers: headers
+    expect(response).to have_http_status(:ok)
+
+    cart.update!(promo_code: nil)
+
+    post "/api/v1/checkout/#{order.id}/finalize", params: checkout_consents.merge(
+      full_name: "Позняк Татьяна Николаевна",
+      phone: "375291112233",
+      delivery_type: "europost_pickup",
+      payment_method: "card"
+    ), headers: headers
+
+    expect(response).to have_http_status(:created)
+    order.reload
+    expect(order.promo_code).to be_nil
+    expect(order.discount_amount.to_f).to eq(0.0)
+    expect(order.address_json.dig("delivery", "pickup_point", "id")).to eq("70130010")
+    expect(order.address_json["services"]).to eq(["furniture_assembly"])
+    expect(order.pricing_snapshot["discount_total_byn"].to_f).to eq(0.0)
+    expect(order.pricing_snapshot["grand_total_byn"].to_f).to eq(order.total_amount.to_f)
+  end
+
 end

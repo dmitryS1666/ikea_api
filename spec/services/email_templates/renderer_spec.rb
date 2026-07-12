@@ -106,11 +106,24 @@ RSpec.describe EmailTemplates::Renderer do
     expect(html).not_to include("href=\"#\" class=\"status-btn\"")
   end
 
-  it "links repeat order button to cart for cancelled orders" do
+  it "links the abandoned-cart button to the cart" do
+    order.update!(checkout_draft: true)
+
+    html = described_class.render(:abandoned_cart, order: order, user: user)
+
+    expect(html).to include('href="https://ikeya.by/cart"')
+    expect(html).not_to include('href="https://ikeya.by/checkout" class="status-btn"')
+  end
+
+  it "links repeat order button to the signed reorder endpoint" do
+    allow(OrderReorderLinkService).to receive(:url_for)
+      .with(order)
+      .and_return("https://ikeya.by/api/v1/order_reorders/signed-token")
+
     html = described_class.render(:order_cancelled, order: order, user: user)
 
-    expect(html).to include("href=\"https://ikeya.by/cart\"")
-    expect(html).not_to include("href=\"https://ikeya.by/profile/orders\" class=\"status-btn\"")
+    expect(html).to include('href="https://ikeya.by/api/v1/order_reorders/signed-token"')
+    expect(html).not_to include('href="https://ikeya.by/profile/orders" class="status-btn"')
   end
 
   it "links personal account info box to profile orders list" do
@@ -245,4 +258,26 @@ RSpec.describe EmailTemplates::Renderer do
     expect(html).to include("Оплачено")
     expect(html).not_to include("Подъём и занос мебели")
   end
+
+  it "links the payment button to the persisted WebPay URL" do
+    order.update!(payment_url: "https://payment.example/pay/abc")
+
+    html = described_class.render(:order_awaiting_payment, order: order.reload, user: user)
+
+    expect(html).to include('href="https://payment.example/pay/abc"')
+    expect(html).not_to match(%r{href="https://ikeya\.by/profile/orders/7654321"[^>]*>Оплатить заказ})
+  end
+
+  it "does not map shipped courier orders to the PVZ template" do
+    order.update_columns(
+      status: Order.statuses[:shipped],
+      delivery_type: DeliveryTypeNormalizer::COURIER
+    )
+
+    expect(described_class.template_for_order(order.reload)).to be_nil
+
+    order.update_column(:delivery_type, DeliveryTypeNormalizer::EUROPOST_PICKUP)
+    expect(described_class.template_for_order(order.reload)).to eq(:shipped_to_pvz)
+  end
+
 end

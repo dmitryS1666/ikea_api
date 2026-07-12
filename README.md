@@ -152,7 +152,7 @@ SENDPULSE_ORDER_STATUS_TEMPLATE_ID=
 SENDPULSE_PASSWORD_RESET_TEMPLATE_ID=
 
 # Транзакционные письма (HTML-шаблоны в app/views/email_templates/, отправка через SendPulse)
-ABANDONED_CART_EMAIL_DELAY_HOURS=2
+ABANDONED_CART_EMAIL_DELAY_MINUTES=30
 PUBLIC_SITE_URL=https://ikeya.by
 EUROPOST_API_BASE_URL=https://api-kassa.evropochta.by
 EUROPOST_API_TOKEN=replace_me

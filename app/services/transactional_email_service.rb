@@ -18,20 +18,32 @@ class TransactionalEmailService
       )
     rescue StandardError => e
       Rails.logger.error("[TransactionalEmail] Failed to enqueue #{template_key} to #{to_email}: #{e.class} #{e.message}")
+      raise
     end
 
-    def send_order_email(template_key, order)
+    def send_order_email(template_key, order, abandoned_cart_activity_at: nil, abandoned_cart_queued_at: nil)
       order = order.reload if order.persisted?
-      customer_email = order.user&.email
-      return if customer_email.blank?
+      key = template_key.to_sym
 
-      send_template(
-        template_key,
-        to_email: customer_email,
-        to_name: order.full_name.presence || order.user&.full_name,
-        order: order,
-        user: order.user
+      return if order.checkout_draft? && key != :abandoned_cart
+      return if !order.checkout_draft? && key == :abandoned_cart
+      return if order.user&.email.blank?
+
+      payload = {
+        template_key: key.to_s,
+        order_id: order.id
+      }
+      if key == :abandoned_cart
+        payload[:abandoned_cart_activity_at] = serialize_time(abandoned_cart_activity_at)
+        payload[:abandoned_cart_queued_at] = serialize_time(abandoned_cart_queued_at)
+      end
+
+      PrepareOrderEmailJob.perform_later(**payload)
+    rescue StandardError => e
+      Rails.logger.error(
+        "[TransactionalEmail] Failed to enqueue #{template_key} for order=#{order&.id}: #{e.class} #{e.message}"
       )
+      raise
     end
 
     def send_welcome(user)
@@ -61,6 +73,12 @@ class TransactionalEmailService
     end
 
     private
+
+    def serialize_time(value)
+      return if value.blank?
+
+      value.respond_to?(:iso8601) ? value.iso8601(6) : value.to_s
+    end
 
     def strip_html(html)
       html.to_s.gsub(/<[^>]+>/, " ").gsub(/\s+/, " ").strip

@@ -1,6 +1,13 @@
 require "rails_helper"
 
 RSpec.describe SendpulseEmailJob, type: :job do
+  include ActiveJob::TestHelper
+
+  before do
+    ActiveJob::Base.queue_adapter = :test
+    clear_enqueued_jobs
+  end
+
   it "calls Sendpulse::EmailSender" do
     sender = instance_double(Sendpulse::EmailSender)
     allow(Sendpulse::EmailSender).to receive(:new).and_return(sender)
@@ -20,7 +27,7 @@ RSpec.describe SendpulseEmailJob, type: :job do
     )
   end
 
-  it "does not raise when service returns failed result" do
+  it "retries when the service returns a failed result" do
     sender = instance_double(Sendpulse::EmailSender)
     allow(Sendpulse::EmailSender).to receive(:new).and_return(sender)
     allow(sender).to receive(:call).and_return(Sendpulse::Result.new(success: false, error: "fail"))
@@ -28,10 +35,12 @@ RSpec.describe SendpulseEmailJob, type: :job do
 
     expect do
       described_class.perform_now(to_email: "user@example.com", subject: "Test", html: "<p>Test</p>")
-    end.not_to raise_error
+    end.to have_enqueued_job(described_class)
+
+    expect(Rails.logger).to have_received(:error).with(/SendPulse.*failed result/)
   end
 
-  it "logs error on raised exception" do
+  it "retries unexpected exceptions instead of marking the email successful" do
     sender = instance_double(Sendpulse::EmailSender)
     allow(Sendpulse::EmailSender).to receive(:new).and_return(sender)
     allow(sender).to receive(:call).and_raise(StandardError.new("unexpected"))
@@ -39,7 +48,7 @@ RSpec.describe SendpulseEmailJob, type: :job do
 
     expect do
       described_class.perform_now(to_email: "user@example.com", subject: "Test", html: "<p>Test</p>")
-    end.not_to raise_error
+    end.to have_enqueued_job(described_class)
 
     expect(Rails.logger).to have_received(:error).with(/SendPulse.*unexpected/)
   end

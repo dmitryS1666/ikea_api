@@ -60,6 +60,14 @@ module EmailTemplates
       def template_for_status(status)
         STATUS_TEMPLATE_MAP[status.to_s]
       end
+
+      def template_for_order(order)
+        if order.status.to_s == "shipped" && !order.delivery_type.to_s.in?(Order::PVZ_DELIVERY_TYPES)
+          return nil
+        end
+
+        template_for_status(order.status)
+      end
     end
 
     def initialize(template_key, **locals)
@@ -132,24 +140,10 @@ module EmailTemplates
       apply_totals!(html, built[:totals_html])
       apply_order_details!(html, details)
 
-      cta_url = template_key == :order_cancelled ? cart_url : profile_order_url
-      replace_status_button_link!(html, cta_url)
-      html.gsub!('class="check-link" href="#"', "class=\"check-link\" href=\"#{ERB::Util.html_escape(profile_orders_url)}\"")
-      html.gsub!('class="customs-duty-link" href="#"', "class=\"customs-duty-link\" href=\"#{ERB::Util.html_escape(customs_help_url)}\"")
+      replace_status_button_link!(html, order_cta_url)
+      replace_class_link!(html, "check-link", profile_orders_url)
+      replace_class_link!(html, "customs-duty-link", customs_help_url)
       apply_customs_duty!(html, built[:totals_html])
-
-      if template_key == :order_awaiting_payment && order.payment_url.present?
-        payment_url = ERB::Util.html_escape(order.payment_url)
-        html.sub!(/href="#"(?=[^>]*>Оплатить заказ<\/a>)/, "href=\"#{payment_url}\"")
-      end
-
-      if template_key == :abandoned_cart
-        checkout_url = "#{public_site_url}/checkout"
-        html.gsub!(
-          'class="status-btn" href="#"',
-          "class=\"status-btn\" href=\"#{ERB::Util.html_escape(checkout_url)}\""
-        )
-      end
 
       html
     end
@@ -285,6 +279,28 @@ module EmailTemplates
         /<a\b(?=[^>]*\bclass=(['"])[^'"]*\bstatus-btn\b[^'"]*\1)(?=[^>]*\bhref=(['"])#\2)[^>]*>/i
       ) do |tag|
         tag.sub(/\bhref=(['"])#\1/i, "href=\"#{escaped}\"")
+      end
+    end
+
+    def replace_class_link!(html, css_class, url)
+      escaped = ERB::Util.html_escape(url)
+      html.gsub!(
+        /<a\b(?=[^>]*\bclass=(['"])[^'"]*\b#{Regexp.escape(css_class)}\b[^'"]*\1)(?=[^>]*\bhref=(['"])#\2)[^>]*>/i
+      ) do |tag|
+        tag.sub(/\bhref=(['"])#\1/i, "href=\"#{escaped}\"")
+      end
+    end
+
+    def order_cta_url
+      case template_key
+      when :order_cancelled
+        OrderReorderLinkService.url_for(order)
+      when :order_awaiting_payment
+        order.payment_url.presence || profile_order_url
+      when :abandoned_cart
+        "#{public_site_url}/cart"
+      else
+        profile_order_url
       end
     end
 

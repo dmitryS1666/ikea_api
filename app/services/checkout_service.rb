@@ -20,6 +20,7 @@ class CheckoutService
     items_check = CartSelectionService.validate_against_order!(order: order, params: params)
     return items_check if items_check[:error]
 
+    sync_order_promo_from_cart!(order, user.cart)
     pricing = CartPricingService.call_from_order(order: order.reload)
     unless pricing[:meta][:can_checkout]
       return { error: pricing[:meta][:min_order_error] }
@@ -139,6 +140,7 @@ class CheckoutService
     passport_changed = passport_result[:passport_changed]
     passport_input = passport_result[:passport_input]
 
+    sync_order_promo_from_cart!(order, user.cart)
     pricing = CartPricingService.call_from_order(order: order.reload)
     unless pricing[:meta][:can_checkout]
       return { error: pricing[:meta][:min_order_error] }
@@ -257,8 +259,9 @@ class CheckoutService
       end
 
       WebpayPaymentLinkService.issue_link!(order)
-      OrderNotificationService.call(order)
-      { success: true, order: order }
+      OrderEmailSnapshotService.capture!(order.reload, pricing: pricing, force: true)
+      OrderNotificationService.call(order.reload)
+      { success: true, order: order.reload }
     else
       { error: order.errors.full_messages.join(', ') || 'Не удалось завершить оформление' }
     end
@@ -451,8 +454,9 @@ class CheckoutService
       ConsentService.record_checkout_consents!(user: user, order: order, params: params)
 
       WebpayPaymentLinkService.issue_link!(order)
-      OrderNotificationService.call(order)
-      { success: true, order: order }
+      OrderEmailSnapshotService.capture!(order.reload, pricing: pricing, force: true)
+      OrderNotificationService.call(order.reload)
+      { success: true, order: order.reload }
     else
       { error: order&.errors&.full_messages&.join(', ') || 'Ошибка создания заказа' }
     end
@@ -507,8 +511,6 @@ class CheckoutService
         order = update_result[:order]
         pricing_for_response = update_result[:pricing]
       end
-
-      OrderNotificationService.notify_draft_created(order.reload)
 
       {
         success: true,
@@ -827,25 +829,42 @@ class CheckoutService
       end
     h = p.is_a?(Hash) ? p.stringify_keys : {}
     aj = order.address_json.is_a?(Hash) ? order.address_json.stringify_keys : {}
+    saved_delivery = aj["delivery"].is_a?(Hash) ? aj["delivery"].stringify_keys : {}
+    saved_pickup_point = saved_delivery["pickup_point"]
+    saved_address = saved_delivery["address"]
+
     {
       full_name: h["full_name"].presence || order.full_name,
       phone: h["phone"].presence || order.phone,
       delivery_type: h["delivery_type"].presence || order.delivery_type,
       payment_method: h["payment_method"].presence || order.payment_method,
-      pickup_point_id: h["pickup_point_id"].presence || pickup_point_id_from_payload(h["pickup_point"]) || aj["pickup_point_id"],
-      delivery_address_id: h["delivery_address_id"].presence,
+      pickup_point_id: h["pickup_point_id"].presence ||
+        pickup_point_id_from_payload(h["pickup_point"]) ||
+        aj["pickup_point_id"] ||
+        pickup_point_id_from_payload(saved_pickup_point),
+      delivery_address_id: h["delivery_address_id"].presence || saved_address&.dig("id"),
       a1_verification_id: h["a1_verification_id"],
       a1_verification_last4: h["a1_verification_last4"],
       verification_code: h["verification_code"],
-      services: h["services"],
-      pickup_point: h["pickup_point"],
-      address: h["address"],
+      services: h.key?("services") ? h["services"] : aj["services"],
+      pickup_point: h["pickup_point"].presence || saved_pickup_point,
+      address: h["address"].presence || saved_address,
       passport: h["passport"],
       personal_data_consent: h["personal_data_consent"],
       offer_agreement_consent: h["offer_agreement_consent"],
       customs_broker_consent: h["customs_broker_consent"]
     }
   end
+
+  def self.sync_order_promo_from_cart!(order, cart)
+    return unless cart
+
+    promo_code = cart.promo_code
+    return if order.promo_code_id == promo_code&.id
+
+    order.update!(promo_code: promo_code)
+  end
+  private_class_method :sync_order_promo_from_cart!
 
   def self.draft_initial_delivery_type(params)
     return nil unless params[:delivery_type].present?

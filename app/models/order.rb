@@ -99,9 +99,9 @@ class Order < ApplicationRecord
   before_save :set_purchased_at
   before_create :set_payment_expiration
 
-  after_update :notify_status_change, if: :saved_change_to_status?
   after_save :enqueue_tracking_update, if: :saved_change_to_track_number?
   after_create_commit :record_initial_status_event
+  after_update_commit :notify_status_change, if: :saved_change_to_status?
   after_update_commit :record_status_change_event, if: :saved_change_to_status?
   after_create_commit :sync_with_crm, if: :persist_non_draft_for_crm?
   after_update_commit :sync_with_crm_after_draft_finalized

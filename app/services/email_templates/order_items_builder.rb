@@ -12,7 +12,8 @@ module EmailTemplates
 
     def initialize(order)
       @order = order
-      @pricing = CheckoutPricingPresenter.for_order(order)
+      @email_snapshot = normalized_snapshot(order.pricing_snapshot)
+      @pricing = snapshot_available? ? nil : CheckoutPricingPresenter.for_order(order)
     end
 
     def call
@@ -23,7 +24,7 @@ module EmailTemplates
 
     private
 
-    attr_reader :order, :pricing
+    attr_reader :order, :pricing, :email_snapshot
 
     def build_items_html
       lines = item_lines
@@ -49,6 +50,7 @@ module EmailTemplates
         {
           sku: item.product_sku,
           quantity: item.quantity,
+          order_item: item,
           pricing: {
             unit_price_new_byn: format("%.2f", unit_price),
             line_total_new_byn: format("%.2f", unit_price * item.quantity)
@@ -58,9 +60,14 @@ module EmailTemplates
     end
 
     def product_row(line)
-      product = order.order_items.find { |oi| oi.product_sku == line[:sku] }&.product
-      name = product&.small_desc_name.presence || product&.name_ru.presence || product&.name.presence || line[:sku]
-      description = product_description(product)
+      order_item = line[:order_item] || order.order_items.find { |oi| oi.product_sku == line[:sku] }
+      product = order_item&.product
+      name = order_item&.name_snapshot.presence ||
+        product&.small_desc_name.presence ||
+        product&.name_ru.presence ||
+        product&.name.presence ||
+        line[:sku]
+      description = snapshot_description(order_item, product)
       price = line.dig(:pricing, :line_total_new_byn) || line.dig(:pricing, :unit_price_new_byn) || "0.00"
       quantity = line[:quantity].to_i
 
@@ -91,7 +98,7 @@ module EmailTemplates
 
     def build_totals_html
       totals = pricing&.dig(:totals) || {}
-      items_count = order.order_items.sum(:quantity)
+      items_count = snapshot_money(:items_count)&.to_i || order.order_items.sum(:quantity)
       items_total = resolve_items_total(totals)
       delivery_total = resolve_delivery_total(totals)
       discount = resolve_discount(totals)
@@ -110,6 +117,9 @@ module EmailTemplates
     end
 
     def resolve_items_total(totals)
+      snapshot_value = snapshot_money(:items_total_byn)
+      return snapshot_value if snapshot_value
+
       from_order = order.order_items.sum { |i| i.price.to_f * i.quantity }.round(2)
       return from_order if order.persisted? && !order.checkout_draft?
 
@@ -117,6 +127,9 @@ module EmailTemplates
     end
 
     def resolve_delivery_total(totals)
+      snapshot_value = snapshot_money(:delivery_total_byn)
+      return snapshot_value if snapshot_value
+
       if order.persisted? && !order.checkout_draft? && order.delivery_price.present?
         return order.delivery_price.to_f
       end
@@ -127,6 +140,9 @@ module EmailTemplates
     end
 
     def resolve_discount(totals)
+      snapshot_value = snapshot_money(:discount_total_byn)
+      return snapshot_value if snapshot_value
+
       if order.persisted? && !order.checkout_draft?
         return order.discount_amount.to_f
       end
@@ -135,6 +151,9 @@ module EmailTemplates
     end
 
     def resolve_grand_total(totals, items_total:, delivery_total:, discount:)
+      snapshot_value = snapshot_money(:grand_total_byn)
+      return snapshot_value if snapshot_value
+
       if order.persisted? && !order.checkout_draft? && order.total_amount.present?
         return order.total_amount.to_f
       end
@@ -145,6 +164,9 @@ module EmailTemplates
     end
 
     def resolve_customs_total(totals)
+      snapshot_value = snapshot_money(:customs_total_byn)
+      return snapshot_value if snapshot_value
+
       positive_money(totals[:customs_total_byn]) || 0.0
     end
 
@@ -191,11 +213,34 @@ module EmailTemplates
       HTML
     end
 
+    def snapshot_description(order_item, product)
+      raw = order_item&.description_snapshot.presence
+      return format_dimensions(raw) if raw.present?
+
+      product_description(product)
+    end
+
     def product_description(product)
       return "" unless product
 
       raw = [product.dimensions_ru, product.dimensions].compact_blank.first
       format_dimensions(raw)
+    end
+
+    def normalized_snapshot(value)
+      return {} unless value.is_a?(Hash)
+
+      value.with_indifferent_access
+    end
+
+    def snapshot_available?
+      !order.checkout_draft? && OrderEmailSnapshotService.complete?(email_snapshot)
+    end
+
+    def snapshot_money(key)
+      return nil unless snapshot_available? && email_snapshot.key?(key)
+
+      email_snapshot[key].to_f.round(2)
     end
 
     def format_dimensions(raw)

@@ -3,26 +3,19 @@ class OrderNotificationService
     if status_changed
       handle_status_change(order)
     else
-      # Заказ финализирован — ожидает оплаты
+      # Оба клиентских письма отправляются только после финализации заказа,
+      # создания платёжной ссылки и фиксации email-snapshot.
+      TransactionalEmailService.send_order_email(:order_created, order)
       TransactionalEmailService.send_order_email(:order_awaiting_payment, order)
       enqueue_admin_order_created_email(order)
       send_telegram_manager_notification(order)
     end
   end
 
-  def self.notify_draft_created(order)
-    return unless order.checkout_draft?
-    return if order.user&.email.blank?
-
-    TransactionalEmailService.send_order_email(:order_created, order)
-  end
-
   private
 
   def self.handle_status_change(order)
-    OrderReorderService.call(order: order) if order.cancelled?
-
-    template_key = EmailTemplates::Renderer.template_for_status(order.status)
+    template_key = EmailTemplates::Renderer.template_for_order(order)
 
     if template_key
       TransactionalEmailService.send_order_email(template_key, order)

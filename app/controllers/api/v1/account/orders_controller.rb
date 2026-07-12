@@ -75,9 +75,11 @@ module Api
           result = OrderReorderService.call(order: order, user: current_user)
 
           render json: {
-            message: 'Товары добавлены в корзину',
+            message: 'Корзина обновлена',
             added_skus: result[:added_skus],
+            updated_skus: result[:updated_skus],
             missing_skus: result[:missing_skus],
+            adjusted_items: result[:adjusted_items],
             has_missing: result[:has_missing]
           }
         end

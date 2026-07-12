@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_10_121000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_12_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -499,6 +499,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_10_121000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.text "image_url"
+    t.text "name_snapshot"
+    t.text "description_snapshot"
     t.index ["order_id", "product_sku"], name: "index_order_items_on_order_id_and_product_sku", unique: true
     t.index ["order_id"], name: "index_order_items_on_order_id"
     t.index ["product_sku"], name: "index_order_items_on_product_sku"
@@ -551,12 +553,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_10_121000) do
     t.boolean "offer_agreement_consent", default: false, null: false
     t.boolean "customs_broker_consent", default: false, null: false
     t.datetime "abandoned_cart_email_sent_at"
+    t.jsonb "pricing_snapshot", default: {}, null: false
     t.index ["crm_external_id"], name: "index_orders_on_crm_external_id"
     t.index ["payment_link_token"], name: "index_orders_on_payment_link_token", unique: true
     t.index ["promo_code_id"], name: "index_orders_on_promo_code_id"
     t.index ["public_uid"], name: "index_orders_on_public_uid", unique: true
     t.index ["status", "checkout_draft", "payment_expires_at"], name: "index_orders_on_unpaid_payment_expiration", where: "(payment_expires_at IS NOT NULL)"
     t.index ["status"], name: "index_orders_on_status"
+    t.index ["updated_at"], name: "index_orders_on_pending_abandoned_cart_email", where: "((checkout_draft = true) AND (abandoned_cart_email_sent_at IS NULL))"
     t.index ["user_id", "checkout_draft"], name: "index_orders_on_user_id_where_checkout_draft", where: "(checkout_draft = true)"
     t.index ["user_id"], name: "index_orders_on_user_id"
     t.index ["webpay_transaction_id"], name: "index_orders_on_webpay_transaction_id", unique: true, where: "(webpay_transaction_id IS NOT NULL)"
