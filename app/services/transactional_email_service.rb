@@ -50,12 +50,16 @@ class TransactionalEmailService
       return if user.email.blank?
 
       token = EmailVerificationService.issue_token!(user: user, email: user.email, purpose: "welcome")
+      send_email_verification(user, token)
+    end
+
+    def send_email_verification(user, token_record)
       send_template(
         :welcome,
-        to_email: user.email,
+        to_email: token_record.email,
         to_name: user.full_name,
         user: user,
-        verify_email_url: EmailVerificationService.verify_url(token)
+        verify_email_url: EmailVerificationService.verify_url(token_record)
       )
     end
 

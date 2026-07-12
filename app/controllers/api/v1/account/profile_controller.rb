@@ -83,6 +83,30 @@ module Api
           end
         end
 
+        # POST /api/v1/account/profile/change_email_verify/resend
+        def resend_change_email_verify
+          result = EmailVerificationService.resend_current_email!(current_user)
+
+          if result[:success]
+            render json: { message: "Письмо для подтверждения отправлено" }
+          else
+            response.set_header("Retry-After", result[:retry_after].to_s) if result[:retry_after].present?
+            render json: {
+              error: result[:error],
+              code: result[:code],
+              retry_after: result[:retry_after]
+            }.compact, status: result.fetch(:status, :unprocessable_entity)
+          end
+        rescue StandardError => e
+          Rails.logger.error(
+            "[EmailVerification] Failed to resend for user=#{current_user&.id}: #{e.class} #{e.message}"
+          )
+          render json: {
+            error: "Не удалось отправить письмо. Повторите позже",
+            code: "email_verification_delivery_failed"
+          }, status: :service_unavailable
+        end
+
         # POST /api/v1/account/profile/change_email_verify
         def change_email_verify
           token = params[:token].presence || params[:code]
@@ -206,7 +230,7 @@ module Api
         end
 
         def verified_email_redirect_url(error: nil)
-          base = Seo::PublicSiteUrl.resolve(request)
+          base = Seo::PublicSiteUrl.resolve
           target = "#{base}/profile/personal-data/"
           return "#{target}?email_verified=1" if error.blank?
 

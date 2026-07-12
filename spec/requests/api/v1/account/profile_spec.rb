@@ -321,6 +321,111 @@ RSpec.describe "Account Profile API", type: :request do
     end
   end
 
+  describe "POST /api/v1/account/profile/change_email_verify/resend" do
+    it "requires bearer authorization" do
+      post "/api/v1/account/profile/change_email_verify/resend"
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "invalidates pending tokens, creates a new token and sends one email" do
+      old_welcome = EmailVerificationService.issue_token!(
+        user: user,
+        email: user.email,
+        purpose: "welcome"
+      )
+      old_change = EmailVerificationService.issue_token!(
+        user: user,
+        email: "old-pending@example.com",
+        purpose: "email_change"
+      )
+      EmailVerificationToken.where(id: [old_welcome.id, old_change.id]).update_all(
+        created_at: 2.minutes.ago,
+        updated_at: 2.minutes.ago
+      )
+
+      expect do
+        post "/api/v1/account/profile/change_email_verify/resend", headers: headers
+      end.to change { enqueued_jobs.count { |job| job[:job] == SendpulseEmailJob } }.by(1)
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)).to eq(
+        "message" => "Письмо для подтверждения отправлено"
+      )
+
+      expect(EmailVerificationToken.exists?(old_welcome.id)).to be(false)
+      expect(EmailVerificationToken.exists?(old_change.id)).to be(false)
+
+      new_token = EmailVerificationToken.find_by!(user: user, verified_at: nil)
+      expect(new_token.email).to eq(user.email.downcase)
+      expect(new_token.purpose).to eq("welcome")
+      expect(new_token.token).to be_present
+      expect(new_token.expires_at).to be > Time.current
+    end
+
+    it "returns 422 when the profile has no email" do
+      user.update_columns(email: nil, email_verified_at: nil)
+
+      expect do
+        post "/api/v1/account/profile/change_email_verify/resend", headers: headers
+      end.not_to change { enqueued_jobs.count { |job| job[:job] == SendpulseEmailJob } }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(JSON.parse(response.body)).to include(
+        "error" => "Email отсутствует",
+        "code" => "email_missing"
+      )
+    end
+
+    it "returns 409 when the current email is already verified" do
+      user.update!(email_verified_at: 1.minute.ago)
+
+      expect do
+        post "/api/v1/account/profile/change_email_verify/resend", headers: headers
+      end.not_to change { enqueued_jobs.count { |job| job[:job] == SendpulseEmailJob } }
+
+      expect(response).to have_http_status(:conflict)
+      expect(JSON.parse(response.body)).to include(
+        "error" => "Email уже подтверждён",
+        "code" => "email_already_verified"
+      )
+    end
+
+    it "limits repeated sends to once per 60 seconds" do
+      current_token = EmailVerificationService.issue_token!(
+        user: user,
+        email: user.email,
+        purpose: "welcome"
+      )
+
+      expect do
+        post "/api/v1/account/profile/change_email_verify/resend", headers: headers
+      end.not_to change { enqueued_jobs.count { |job| job[:job] == SendpulseEmailJob } }
+
+      expect(response).to have_http_status(:too_many_requests)
+      body = JSON.parse(response.body)
+      expect(body["code"]).to eq("email_verification_rate_limited")
+      expect(body["retry_after"]).to be_between(1, 60)
+      expect(response.headers["Retry-After"].to_i).to eq(body["retry_after"])
+      expect(EmailVerificationToken.exists?(current_token.id)).to be(true)
+    end
+
+    it "allows another send after 60 seconds" do
+      old_token = EmailVerificationService.issue_token!(
+        user: user,
+        email: user.email,
+        purpose: "welcome"
+      )
+      old_token.update_columns(created_at: 61.seconds.ago, updated_at: 61.seconds.ago)
+
+      post "/api/v1/account/profile/change_email_verify/resend", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(EmailVerificationToken.exists?(old_token.id)).to be(false)
+      expect(EmailVerificationToken.where(user: user, verified_at: nil).count).to eq(1)
+    end
+  end
+
   describe "POST /api/v1/account/profile/change_email_verify" do
     it "verifies email by token without authorization header" do
       pending_email = "new_email_#{SecureRandom.hex(4)}@example.com"

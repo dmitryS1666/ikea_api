@@ -69,6 +69,8 @@ Rails.application.routes.draw do
             post :confirm_webpay
           end
         end
+        post "profile/change_email_verify/resend", to: "profile#resend_change_email_verify"
+
         resource :profile, only: [:show, :update], controller: 'profile' do
           post :change_phone_request
           post :change_phone_verify

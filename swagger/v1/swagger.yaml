@@ -2104,6 +2104,45 @@ paths:
         '401':
           description: Неверный код
 
+  /api/v1/account/profile/change_email_verify/resend:
+    post:
+      summary: Повторно отправить письмо подтверждения текущего email
+      description: |
+        Email берётся из профиля авторизованного пользователя. Тело запроса не требуется.
+        Предыдущие неиспользованные токены инвалидируются. Повторная отправка доступна
+        не чаще одного раза в 60 секунд.
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Письмо поставлено в очередь отправки
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    type: string
+                    example: Письмо для подтверждения отправлено
+        '401':
+          description: Пользователь не авторизован
+        '409':
+          description: Текущий email уже подтверждён
+        '422':
+          description: В профиле отсутствует email
+        '429':
+          description: Повторный запрос выполнен раньше чем через 60 секунд
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Через сколько секунд можно повторить запрос
+        '503':
+          description: Не удалось поставить письмо в очередь отправки
+
   /api/v1/account/purchases:
     get:
       summary: Список покупок (товаров из завершенных заказов)
