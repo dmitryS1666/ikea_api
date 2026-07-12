@@ -59,7 +59,6 @@ namespace :sendpulse do
       end.round(2)
 
       order = Order.create!(
-        user: user,
         checkout_draft: true,
         status: :created,
         full_name: "Тестовый Получатель",
@@ -112,14 +111,20 @@ namespace :sendpulse do
       puts "Получатель: #{target_email}"
       puts "Отправка выполняется синхронно; Sidekiq для этого теста не требуется."
 
-      user = User.create!(
+      # Для smoke-теста не сохраняем пользователя в production-БД:
+      # письмам достаточно объекта с именем/email, а Order допускает user=nil.
+      # Это исключает влияние production-валидаций и after_commit-интеграций
+      # (CRM/SendPulse marketing sync) на проверку транзакционных писем.
+      user = User.new(
         username: "sendpulse_smoke_#{Time.current.to_i}_#{SecureRandom.hex(3)}",
+        first_name: "Тестовый",
+        last_name: "Получатель",
+        email: target_email,
         phone: unique_phone.call,
         role: "user",
         is_active: true,
         personal_data_consent: true
       )
-      created_records << user
 
       products = Product.where.not(price: nil).where("price > 0").limit(2).to_a
       abort("Нужно минимум 2 товара с ценой > 0") if products.size < 2
@@ -157,7 +162,7 @@ namespace :sendpulse do
         rescue StandardError => e
           warn("Не удалось удалить #{record.class} id=#{record.id}: #{e.class} #{e.message}")
         end
-        puts "🗑️ Временные пользователь и заказы удалены."
+        puts "🗑️ Временные заказы удалены; пользователь в БД не создавался."
       end
     end
   end
