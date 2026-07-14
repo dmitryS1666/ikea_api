@@ -1,0 +1,75 @@
+require: rubocop-rails
+
+AllCops:
+  TargetRubyVersion: 2.4
+  NewCops: enable
+  SuggestExtensions: false
+  Exclude:
+    - gemfiles/*
+    - tmp/*
+    - vendor/**/* # for github actions
+
+Gemspec/DevelopmentDependencies: {Enabled: false}
+
+Layout/ArgumentAlignment: {EnforcedStyle: with_fixed_indentation}
+Layout/ParameterAlignment: {EnforcedStyle: with_fixed_indentation}
+
+# Breaks
+#
+#   I18n.t(key,
+#     param: val,
+#     # ...
+#   )
+Layout/ClosingParenthesisIndentation: {Enabled: false}
+Layout/DotPosition: {EnforcedStyle: trailing}
+Layout/EmptyLineAfterGuardClause: {Enabled: false}
+Layout/FirstParameterIndentation: {EnforcedStyle: consistent}
+Layout/LineContinuationLeadingSpace: {Enabled: false}
+Layout/LineEndStringConcatenationIndentation: {EnforcedStyle: indented}
+Layout/LineLength: {Max: 100}
+# Same as Layout/ClosingParenthesisIndentation
+Layout/MultilineMethodCallBraceLayout: {Enabled: false}
+Layout/MultilineMethodCallIndentation: {EnforcedStyle: indented}
+Layout/MultilineOperationIndentation: {EnforcedStyle: indented}
+Layout/SpaceInsideHashLiteralBraces: {EnforcedStyle: no_space}
+
+# Offences named scopes and `expect {}.to change {}`.
+Lint/AmbiguousBlockAssociation: {Enabled: false}
+Lint/EmptyBlock:
+  Exclude:
+    - spec/**/*
+
+Naming/FileName:
+  Exclude:
+    - lib/tasks/telegram-bot.rake
+Naming/MethodParameterName: {MinNameLength: 2}
+Naming/PredicateName: {Enabled: false}
+Naming/RescuedExceptionsVariableName: {PreferredName: exception}
+Naming/VariableNumber: {EnforcedStyle: snake_case}
+
+Style/Alias: {Enabled: false}
+Style/AndOr: {EnforcedStyle: conditionals}
+Style/Documentation: {Enabled: false}
+Style/IfUnlessModifier: {Enabled: false}
+
+# Consistent to other definitions.
+Style/EmptyMethod: {EnforcedStyle: expanded}
+
+Style/Lambda: {EnforcedStyle: literal}
+Style/ModuleFunction: {Enabled: false}
+Style/NestedParenthesizedCalls: {Enabled: false}
+Style/SignalException: {EnforcedStyle: only_raise}
+Style/TrailingCommaInArguments: {Enabled: false}
+Style/TrailingCommaInArrayLiteral: {EnforcedStyleForMultiline: comma}
+Style/TrailingCommaInHashLiteral: {EnforcedStyleForMultiline: comma}
+
+Metrics/AbcSize: {Max: 21}
+# Other metrics are just enough.
+# This one offences all specs, routes and some initializers.
+Metrics/BlockLength: {Enabled: false}
+Metrics/MethodLength: {Max: 30}
+Metrics/CyclomaticComplexity: {Max: 8}
+
+Rails/IndexWith: {Enabled: false}
+Rails/RakeEnvironment: {Enabled: false}
+Rails/ShortI18n: {Enabled: false}

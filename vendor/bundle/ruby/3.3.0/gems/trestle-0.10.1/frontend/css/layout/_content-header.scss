@@ -1,0 +1,71 @@
+.content-header {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-areas: "title toolbars"
+                       "breadcrumbs toolbars";
+  align-items: start;
+
+  background: $content-header-bg;
+  padding: 0.875rem 1.25rem;
+
+  @include media-breakpoint-down(md) {
+    padding: 0.625rem;
+  }
+
+  @include media-breakpoint-down(sm) {
+    grid-template-areas: "title toolbars"
+                         "breadcrumbs breadcrumbs";
+  }
+}
+
+.content-header-title {
+  grid-area: title;
+
+  margin: 0.25rem 0 1.125rem;
+
+  @include media-breakpoint-down(md) {
+    margin-top: 0.125rem;
+  }
+
+  h1 {
+    font-size: 2.125rem;
+    font-weight: 200;
+
+    margin: 0;
+
+    @include media-breakpoint-down(md) {
+      font-size: 2rem;
+    }
+
+    @include media-breakpoint-down(md) {
+      font-size: 1.75rem;
+    }
+  }
+}
+
+.content-header-toolbars {
+  grid-area: toolbars;
+
+  display: grid;
+  gap: 0.5rem;
+
+  .btn {
+    white-space: nowrap;
+  }
+
+  .btn-toolbar {
+    flex-direction: row-reverse;
+  }
+
+  @include media-breakpoint-down(md) {
+    gap: 0.25rem;
+  }
+}
+
+.content-header-breadcrumbs {
+  grid-area: breadcrumbs;
+
+  .breadcrumb {
+    margin: 0;
+  }
+}

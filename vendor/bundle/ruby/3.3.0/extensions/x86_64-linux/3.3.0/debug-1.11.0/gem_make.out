@@ -1,0 +1,19 @@
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/debug-1.11.0/ext/debug
+/home/sushi/.asdf/installs/ruby/3.3.0/bin/ruby extconf.rb
+creating Makefile
+
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/debug-1.11.0/ext/debug
+make DESTDIR\= sitearchdir\=./.gem.20260714-127320-dl3er1 sitelibdir\=./.gem.20260714-127320-dl3er1 clean
+
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/debug-1.11.0/ext/debug
+make DESTDIR\= sitearchdir\=./.gem.20260714-127320-dl3er1 sitelibdir\=./.gem.20260714-127320-dl3er1
+compiling debug.c
+compiling iseq_collector.c
+linking shared-object debug/debug.so
+
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/debug-1.11.0/ext/debug
+make DESTDIR\= sitearchdir\=./.gem.20260714-127320-dl3er1 sitelibdir\=./.gem.20260714-127320-dl3er1 install
+/usr/bin/install -c -m 0755 debug.so ./.gem.20260714-127320-dl3er1/debug
+
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/debug-1.11.0/ext/debug
+make DESTDIR\= sitearchdir\=./.gem.20260714-127320-dl3er1 sitelibdir\=./.gem.20260714-127320-dl3er1 clean

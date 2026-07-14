@@ -1,0 +1,160 @@
+// Default theme
+
+$theme-bg: $primary;
+$error-bg: $danger;
+
+$theme-bg-variations: (
+  default:  -20%,
+
+  dark:     -35%,
+  darker:   -50%,
+  darkest:  -65%,
+
+  light:    0,
+  lighter:  15%,
+  lightest: 30%
+);
+
+
+// Header
+
+$header-bg:    white;
+$header-color: #333333;
+
+$header-height: 3.125rem;
+
+
+// Footer
+
+$footer-bg:    #f9f9f9;
+$footer-color: #888888;
+
+$footer-padding: 0.375rem 1.25rem;
+
+
+// Sidebar
+
+$sidebar-bg:            #222222;
+$sidebar-hover-bg:      #1a1a1a;
+$sidebar-active-bg:     #393939;
+$sidebar-active-border: 0.25rem;
+
+$sidebar-link-color:  #919191;
+$sidebar-group-color: #595959;
+
+$sidebar-toggle-bg:    rgba(black, 0.25);
+$sidebar-toggle-color: rgba(white, 0.5);
+
+$sidebar-mobile-toggle-color:   white;
+$sidebar-mobile-toggle-icon-bg: str-replace(url("data:image/svg+xml,%3csvg viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3e%3cpath stroke='#{$sidebar-mobile-toggle-color}' stroke-width='2' stroke-linecap='round' stroke-miterlimit='10' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e"), "#", "%23");
+
+$sidebar-mobile-toggle-bg:           transparent;
+$sidebar-mobile-toggle-border-width: 1px;
+$sidebar-mobile-toggle-border-color: rgba($sidebar-mobile-toggle-color, 0.15);
+$sidebar-mobile-toggle-border:       $sidebar-mobile-toggle-border-width solid $sidebar-mobile-toggle-border-color;
+
+$sidebar-mobile-toggle-active-bg:           rgba($sidebar-mobile-toggle-color, 0.1);
+$sidebar-mobile-toggle-active-border-width: $sidebar-mobile-toggle-border-width;
+$sidebar-mobile-toggle-active-border-color: $sidebar-mobile-toggle-border-color;
+$sidebar-mobile-toggle-active-border:       $sidebar-mobile-toggle-border-width solid $sidebar-mobile-toggle-active-border-color;
+
+$sidebar-width:           15.625rem;
+$sidebar-width-collapsed: 3.5rem;
+
+$sidebar-padding:           0.5rem 0.875rem;
+$sidebar-padding-collapsed: 0.5rem 0.25rem;
+
+$sidebar-transition-duration: 200ms;
+
+
+// Content
+
+$content-header-bg:  #fafafa;
+$content-sidebar-bg: #f9f9f9;
+
+$content-sidebar-width: 17.5rem;
+
+$main-content-header-bg:     $content-sidebar-bg;
+$main-content-header-border: 1px solid rgba(black, 0.1);
+
+$main-content-footer-bg:     $content-sidebar-bg;
+$main-content-footer-border: 1px solid rgba(black, 0.1);
+
+
+// Typography
+
+$headings-border: 1px solid rgba(black, 0.1);
+
+$header-font-size-scale: 0.8125;
+$sidebar-font-size-scale: 0.8125;
+
+$badge-hover-scale: -15%;
+
+
+// Tags
+
+$tag-bg-scale:           -30%;
+$tag-border-scale:       0;
+
+$tag-hover-bg-scale:     -15%;
+$tag-hover-border-scale: 15%;
+
+$tag-spacing-x: 0.25rem;
+$tag-spacing-y: 0.2rem;
+
+
+// Scopes
+
+$scope-padding:      0.2rem 0.625rem;
+
+$scope-color:        rgba(black, 0.4);
+$scope-bg:           rgba(black, 0.035);
+
+$scope-label-color:  rgba(black, 0.5);
+
+$scope-hover-color:  rgba(black, 0.5);
+$scope-hover-bg:     rgba(black, 0.05);
+
+$scope-active-color: white;
+$scope-active-bg:    rgba(black, 0.25);
+
+
+// Alerts
+
+$alert-success-bg:     #7ac47a;
+$alert-success-color:  white;
+$alert-success-border: #66bb66;
+
+$alert-danger-bg:      #de7471;
+$alert-danger-color:   white;
+$alert-danger-border:  #d85956;
+
+$alert-info-bg:        shade-color($info, 10%);
+$alert-info-color:     white;
+$alert-info-border:    shade-color($alert-info-bg, 5%);
+
+$alert-warning-bg:     shade-color($warning, 5%);
+$alert-warning-color:  white;
+$alert-warning-border: shade-color($alert-warning-bg, 5%);
+
+$alert-light-bg:       $light;
+$alert-light-color:    $body-color;
+$alert-light-border:   shade-color($alert-light-bg, 5%);
+
+$alert-dark-bg:        $dark;
+$alert-dark-color:     white;
+$alert-dark-border:    shade-color($alert-dark-bg, 20%);
+
+$alert-primary-bg:     shade-color($primary, 10%);
+$alert-primary-color:  white;
+$alert-primary-border: shade-color($alert-primary-bg, 10%);
+
+$alert-secondary-bg:     shade-color($secondary, 10%);
+$alert-secondary-color:  white;
+$alert-secondary-border: shade-color($alert-secondary-bg, 10%);
+
+
+// Modals
+
+$modal-header-bg: $theme-bg;
+$modal-footer-bg: $content-sidebar-bg;

@@ -123,6 +123,13 @@ class IkeaLvProductVariantsService
   end
 
   def extract_variants(doc)
+    # Актуальная PIP-страница IKEA хранит варианты в JSON-гидратации. В нём
+    # цвет и размер уже связаны с текущей комбинацией товара, поэтому для
+    # жёлтого полотенца будут выбраны именно жёлтые размеры, а не размеры
+    # первого попавшегося цвета из HTML.
+    hydrated_variants = extract_variants_from_hydration(doc)
+    return hydrated_variants if hydrated_variants.present?
+
     all_variants = []
 
     # 1. Проверяем цвета
@@ -134,6 +141,128 @@ class IkeaLvProductVariantsService
     all_variants << { type: "size", data: size_variants } if size_variants.any?
 
     all_variants.presence
+  end
+
+  def extract_variants_from_hydration(doc)
+    payloads = hydration_payloads_with_variants(doc)
+    return nil if payloads.empty?
+
+    groups = []
+
+    style_picker = payloads.filter_map { |payload| deep_find_json_value(payload, "productStylePickerProps") }.first
+    color_variants = extract_hydrated_color_variants(style_picker)
+    groups << { type: "color", data: color_variants } if color_variants.any?
+
+    specification = payloads.filter_map do |payload|
+      deep_find_json_value(payload, "productSpecificationSectionProps")
+    end.first
+    size_variants = extract_hydrated_size_variants(specification)
+    groups << { type: "size", data: size_variants } if size_variants.any?
+
+    groups.presence
+  end
+
+  def hydration_payloads_with_variants(doc)
+    doc.css('script[type="text/hydrate"]').filter_map do |script|
+      raw = script.text.to_s.strip
+      next if raw.blank?
+      next unless raw.include?("productStylePickerProps") || raw.include?("productSpecificationSectionProps")
+
+      parsed = JSON.parse(raw)
+      parsed if parsed.is_a?(Hash)
+    rescue JSON::ParserError
+      next
+    end
+  end
+
+  def deep_find_json_value(value, key)
+    case value
+    when Hash
+      return value[key] if value.key?(key)
+      return value[key.to_sym] if value.key?(key.to_sym)
+
+      value.each_value do |nested|
+        found = deep_find_json_value(nested, key)
+        return found unless found.nil?
+      end
+    when Array
+      value.each do |nested|
+        found = deep_find_json_value(nested, key)
+        return found unless found.nil?
+      end
+    end
+
+    nil
+  end
+
+  def extract_hydrated_color_variants(style_picker)
+    return [] unless style_picker.is_a?(Hash)
+
+    picker = style_picker.deep_stringify_keys
+    styles = Array(picker["variationStyles"])
+    color_style = styles.find { |style| style.is_a?(Hash) && style["code"].to_s.casecmp("COLOUR").zero? }
+    return [] unless color_style
+
+    options = color_style["allOptions"] || color_style["options"]
+    Array(options).filter_map do |option|
+      next unless option.is_a?(Hash)
+
+      option = option.deep_stringify_keys
+      sku = hydrated_option_sku(option)
+      next if sku.blank?
+
+      label = option["title"].to_s.strip.presence || sku
+      variant_product = find_variant_product_by_sku(sku)
+      preview_images = [
+        option.dig("valueImage", "url"),
+        option.dig("image", "url")
+      ].compact
+
+      {
+        color: label,
+        item: variant_payload(
+          variant_product,
+          sku,
+          cover_label: label,
+          preview_images: preview_images
+        )
+      }
+    end.uniq { |variant| variant.dig(:item, :sku).to_s.downcase }
+  end
+
+  def extract_hydrated_size_variants(specification)
+    return [] unless specification.is_a?(Hash)
+
+    specification = specification.deep_stringify_keys
+    variations = Array(specification["variations"])
+    size_variation = variations.find { |variation| variation.is_a?(Hash) && variation["code"].to_s.casecmp("SIZE").zero? }
+    return [] unless size_variation
+
+    Array(size_variation["options"]).filter_map do |option|
+      next unless option.is_a?(Hash)
+
+      option = option.deep_stringify_keys
+      sku = hydrated_option_sku(option)
+      next if sku.blank?
+
+      label = option["title"].to_s.strip.presence || sku
+      variant_product = find_variant_product_by_sku(sku)
+      preview_images = [option.dig("image", "url")].compact
+
+      {
+        size: label,
+        item: variant_payload(
+          variant_product,
+          sku,
+          cover_label: label,
+          preview_images: preview_images
+        )
+      }
+    end.uniq { |variant| variant.dig(:item, :sku).to_s.downcase }
+  end
+
+  def hydrated_option_sku(option)
+    option["linkId"].to_s.strip.presence || extract_sku_from_url(option["url"])
   end
 
   def extract_color_variants(doc)

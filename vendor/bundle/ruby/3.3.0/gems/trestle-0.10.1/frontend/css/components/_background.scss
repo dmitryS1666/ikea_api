@@ -1,0 +1,20 @@
+%textured-bg {
+  background-image: var(--theme-texture), var(--theme-gradient);
+  background-repeat: repeat, no-repeat;
+}
+
+@each $variation, $lightness in $theme-bg-variations {
+  .theme-bg-#{$variation} {
+    @extend %textured-bg;
+    background-color: adjust-theme-hsl(primary, $lightness: $lightness);
+  }
+}
+
+.theme-bg {
+  @extend .theme-bg-default;
+}
+
+.error-bg {
+  @extend %textured-bg;
+  background-color: $error-bg;
+}

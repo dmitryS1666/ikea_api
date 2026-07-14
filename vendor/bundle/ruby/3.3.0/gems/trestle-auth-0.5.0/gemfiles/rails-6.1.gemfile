@@ -1,0 +1,17 @@
+source 'https://rubygems.org'
+
+group :test do
+  gem "rspec-rails", "~> 5.0"
+
+  gem "coveralls_reborn", require: false
+  gem "capybara"
+end
+
+gem "rails", "~> 6.1.0"
+gem "sprockets-rails"
+gem "sqlite3", "~> 1.4"
+gem "devise"
+
+gem "trestle", github: "TrestleAdmin/trestle"
+
+gemspec path: "../"

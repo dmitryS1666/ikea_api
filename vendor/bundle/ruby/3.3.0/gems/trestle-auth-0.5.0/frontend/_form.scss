@@ -1,0 +1,75 @@
+.login-form {
+  .input-group > * {
+    background: $auth-form-control-bg;
+    border: $auth-form-control-border;
+    margin-left: 0 !important;
+  }
+
+  .form-control {
+    color: $auth-form-control-color;
+    font-size: 1rem;
+
+    padding: 0.875rem 0.625rem;
+
+    &:focus {
+      outline-color: transparent;
+      outline-style: none;
+      box-shadow: none;
+    }
+
+    &::placeholder {
+      color: $auth-form-control-placeholder;
+    }
+
+    &:-webkit-autofill {
+      -webkit-text-fill-color: $auth-form-control-color;
+
+      &, &:hover, &:focus, &:active {
+        transition: background-color 9999999s ease-in-out 0s;
+      }
+    }
+  }
+
+  .input-group-text {
+    color: $auth-form-control-icon-color;
+    padding: 0.25rem 0.25rem 0.25rem 0.875rem;
+  }
+
+  .btn-primary {
+    box-shadow: rgba(black, 0.1) 0 0 2px;
+
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+  }
+
+  .alert-danger {
+    background-color: rgba($alert-danger-bg, 0.75);
+  }
+
+  .remember-me {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+
+    padding-left: 0;
+
+    .form-check-input {
+      margin-left: 1em;
+      margin-top: 0.825em;
+    }
+
+    .form-check-label {
+      display: block;
+      cursor: pointer;
+
+      background: $auth-remember-me-bg;
+      color: $auth-remember-me-color;
+
+      border-radius: $border-radius;
+      padding: 0.75em 1.5em 0.75em 3.25em;
+
+      &:hover {
+        background: opacify($auth-remember-me-bg, 0.05);
+      }
+    }
+  }
+}

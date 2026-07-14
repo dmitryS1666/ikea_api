@@ -3,7 +3,9 @@
 require "rails_helper"
 
 RSpec.describe IkeaLvProductVariantsService do
-  let(:product) { instance_double(Product, sku: "s29545213", id: 1, name_ru: "VIMLE") }
+  let(:product) do
+    instance_double(Product, sku: "s29545213", id: 1, name: "VIMLE", name_ru: "VIMLE")
+  end
   let(:service) { described_class.new(product: product, force: true) }
 
   before do
@@ -54,7 +56,127 @@ RSpec.describe IkeaLvProductVariantsService do
       expect(skus).to contain_exactly("s29545213", "s29537086")
       linked = rows.find { |r| r.dig(:item, :sku) == "s29537086" }
       expect(linked[:color]).to include("Hallarp")
-      expect(linked.dig(:item, :images)).to eq([])
+      expect(linked.dig(:item, :images)).to eq(
+        ["https://www.ikea.com/pl/pl/images/products/b__0952230_pe801662_s5.jpg"]
+      )
+    end
+  end
+
+  describe "#extract_variants hydration payload" do
+    let(:html) do
+      payload = {
+        "data" => {
+          "productStylePickerProps" => {
+            "variationStyles" => [
+              {
+                "title" => "Wybierz kolor",
+                "selectedOption" => "Żółty",
+                "code" => "COLOUR",
+                "allOptions" => [
+                  {
+                    "title" => "Głęboka czerwień",
+                    "linkId" => "20614376",
+                    "url" => "https://www.ikea.com/pl/pl/p/gulvial-czerwony-20614376/",
+                    "valueImage" => { "url" => "https://www.ikea.com/red.jpg" }
+                  },
+                  {
+                    "title" => "Żółty",
+                    "linkId" => "00614358",
+                    "url" => "https://www.ikea.com/pl/pl/p/gulvial-zolty-00614358/",
+                    "valueImage" => { "url" => "https://www.ikea.com/yellow.jpg" }
+                  }
+                ]
+              }
+            ]
+          },
+          "productSpecificationSectionProps" => {
+            "variations" => [
+              {
+                "title" => "Wybierz rozmiar",
+                "selectedOption" => "70x140 cm",
+                "code" => "SIZE",
+                "options" => [
+                  {
+                    "title" => "30x30 cm",
+                    "linkId" => "10614372",
+                    "url" => "https://www.ikea.com/pl/pl/p/gulvial-zolty-10614372/"
+                  },
+                  {
+                    "title" => "70x140 cm",
+                    "linkId" => "00614358",
+                    "url" => "https://www.ikea.com/pl/pl/p/gulvial-zolty-00614358/"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+
+      <<~HTML
+        <html>
+          <body>
+            <script type="text/hydrate">#{JSON.generate(payload)}</script>
+            <div class="pipf-product-variation-section">
+              <div class="pipf-seo-content">
+                <a href="/pl/pl/p/gulvial-czerwony-70614388/">50x100 cm</a>
+              </div>
+            </div>
+          </body>
+        </html>
+      HTML
+    end
+
+    before do
+      allow(service).to receive(:variant_payload) do |_variant_product, sku, cover_label:, preview_images: []|
+        { sku: sku, small_desc_name: cover_label, images: preview_images }
+      end
+    end
+
+    it "prefers current color-specific structured variants over legacy HTML" do
+      groups = service.send(:extract_variants, Nokogiri::HTML(html))
+
+      expect(groups.map { |group| group[:type] }).to eq(%w[color size])
+
+      colors = groups.find { |group| group[:type] == "color" }[:data]
+      expect(colors.map { |row| row[:color] }).to eq(["Głęboka czerwień", "Żółty"])
+      expect(colors.map { |row| row.dig(:item, :sku) }).to eq(%w[20614376 00614358])
+
+      sizes = groups.find { |group| group[:type] == "size" }[:data]
+      expect(sizes.map { |row| row[:size] }).to eq(["30x30 cm", "70x140 cm"])
+      expect(sizes.map { |row| row.dig(:item, :sku) }).to eq(%w[10614372 00614358])
+      expect(sizes.map { |row| row.dig(:item, :sku) }).not_to include("70614388")
+    end
+
+    it "falls back to legacy HTML when hydration JSON is invalid" do
+      invalid_html = <<~HTML
+        <html>
+          <body>
+            <script type="text/hydrate">{"productStylePickerProps":</script>
+            <div class="pipf-product-variation-section">
+              <div class="pipf-seo-content">
+                <a href="/pl/pl/p/gulvial-zolty-10614372/">30x30 cm</a>
+              </div>
+            </div>
+          </body>
+        </html>
+      HTML
+
+      groups = service.send(:extract_variants, Nokogiri::HTML(invalid_html))
+
+      expect(groups).to eq(
+        [
+          {
+            type: "size",
+            data: [
+              {
+                size: "30x30 cm",
+                item: { sku: "10614372", small_desc_name: "30x30 cm", images: [] }
+              }
+            ]
+          }
+        ]
+      )
     end
   end
 end

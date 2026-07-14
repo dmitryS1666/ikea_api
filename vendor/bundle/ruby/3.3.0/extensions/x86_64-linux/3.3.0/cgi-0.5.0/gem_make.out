@@ -1,0 +1,18 @@
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/cgi-0.5.0/ext/cgi/escape
+/home/sushi/.asdf/installs/ruby/3.3.0/bin/ruby extconf.rb
+creating Makefile
+
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/cgi-0.5.0/ext/cgi/escape
+make DESTDIR\= sitearchdir\=./.gem.20260714-127320-zerqod sitelibdir\=./.gem.20260714-127320-zerqod clean
+
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/cgi-0.5.0/ext/cgi/escape
+make DESTDIR\= sitearchdir\=./.gem.20260714-127320-zerqod sitelibdir\=./.gem.20260714-127320-zerqod
+compiling escape.c
+linking shared-object cgi/escape.so
+
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/cgi-0.5.0/ext/cgi/escape
+make DESTDIR\= sitearchdir\=./.gem.20260714-127320-zerqod sitelibdir\=./.gem.20260714-127320-zerqod install
+/usr/bin/install -c -m 0755 escape.so ./.gem.20260714-127320-zerqod/cgi
+
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/cgi-0.5.0/ext/cgi/escape
+make DESTDIR\= sitearchdir\=./.gem.20260714-127320-zerqod sitelibdir\=./.gem.20260714-127320-zerqod clean

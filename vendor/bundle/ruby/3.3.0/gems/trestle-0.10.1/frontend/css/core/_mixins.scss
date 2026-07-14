@@ -1,0 +1,19 @@
+@mixin font-smoothing($value: on) {
+  @if $value == on {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  } @else {
+    -webkit-font-smoothing: subpixel-antialiased;
+    -moz-osx-font-smoothing: auto;
+  }
+}
+
+@mixin icon-fa($content) {
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  content: fa-content($content);
+}
+
+@mixin sr-only {
+  @include visually-hidden;
+}

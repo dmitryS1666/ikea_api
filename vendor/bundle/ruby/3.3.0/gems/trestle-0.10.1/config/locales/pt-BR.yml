@@ -1,0 +1,84 @@
+pt-BR:
+  trestle:
+    title: "Trestle Admin"
+    footer: "Powered by Trestle"
+    version: "Versão"
+
+    helpers:
+      page_entries_info:
+        one_page:
+          display_entries:
+            zero: "Nenhum registro de %{entry_name} encontrado"
+            one: "Mostrando <strong>1 registro de</strong> %{entry_name}"
+            other: "Mostrando <strong>%{count} registros</strong> de %{entry_name}"
+
+        more_pages:
+          display_entries: "Mostrando %{entry_name} <strong>%{first}&nbsp;-&nbsp;%{last}</strong> de <b>%{total}</b>"
+
+    onboarding:
+      welcome: "Bem-vindo ao Trestle"
+      no_admins: "Para começar, crie um admin dentro de <code>app/admin</code>."
+      no_template: "Para personalizar este template, crie <code>%{path}</code>."
+      no_form: "Defina um bloco de formulário ou crie um <code>_form.html</code> parcial."
+
+    ui:
+      toggle_navigation: "Alternar naveção"
+      toggle_sidebar: "Alternar barra lateral"
+
+    confirmation:
+      title: "Você tem certeza?"
+      delete: "Excluir"
+      cancel: "Cancelar"
+
+  admin:
+    titles:
+      index: "Listando registros de %{pluralized_model_name}"
+      new: "Novo registro de %{model_name}"
+      edit: "Editando registro de %{model_name}"
+
+    buttons:
+      new: "Novo registro de %{model_name}"
+      save: "Salvar registro de %{model_name}"
+      delete: "Excluir registro de %{model_name}"
+
+    breadcrumbs:
+      home: "Home"
+
+    flash:
+      create:
+        success:
+          title: "Sucesso!"
+          message: "O registro de %{model_name} foi criado com sucesso."
+
+        failure:
+          title: "Atenção!"
+          message: "Por favor corrija os erros abaixo."
+
+      update:
+        success:
+          title: "Sucesso!"
+          message: "O registro de %{model_name} foi atualizado com sucesso."
+
+        failure:
+          title: "Atenção!"
+          message: "Por favor corrija os erros abaixo."
+
+      destroy:
+        success:
+          title: "Sucesso!"
+          message: "O registro de %{model_name} foi deletado com sucesso."
+
+        failure:
+          title: "Atenção!"
+          message: "O registro de %{model_name} não pôde ser deletado."
+
+    table:
+      headers:
+        id: "ID"
+
+    form:
+      select:
+        prompt: "- Selecione %{attribute_name} -"
+
+    format:
+      blank: "Nenhum"

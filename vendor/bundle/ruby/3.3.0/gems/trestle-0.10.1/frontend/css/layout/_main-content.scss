@@ -1,0 +1,107 @@
+.main-content-area {
+  --content-area-margin: 1.25rem;
+  --content-area-padding: 1.25rem;
+
+  --content-area-sidebar-width: #{$content-sidebar-width};
+  --content-area-sidebar-bg: #{$content-sidebar-bg};
+
+  --content-area-header-padding: 0.625rem 1.125rem;
+  --content-area-header-bg: #{$main-content-header-bg};
+  --content-area-header-border: #{$main-content-header-border};
+
+  --content-area-footer-padding: 0.625rem 1.125rem;
+  --content-area-footer-bg: #{$main-content-footer-bg};
+  --content-area-footer-border: #{$main-content-footer-border};
+
+  margin: var(--content-area-margin);
+  scroll-margin: var(--content-area-margin);
+}
+
+.main-content-container {
+  background: white;
+  display: flex;
+}
+
+.main-content,
+.main-content-sidebar {
+  padding: var(--content-area-padding);
+}
+
+.main-content {
+  // Allow nesting of tab panes directly within
+  @extend .tab-content;
+
+  flex: 1;
+  min-width: 0;
+}
+
+.main-content-header,
+.main-content-footer {
+  display: flex;
+  justify-content: space-between;
+}
+
+.main-content-header {
+  margin: calc(var(--content-area-padding) * -1) calc(var(--content-area-padding) * -1) var(--content-area-padding) !important;
+  padding: var(--content-area-header-padding);
+  background: var(--content-area-header-bg);
+  border-bottom: var(--content-area-header-border)
+}
+
+.main-content-footer {
+  margin: var(--content-area-padding) calc(var(--content-area-padding) * -1) calc(var(--content-area-padding) * -1) !important;
+  padding: var(--content-area-footer-padding);
+  background: var(--content-area-footer-bg);
+  border-top: var(--content-area-footer-border);
+}
+
+.main-content,
+.main-content-sidebar,
+.tab-pane {
+  > *:first-child {
+    margin-top: 0;
+  }
+
+  > *:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.main-content-sidebar {
+  background: var(--content-area-sidebar-bg);
+  flex: 0 0 var(--content-area-sidebar-width);
+  max-width: var(--content-area-sidebar-width);
+}
+
+.utilities {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+@include media-breakpoint-down(lg) {
+  .main-content-container {
+    flex-direction: column;
+  }
+
+  .main-content-sidebar {
+    flex-basis: 0;
+    max-width: none;
+  }
+}
+
+@include media-breakpoint-down(md) {
+  .main-content-area {
+    --content-area-margin: 0.625rem;
+    --content-area-padding: 0.875rem;
+
+    --content-area-header-padding: 0.625rem 0.875rem;
+    --content-area-footer-padding: 0.625rem 0.875rem;
+  }
+
+  .main-content-header,
+  .main-content-footer {
+    flex-direction: column;
+    align-items: center;
+  }
+}

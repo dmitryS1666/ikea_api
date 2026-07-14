@@ -1,0 +1,24 @@
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/date-3.5.0/ext/date
+/home/sushi/.asdf/installs/ruby/3.3.0/bin/ruby extconf.rb
+checking for rb_category_warn()... yes
+checking for timezone in time.h with  -Werror... yes
+checking for altzone in time.h with  -Werror... no
+creating Makefile
+
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/date-3.5.0/ext/date
+make DESTDIR\= sitearchdir\=./.gem.20260714-127320-ozj39l sitelibdir\=./.gem.20260714-127320-ozj39l clean
+
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/date-3.5.0/ext/date
+make DESTDIR\= sitearchdir\=./.gem.20260714-127320-ozj39l sitelibdir\=./.gem.20260714-127320-ozj39l
+compiling date_core.c
+compiling date_parse.c
+compiling date_strftime.c
+compiling date_strptime.c
+linking shared-object date_core.so
+
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/date-3.5.0/ext/date
+make DESTDIR\= sitearchdir\=./.gem.20260714-127320-ozj39l sitelibdir\=./.gem.20260714-127320-ozj39l install
+/usr/bin/install -c -m 0755 date_core.so ./.gem.20260714-127320-ozj39l
+
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/date-3.5.0/ext/date
+make DESTDIR\= sitearchdir\=./.gem.20260714-127320-ozj39l sitelibdir\=./.gem.20260714-127320-ozj39l clean

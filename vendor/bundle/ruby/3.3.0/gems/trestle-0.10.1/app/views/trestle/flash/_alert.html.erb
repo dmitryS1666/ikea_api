@@ -1,0 +1,19 @@
+<div class="alert alert-dismissable <%= html_class %>" role="alert">
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+
+  <%= icon %>
+
+  <div class="alert-content">
+    <% if alert[:title] %>
+      <h3><%= alert[:title] %></h3>
+    <% end %>
+
+    <% if alert[:message] %>
+      <p><%= alert[:message] %></p>
+    <% end %>
+
+    <% if local_assigns[:errors] %>
+      <%= render "trestle/flash/debug", errors: errors %>
+    <% end %>
+  </div>
+</div>

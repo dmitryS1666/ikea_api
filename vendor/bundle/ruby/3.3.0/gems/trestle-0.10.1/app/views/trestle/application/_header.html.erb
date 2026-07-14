@@ -1,0 +1,29 @@
+<header class="content-header">
+  <div class="content-header-title">
+    <h1><%= title %></h1>
+  </div>
+
+  <div class="content-header-toolbars">
+    <div class="btn-toolbar primary-toolbar" role="toolbar">
+      <%= render_toolbar(toolbar(:primary)) %>
+      <%= deprecated_toolbar(:primary) %>
+    </div>
+
+    <div class="btn-toolbar secondary-toolbar" role="toolbar">
+      <%= render_toolbar(toolbar(:secondary)) %>
+      <%= deprecated_toolbar(:secondary) %>
+    </div>
+  </div>
+
+  <% unless local_assigns.fetch(:hide_breadcrumbs, false) %>
+    <div class="content-header-breadcrumbs">
+      <ol class="breadcrumb">
+        <% breadcrumbs.each do |breadcrumb| %>
+          <li class="breadcrumb-item<% if breadcrumb == breadcrumbs.last %> active<% end %>">
+            <%= link_to breadcrumb.label, breadcrumb.path, data: { turbo_frame: "_top" } %>
+          </li>
+        <% end %>
+      </ol>
+    </div>
+  <% end %>
+</header>

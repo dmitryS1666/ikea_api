@@ -1,0 +1,19 @@
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/stringio-3.1.9/ext/stringio
+/home/sushi/.asdf/installs/ruby/3.3.0/bin/ruby extconf.rb
+checking for rb_io_mode_t in ruby/io.h... no
+creating Makefile
+
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/stringio-3.1.9/ext/stringio
+make DESTDIR\= sitearchdir\=./.gem.20260714-127320-rc5v7b sitelibdir\=./.gem.20260714-127320-rc5v7b clean
+
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/stringio-3.1.9/ext/stringio
+make DESTDIR\= sitearchdir\=./.gem.20260714-127320-rc5v7b sitelibdir\=./.gem.20260714-127320-rc5v7b
+compiling stringio.c
+linking shared-object stringio.so
+
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/stringio-3.1.9/ext/stringio
+make DESTDIR\= sitearchdir\=./.gem.20260714-127320-rc5v7b sitelibdir\=./.gem.20260714-127320-rc5v7b install
+/usr/bin/install -c -m 0755 stringio.so ./.gem.20260714-127320-rc5v7b
+
+current directory: /home/sushi/Documents/ikea_api/vendor/bundle/ruby/3.3.0/gems/stringio-3.1.9/ext/stringio
+make DESTDIR\= sitearchdir\=./.gem.20260714-127320-rc5v7b sitelibdir\=./.gem.20260714-127320-rc5v7b clean

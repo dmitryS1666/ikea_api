@@ -1,0 +1,263 @@
+.app-nav {
+  flex: 1;
+  padding: 0.625rem 0;
+
+  &, a {
+    color: $sidebar-link-color;
+  }
+
+  ul {
+    margin: 0.625rem 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .nav-item a {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+
+    font-weight: normal;
+    font-size: 0.8125rem;
+
+    padding: 0.75rem 1rem;
+
+    position: relative;
+
+    &:hover, &:focus {
+      color: $sidebar-link-color;
+      background: $sidebar-hover-bg;
+      text-decoration: none;
+
+      .nav-icon {
+        color: white;
+      }
+    }
+  }
+
+  .nav-item.active a {
+    border-left: $sidebar-active-border solid var(--primary);
+    padding-left: calc(1rem - #{$sidebar-active-border});
+
+    background: $sidebar-active-bg;
+    color: white;
+  }
+
+  .nav-icon {
+    flex-shrink: 0;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 1.25rem;
+  }
+
+  .nav-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    opacity: 1;
+    transition: opacity var(--sidebar-transition-duration) var(--sidebar-transition-timing);
+  }
+
+  .nav-header a {
+    position: relative;
+    color: $sidebar-group-color;
+
+    text-transform: uppercase;
+    font-weight: bold;
+    line-height: 1;
+
+    font-size: 0.6875rem;
+    padding: 0.5rem 1.125rem;
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    white-space: nowrap;
+
+    span {
+      opacity: 1;
+      transition: opacity var(--sidebar-transition-duration) var(--sidebar-transition-timing);
+    }
+
+    &::after {
+      @include icon-fa($fa-var-caret-down);
+      opacity: 0.75;
+    }
+
+    &:hover,
+    &:focus {
+      background: none;
+
+      &::before,
+      &::after {
+        opacity: 1;
+      }
+    }
+  }
+
+  .badge {
+    margin-left: auto;
+  }
+
+  .collapsed {
+    li {
+      display: none;
+
+      &.nav-header {
+        display: block;
+      }
+    }
+  }
+}
+
+.nav-tooltip {
+  display: none !important;
+}
+
+@mixin collapsed-nav-header {
+  span {
+    opacity: 0;
+  }
+
+  &::after {
+    display: none;
+
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    translate: -50% -5px;
+
+    text-indent: 0;
+  }
+
+  &::before {
+    content: "";
+
+    position: absolute;
+    top: 50%;
+    left: 1rem;
+    right: 1rem;
+    margin-top: -2px;
+
+    border-bottom: 1px solid $sidebar-active-bg;
+    opacity: 0.75;
+  }
+}
+
+@mixin collapsed-nav-label {
+  opacity: 0;
+}
+
+@mixin collapsed-nav-badge {
+  text-indent: -99999px;
+  position: absolute;
+  width: 0.5rem;
+  height: 0.5rem;
+  padding: 0;
+  top: 0.625rem;
+  left: 2rem;
+}
+
+@include media-breakpoint-between(md, xl) {
+  .nav-tooltip {
+    display: block !important;
+  }
+
+  .app-nav {
+    .nav-label {
+      @include collapsed-nav-label;
+    }
+
+    .badge {
+      @include collapsed-nav-badge;
+    }
+
+    .nav-header a {
+      @include collapsed-nav-header;
+    }
+
+    .collapsed .nav-header a {
+      &::after {
+        display: block;
+      }
+    }
+  }
+
+  .sidebar-expanded {
+    .app-nav {
+      .nav-header a {
+        span {
+          opacity: 1;
+        }
+
+        &::before {
+          display: none;
+        }
+
+        &::after {
+          display: block;
+          position: static;
+          translate: 0;
+        }
+      }
+
+      .nav-label {
+        opacity: 1;
+      }
+
+      .badge {
+        position: static;
+        width: auto;
+        height: auto;
+        text-indent: 0;
+        padding: var(--#{$prefix}badge-padding-y) var(--#{$prefix}badge-padding-x);
+      }
+    }
+
+    .nav-tooltip {
+      display: none !important;
+    }
+  }
+}
+
+@include media-breakpoint-up(xl) {
+  .sidebar-collapsed {
+    .app-nav {
+      .nav-label {
+        @include collapsed-nav-label;
+      }
+
+      .badge {
+        @include collapsed-nav-badge;
+      }
+
+      .nav-header a {
+        @include collapsed-nav-header;
+      }
+
+      .collapsed .nav-header a {
+        &::after {
+          display: block;
+        }
+      }
+    }
+
+    .nav-tooltip {
+      display: block !important;
+    }
+  }
+}
+
+@media (prefers-reduced-motion) {
+  .app-nav {
+    .nav-label,
+    .nav-header a span {
+      transition: none;
+    }
+  }
+}

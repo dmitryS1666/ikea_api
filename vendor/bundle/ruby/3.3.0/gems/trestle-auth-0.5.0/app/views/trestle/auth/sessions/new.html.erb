@@ -1,0 +1,19 @@
+<%= form_for authentication_scope, url: login_path, html: { class: "login-form" } do |f| %>
+  <header class="auth-header">
+    <%= hook("auth.login.heading") do %>
+      <h1><%= trestle_auth_title %></h1>
+    <% end %>
+  </header>
+
+  <% if flash[:error] -%>
+    <div class="alert alert-danger error-bg">
+      <p><%= flash[:error] %></p>
+    </div>
+  <% end -%>
+
+  <%= hook("auth.login.form.before") %>
+
+  <%= render "form", f: f %>
+
+  <%= hook("auth.login.form.after") %>
+<% end %>

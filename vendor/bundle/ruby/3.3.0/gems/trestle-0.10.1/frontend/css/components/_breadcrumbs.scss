@@ -1,0 +1,19 @@
+.breadcrumb {
+  --#{$prefix}breadcrumb-font-size: 0.75rem;
+  --#{$prefix}breadcrumb-item-padding-x: 0.35rem;
+
+  @include media-breakpoint-down(md) {
+    --#{$prefix}breadcrumb-font-size: 0.625rem;
+    --#{$prefix}breadcrumb-item-padding-x: 0.25rem;
+  }
+}
+
+.breadcrumb-item {
+  a {
+    font-weight: normal;
+  }
+
+  &.active a {
+    color: inherit;
+  }
+}
