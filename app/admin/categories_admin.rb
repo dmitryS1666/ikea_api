@@ -422,6 +422,8 @@ Trestle.resource(:categories, model: Category) do
     post :import_products_csv, on: :member
     post :add_product, on: :member
     post :remove_product, on: :member
+    # Совместимость со ссылками старой админки, которые открывают action через GET.
+    get :remove_product, on: :member
     post :reassign_products, on: :member
     post :move_node, on: :collection
   end
