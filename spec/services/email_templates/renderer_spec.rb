@@ -109,10 +109,41 @@ RSpec.describe EmailTemplates::Renderer do
   it "links the abandoned-cart button to the cart" do
     order.update!(checkout_draft: true)
 
+    allow(MarketingUnsubscribeService).to receive(:url_for)
+      .with(user)
+      .and_return("https://ikeya.by/unsubscribe?token=signed-token")
+
     html = described_class.render(:abandoned_cart, order: order, user: user)
 
     expect(html).to include('href="https://ikeya.by/cart"')
+    expect(html).to include('href="https://ikeya.by/unsubscribe?token=signed-token"')
+    expect(html).to include("отписаться")
+    expect(html).not_to include("{{unsubscribe_url}}")
     expect(html).not_to include('href="https://ikeya.by/checkout" class="status-btn"')
+  end
+
+  it "does not add an unsubscribe link to order status emails" do
+    html = described_class.render(:order_created, order: order, user: user)
+
+    expect(html).not_to include("{{unsubscribe_url}}")
+    expect(html).not_to include("/unsubscribe?token=")
+  end
+
+  it "links unsubscribe placeholders in verification emails" do
+    allow(MarketingUnsubscribeService).to receive(:url_for)
+      .with(user)
+      .and_return("https://ikeya.by/unsubscribe?token=signed-token")
+
+    %i[welcome email_changed].each do |template_key|
+      html = described_class.render(
+        template_key,
+        user: user,
+        verify_email_url: "https://ikeya.by/api/v1/account/profile/change_email_verify?token=verify"
+      )
+
+      expect(html).to include('href="https://ikeya.by/unsubscribe?token=signed-token"')
+      expect(html).not_to include("{{unsubscribe_url}}")
+    end
   end
 
   it "links repeat order button to the signed reorder endpoint" do
@@ -243,7 +274,7 @@ RSpec.describe EmailTemplates::Renderer do
 
     html = described_class.render(:shipped_to_pvz, order: order.reload, user: user)
 
-    expect(html).to include("Ваш заказ в доставке на")
+    expect(html).to include("Ваш заказ в доставке!")
     expect(html).to include("Татьяна")
     expect(html).to include("№#{order.public_uid}")
     expect(html).to include("3 товара")

@@ -3,7 +3,9 @@
 require "rails_helper"
 
 RSpec.describe SendAbandonedCartEmailsJob, type: :job do
-  let(:user) { create(:user, email: "customer@example.com") }
+  let(:user) do
+    create(:user, email: "customer@example.com", email_marketing: true, newsletter_consent: true)
+  end
 
   before do
     allow(ENV).to receive(:fetch).and_call_original
@@ -72,6 +74,16 @@ RSpec.describe SendAbandonedCartEmailsJob, type: :job do
     expect(TransactionalEmailService).not_to have_received(:send_order_email)
     expect(finalized.reload.abandoned_cart_email_sent_at).to be_nil
     expect(without_email.reload.abandoned_cart_email_sent_at).to be_nil
+  end
+
+  it "does not email a user who unsubscribed from marketing" do
+    user.update!(email_marketing: false, newsletter_consent: false)
+    order = abandoned_draft(updated_at: 2.hours.ago)
+
+    described_class.perform_now
+
+    expect(TransactionalEmailService).not_to have_received(:send_order_email)
+    expect(order.reload.abandoned_cart_email_sent_at).to be_nil
   end
 
   it "releases the one-time marker when enqueueing fails" do

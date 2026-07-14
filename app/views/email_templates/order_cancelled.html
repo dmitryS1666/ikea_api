@@ -1,18 +1,58 @@
 <!DOCTYPE html>
 
 <html>
+
 <head>
-<meta content="text/html; charset=utf-8" http-equiv="content-type"/>
-<meta content="width=device-width,initial-scale=1" name="viewport"/>
-<style type="text/css">
-		table { mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; }
-		td { padding: 0; margin: 0; }
-		img { border: 0; display: block; }
-		a { text-decoration: none !important; }
-@media only screen and (max-width: 600px) {
-				.status-text-div { display: block !important; width: 100% !important; max-width: 100% !important; padding-right: 0 !important; padding-bottom: 24px !important; text-align: left !important; box-sizing: border-box !important; }
-				.status-img-div { display: block !important; width: 100% !important; max-width: 100% !important; text-align: center !important; margin: 0 auto !important; box-sizing: border-box !important; }
-			.status-img-div img { display: block !important; margin-left: auto !important; margin-right: auto !important; }
+	<meta content="text/html; charset=utf-8" http-equiv="content-type" />
+	<meta content="width=device-width,initial-scale=1" name="viewport" />
+	<style type="text/css">
+		table {
+			mso-table-lspace: 0pt;
+			mso-table-rspace: 0pt;
+			border-collapse: collapse;
+			border-spacing: 0;
+		}
+
+		td {
+			padding: 0;
+			margin: 0;
+		}
+
+		img {
+			border: 0;
+			display: block;
+		}
+
+		a {
+			text-decoration: none !important;
+		}
+
+		@media only screen and (max-width: 600px) {
+			.status-text-div {
+				display: block !important;
+				width: 100% !important;
+				max-width: 100% !important;
+				padding-right: 0 !important;
+				padding-bottom: 24px !important;
+				text-align: left !important;
+				box-sizing: border-box !important;
+			}
+
+			.status-img-div {
+				display: block !important;
+				width: 100% !important;
+				max-width: 100% !important;
+				text-align: center !important;
+				margin: 0 auto !important;
+				box-sizing: border-box !important;
+			}
+
+			.status-img-div img {
+				display: block !important;
+				margin-left: auto !important;
+				margin-right: auto !important;
+			}
+
 			.wrapper {
 				width: 100% !important;
 			}
@@ -56,9 +96,11 @@
 			.header-spacer {
 				display: none !important;
 			}
+
 			.header-logo-cell {
 				width: 100% !important;
 			}
+
 			.header-phone-cell {
 				padding: 17px 24px 17px 0 !important;
 				white-space: nowrap !important;
@@ -84,11 +126,16 @@
 				margin-bottom: 20px;
 			}
 
-			
-			.status-title, .status-subtitle { text-align: left !important; }
+
+			.status-title,
+			.status-subtitle {
+				text-align: left !important;
+			}
+
 			.status-inner {
 				padding: 24px 16px 0 16px !important;
 			}
+
 			.status-btn {
 				display: block !important;
 				width: 100% !important;
@@ -98,79 +145,97 @@
 
 
 
-			
+
 			.header-logo-cell {
 				padding-left: 16px !important;
 			}
+
 			.header-right-gap {
 				display: none !important;
 				width: 0 !important;
 			}
+
 			.contacts-phone-row td {
 				height: 12px !important;
 				font-size: 12px !important;
 				line-height: 12px !important;
 			}
+
 			.footer-inner {
 				padding: 16px !important;
 			}
+
 			.main-inner {
 				padding: 16px !important;
 			}
+
 			.order-bg {
 				padding: 12px 16px 0 16px !important;
 			}
+
 			.customs-duty-outer-td {
 				padding: 0 16px !important;
 			}
+
 			.wcs-outer-td {
 				padding: 0 16px 16px 16px !important;
 			}
+
 			.advantages-inner {
 				padding: 24px 16px 12px 16px !important;
 			}
+
 			.special-offers-outer {
 				padding: 16px 16px 12px 16px !important;
 			}
+
 			.section-bg-td {
 				padding-left: 0 !important;
 				padding-right: 0 !important;
 			}
 
-			
+
 			.special-offers-card {
 				display: block !important;
 			}
+
 			.special-offers-img-cell {
 				display: block !important;
 				width: auto !important;
 				padding-bottom: 8px !important;
 			}
+
 			.special-offers-img-cell img {
 				display: block !important;
 			}
+
 			.special-offers-gap-cell {
 				display: none !important;
 			}
+
 			.special-offers-text-cell {
 				display: block !important;
 				width: 100% !important;
 			}
+
 			.special-offers-card table {
 				width: 100% !important;
 			}
-			.special-offers-card > table > tbody > tr {
+
+			.special-offers-card>table>tbody>tr {
 				display: block !important;
 			}
-		
 
-			
+
+
 			.footer-inner {
 				padding: 16px 16px 24px 16px !important;
 			}
+
 			.footer-main-row {
 				display: block !important;
 			}
+
 			.company-info-cell {
 				display: block !important;
 				width: 100% !important;
@@ -178,15 +243,17 @@
 				padding-top: 0 !important;
 				vertical-align: top !important;
 			}
-			
+
 			.company-info-cell .company-address {
 				display: none !important;
 				mso-hide: all;
 			}
+
 			.footer-gap-cell {
 				display: none !important;
 				mso-hide: all;
 			}
+
 			.footer-right {
 				display: block !important;
 				width: 100% !important;
@@ -194,13 +261,16 @@
 				padding: 16px 0 0 0 !important;
 				white-space: nowrap !important;
 			}
+
 			.footer-right-table {
 				width: 100% !important;
 				text-align: left !important;
 			}
+
 			.footer-social-contacts-row {
 				display: table-row !important;
 			}
+
 			.social-networks-block {
 				display: table-cell !important;
 				text-align: left !important;
@@ -208,12 +278,14 @@
 				padding-right: 0 !important;
 				width: auto !important;
 			}
+
 			.footer-sections-gap {
 				display: table-cell !important;
 				width: 100% !important;
 				min-width: 0 !important;
 				vertical-align: top !important;
 			}
+
 			.contacts-block {
 				display: table-cell !important;
 				text-align: left !important;
@@ -222,14 +294,37 @@
 				padding-left: 16px !important;
 				white-space: nowrap !important;
 			}
-			
+
 
 		}
-@media only screen and (min-width: 601px) {
-			.status-inner { padding: 32px 24px 0 24px !important; }
-			.status-text-div { display: inline-block !important; width: 100% !important; max-width: 320px !important; padding-right: 16px !important; padding-bottom: 24px !important; text-align: left !important; vertical-align: top !important; box-sizing: border-box !important; }
-			.status-img-div { display: inline-block !important; width: 100% !important; max-width: 232px !important; vertical-align: top !important; text-align: center !important; margin: 0 auto !important; box-sizing: border-box !important; }
+
+		@media only screen and (min-width: 601px) {
+			.status-inner {
+				padding: 32px 24px 0 24px !important;
+			}
+
+			.status-text-div {
+				display: inline-block !important;
+				width: 100% !important;
+				max-width: 320px !important;
+				padding-right: 16px !important;
+				padding-bottom: 24px !important;
+				text-align: left !important;
+				vertical-align: top !important;
+				box-sizing: border-box !important;
+			}
+
+			.status-img-div {
+				display: inline-block !important;
+				width: 100% !important;
+				max-width: 232px !important;
+				vertical-align: top !important;
+				text-align: center !important;
+				margin: 0 auto !important;
+				box-sizing: border-box !important;
+			}
 		}
+
 		.totals-label span {
 			font-family: HelveticaNeueCyr, Arial, sans-serif;
 			font-weight: 400;
@@ -238,6 +333,7 @@
 			letter-spacing: 0;
 			color: #181818;
 		}
+
 		.span-count {
 			font-family: HelveticaNeueCyr, Arial, sans-serif;
 			font-weight: 400;
@@ -246,6 +342,7 @@
 			letter-spacing: 0;
 			color: #666C71;
 		}
+
 		.span-price {
 			font-family: HelveticaNeueCyr, Arial, sans-serif;
 			font-weight: 600;
@@ -254,6 +351,7 @@
 			letter-spacing: 0;
 			color: #181818;
 		}
+
 		.span-free {
 			font-family: HelveticaNeueCyr, Arial, sans-serif;
 			font-weight: 600;
@@ -262,6 +360,7 @@
 			letter-spacing: 0;
 			color: #00910A;
 		}
+
 		.span-discount {
 			font-family: HelveticaNeueCyr, Arial, sans-serif;
 			font-weight: 600;
@@ -270,6 +369,7 @@
 			letter-spacing: 0;
 			color: #CE0061;
 		}
+
 		.span-total-label {
 			font-family: HelveticaNeueCyr, Arial, sans-serif;
 			font-weight: 700;
@@ -278,6 +378,7 @@
 			letter-spacing: 0;
 			color: #181818;
 		}
+
 		.span-total-value {
 			font-family: HelveticaNeueCyr, Arial, sans-serif;
 			font-weight: 700;
@@ -286,65 +387,491 @@
 			letter-spacing: 0;
 			color: #0058A3;
 		}
+
+		/* STATUS + ADVANTAGES: phone layout; desktop fallback remains inline for Yandex. */
+		@media only screen and (max-width: 520px) {
+			.status-text-div { display: block !important; width: 100% !important; min-width: 0 !important; max-width: 100% !important; margin-right: 0 !important; padding-right: 0 !important; text-align: center !important; }
+			.status-img-div { display: block !important; width: 100% !important; min-width: 0 !important; max-width: 100% !important; text-align: center !important; }
+			.status-img-div img { width: 100% !important; max-width: 300px !important; height: auto !important; margin: 0 auto !important; }
+			.status-title { font-size: 18px !important; }
+			.status-title, .status-subtitle { text-align: left !important; }
+			.status-inner { padding: 24px 16px 0 16px !important; }
+			.status-btn { display: block !important; width: 100% !important; box-sizing: border-box !important; text-align: center !important; }
+			.advantages-inner { padding: 24px 16px 12px 16px !important; }
+			.advantages-pair-div { display: block !important; width: 100% !important; min-width: 0 !important; max-width: 268px !important; margin-left: auto !important; margin-right: auto !important; }
+		}
+
+		/* STATUS + ADVANTAGES: keep desktop layout in Yandex/Gmail/Mail.ru when viewport is wider than phone. */
+		@media only screen and (min-width: 521px) {
+			.status-text-div { display: inline-block !important; width: 304px !important; min-width: 0 !important; max-width: 100% !important; margin-right: 16px !important; padding-right: 0 !important; text-align: left !important; }
+			.status-img-div { display: inline-block !important; width: 232px !important; min-width: 0 !important; max-width: 100% !important; text-align: center !important; margin: 0 !important; }
+			.status-img-div img { width: 100% !important; max-width: 300px !important; height: auto !important; margin: 0 auto !important; }
+			.status-inner { padding: 32px 0 0 0 !important; }
+			.status-inner tr { display: table-row !important; }
+			.advantages-inner { padding: 24px 0 12px 0 !important; }
+			.advantages-pair-div { display: inline-block !important; width: 268px !important; min-width: 0 !important; max-width: 100% !important; vertical-align: top !important; margin-left: 0 !important; margin-right: 0 !important; }
+		}
 </style>
 </head>
-<body bgcolor="#EFEFEF" class="body" style="width: 100%; height: 100%; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; padding: 0; margin: 0; background-color: #EFEFEF">
-<div class="page-bg" style="background-color: #efefef"><!-- GMAIL FIX -->
-<table align="center" border="0" cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr height="0">
-<td style="padding: 0; margin: 0">
-<table align="center" border="0" cellpadding="0" cellspacing="0" class="wrapper" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto">
-<tbody>
-<tr>
-<td class="gmail-fix-td" style="padding: 0; margin: 0; line-height: 1px; min-width: 0"><img alt="" height="1" src="https://via.placeholder.com/600x1/EFEFEF/EFEFEF" style="border: 0; display: block; max-height: 0; min-height: 0; min-width: 0; width: 1px" width="1"/></td>
-</tr>
-</tbody>
-</table>
-</td>
-</tr>
-</tbody>
-</table>
-<!-- ОСНОВНОЙ КОНТЕЙНЕР -->
-<table align="center" cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td align="center" style="padding: 0; margin: 0" valign="top"><!-- OPEN -->
-<table align="center" cellpadding="0" cellspacing="0" class="wrapper open" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; margin: 0 auto; background-color: #181818; max-width: 600px">
-<tbody>
-<tr>
-<td style="padding: 0 20px; margin: 0; height: 18px; line-height: 18px; text-align: center">
-<p style='margin: 0; font-family: "HelveticaNeueCyr", Arial, sans-serif; font-size: 10px; line-height: 100%; color: #666C71'>Письмо не открывается? <u class="open-link-bold" style="font-weight: bold"><a href="#" rel="noopener noreferrer" style="text-decoration: underline !important; color: #666C71 !important">Открыть в браузере</a></u></p>
-</td>
-</tr>
-</tbody>
-</table>
+
+<body bgcolor="#EFEFEF" class="body"
+	style="width: 100%; height: 100%; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; padding: 0; margin: 0; background-color: #EFEFEF">
+	<div class="page-bg" style="background-color: #efefef"><!-- GMAIL FIX -->
+		<table align="center" border="0" cellpadding="0" cellspacing="0"
+			style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+			width="100%">
+			<tbody>
+				<tr height="0">
+					<td style="padding: 0; margin: 0">
+						<table align="center" border="0" cellpadding="0" cellspacing="0" class="wrapper"
+							style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto">
+							<tbody>
+								<tr>
+									<td class="gmail-fix-td"
+										style="padding: 0; margin: 0; line-height: 1px; min-width: 0"><img alt=""
+											height="1" src="https://via.placeholder.com/600x1/EFEFEF/EFEFEF"
+											style="border: 0; display: block; max-height: 0; min-height: 0; min-width: 0; width: 1px"
+											width="1" /></td>
+								</tr>
+							</tbody>
+						</table>
+					</td>
+				</tr>
+			</tbody>
+		</table>
+		<!-- ОСНОВНОЙ КОНТЕЙНЕР -->
+		<table align="center" cellpadding="0" cellspacing="0"
+			style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+			width="100%">
+			<tbody>
+				<tr>
+					<td align="center" style="padding: 0; margin: 0" valign="top"><!-- OPEN -->
+						<table align="center" cellpadding="0" cellspacing="0" class="wrapper open"
+							style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; margin: 0 auto; background-color: #181818; max-width: 600px">
+							<tbody>
+								<tr>
+									<td
+										style="padding: 0 20px; margin: 0; height: 18px; line-height: 18px; text-align: center">
+										<p
+											style='margin: 0; font-family: "HelveticaNeueCyr", Arial, sans-serif; font-size: 10px; line-height: 100%; color: #666C71'>
+											Письмо не открывается? <u class="open-link-bold"
+												style="font-weight: bold"><a href="{{webversion}}"
+													rel="noopener noreferrer"
+													style="text-decoration: underline !important; color: #666C71 !important">Открыть
+													в браузере</a></u></p>
+									</td>
+								</tr>
+							</tbody>
+						</table>
 						<!-- HEADER -->
-						<table cellspacing="0" cellpadding="0" align="center" class="wrapper header" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FFFFFF">
+						<table cellspacing="0" cellpadding="0" align="center" class="wrapper header"
+							style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FFFFFF">
 							<tbody>
 								<tr>
 									<td style="padding: 0; margin: 0">
-										<table width="100%" cellspacing="0" cellpadding="0" class="header-inner" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; height: 52px; background-color: #FFFFFF">
+										<table width="100%" cellspacing="0" cellpadding="0" class="header-inner"
+											style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; height: 52px; background-color: #FFFFFF">
 											<tbody>
 												<tr>
-													<td class="header-logo-cell" style="padding: 17px 0 17px 24px; margin: 0"><a rel="noopener noreferrer" href="#" style="text-decoration: none !important"><img src="https://s9345793.sendpul.se/image/747991a0e145ac2bbe69f063a9402e69/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/title.png" alt="IKEYA" width="101" height="18" caption="false" style="border: 0; display: block"/></a>
+													<td class="header-logo-cell"
+														style="padding: 17px 0 17px 24px; margin: 0"><a
+															rel="noopener noreferrer" href="https://ikeya.by/"
+															style="text-decoration: none !important"><img
+																src="https://s9345793.sendpul.se/image/747991a0e145ac2bbe69f063a9402e69/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/title.png"
+																alt="IKEYA" width="101" height="18" caption="false"
+																style="border: 0; display: block" /></a>
 													</td>
-													<td class="header-spacer" style="padding: 0; margin: 0; width: 250px"> </td>
-													<td class="header-phone-cell" style="padding: 0; margin: 0; white-space: nowrap">
-														<table cellspacing="0" cellpadding="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
+													<td class="header-spacer"
+														style="padding: 0; margin: 0; width: 250px"> </td>
+													<td class="header-phone-cell"
+														style="padding: 0; margin: 0; white-space: nowrap">
+														<table cellspacing="0" cellpadding="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
 															<tbody>
 																<tr>
-																	<td style="padding: 0; margin: 0"><a rel="noopener noreferrer" href="tel:+7123" style="text-decoration: none !important"><img src="https://s9345793.sendpul.se/image/747991a0e145ac2bbe69f063a9402e69/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/call-fill.png" width="18" height="18" caption="false" style="border: 0; display: block"/></a></td>
-																	<td class="icon-gap-3" style="padding: 0; margin: 0; width: 3px"> </td>
-																	<td style="padding: 0; margin: 0"><a rel="noopener noreferrer" href="tel:+7123" class="header-link" style="text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 700; font-size: 18px; line-height: 24px; letter-spacing: 0.1px; color: #0058A3 !important; white-space: nowrap">2626</a></td>
+																	<td style="padding: 0; margin: 0"><a
+																			rel="noopener noreferrer"
+																			href="tel:+375445794444"
+																			style="text-decoration: none !important"><img
+																				src="https://s9345793.sendpul.se/image/747991a0e145ac2bbe69f063a9402e69/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/call-fill.png"
+																				width="18" height="18" caption="false"
+																				style="border: 0; display: block" /></a>
+																	</td>
+																	<td class="icon-gap-3"
+																		style="padding: 0; margin: 0; width: 3px"> </td>
+																	<td style="padding: 0; margin: 0"><a
+																			rel="noopener noreferrer"
+																			href="tel:+375445794444" class="header-link"
+																			style="text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 700; font-size: 18px; line-height: 24px; letter-spacing: 0.1px; color: #0058A3 !important; white-space: nowrap">+375
+																			(44) 579-44-44
+																		</a>
+																	</td>
 																</tr>
 															</tbody>
 														</table>
 													</td>
-													<td class="header-right-gap" style="padding: 0; margin: 0; width: 24px"> </td>
+													<td class="header-right-gap"
+														style="padding: 0; margin: 0; width: 24px"> </td>
 												</tr>
 												<!-- мобильная строка хедера, скрыта на десктопе -->
-																											</tbody>
+											</tbody>
+										</table>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+					</td>
+				</tr>
+			</tbody>
+		</table>
+	<!-- LINKS -->
+	<table cellspacing="0" cellpadding="0" align="center" class="wrapper links"
+			style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #181818">
+			<tbody>
+				<tr>
+					<td class="links-inner" style="padding: 0; margin: 0; text-align: center; font-size: 0"><a
+							rel="noopener noreferrer" href="https://ikeya.by/catalog/tovary-dlya-hraneniya-veshchey/"
+							class="links-item"
+							style="text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 600; font-size: 12px; line-height: 12px; color: #F8F9FA !important; display: inline-block; width: 140px; padding: 10px 0; text-align: center; background-color: #181818; vertical-align: middle">Товары
+							для хранения</a><!--
+--><a rel="noopener noreferrer" href="https://ikeya.by/catalog/postelnoe-bele/" class="links-item"
+							style="text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 600; font-size: 12px; line-height: 12px; color: #F8F9FA !important; display: inline-block; width: 140px; padding: 10px 0; text-align: center; background-color: #181818; vertical-align: middle">Постельное
+							белье</a><!--
+--><a rel="noopener noreferrer" href="https://ikeya.by/catalog/mebel-dlya-hraneniya/" class="links-item"
+							style="text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 600; font-size: 12px; line-height: 12px; color: #F8F9FA !important; display: inline-block; width: 140px; padding: 10px 0; text-align: center; background-color: #181818; vertical-align: middle">Мебель
+							для хранения
+						</a><!--
+--><a rel="noopener noreferrer" href="https://ikeya.by/catalog/tekstil-i-kovry/" class="links-item"
+							style="text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 600; font-size: 12px; line-height: 12px; color: #F8F9FA !important; display: inline-block; width: 140px; padding: 10px 0; text-align: center; background-color: #181818; vertical-align: middle">Текстиль
+							и ковры
+						</a>
+					</td>
+				</tr>
+			</tbody>
+		</table>
+				<!-- STATUS -->
+		<table cellspacing="0" cellpadding="0" align="center" class="wrapper status"
+			style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FFFFFF">
+			<tbody>
+				<tr>
+					<td class="status-inner" style="padding: 32px 0 0 0; margin: 0">
+						<table cellspacing="0" cellpadding="0" width="100%"
+							style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
+							<tbody>
+								<tr>
+									<td style="padding: 0; font-size: 0; vertical-align: top; text-align: center;">
+										<!--[if mso]><table width="552" cellpadding="0" cellspacing="0"><tr><td width="320" valign="top"><![endif]-->
+										<div class="status-text-div"
+											style="display: inline-block; width: 304px; max-width: 100%; vertical-align: top; box-sizing: border-box; margin-right: 16px; padding-bottom: 24px; text-align: left;">
+											<p class="status-title"
+												style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 700; font-style: bold; font-size: 18px; line-height: 24px; color: #000A12; margin: 0 0 16px 0">
+												<span class="blue" style="color: #0058A3 !important">Ваш заказ
+													отменен!</span></p>
+											<p class="status-subtitle"
+												style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 400; font-style: normal; font-size: 14px; line-height: 20px; color: #757575; margin: 0 0 16px 0">
+												<span class="bold"
+													style="font-weight: 600; font-style: normal; display: block; margin-bottom: 4px">Здравствуйте,
+													Имя</span>Мы не получили оплату, поэтому заказ пришлось отменить. Вы
+												можете оформить заказ заново</p>
+											<a rel="noopener noreferrer" href="#" class="status-btn"
+												style="text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 700; font-size: 14px; line-height: 20px; color: #FFFFFF !important; background-color: #0058A3; padding: 10px 26px; display: block; width: 100%; box-sizing: border-box; text-align: center; border-radius: 8px;">Повторить
+												заказ</a>
+										</div><!--
+--><!--[if mso]></td><td width="232" valign="top"><![endif]--><!--
+-->
+										<div class="status-img-div"
+											style="display: inline-block; width: 232px; max-width: 100%; vertical-align: top; box-sizing: border-box; text-align: center; margin: 0;">
+											<img src="https://s9392398.sendpul.se/image/files/emailservice/userfiles/4f71504901e3bb8e5f180e2f07a251949392398/Frame_2904_3.png"
+																alt="Frame_2904_1" width="300" height="256"
+																caption="false"
+																style="border: 0; display: block; width: 100%; max-width: 300px; height: auto; margin: 0 auto" />
+										</div>
+										<!--[if mso]></td></tr></table><![endif]-->
+									</td>
+								</tr>
+							</tbody>
+						</table>
+					</td>
+				</tr>
+			</tbody>
+		</table>
+		<!-- ORDER / CUSTOMS_DUTY / WCS: общий серый фон -->
+		<table align="center" cellpadding="0" cellspacing="0" class="wrapper section-bg"
+			style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; margin: 0 auto; background-color: #FAFAFA; max-width: 600px">
+			<tbody>
+				<tr>
+					<td class="section-bg-td" style="padding: 0; margin: 0; background-color: #FAFAFA"><!-- ORDER -->
+						<table align="center" cellpadding="0" cellspacing="0" class="wrapper order-wrapper"
+							style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FAFAFA">
+							<tbody>
+								<tr>
+									<td class="order-bg" style="background-color: #FAFAFA; padding: 12px 24px 0 24px">
+										<table cellpadding="0" cellspacing="0" class="main-block"
+											style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: separate; border-spacing: 0; background-color: #FFFFFF; border: 1px solid #EEEEEE; border-radius: 8px"
+											width="100%">
+											<tbody>
+												<tr>
+													<td class="main-inner" style="padding: 24px 16px 24px 16px">
+														<!-- ORDER: header -->
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td style="padding: 0; margin: 0">
+																		<p class="order-title"
+																			style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 700; font-style: bold; font-size: 22px; line-height: 100%; color: #181818; letter-spacing: 0px; margin: 0 0 4px 0">
+																			Заказ:</p>
+																		<p class="order-number-row"
+																			style="margin: 0 0 12px 0"><span
+																				class="order-number-label"
+																				style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-size: 14px; font-weight: 600; color: #666C71; line-height: 100%; letter-spacing: 0; margin: 0; display: inline">Номер
+																				заказа:
+																			</span><a href="#"
+																				style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; color: #000A12 !important; font-size: 14px; line-height: 100%; letter-spacing: 0; text-decoration: none !important; pointer-events: none; cursor: default">№1234567</a>
+																		</p>
+																	</td>
+																</tr>
+															</tbody>
+														</table>
+														<!-- ORDER: product 1 -->
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="product-name"
+																		style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-style: normal; color: #181818; font-size: 12px; line-height: 16px; letter-spacing: 0.1px; text-align: left; vertical-align: top; width: 70%">
+																		NATTSLÄNDA</td>
+																	<td class="product-price"
+																		style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-style: normal; color: #181818; font-size: 14px; line-height: 20px; letter-spacing: 0.1px; text-align: right; vertical-align: top; width: 30%; white-space: nowrap">
+																		143.93 р.</td>
+																</tr>
+																<tr>
+																	<td class="product-description"
+																		style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #757575; text-align: left; vertical-align: top; padding-top: 2px">
+																		Пододеяльник и
+																		наволочка, разноцветный цветочный узор,
+																		150x200/50x60 см</td>
+																	<td class="product-quantity"
+																		style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 12px; line-height: 16px; color: #757575; letter-spacing: 0.4px; text-align: right; vertical-align: top; padding-top: 2px; white-space: nowrap">
+																		1 шт.</td>
+																</tr>
+															</tbody>
+														</table>
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="product-spacer"
+																		style="padding: 0; margin: 0; height: 16px">
+																	</td>
+																</tr>
+															</tbody>
+														</table>
+														<!-- ORDER: product 2 -->
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="product-name"
+																		style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-style: normal; color: #181818; font-size: 12px; line-height: 16px; letter-spacing: 0.1px; text-align: left; vertical-align: top; width: 70%">
+																		NATTSLÄNDA</td>
+																	<td class="product-price"
+																		style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-style: normal; color: #181818; font-size: 14px; line-height: 20px; letter-spacing: 0.1px; text-align: right; vertical-align: top; width: 30%; white-space: nowrap">
+																		143.93 р.</td>
+																</tr>
+																<tr>
+																	<td class="product-description"
+																		style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #757575; text-align: left; vertical-align: top; padding-top: 2px">
+																		Пододеяльник и
+																		наволочка, разноцветный цветочный узор,
+																		150x200/50x60 см</td>
+																	<td class="product-quantity"
+																		style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 12px; line-height: 16px; color: #757575; letter-spacing: 0.4px; text-align: right; vertical-align: top; padding-top: 2px; white-space: nowrap">
+																		1 шт.</td>
+																</tr>
+															</tbody>
+														</table>
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="product-spacer"
+																		style="padding: 0; margin: 0; height: 16px">
+																	</td>
+																</tr>
+															</tbody>
+														</table>
+														<!-- ORDER: product 3 -->
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="product-name"
+																		style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-style: normal; color: #181818; font-size: 12px; line-height: 16px; letter-spacing: 0.1px; text-align: left; vertical-align: top; width: 70%">
+																		NATTSLÄNDA</td>
+																	<td class="product-price"
+																		style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-style: normal; color: #181818; font-size: 14px; line-height: 20px; letter-spacing: 0.1px; text-align: right; vertical-align: top; width: 30%; white-space: nowrap">
+																		143.93 р.</td>
+																</tr>
+																<tr>
+																	<td class="product-description"
+																		style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #757575; text-align: left; vertical-align: top; padding-top: 2px">
+																		Пододеяльник и
+																		наволочка, разноцветный цветочный узор,
+																		150x200/50x60 см</td>
+																	<td class="product-quantity"
+																		style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 12px; line-height: 16px; color: #757575; letter-spacing: 0.4px; text-align: right; vertical-align: top; padding-top: 2px; white-space: nowrap">
+																		1 шт.</td>
+																</tr>
+															</tbody>
+														</table>
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="product-spacer"
+																		style="padding: 0; margin: 0; height: 16px">
+																	</td>
+																</tr>
+															</tbody>
+														</table>
+														<!-- ORDER: product 4 -->
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="product-name"
+																		style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-style: normal; color: #181818; font-size: 12px; line-height: 16px; letter-spacing: 0.1px; text-align: left; vertical-align: top; width: 70%">
+																		NATTSLÄNDA</td>
+																	<td class="product-price"
+																		style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-style: normal; color: #181818; font-size: 14px; line-height: 20px; letter-spacing: 0.1px; text-align: right; vertical-align: top; width: 30%; white-space: nowrap">
+																		143.93 р.</td>
+																</tr>
+																<tr>
+																	<td class="product-description"
+																		style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #757575; text-align: left; vertical-align: top; padding-top: 2px">
+																		Пододеяльник и
+																		наволочка, разноцветный цветочный узор,
+																		150x200/50x60 см</td>
+																	<td class="product-quantity"
+																		style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 12px; line-height: 16px; color: #757575; letter-spacing: 0.4px; text-align: right; vertical-align: top; padding-top: 2px; white-space: nowrap">
+																		1 шт.</td>
+																</tr>
+															</tbody>
+														</table>
+														<!-- ORDER: divider -->
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="divider-cell"
+																		style="padding: 24px 0 16px; margin: 0">
+																		<table border="0" cellpadding="0"
+																			cellspacing="0"
+																			style="mso-table-lspace:0pt;mso-table-rspace:0pt;border-collapse:collapse;border-spacing:0;"
+																			width="100%">
+																			<tbody>
+																				<tr>
+																					<td
+																						style="padding:0;margin:0;height:0;font-size:0;line-height:0;border-top:1px dashed #BDBDBD;">
+																						 </td>
+																				</tr>
+																			</tbody>
+																		</table>
+																	</td>
+																</tr>
+															</tbody>
+														</table>
+														<!-- ORDER: totals -->
+														<table cellpadding="0" cellspacing="0" class="totals-table"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="totals-label"
+																		style="padding: 0; margin: 0; text-align: left">
+																		<span>Всего</span></td>
+																	<td class="totals-value totals-count"
+																		style="padding: 0; margin: 0; text-align: right; white-space: nowrap; font-weight: 400; font-size: 12px; color: #666C71; line-height: 16px">
+																		<span class="span-count"
+																			style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 12px; line-height: 16px; letter-spacing: 0; color: #666C71">3
+																			товара</span></td>
+																</tr>
+																<tr>
+																	<td class="totals-label"
+																		style="padding: 0; margin: 0; text-align: left">
+																		<span>Стоимость
+																			товаров</span></td>
+																	<td class="totals-value"
+																		style="padding: 0; margin: 0; text-align: right; white-space: nowrap; font-weight: 600; font-size: 14px; color: #181818">
+																		<span class="span-price"
+																			style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-size: 14px; line-height: 20px; letter-spacing: 0; color: #181818">2
+																			430.93 р.</span></td>
+																</tr>
+																<tr>
+																	<td class="totals-label"
+																		style="padding: 0; margin: 0; text-align: left">
+																		<span>Доставка в
+																			Беларусь</span></td>
+																	<td class="totals-value totals-free"
+																		style="padding: 0; margin: 0; text-align: right; white-space: nowrap; font-weight: 600; font-size: 14px; color: #00910A !important">
+																		<span class="span-price"
+																			style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-size: 14px; line-height: 20px; letter-spacing: 0; color: #181818">56
+																			р.</span></td>
+																</tr>
+																<tr>
+																	<td class="totals-label"
+																		style="padding: 0; margin: 0; text-align: left">
+																		<span>Скидка по
+																			промокоду</span></td>
+																	<td class="totals-value totals-discount"
+																		style="padding: 0; margin: 0; text-align: right; white-space: nowrap; font-weight: 600; font-size: 14px; color: #CE0061 !important">
+																		<span class="span-discount"
+																			style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-size: 14px; line-height: 20px; letter-spacing: 0; color: #CE0061">30
+																			р.</span></td>
+																</tr>
+															</tbody>
+														</table>
+														<!-- ORDER: totals spacer -->
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="totals-final-spacer"
+																		style="padding: 0; margin: 0; height: 16px">
+																	</td>
+																</tr>
+															</tbody>
+														</table>
+														<!-- ORDER: total final -->
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="totals-final-label"
+																		style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 700; font-style: bold; font-size: 24px; line-height: 32px; color: #181818; letter-spacing: 0">
+																		<span class="span-total-label"
+																			style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 700; font-size: 24px; line-height: 32px; letter-spacing: 0; color: #181818">Итого:</span>
+																	</td>
+																	<td class="totals-final-value"
+																		style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-size: 24px; font-weight: 700; color: #0058A3 !important; line-height: 32px; letter-spacing: 0; text-align: right; white-space: nowrap">
+																		<span class="span-total-value"
+																			style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 700; font-size: 24px; line-height: 32px; letter-spacing: 0; color: #0058A3">2
+																			556.93 р.</span>
+																	</td>
+																</tr>
+															</tbody>
 														</table>
 													</td>
 												</tr>
@@ -354,45 +881,53 @@
 								</tr>
 							</tbody>
 						</table>
-		<!-- LINKS -->
-<table align="center" cellpadding="0" cellspacing="0" class="wrapper links" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #181818">
-<tbody>
-<tr>
-<td class="links-inner" style="padding: 0; text-align: center; font-size: 0"><a class="links-item" href="#" rel="noopener noreferrer" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 600; font-size: 12px; line-height: 12px; color: #F8F9FA !important; display: inline-block; width: 140px; padding: 10px 0; text-align: center; background-color: #181818; vertical-align: middle"><span style="text-decoration: none">Текстиль</span></a><!--
---><a class="links-item" href="#" rel="noopener noreferrer" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 600; font-size: 12px; line-height: 12px; color: #F8F9FA !important; display: inline-block; width: 140px; padding: 10px 0; text-align: center; background-color: #181818; vertical-align: middle"><span style="text-decoration: none">Кровати и матрасы</span></a><!--
---><a class="links-item" href="#" rel="noopener noreferrer" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 600; font-size: 12px; line-height: 12px; color: #F8F9FA !important; display: inline-block; width: 140px; padding: 10px 0; text-align: center; background-color: #181818; vertical-align: middle"><span style="text-decoration: none">Ванные комнаты</span></a><!--
---><a class="links-item" href="#" rel="noopener noreferrer" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 600; font-size: 12px; line-height: 12px; color: #F8F9FA !important; display: inline-block; width: 140px; padding: 10px 0; text-align: center; background-color: #181818; vertical-align: middle"><span style="text-decoration: none">Освещение</span></a></td>
-</tr>
-</tbody>
-</table>
-<!-- STATUS -->
-						<table cellspacing="0" cellpadding="0" align="center" class="wrapper status" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FFFFFF">
+						<!-- CUSTOMS_DUTY -->
+						<table align="center" cellpadding="0" cellspacing="0" class="wrapper customs-duty"
+							style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FAFAFA; margin-top: 24px; margin-bottom: 24px">
 							<tbody>
 								<tr>
-									<td class="status-inner" style="padding: 32px 24px 0 24px; margin: 0">
-										<table cellspacing="0" cellpadding="0" width="100%" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
+									<td class="customs-duty-outer-td"
+										style="padding: 0 24px; background-color: #FAFAFA">
+										<table cellpadding="0" cellspacing="0" class="customs-duty-card"
+											style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: separate; border-spacing: 0; background-color: #FFFFFF; border: 1px solid #EEEEEE; border-radius: 8px"
+											width="100%">
 											<tbody>
 												<tr>
-													<td class="status-img-outer-td" style="padding: 0; margin: 0; font-size: 0; vertical-align: top; text-align: center;">
-														<!--[if mso]><table width="552" cellpadding="0" cellspacing="0"><tr><td width="320" valign="top"><![endif]-->
-														<div class="status-text-div" style="display: inline-block; width: 100%; max-width: 320px; vertical-align: top; box-sizing: border-box; padding-right: 16px; padding-bottom: 24px; text-align: left;">
-															<p class="status-title" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 700; font-style: bold; font-size: 18px; line-height: 24px; color: #000A12; margin: 0 0 16px 0"><span class="blue" style="color: #0058A3 !important">Ваш заказ отменен!</span></p>
-															<p class="status-subtitle" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 400; font-style: normal; font-size: 14px; line-height: 20px; color: #757575; margin: 0 0 16px 0"><span class="bold" style="font-weight: 600; font-style: normal; display: block; margin-bottom: 4px">Здравствуйте, Имя</span>Мы не получили оплату, поэтому заказ пришлось отменить. Вы можете оформить заказ заново</p>
-															<a rel="noopener noreferrer" href="#" class="status-btn" style="text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 700; font-size: 14px; line-height: 20px; color: #FFFFFF !important; background-color: #0058A3; padding: 10px 26px; display: block; width: 100%; box-sizing: border-box; text-align: center; border-radius: 8px;">Повторить заказ</a>
-														</div><!--
-														--><!--[if mso]></td><td width="232" valign="top"><![endif]--><!--
-														--><div class="status-img-div" align="center" style="display: inline-block; width: 100%; max-width: 232px; vertical-align: top; box-sizing: border-box; text-align: center; margin: 0 auto; float: none;">
-															<table width="100%" cellspacing="0" cellpadding="0" border="0" align="center" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; margin: 0 auto;">
-																<tbody>
-																	<tr>
-																		<td align="center" style="padding: 0; margin: 0; text-align: center;">
-																			<img src="https://s9392398.sendpul.se/image/files/emailservice/userfiles/4f71504901e3bb8e5f180e2f07a251949392398/Frame_2904_3.png" alt="Frame_2904_1" width="300" height="256" caption="false" align="center" style="border: 0; display: block; width: 100%; max-width: 300px; height: auto; margin: 0 auto;"/>
-																		</td>
-																	</tr>
-																</tbody>
-															</table>
-														</div>
-														<!--[if mso]></td></tr></table><![endif]-->
+													<td class="customs-duty-inner" style="padding: 16px">
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="customs-duty-icon"
+																		style="padding: 0; margin: 0; width: 28px; vertical-align: top">
+																		<img alt="add-circle-fill" height="20"
+																			src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/add-circle-fill.png"
+																			style="display: block;" width="20" /></td>
+																	<td class="customs-duty-text-cell"
+																		style="padding: 0; margin: 0; vertical-align: middle">
+																		<span class="customs-duty-amount"
+																			style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #181818">≈65
+																			р.</span>
+																		<span class="customs-duty-desc"
+																			style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #757575">пошлина
+																			не
+																			входит в цену</span>
+																	</td>
+																</tr>
+																<tr>
+																	<td class="customs-duty-link-cell" colspan="2"
+																		style="padding-top: 8px"><a
+																			class="customs-duty-link" href="https://ikeya.by/help/customs/"
+																			rel="noopener noreferrer"
+																			style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; color: #0058A3 !important; text-decoration: underline !important"><span
+																				style="text-decoration: none">Правила
+																				оплаты и
+																				формирование таможенной
+																				пошлины</span></a></td>
+																</tr>
+															</tbody>
+														</table>
 													</td>
 												</tr>
 											</tbody>
@@ -401,504 +936,120 @@
 								</tr>
 							</tbody>
 						</table>
-		<!-- ORDER / CUSTOMS_DUTY / WCS: общий серый фон -->
-<table align="center" cellpadding="0" cellspacing="0" class="wrapper section-bg" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; margin: 0 auto; background-color: #FAFAFA; max-width: 600px">
-<tbody>
-<tr>
-<td class="section-bg-td" style="padding: 0; margin: 0; background-color: #FAFAFA"><!-- ORDER -->
-<table align="center" cellpadding="0" cellspacing="0" class="wrapper order-wrapper" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FAFAFA">
-<tbody>
-<tr>
-<td class="order-bg" style="background-color: #FAFAFA; padding: 12px 24px 0 24px">
-<table cellpadding="0" cellspacing="0" class="main-block" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: separate; border-spacing: 0; background-color: #FFFFFF; border: 1px solid #EEEEEE; border-radius: 8px" width="100%">
-<tbody>
-<tr>
-<td class="main-inner" style="padding: 24px 16px 24px 16px"><!-- ORDER: header -->
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td style="padding: 0; margin: 0">
-<p class="order-title" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 700; font-style: bold; font-size: 22px; line-height: 100%; color: #181818; letter-spacing: 0px; margin: 0 0 4px 0">Заказ:</p>
-<p class="order-number-row" style="margin: 0 0 12px 0"><span class="order-number-label" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-size: 14px; font-weight: 600; color: #666C71; line-height: 100%; letter-spacing: 0; margin: 0; display: inline">Номер заказа:
-																			</span><a href="#" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; color: #000A12 !important; font-size: 14px; line-height: 100%; letter-spacing: 0; text-decoration: none !important; pointer-events: none; cursor: default">№1234567</a>
-</p>
-</td>
-</tr>
-</tbody>
-</table>
-<!-- ORDER: product 1 -->
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="product-name" style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-style: normal; color: #181818; font-size: 12px; line-height: 16px; letter-spacing: 0.1px; text-align: left; vertical-align: top; width: 70%">NATTSLÄNDA</td>
-<td class="product-price" style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-style: normal; color: #181818; font-size: 14px; line-height: 20px; letter-spacing: 0.1px; text-align: right; vertical-align: top; width: 30%; white-space: nowrap">143.93 р.</td>
-</tr>
-<tr>
-<td class="product-description" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #757575; text-align: left; vertical-align: top; padding-top: 2px">Пододеяльник и
-																		наволочка, разноцветный цветочный узор,
-																		150x200/50x60 см</td>
-<td class="product-quantity" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 12px; line-height: 16px; color: #757575; letter-spacing: 0.4px; text-align: right; vertical-align: top; padding-top: 2px; white-space: nowrap">1 шт.</td>
-</tr>
-</tbody>
-</table>
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="product-spacer" style="padding: 0; margin: 0; height: 16px"></td>
-</tr>
-</tbody>
-</table>
-<!-- ORDER: product 2 -->
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="product-name" style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-style: normal; color: #181818; font-size: 12px; line-height: 16px; letter-spacing: 0.1px; text-align: left; vertical-align: top; width: 70%">NATTSLÄNDA</td>
-<td class="product-price" style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-style: normal; color: #181818; font-size: 14px; line-height: 20px; letter-spacing: 0.1px; text-align: right; vertical-align: top; width: 30%; white-space: nowrap">143.93 р.</td>
-</tr>
-<tr>
-<td class="product-description" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #757575; text-align: left; vertical-align: top; padding-top: 2px">Пододеяльник и
-																		наволочка, разноцветный цветочный узор,
-																		150x200/50x60 см</td>
-<td class="product-quantity" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 12px; line-height: 16px; color: #757575; letter-spacing: 0.4px; text-align: right; vertical-align: top; padding-top: 2px; white-space: nowrap">1 шт.</td>
-</tr>
-</tbody>
-</table>
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="product-spacer" style="padding: 0; margin: 0; height: 16px"></td>
-</tr>
-</tbody>
-</table>
-<!-- ORDER: product 3 -->
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="product-name" style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-style: normal; color: #181818; font-size: 12px; line-height: 16px; letter-spacing: 0.1px; text-align: left; vertical-align: top; width: 70%">NATTSLÄNDA</td>
-<td class="product-price" style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-style: normal; color: #181818; font-size: 14px; line-height: 20px; letter-spacing: 0.1px; text-align: right; vertical-align: top; width: 30%; white-space: nowrap">143.93 р.</td>
-</tr>
-<tr>
-<td class="product-description" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #757575; text-align: left; vertical-align: top; padding-top: 2px">Пододеяльник и
-																		наволочка, разноцветный цветочный узор,
-																		150x200/50x60 см</td>
-<td class="product-quantity" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 12px; line-height: 16px; color: #757575; letter-spacing: 0.4px; text-align: right; vertical-align: top; padding-top: 2px; white-space: nowrap">1 шт.</td>
-</tr>
-</tbody>
-</table>
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="product-spacer" style="padding: 0; margin: 0; height: 16px"></td>
-</tr>
-</tbody>
-</table>
-<!-- ORDER: product 4 -->
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="product-name" style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-style: normal; color: #181818; font-size: 12px; line-height: 16px; letter-spacing: 0.1px; text-align: left; vertical-align: top; width: 70%">NATTSLÄNDA</td>
-<td class="product-price" style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-style: normal; color: #181818; font-size: 14px; line-height: 20px; letter-spacing: 0.1px; text-align: right; vertical-align: top; width: 30%; white-space: nowrap">143.93 р.</td>
-</tr>
-<tr>
-<td class="product-description" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #757575; text-align: left; vertical-align: top; padding-top: 2px">Пододеяльник и
-																		наволочка, разноцветный цветочный узор,
-																		150x200/50x60 см</td>
-<td class="product-quantity" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 12px; line-height: 16px; color: #757575; letter-spacing: 0.4px; text-align: right; vertical-align: top; padding-top: 2px; white-space: nowrap">1 шт.</td>
-</tr>
-</tbody>
-</table>
-<!-- ORDER: divider -->
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="divider-cell" style="padding: 24px 0 16px; margin: 0">
-<table border="0" cellpadding="0" cellspacing="0" style="mso-table-lspace:0pt;mso-table-rspace:0pt;border-collapse:collapse;border-spacing:0;" width="100%"><tbody><tr><td style="padding:0;margin:0;height:0;font-size:0;line-height:0;border-top:1px dashed #BDBDBD;"> </td></tr></tbody></table>
-</td>
-</tr>
-</tbody>
-</table>
-<!-- ORDER: totals -->
-<table cellpadding="0" cellspacing="0" class="totals-table" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="totals-label" style="padding: 0; margin: 0; text-align: left"><span>Всего</span></td>
-<td class="totals-value totals-count" style="padding: 0; margin: 0; text-align: right; white-space: nowrap; font-weight: 400; font-size: 12px; color: #666C71; line-height: 16px"><span class="span-count" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 12px; line-height: 16px; letter-spacing: 0; color: #666C71">3 товара</span></td>
-</tr>
-<tr>
-<td class="totals-label" style="padding: 0; margin: 0; text-align: left"><span>Стоимость
-																			товаров</span></td>
-<td class="totals-value" style="padding: 0; margin: 0; text-align: right; white-space: nowrap; font-weight: 600; font-size: 14px; color: #181818"><span class="span-price" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-size: 14px; line-height: 20px; letter-spacing: 0; color: #181818">2
-																			430.93 р.</span></td>
-</tr>
-<tr>
-<td class="totals-label" style="padding: 0; margin: 0; text-align: left"><span>Доставка в
-																			Беларусь</span></td>
-<td class="totals-value totals-free" style="padding: 0; margin: 0; text-align: right; white-space: nowrap; font-weight: 600; font-size: 14px; color: #00910A !important"><span class="span-price" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-size: 14px; line-height: 20px; letter-spacing: 0; color: #181818">56 р.</span></td>
-</tr>
-<tr>
-<td class="totals-label" style="padding: 0; margin: 0; text-align: left"><span>Скидка по
-																			промокоду</span></td>
-<td class="totals-value totals-discount" style="padding: 0; margin: 0; text-align: right; white-space: nowrap; font-weight: 600; font-size: 14px; color: #CE0061 !important"><span class="span-discount" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-size: 14px; line-height: 20px; letter-spacing: 0; color: #CE0061">30 р.</span></td>
-</tr>
-</tbody>
-</table>
-<!-- ORDER: totals spacer -->
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="totals-final-spacer" style="padding: 0; margin: 0; height: 16px"></td>
-</tr>
-</tbody>
-</table>
-<!-- ORDER: total final -->
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="totals-final-label" style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 700; font-style: bold; font-size: 24px; line-height: 32px; color: #181818; letter-spacing: 0"><span class="span-total-label" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 700; font-size: 24px; line-height: 32px; letter-spacing: 0; color: #181818">Итого:</span></td>
-<td class="totals-final-value" style="padding: 0; margin: 0; font-family: HelveticaNeueCyr, Arial, sans-serif; font-size: 24px; font-weight: 700; color: #0058A3 !important; line-height: 32px; letter-spacing: 0; text-align: right; white-space: nowrap"><span class="span-total-value" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 700; font-size: 24px; line-height: 32px; letter-spacing: 0; color: #0058A3">2 556.93 р.</span>
-</td>
-</tr>
-</tbody>
-</table>
-</td>
-</tr>
-</tbody>
-</table>
-</td>
-</tr>
-</tbody>
-</table>
-<!-- CUSTOMS_DUTY -->
-<table align="center" cellpadding="0" cellspacing="0" class="wrapper customs-duty" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FAFAFA; margin-top: 24px; margin-bottom: 24px">
-<tbody>
-<tr>
-<td class="customs-duty-outer-td" style="padding: 0 24px; background-color: #FAFAFA">
-<table cellpadding="0" cellspacing="0" class="customs-duty-card" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: separate; border-spacing: 0; background-color: #FFFFFF; border: 1px solid #EEEEEE; border-radius: 8px" width="100%">
-<tbody>
-<tr>
-<td class="customs-duty-inner" style="padding: 16px">
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="customs-duty-icon" style="padding: 0; margin: 0; width: 28px; vertical-align: top"><img alt="add-circle-fill" height="20" src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/add-circle-fill.png" style="display: block;" width="20"/></td>
-<td class="customs-duty-text-cell" style="padding: 0; margin: 0; vertical-align: middle"><span class="customs-duty-amount" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #181818">≈65 р.</span>
-<span class="customs-duty-desc" style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #757575">пошлина не
-																			входит в цену</span></td>
-</tr>
-<tr>
-<td class="customs-duty-link-cell" colspan="2" style="padding-top: 8px"><a class="customs-duty-link" href="#" rel="noopener noreferrer" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; color: #0058A3 !important; text-decoration: underline !important"><span style="text-decoration: none">Правила оплаты и
-																			формирование таможенной пошлины</span></a></td>
-</tr>
-</tbody>
-</table>
-</td>
-</tr>
-</tbody>
-</table>
-</td>
-</tr>
-</tbody>
-</table>
-<!-- WAREHOUSE_PAYMENT_CONDITIONS_SERVICES -->
-<table align="center" cellpadding="0" cellspacing="0" class="wrapper wcs-outer" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FAFAFA">
-<tbody>
-<tr>
-<td class="wcs-outer-td" style="padding: 0 24px 24px 24px; background-color: #FAFAFA">
-<table cellpadding="0" cellspacing="0" class="wcs-card" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: separate; border-spacing: 0; background-color: #FFFFFF; border: 1px solid #EEEEEE; border-radius: 8px" width="100%">
-<tbody>
-<tr>
-<td class="wcs-inner" style="padding: 24px 16px"><!-- WAREHOUSE -->
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="icon-cell" style="width: 32px; vertical-align: top; padding-top: 2px"><img alt="delivery_img" height="24" src="https://s9392398.sendpul.se/image/files/emailservice/userfiles/4f71504901e3bb8e5f180e2f07a251949392398/delivery_img.png" style="display: block;" width="24"/></td>
-<td class="icon-text-cell" style="vertical-align: top; padding-left: 8px">
-<p class="warehouse-address" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 14px; line-height: 20px; font-weight: 600; color: #181818; letter-spacing: 0.1px; margin: 0">Марьина Горка,
+						<!-- WAREHOUSE_PAYMENT_CONDITIONS_SERVICES -->
+						<table align="center" cellpadding="0" cellspacing="0" class="wrapper wcs-outer"
+							style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FAFAFA">
+							<tbody>
+								<tr>
+									<td class="wcs-outer-td"
+										style="padding: 0 24px 24px 24px; background-color: #FAFAFA">
+										<table cellpadding="0" cellspacing="0" class="wcs-card"
+											style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: separate; border-spacing: 0; background-color: #FFFFFF; border: 1px solid #EEEEEE; border-radius: 8px"
+											width="100%">
+											<tbody>
+												<tr>
+													<td class="wcs-inner" style="padding: 24px 16px"><!-- WAREHOUSE -->
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="icon-cell"
+																		style="width: 32px; vertical-align: top; padding-top: 2px">
+																		<img alt="delivery_img" height="24"
+																			src="https://s9392398.sendpul.se/image/files/emailservice/userfiles/4f71504901e3bb8e5f180e2f07a251949392398/delivery_img.png"
+																			style="display: block;" width="24" /></td>
+																	<td class="icon-text-cell"
+																		style="vertical-align: top; padding-left: 8px">
+																		<p class="warehouse-address"
+																			style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 14px; line-height: 20px; font-weight: 600; color: #181818; letter-spacing: 0.1px; margin: 0">
+																			Марьина Горка,
 																			Минская обл., ул. Новая Заря, 6</p>
-<p class="warehouse-address-sub" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 14px; line-height: 20px; color: #757575; letter-spacing: 0.25px; margin: 4px 0 0 0">Европочта</p>
-</td>
-</tr>
-</tbody>
-</table>
-<!-- WAREHOUSE_PAYMENT_CONDITIONS_SERVICES: divider 1 -->
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="wcs-divider-main" style="padding: 0; margin: 0; font-size: 0; line-height: 0; height: 17px; background-image: linear-gradient(to bottom, #FFFFFF 8px, #E0E0E0 8px, #E0E0E0 9px, #FFFFFF 9px); background-color: #FFFFFF; mso-line-height-rule: exactly"> </td>
-</tr>
-</tbody>
-</table>
-<!-- PAYMENT -->
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="icon-cell" style="width: 32px; vertical-align: top; padding-top: 2px"><img alt="credit-card" height="24" src="https://s9392398.sendpul.se/image/files/emailservice/userfiles/4f71504901e3bb8e5f180e2f07a251949392398/credit-card.png" style="display: block;" width="24"/></td>
-<td class="icon-text-cell" style="vertical-align: top; padding-left: 8px">
-<p class="warehouse-address" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 14px; line-height: 20px; font-weight: 600; color: #181818; letter-spacing: 0.1px; margin: 0">Оплата картой
-																			онлайн</p>
-<p class="warehouse-address-sub payment-status-red" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 14px; line-height: 20px; color: #B71C1C !important; letter-spacing: 0.25px; margin: 4px 0 0 0">
-																			Не оплачено</p>
-</td>
-</tr>
-</tbody>
-</table>
-<!-- PAYMENT to CONDITIONS: gap 8px -->
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td style="padding: 0; margin: 0; height: 8px; font-size: 0; line-height: 0; mso-line-height-rule: exactly">
+																		<p class="warehouse-address-sub"
+																			style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 14px; line-height: 20px; color: #757575; letter-spacing: 0.25px; margin: 4px 0 0 0">
+																			Европочта</p>
+																	</td>
+																</tr>
+															</tbody>
+														</table>
+														<!-- WAREHOUSE_PAYMENT_CONDITIONS_SERVICES: divider 1 -->
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="wcs-divider-main"
+																		style="padding: 0; margin: 0; font-size: 0; line-height: 0; height: 17px; background-image: linear-gradient(to bottom, #FFFFFF 8px, #E0E0E0 8px, #E0E0E0 9px, #FFFFFF 9px); background-color: #FFFFFF; mso-line-height-rule: exactly">
 																		 </td>
-</tr>
-</tbody>
-</table>
-<!-- CONDITIONS -->
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="conditions-block" style="background-color: #FAFAFA; border-radius: 8px; padding: 16px">
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="icon-cell" style="width: 32px; vertical-align: top; padding-top: 2px"><img alt="information-fill" height="24" src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/information-fill.png" style="display: block;" width="24"/>
-</td>
-<td class="icon-text-cell" style="vertical-align: top; padding-left: 8px">
-<p class="services-text" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 13px; color: #444444; margin: 0">Услуги
+																</tr>
+															</tbody>
+														</table>
+														<!-- PAYMENT -->
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="icon-cell"
+																		style="width: 32px; vertical-align: top; padding-top: 2px">
+																		<img alt="credit-card" height="24"
+																			src="https://s9392398.sendpul.se/image/files/emailservice/userfiles/4f71504901e3bb8e5f180e2f07a251949392398/credit-card.png"
+																			style="display: block;" width="24" /></td>
+																	<td class="icon-text-cell"
+																		style="vertical-align: top; padding-left: 8px">
+																		<p class="warehouse-address"
+																			style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 14px; line-height: 20px; font-weight: 600; color: #181818; letter-spacing: 0.1px; margin: 0">
+																			Оплата картой
+																			онлайн</p>
+																		<p class="warehouse-address-sub payment-status-red"
+																			style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 14px; line-height: 20px; color: #B71C1C !important; letter-spacing: 0.25px; margin: 4px 0 0 0">
+																			Не оплачено</p>
+																	</td>
+																</tr>
+															</tbody>
+														</table>
+														<!-- PAYMENT to CONDITIONS: gap 8px -->
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td
+																		style="padding: 0; margin: 0; height: 8px; font-size: 0; line-height: 0; mso-line-height-rule: exactly">
+																		 </td>
+																</tr>
+															</tbody>
+														</table>
+														<!-- CONDITIONS -->
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="conditions-block"
+																		style="background-color: #FAFAFA; border-radius: 8px; padding: 16px">
+																		<table cellpadding="0" cellspacing="0"
+																			style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+																			width="100%">
+																			<tbody>
+																				<tr>
+																					<td class="icon-cell"
+																						style="width: 32px; vertical-align: top; padding-top: 2px">
+																						<img alt="information-fill"
+																							height="24"
+																							src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/information-fill.png"
+																							style="display: block;"
+																							width="24" />
+																					</td>
+																					<td class="icon-text-cell"
+																						style="vertical-align: top; padding-left: 8px">
+																						<p class="services-text"
+																							style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 13px; color: #444444; margin: 0">
+																							Услуги
 																							оплачиваются отдельно. С
 																							Вами свяжется сотрудник
 																							колл-центра для уточнения
 																							всех деталей.</p>
-</td>
-</tr>
-</tbody>
-</table>
-</td>
-</tr>
-</tbody>
-</table>
-<!-- WAREHOUSE_PAYMENT_CONDITIONS_SERVICES: gap -->
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="wcs-gap" style="padding: 0; margin: 0; height: 8px; font-size: 0; line-height: 0"> </td>
-</tr>
-</tbody>
-</table>
-<!-- SERVICES -->
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="icon-cell" style="width: 32px; vertical-align: top; padding-top: 2px"><img alt="repair" height="24" src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/repair.png" style="display: block;" width="24"/></td>
-<td class="icon-text-cell" style="vertical-align: top; padding-left: 8px">
-<p class="services-text services-heading" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 14px; color: #181818; margin: 0 0 4px 0; font-weight: 600; line-height: 20px; letter-spacing: 0.1px">
-																			Услуги:</p>
-<p class="services-item" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 400; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #757575; margin: 0 0 4px 0">Подъём и занос мебели
-																		</p>
-<p class="services-item" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 400; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #757575; margin: 0 0 4px 0; margin-bottom: 0">Сборка мебели</p>
-</td>
-</tr>
-</tbody>
-</table>
-<!-- SERVICES bottom spacer 8px -->
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td style="padding: 0; margin: 0; height: 8px; font-size: 0; line-height: 0; mso-line-height-rule: exactly">
-																		 </td>
-</tr>
-</tbody>
-</table>
-<!-- WAREHOUSE_PAYMENT_CONDITIONS_SERVICES: divider 3 -->
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="wcs-divider-bottom" style="padding: 0; margin: 0; font-size: 0; line-height: 0; height: 1px; background-color: #EEEEEE; mso-line-height-rule: exactly"> </td>
-</tr>
-</tbody>
-</table>
-</td>
-</tr>
-</tbody>
-</table>
-</td>
-</tr>
-</tbody>
-</table>
-</td>
-</tr>
-</tbody>
-</table>
-<!-- WCS to ADVANTAGES spacer 12px -->
-<table align="center" cellpadding="0" cellspacing="0" class="wrapper section-bg" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FAFAFA">
-<tbody>
-<tr>
-<td class="section-bg-td" style="background-color: #FAFAFA; padding: 0; height: 12px; font-size: 0; line-height: 0; mso-line-height-rule: exactly"> </td>
-</tr>
-</tbody>
-</table>
-
-</td>
-</tr>
-</tbody>
-</table>
-<!-- WCS to ADVANTAGES spacer 12px -->
-<table align="center" cellpadding="0" cellspacing="0" class="wrapper section-bg" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; margin: 0 auto; background-color: #FAFAFA; max-width: 600px">
-<tbody>
-<tr>
-<td class="section-bg-td" style="padding: 0; margin: 0; background-color: #FAFAFA; height: 12px; font-size: 0; line-height: 0; mso-line-height-rule: exactly">
-						 </td>
-</tr>
-</tbody>
-</table>
-		
-<!-- ADVANTAGES -->
-						<table cellspacing="0" cellpadding="0" align="center" class="wrapper advantages-block" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FFFFFF">
-							<tbody>
-								<tr>
-									<td class="advantages-inner" style="padding: 24px 32px 12px 32px; margin: 0; font-size: 0; text-align: center">
-										<p class="advantages-title" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 16px; line-height: 100%; font-weight: 700; color: #181818; text-align: center; margin: 0 0 16px 0">Наши преимущества</p>
-										<!--[if (gte mso 9)|(IE)]><table width="268" cellpadding="0" cellspacing="0"><tr><td width="268" valign="top"><![endif]--><div style="display: inline-block; width: 100%; max-width: 268px; vertical-align: top; box-sizing: border-box; text-align: center; padding-bottom: 16px;">
-					<table cellpadding="0" cellspacing="0" width="100%" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
-						<tbody>
-							<tr>
-								<td style="padding: 0; width: 50%; text-align: center; vertical-align: top; box-sizing: border-box; padding: 0 8px;">
-									<img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Resurs_1_1.png" alt="Resurs_1_1" width="80" height="80" style="border: 0; display: block; margin: 0 auto"/>
-											<p class="advantage-label" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 16px; color: #181818; text-align: center; margin: 8px 0 0 0">Вся IKEA — в одном месте</p>
-								</td>
-								<td style="padding: 0; width: 50%; text-align: center; vertical-align: top; box-sizing: border-box; padding: 0 8px;">
-									<img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Resurs_11_2_1.png" alt="Resurs_11_2_1" width="80" height="80" style="border: 0; display: block; margin: 0 auto"/>
-											<p class="advantage-label" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 16px; color: #181818; text-align: center; margin: 8px 0 0 0">От заказа до сборки</p>
-								</td>
-							</tr>
-						</tbody>
-					</table>
-				</div><!--[if (gte mso 9)|(IE)]></td></tr></table><![endif]--><!--
-					--><!--[if (gte mso 9)|(IE)]><table width="268" cellpadding="0" cellspacing="0"><tr><td width="268" valign="top"><![endif]--><div style="display: inline-block; width: 100%; max-width: 268px; vertical-align: top; box-sizing: border-box; text-align: center; padding-bottom: 16px;">
-					<table cellpadding="0" cellspacing="0" width="100%" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
-						<tbody>
-							<tr>
-								<td style="padding: 0; width: 50%; text-align: center; vertical-align: top; box-sizing: border-box; padding: 0 8px;">
-									<img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Frame_2928.png" alt="Frame_2928" width="80" height="80" style="border: 0; display: block; margin: 0 auto"/>
-											<p class="advantage-label" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 16px; color: #181818; text-align: center; margin: 8px 0 0 0">Комфорт без лишних хлопот</p>
-								</td>
-								<td style="padding: 0; width: 50%; text-align: center; vertical-align: top; box-sizing: border-box; padding: 0 8px;">
-									<img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Resurs_2_1.png" alt="Resurs_2_1" width="80" height="80" style="border: 0; display: block; margin: 0 auto"/>
-											<p class="advantage-label" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 16px; color: #181818; text-align: center; margin: 8px 0 0 0">Быстрая доставка по Беларуси</p>
-								</td>
-							</tr>
-						</tbody>
-					</table>
-				</div><!--[if (gte mso 9)|(IE)]></td></tr></table><![endif]-->
-									</td>
-								</tr>
-							</tbody>
-						</table>
-		
-						<!-- SPECIAL_OFFERS -->
-<table align="center" cellpadding="0" cellspacing="0" class="wrapper special-offers-block" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FFFFFF">
-<tbody>
-<tr>
-<td class="special-offers-outer" style="padding: 16px 24px 12px 24px">
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: separate; border-spacing: 0; border-radius: 8px; border: 1px solid #EEEEEE" width="100%">
-<tbody>
-<tr>
-<td class="special-offers-card" style="background-color: #FAFAFA; border-radius: 8px; padding: 16px">
-<table cellpadding="0" cellspacing="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0" width="100%">
-<tbody>
-<tr>
-<td class="special-offers-img-cell" style="padding: 0; margin: 0; width: 64px; vertical-align: middle"><img alt="Rectangle_1" height="64" src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Rectangle_1.png" width="64"/></td>
-<td class="special-offers-gap-cell" style="padding: 0; margin: 0; width: 24px"></td>
-<td class="special-offers-text-cell" style="padding: 0; margin: 0; vertical-align: middle"><a class="special-offers-title" href="#" rel="noopener noreferrer" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 15px; line-height: 20px; font-weight: 600; color: #0058A3 !important; text-decoration: underline; display: block; margin: 0 0 8px 0"><span style="text-decoration: underline;">Подпишитесь</span>
-															на наши обновления</a>
-<p class="special-offers-sub" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 14px; line-height: 20px; font-weight: 400; color: #181818; margin: 0">Вы всегда будете в курсе наших
-															спецпредложений</p>
-</td>
-</tr>
-</tbody>
-</table>
-</td>
-</tr>
-</tbody>
-</table>
-</td>
-</tr>
-</tbody>
-</table>
-<!-- FOOTER -->
-						<table cellspacing="0" cellpadding="0" align="center" class="wrapper footer" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #F5F5F5">
-							<tbody>
-								<tr>
-									<td class="footer-inner" style="padding: 24px; margin: 0"><!-- FOOTER: layout table -->
-										<table width="100%" cellspacing="0" cellpadding="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
-											<tbody>
-												<tr class="footer-main-row">
-<td style="padding: 0; margin: 0; font-size: 0; vertical-align: top;">
-<!--[if mso]><table width="552" cellpadding="0" cellspacing="0"><tr><td width="241" valign="top"><![endif]-->
-<div style="display: inline-block; width: 100%; max-width: 241px; vertical-align: top; box-sizing: border-box; padding-top: 2px;">
-<a rel="noopener noreferrer" href="#" style="text-decoration: none !important"><img src="https://s9345793.sendpul.se/image/747991a0e145ac2bbe69f063a9402e69/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/title.png" alt="title" width="101" height="18" style="border: 0; display: block"/></a>
-														<p class="company-address company-address-top" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 10px; color: #9E9E9E; line-height: 100%; margin: 0; margin-top: 12px; margin-bottom: 16px">ПТЧУП «В2В Авто»,
-															УНП: <a href="#" style="color: #9E9E9E !important; text-decoration: none !important; pointer-events: none; cursor: default">690542762</a>,<br/>г. Минск, пр. Победителей, 23, корп.
-															4,<br/>223017 агрогор.Гатово , ул.Металлургическая,
-															3-4<br/>Директор - Есьман Е.Е.</p>
-</div><!--
---><!--[if mso]></td><td width="311" valign="top"><![endif]--><!--
---><div style="display: inline-block; width: 100%; max-width: 311px; vertical-align: top; box-sizing: border-box;">
-<table cellspacing="0" cellpadding="0" class="footer-right-table" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; text-align: right">
-															<tbody>
-																<tr class="footer-social-contacts-row"><!-- SOCIAL_NETWORKS -->
-																	<td class="social-networks-block" style="padding: 0; margin: 0; display: inline-block; text-align: left; vertical-align: top; padding-right: 24px">
-																		<table cellspacing="0" cellpadding="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
-																			<tbody>
-																				<tr>
-																					<td colspan="5" class="social-networks-label" style="padding: 0; margin: 0 0 0 0; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 100%; font-weight: 600; color: #181818; text-align: left; white-space: nowrap">
-																						Наши соцсети</td>
-																				</tr>
-																				<tr class="social-networks-icons" style="padding-top: 13px">
-																					<td class="social-networks-icons" style="padding: 0; margin: 0; padding-top: 13px">
-																						<table cellspacing="0" cellpadding="0" class="social-networks-icons-table" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; margin-top: 0">
-																							<tbody>
-																								<tr>
-																									<td style="padding: 0; margin: 0"><a rel="noopener noreferrer" href="#" style="text-decoration: none !important"><img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Icon_Button.png" alt="Telegram" width="24" height="24" style="border: 0; display: block"/></a>
-																									</td>
-																									<td class="social-networks-gap" style="padding: 0; margin: 0; width: 16px; min-width: 16px; font-size: 0; line-height: 0">&#160;</td>
-																									<td style="padding: 0; margin: 0"><a rel="noopener noreferrer" href="#" style="text-decoration: none !important"><img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Icon_Button_2.png" alt="Instagram" width="24" height="24" style="border: 0; display: block"/></a>
-																									</td>
-																								</tr>
-																							</tbody>
-																						</table>
-																					</td>
-																				</tr>
-																			</tbody>
-																		</table>
-																	</td>
-																	<!-- FOOTER: sections gap -->
-																	<td class="footer-sections-gap" style="padding: 0; margin: 0; width: 32px"></td>
-																	<!-- CONTACTS -->
-																	<td class="contacts-block" style="padding: 0 0 0 16px; margin: 0; display: inline-block; text-align: left; vertical-align: top">
-																		<table cellspacing="0" cellpadding="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
-																			<tbody><!-- CONTACTS: phone -->
-																																								<tr class="contacts-phone-row" style="white-space: nowrap">
-																					<td colspan="3" style="padding: 0 0 0 16px; margin: 0; font-size: 25px; line-height: 100%; height: 25px">&nbsp;</td>
-																				</tr>
-																				<!-- CONTACTS: telegram -->
-																																								<tr class="contacts-tg-row" style="padding-top: 4px; white-space: nowrap">
-																					<td colspan="3" class="contacts-tg-gap" style="padding: 0; margin: 0; padding-top: 4px; padding-left: 16px">
-																						<table cellspacing="0" cellpadding="0" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
-																							<tbody>
-																								<tr>
-																									<td style="padding: 0; margin: 0; font-size: 0; line-height: 0; vertical-align: middle; width: 18px">
-																										<a rel="noopener noreferrer" href="tel:2626" style="text-decoration: none !important; display: block; font-size: 0; line-height: 0"><img src="https://s9345793.sendpul.se/image/747991a0e145ac2bbe69f063a9402e69/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/call-fill.png" alt="call-fill" width="18" height="18" style="border: 0; display: block"/></a>
-																									</td>
-																									<td width="6" style="padding: 0; margin: 0; width: 6px; min-width: 6px; vertical-align: middle">&#160;</td>
-																									<td style="padding: 0; margin: 0; vertical-align: middle">
-																										<a rel="noopener noreferrer" href="tel:2626" class="contacts-phone-link" style="text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 700; font-size: 18px; line-height: 24px; color: #0058A3 !important">2626</a>
-																									</td>
-																								</tr>
-																							</tbody>
-																						</table>
-																					</td>
-																				</tr>
-																							</tbody>
-																						</table>
 																					</td>
 																				</tr>
 																			</tbody>
@@ -907,33 +1058,375 @@
 																</tr>
 															</tbody>
 														</table>
-</div>
-<!--[if mso]></td></tr></table><![endif]-->
-</td>
-</tr>
+														<!-- WAREHOUSE_PAYMENT_CONDITIONS_SERVICES: gap -->
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="wcs-gap"
+																		style="padding: 0; margin: 0; height: 8px; font-size: 0; line-height: 0">
+																		 </td>
+																</tr>
+															</tbody>
+														</table>
+														<!-- SERVICES -->
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="icon-cell"
+																		style="width: 32px; vertical-align: top; padding-top: 2px">
+																		<img alt="repair" height="24"
+																			src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/repair.png"
+																			style="display: block;" width="24" /></td>
+																	<td class="icon-text-cell"
+																		style="vertical-align: top; padding-left: 8px">
+																		<p class="services-text services-heading"
+																			style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 14px; color: #181818; margin: 0 0 4px 0; font-weight: 600; line-height: 20px; letter-spacing: 0.1px">
+																			Услуги:</p>
+																		<p class="services-item"
+																			style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 400; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #757575; margin: 0 0 4px 0">
+																			Подъём и занос мебели
+																		</p>
+																		<p class="services-item"
+																			style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 400; font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #757575; margin: 0 0 4px 0; margin-bottom: 0">
+																			Сборка мебели</p>
+																	</td>
+																</tr>
+															</tbody>
+														</table>
+														<!-- SERVICES bottom spacer 8px -->
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td
+																		style="padding: 0; margin: 0; height: 8px; font-size: 0; line-height: 0; mso-line-height-rule: exactly">
+																		 </td>
+																</tr>
+															</tbody>
+														</table>
+														<!-- WAREHOUSE_PAYMENT_CONDITIONS_SERVICES: divider 3 -->
+														<table cellpadding="0" cellspacing="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
+															width="100%">
+															<tbody>
+																<tr>
+																	<td class="wcs-divider-bottom"
+																		style="padding: 0; margin: 0; font-size: 0; line-height: 0; height: 1px; background-color: #EEEEEE; mso-line-height-rule: exactly">
+																		 </td>
+																</tr>
+															</tbody>
+														</table>
+													</td>
+												</tr>
 											</tbody>
 										</table>
-																			</td>
+									</td>
 								</tr>
 							</tbody>
 						</table>
-		<!-- HELP -->
-<table align="center" cellpadding="0" cellspacing="0" class="wrapper help-bar" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; margin: 0 auto; background-color: #000000; max-width: 600px">
-<tbody>
-<tr>
-<td class="help-inner" style="padding: 0 24px; margin: 0; height: 36px; line-height: 36px; text-align: center">
-<p class="help-text" style='font-family: "HelveticaNeueCyr", Arial, sans-serif; font-size: 10px; line-height: 16px; font-weight: 400; color: #9E9E9E; margin: 0'>Если возникли проблемы с заказом или вопросы, звоните
-							круглосуточно <a class="help-link" href="#" rel="noopener noreferrer" style="text-decoration: underline; color: #9E9E9E !important">2626</a> или напишите
-							нам в чат-бот: <a class="help-link" href="#" rel="noopener noreferrer" style="text-decoration: underline !important; color: #9E9E9E !important">telegram</a></p>
-</td>
-</tr>
-</tbody>
-</table>
-</td>
-</tr>
-</tbody>
-</table>
+					</td>
+				</tr>
+			</tbody>
+		</table>
+		<!-- WCS to ADVANTAGES spacer 12px -->
+		<table align="center" cellpadding="0" cellspacing="0" class="wrapper section-bg"
+			style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FAFAFA">
+			<tbody>
+				<tr>
+					<td class="section-bg-td"
+						style="background-color: #FAFAFA; padding: 0; height: 12px; font-size: 0; line-height: 0; mso-line-height-rule: exactly">
+						 </td>
+				</tr>
+			</tbody>
+		</table>
 
-</div>
+		</td>
+		</tr>
+		</tbody>
+		</table>
+		<!-- WCS to ADVANTAGES spacer 12px -->
+		<table align="center" cellpadding="0" cellspacing="0" class="wrapper section-bg"
+			style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; margin: 0 auto; background-color: #FAFAFA; max-width: 600px">
+			<tbody>
+				<tr>
+					<td class="section-bg-td"
+						style="padding: 0; margin: 0; background-color: #FAFAFA; height: 12px; font-size: 0; line-height: 0; mso-line-height-rule: exactly">
+						 </td>
+				</tr>
+			</tbody>
+		</table>
+
+		<!-- ADVANTAGES -->
+		<table cellspacing="0" cellpadding="0" align="center" class="wrapper advantages-block"
+			style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FFFFFF">
+			<tbody>
+				<tr>
+					<td class="advantages-inner"
+						style="padding: 24px 0 12px 0; margin: 0; font-size: 0; text-align: center">
+						<a href="https://ikeya.by/" rel="noopener noreferrer"
+							style="text-decoration: none !important">
+							<p class="advantages-title"
+								style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 16px; line-height: 100%; font-weight: 700; color: #181818; text-align: center; margin: 0 0 16px 0">
+								Наши преимущества</p>
+						</a>
+						<!--[if (gte mso 9)|(IE)]><table width="268" cellpadding="0" cellspacing="0"><tr><td width="268" valign="top"><![endif]-->
+						<div class="advantages-pair-div" style="display: inline-block; width: 268px; max-width: 100%; vertical-align: top; box-sizing: border-box; text-align: center; padding-bottom: 16px;">
+							<table cellpadding="0" cellspacing="0" width="100%"
+								style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
+								<tbody>
+									<tr>
+										<td
+											style="padding: 0; width: 50%; text-align: center; vertical-align: top; box-sizing: border-box; padding: 0 8px;">
+											<a href="https://ikeya.by/" rel="noopener noreferrer"
+												style="text-decoration: none !important">
+												<img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Resurs_1_1.png"
+													alt="Resurs_1_1" width="80" height="80"
+													style="border: 0; display: block; margin: 0 auto" />
+												<p class="advantage-label"
+													style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 16px; color: #181818; text-align: center; margin: 8px 0 0 0">
+													Вся IKEA — в одном месте</p>
+											</a>
+										</td>
+										<td
+											style="padding: 0; width: 50%; text-align: center; vertical-align: top; box-sizing: border-box; padding: 0 8px;">
+											<a href="https://ikeya.by/" rel="noopener noreferrer"
+												style="text-decoration: none !important">
+												<img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Resurs_11_2_1.png"
+													alt="Resurs_11_2_1" width="80" height="80"
+													style="border: 0; display: block; margin: 0 auto" />
+												<p class="advantage-label"
+													style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 16px; color: #181818; text-align: center; margin: 8px 0 0 0">
+													От заказа до сборки</p>
+											</a>
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+						<!--[if (gte mso 9)|(IE)]></td></tr></table><![endif]--><!--
+		--><!--[if (gte mso 9)|(IE)]><table width="268" cellpadding="0" cellspacing="0"><tr><td width="268" valign="top"><![endif]-->
+						<div class="advantages-pair-div" style="display: inline-block; width: 268px; max-width: 100%; vertical-align: top; box-sizing: border-box; text-align: center; padding-bottom: 16px;">
+							<table cellpadding="0" cellspacing="0" width="100%"
+								style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
+								<tbody>
+									<tr>
+										<td
+											style="padding: 0; width: 50%; text-align: center; vertical-align: top; box-sizing: border-box; padding: 0 8px;">
+											<a href="https://ikeya.by/" rel="noopener noreferrer"
+												style="text-decoration: none !important">
+												<img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Frame_2928.png"
+													alt="Frame_2928" width="80" height="80"
+													style="border: 0; display: block; margin: 0 auto" />
+												<p class="advantage-label"
+													style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 16px; color: #181818; text-align: center; margin: 8px 0 0 0">
+													Комфорт без лишних хлопот</p>
+											</a>
+										</td>
+										<td
+											style="padding: 0; width: 50%; text-align: center; vertical-align: top; box-sizing: border-box; padding: 0 8px;">
+											<a href="https://ikeya.by/" rel="noopener noreferrer"
+												style="text-decoration: none !important">
+												<img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Resurs_2_1.png"
+													alt="Resurs_2_1" width="80" height="80"
+													style="border: 0; display: block; margin: 0 auto" />
+												<p class="advantage-label"
+													style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 16px; color: #181818; text-align: center; margin: 8px 0 0 0">
+													Быстрая доставка по Беларуси</p>
+											</a>
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</div><!--[if (gte mso 9)|(IE)]></td></tr></table><![endif]-->
+					</td>
+				</tr>
+			</tbody>
+		</table>
+
+		<!-- FOOTER -->
+		<table cellspacing="0" cellpadding="0" align="center" class="wrapper footer"
+			style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #F5F5F5">
+			<tbody>
+				<tr>
+					<td class="footer-inner" style="padding: 24px; margin: 0"><!-- FOOTER: layout table -->
+						<table width="100%" cellspacing="0" cellpadding="0"
+							style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
+							<tbody>
+								<tr class="footer-main-row">
+									<td style="padding: 0; margin: 0; font-size: 0; vertical-align: top;">
+										<!--[if mso]><table width="552" cellpadding="0" cellspacing="0"><tr><td width="241" valign="top"><![endif]-->
+										<div
+											style="display: inline-block; width: 100%; max-width: 241px; vertical-align: top; box-sizing: border-box; padding-top: 2px;">
+											<a rel="noopener noreferrer" href="https://ikeya.by/"
+												style="text-decoration: none !important"><img
+													src="https://s9345793.sendpul.se/image/747991a0e145ac2bbe69f063a9402e69/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/title.png"
+													alt="title" width="101" height="18"
+													style="border: 0; display: block" /></a>
+											<p class="company-address company-address-top"
+												style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 10px; color: #9E9E9E; line-height: 100%; margin: 0; margin-top: 12px; margin-bottom: 16px">
+												ООО «БелкаБокс», 220019, г. Минск,
+												<br />ул. Сухаревская, д.16, пом. 6,
+												<br />BY25MTBK30120001093300124557 в ЗАО «МТБанк», БИК MTBKBY22.
+											</p>
+										</div><!--
+--><!--[if mso]></td><td width="311" valign="top"><![endif]--><!--
+-->
+										<div
+											style="display: inline-block; width: 100%; max-width: 311px; vertical-align: top; box-sizing: border-box;">
+											<table cellspacing="0" cellpadding="0" class="footer-right-table"
+												style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; text-align: right">
+												<tbody>
+													<tr class="footer-social-contacts-row"><!-- SOCIAL_NETWORKS -->
+														<td class="social-networks-block"
+															style="padding: 0; margin: 0; display: inline-block; text-align: left; vertical-align: top; padding-right: 24px">
+															<table cellspacing="0" cellpadding="0"
+																style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
+																<tbody>
+																	<tr>
+																		<td colspan="5" class="social-networks-label"
+																			style="padding: 0; margin: 0 0 0 0; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 100%; font-weight: 600; color: #181818; text-align: left; white-space: nowrap">
+																			Наши соцсети</td>
+																	</tr>
+																	<tr class="social-networks-icons"
+																		style="padding-top: 13px">
+																		<td class="social-networks-icons"
+																			style="padding: 0; margin: 0; padding-top: 13px">
+																			<table cellspacing="0" cellpadding="0"
+																				class="social-networks-icons-table"
+																				style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; margin-top: 0">
+																				<tbody>
+																					<tr>
+																						<td
+																							style="padding: 0; margin: 0">
+																							<a rel="noopener noreferrer"
+																								href="https://t.me/ShopByShopBelarus"
+																								style="text-decoration: none !important"><img
+																									src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Icon_Button.png"
+																									alt="Telegram"
+																									width="24"
+																									height="24"
+																									style="border: 0; display: block" /></a>
+																						</td>
+																						<td class="social-networks-gap"
+																							style="padding: 0; margin: 0; width: 16px; min-width: 16px; font-size: 0; line-height: 0">
+																							&#160;</td>
+																						<td
+																							style="padding: 0; margin: 0">
+																							<a rel="noopener noreferrer"
+																								href="https://www.instagram.com/shopbyshop_by"
+																								style="text-decoration: none !important"><img
+																									src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Icon_Button_2.png"
+																									alt="Instagram"
+																									width="24"
+																									height="24"
+																									style="border: 0; display: block" /></a>
+																						</td>
+																					</tr>
+																				</tbody>
+																			</table>
+																		</td>
+																	</tr>
+																</tbody>
+															</table>
+														</td>
+														<!-- FOOTER: sections gap -->
+														<td class="footer-sections-gap"
+															style="padding: 0; margin: 0; width: 32px"></td>
+														<!-- CONTACTS -->
+														<td class="contacts-block"
+															style="padding: 0 0 0 16px; margin: 0; display: inline-block; text-align: left; vertical-align: top">
+															<table cellspacing="0" cellpadding="0"
+																style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
+																<tbody><!-- CONTACTS: phone -->
+																	<tr class="contacts-phone-row"
+																		style="white-space: nowrap">
+																		<td colspan="3"
+																			style="padding: 0 0 0 16px; margin: 0; font-size: 25px; line-height: 100%; height: 25px">
+																			&nbsp;</td>
+																	</tr>
+																	<!-- CONTACTS: telegram -->
+																	<tr class="contacts-tg-row"
+																		style="padding-top: 4px; white-space: nowrap">
+																		<td colspan="3" class="contacts-tg-gap"
+																			style="padding: 0; margin: 0; padding-top: 4px; padding-left: 16px">
+																			<table cellspacing="0" cellpadding="0"
+																				style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
+																				<tbody>
+																					<tr>
+																						<td
+																							style="padding: 0; margin: 0; font-size: 0; line-height: 0; vertical-align: middle; width: 18px">
+																							<a rel="noopener noreferrer"
+																								href="tel:+375445794444"
+																								style="text-decoration: none !important; display: block; font-size: 0; line-height: 0"><img
+																									src="https://s9345793.sendpul.se/image/747991a0e145ac2bbe69f063a9402e69/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/call-fill.png"
+																									alt="call-fill"
+																									width="18"
+																									height="18"
+																									style="border: 0; display: block" /></a>
+																						</td>
+																						<td width="6"
+																							style="padding: 0; margin: 0; width: 6px; min-width: 6px; vertical-align: middle">
+																							&#160;</td>
+																							<td style="padding: 0 24px 0 0; margin: 0; vertical-align: middle">
+																							<a rel="noopener noreferrer"
+																								href="tel:+375445794444"
+																								class="contacts-phone-link"
+																								style="text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 700; font-size: 16px; line-height: 22px; color: #0058A3 !important">+375 (44) 579-44-44</a>
+																						</td>
+																						<td width="24" style="padding: 0; margin: 0; width: 24px; min-width: 24px; vertical-align: middle; font-size: 0; line-height: 0">&nbsp;</td>
+																					</tr>
+																				</tbody>
+																			</table>
+																		</td>
+																	</tr>
+																</tbody>
+															</table>
+														</td>
+													</tr>
+												</tbody>
+											</table>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+	</div>
+	<!--[if mso]></td></tr></table><![endif]-->
+	</td>
+	</tr>
+	</tbody>
+	</table>
+	</td>
+	</tr>
+	</tbody>
+	</table>
+	<!-- HELP -->
+	<table cellspacing="0" cellpadding="0" align="center" class="wrapper help-bar"
+		style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #000000">
+		<tbody>
+			<tr>
+				<td class="help-inner"
+					style="padding: 0 24px; margin: 0; height: 36px; line-height: 36px; text-align: center">
+					<p class="help-text"
+						style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 10px; line-height: 16px; font-weight: 400; color: #9E9E9E; margin: 0">
+						Если возникли проблемы с заказом или вопросы, звоните <a rel="noopener noreferrer" href="tel:+375445794444" class="help-link"
+							style="text-decoration: underline; color: #9E9E9E !important">+375 (44) 579-44-44</a> или
+						напишите нам в <a rel="noopener noreferrer" href="https://t.me/ShopByShopBelarus" class="help-link"
+							style="text-decoration: underline !important; color: #9E9E9E !important">Telegram</a></p>
+				</td>
+			</tr>
+		</tbody>
+	</table>
+	</td>
+	</tr>
+	</tbody>
+	</table>
+
+	</div>
 </body>
+
 </html>

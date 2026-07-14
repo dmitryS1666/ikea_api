@@ -7,15 +7,8 @@ module Sendpulse
       user = User.find_by(email: email)
       return { success: true, skipped: true, reason: "user_not_found" } unless user
 
-      user.update!(
-        email_marketing: false,
-        newsletter_consent: false
-      )
-
-      ConsentService.record!(
-        user: user,
-        consent_type: :newsletter_email,
-        accepted: false,
+      result = MarketingUnsubscribeService.unsubscribe_user!(
+        user,
         source: "unsubscribe_webhook",
         metadata: {
           provider: "sendpulse",
@@ -23,7 +16,7 @@ module Sendpulse
         }
       )
 
-      { success: true, user_id: user.id }
+      result.merge(user_id: user.id)
     end
 
     def self.extract_email(payload)

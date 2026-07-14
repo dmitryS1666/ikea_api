@@ -373,7 +373,31 @@
 		}
 
 		@media only screen and (max-width: 414px) {}
-	</style>
+
+		/* STATUS + ADVANTAGES: phone layout; desktop fallback remains inline for Yandex. */
+		@media only screen and (max-width: 520px) {
+			.status-text-div { display: block !important; width: 100% !important; min-width: 0 !important; max-width: 100% !important; margin-right: 0 !important; padding-right: 0 !important; text-align: center !important; }
+			.status-img-div { display: block !important; width: 100% !important; min-width: 0 !important; max-width: 100% !important; text-align: center !important; }
+			.status-img-div img { width: 100% !important; max-width: 300px !important; height: auto !important; margin: 0 auto !important; }
+			.status-title { font-size: 18px !important; }
+			.status-title, .status-subtitle { text-align: left !important; }
+			.status-inner { padding: 24px 16px 0 16px !important; }
+			.status-btn { display: block !important; width: 100% !important; box-sizing: border-box !important; text-align: center !important; }
+			.advantages-inner { padding: 24px 16px 12px 16px !important; }
+			.advantages-pair-div { display: block !important; width: 100% !important; min-width: 0 !important; max-width: 268px !important; margin-left: auto !important; margin-right: auto !important; }
+		}
+
+		/* STATUS + ADVANTAGES: keep desktop layout in Yandex/Gmail/Mail.ru when viewport is wider than phone. */
+		@media only screen and (min-width: 521px) {
+			.status-text-div { display: inline-block !important; width: 304px !important; min-width: 0 !important; max-width: 100% !important; margin-right: 16px !important; padding-right: 0 !important; text-align: left !important; }
+			.status-img-div { display: inline-block !important; width: 232px !important; min-width: 0 !important; max-width: 100% !important; text-align: center !important; margin: 0 !important; }
+			.status-img-div img { width: 100% !important; max-width: 300px !important; height: auto !important; margin: 0 auto !important; }
+			.status-inner { padding: 32px 0 0 0 !important; }
+			.status-inner tr { display: table-row !important; }
+			.advantages-inner { padding: 24px 0 12px 0 !important; }
+			.advantages-pair-div { display: inline-block !important; width: 268px !important; min-width: 0 !important; max-width: 100% !important; vertical-align: top !important; margin-left: 0 !important; margin-right: 0 !important; }
+		}
+</style>
 	<!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
 </head>
 
@@ -419,7 +443,8 @@
 										<p
 											style='margin:0; font-family:"HelveticaNeueCyr", Arial, sans-serif; font-size:10px; line-height:100%; color:#666C71'>
 											Письмо не открывается? <u class="open-link-bold"
-												style="font-weight: bold"><a href="#" rel="noopener noreferrer"
+												style="font-weight: bold"><a href="{{webversion}}"
+													rel="noopener noreferrer"
 													style="color:#666C71 !important; text-decoration:underline !important">Открыть
 													в браузере</a></u></p>
 									</td>
@@ -427,45 +452,47 @@
 							</tbody>
 						</table>
 						<!-- HEADER -->
-						<table align="center" cellpadding="0" cellspacing="0" class="wrapper header"
+						<table cellspacing="0" cellpadding="0" align="center" class="wrapper header"
 							style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FFFFFF">
 							<tbody>
 								<tr>
 									<td style="padding: 0; margin: 0">
-										<table cellpadding="0" cellspacing="0" class="header-inner"
-											style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; height: 52px; background-color: #FFFFFF"
-											width="100%">
+										<table width="100%" cellspacing="0" cellpadding="0" class="header-inner"
+											style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; height: 52px; background-color: #FFFFFF">
 											<tbody>
 												<tr>
 													<td class="header-logo-cell"
-														style="padding: 17px 0 17px 24px; margin: 0"><a href="#"
-															rel="noopener noreferrer"
-															style="color: inherit !important; text-decoration: none !important"><img
-																alt="IKEYA" caption="false" height="18"
+														style="padding: 17px 0 17px 24px; margin: 0"><a
+															rel="noopener noreferrer" href="https://ikeya.by/"
+															style="text-decoration: none !important"><img
 																src="https://s9345793.sendpul.se/image/747991a0e145ac2bbe69f063a9402e69/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/title.png"
-																style="border: 0; display: block" width="101" /></a>
+																alt="IKEYA" width="101" height="18" caption="false"
+																style="border: 0; display: block" /></a>
 													</td>
 													<td class="header-spacer"
 														style="padding: 0; margin: 0; width: 250px"> </td>
 													<td class="header-phone-cell"
 														style="padding: 0; margin: 0; white-space: nowrap">
-														<table cellpadding="0" cellspacing="0"
+														<table cellspacing="0" cellpadding="0"
 															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
 															<tbody>
 																<tr>
 																	<td style="padding: 0; margin: 0"><a
-																			href="tel:+7123" rel="noopener noreferrer"
-																			style="color: inherit !important; text-decoration: none !important"><img
-																				caption="false" height="18"
+																			rel="noopener noreferrer"
+																			href="tel:+375445794444"
+																			style="text-decoration: none !important"><img
 																				src="https://s9345793.sendpul.se/image/747991a0e145ac2bbe69f063a9402e69/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/call-fill.png"
-																				style="border: 0; display: block"
-																				width="18" /></a></td>
+																				width="18" height="18" caption="false"
+																				style="border: 0; display: block" /></a>
+																	</td>
 																	<td class="icon-gap-3"
 																		style="padding: 0; margin: 0; width: 3px"> </td>
 																	<td style="padding: 0; margin: 0"><a
-																			class="header-link" href="tel:+7123"
 																			rel="noopener noreferrer"
-																			style="color: #0058A3 !important; text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 700; font-size: 18px; line-height: 24px; letter-spacing: 0.1px; white-space: nowrap">2626</a>
+																			href="tel:+375445794444" class="header-link"
+																			style="text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 700; font-size: 18px; line-height: 24px; letter-spacing: 0.1px; color: #0058A3 !important; white-space: nowrap">+375
+																			(44) 579-44-44
+																		</a>
 																	</td>
 																</tr>
 															</tbody>
@@ -485,54 +512,57 @@
 				</tr>
 			</tbody>
 		</table>
-		<!-- LINKS -->
-		<table align="center" bgcolor="#181818" cellpadding="0" cellspacing="0" class="wrapper links"
-			style="mso-table-lspace: 0; mso-table-rspace: 0; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #181818"
-			width="100%">
+	<!-- LINKS -->
+	<table cellspacing="0" cellpadding="0" align="center" class="wrapper links"
+			style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #181818">
 			<tbody>
 				<tr>
-					<td align="center" class="links-inner"
-						style="padding: 0; margin: 0; text-align: center; font-size: 0"><a align="center"
-							bgcolor="#181818" class="links-item" href="#" rel="noopener noreferrer"
-							style='color: #F8F9FA !important; font-family: "HelveticaNeueCyr", Arial, sans-serif; font-weight: 600; font-size: 12px; line-height: 12px; display: inline-block; width: 140px; padding: 10px 0; text-align: center; background-vertical-align: middle; text-decoration: none !important'
-							valign="middle" width="140">Текстиль</a><!--
---><a align="center" bgcolor="#181818" class="links-item" href="#" rel="noopener noreferrer"
-							style='color: #F8F9FA !important; font-family: "HelveticaNeueCyr", Arial, sans-serif; font-weight: 600; font-size: 12px; line-height: 12px; display: inline-block; width: 140px; padding: 10px 0; text-align: center; background-vertical-align: middle; text-decoration: none !important'
-							valign="middle" width="140">Кровати и матрасы</a><!--
---><a align="center" bgcolor="#181818" class="links-item" href="#" rel="noopener noreferrer"
-							style='color: #F8F9FA !important; font-family: "HelveticaNeueCyr", Arial, sans-serif; font-weight: 600; font-size: 12px; line-height: 12px; display: inline-block; width: 140px; padding: 10px 0; text-align: center; background-vertical-align: middle; text-decoration: none !important'
-							valign="middle" width="140">Ванные комнаты</a><!--
---><a align="center" bgcolor="#181818" class="links-item" href="#" rel="noopener noreferrer"
-							style='color: #F8F9FA !important; font-family: "HelveticaNeueCyr", Arial, sans-serif; font-weight: 600; font-size: 12px; line-height: 12px; display: inline-block; width: 140px; padding: 10px 0; text-align: center; background-vertical-align: middle; text-decoration: none !important'
-							valign="middle" width="140">Освещение</a></td>
+					<td class="links-inner" style="padding: 0; margin: 0; text-align: center; font-size: 0"><a
+							rel="noopener noreferrer" href="https://ikeya.by/catalog/tovary-dlya-hraneniya-veshchey/"
+							class="links-item"
+							style="text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 600; font-size: 12px; line-height: 12px; color: #F8F9FA !important; display: inline-block; width: 140px; padding: 10px 0; text-align: center; background-color: #181818; vertical-align: middle">Товары
+							для хранения</a><!--
+--><a rel="noopener noreferrer" href="https://ikeya.by/catalog/postelnoe-bele/" class="links-item"
+							style="text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 600; font-size: 12px; line-height: 12px; color: #F8F9FA !important; display: inline-block; width: 140px; padding: 10px 0; text-align: center; background-color: #181818; vertical-align: middle">Постельное
+							белье</a><!--
+--><a rel="noopener noreferrer" href="https://ikeya.by/catalog/mebel-dlya-hraneniya/" class="links-item"
+							style="text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 600; font-size: 12px; line-height: 12px; color: #F8F9FA !important; display: inline-block; width: 140px; padding: 10px 0; text-align: center; background-color: #181818; vertical-align: middle">Мебель
+							для хранения
+						</a><!--
+--><a rel="noopener noreferrer" href="https://ikeya.by/catalog/tekstil-i-kovry/" class="links-item"
+							style="text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 600; font-size: 12px; line-height: 12px; color: #F8F9FA !important; display: inline-block; width: 140px; padding: 10px 0; text-align: center; background-color: #181818; vertical-align: middle">Текстиль
+							и ковры
+						</a>
+					</td>
 				</tr>
 			</tbody>
 		</table>
-		<!-- STATUS -->
-		<table align="center" cellpadding="0" cellspacing="0" class="wrapper status"
-			style="mso-table-lspace:0pt; mso-table-rspace:0pt; border-collapse:collapse; border-spacing:0; width:100%; max-width: 100%; max-width: 600px; background-color:#FFFFFF">
+				<!-- STATUS -->
+		<table cellspacing="0" cellpadding="0" align="center" class="wrapper status"
+			style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FFFFFF">
 			<tbody>
 				<tr>
-					<td class="status-inner" style="padding:32px 24px 0 24px; margin:0">
-						<table cellpadding="0" cellspacing="0"
-							style="mso-table-lspace:0pt; mso-table-rspace:0pt; border-collapse:collapse; border-spacing:0"
-							width="100%">
+					<td class="status-inner" style="padding: 32px 0 0 0; margin: 0">
+						<table cellspacing="0" cellpadding="0" width="100%"
+							style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
 							<tbody>
 								<tr>
-									<td style="padding:0; font-size:0; vertical-align:top; text-align:center;">
+									<td style="padding: 0; font-size: 0; vertical-align: top; text-align: center;">
 										<!--[if mso]><table width="552" cellpadding="0" cellspacing="0"><tr><td width="320" valign="top"><![endif]-->
 										<div class="status-text-div"
-											style="display:inline-block; width:100%; max-width:320px; vertical-align:top; box-sizing:border-box; padding-right:16px; padding-bottom:24px; text-align:left;">
+											style="display: inline-block; width: 304px; max-width: 100%; vertical-align: top; box-sizing: border-box; margin-right: 16px; padding-bottom: 24px; text-align: left;">
 											<p class="status-title"
 												style='font-family: "HelveticaNeueCyr", Arial, sans-serif; font-weight: 700; font-style: bold; font-size: 18px; line-height: 24px; color: #000A12; margin: 0 0 16px 0'>
 												<span class="blue" style="color: #0058A3 !important">Ваш заказ получен
 													на<br />склад
-													Польша!</span></p>
+													Польша!</span>
+											</p>
 											<p class="status-subtitle"
 												style='font-family: "HelveticaNeueCyr", Arial, sans-serif; font-weight: 400; font-style: normal; font-size: 14px; line-height: 20px; color: #757575; margin: 0 0 16px 0'>
 												<span class="bold"
 													style="font-weight: 600; font-style: normal; display: block; margin-bottom: 4px">Здравствуйте,
-													Имя</span>Отслеживать статус заказа вы можете в личном кабинете</p>
+													Имя</span>Отслеживать статус заказа вы можете в личном кабинете
+											</p>
 											<a class="status-btn" href="#" rel="noopener noreferrer"
 												style="text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 700; font-size: 14px; line-height: 20px; color: #FFFFFF !important; background-color: #0058A3; padding: 10px 26px; display: block; width: 100%; box-sizing: border-box; text-align: center; border-radius: 8px;">Узнать
 												статус</a>
@@ -540,10 +570,10 @@
 --><!--[if mso]></td><td width="232" valign="top"><![endif]--><!--
 -->
 										<div class="status-img-div"
-											style="display:inline-block; width:100%; max-width:232px; vertical-align:top; box-sizing:border-box; text-align:center; margin:0 auto;">
+											style="display: inline-block; width: 232px; max-width: 100%; vertical-align: top; box-sizing: border-box; text-align: center; margin: 0;">
 											<img alt="Frame_2904" caption="false" height="auto"
 												src="https://s9392398.sendpul.se/image/files/emailservice/userfiles/4f71504901e3bb8e5f180e2f07a251949392398/Frame_2904_2.png"
-												style="border:0; display:block; width:100%; max-width:300px; height:auto; margin:0 auto"
+												style="border: 0; display: block; width: 100%; max-width: 300px; height: auto; margin: 0 auto"
 												width="300" />
 										</div>
 										<!--[if mso]></td></tr></table><![endif]-->
@@ -774,19 +804,22 @@
 																		style="padding: 4px 0; margin: 0; text-align: right; white-space: nowrap; font-weight: 400; font-size: 14px; color: #181818; line-height: 20px; font-family: HelveticaNeueCyr, Arial, sans-serif; letter-spacing: 0">
 																		<span class="span-count"
 																			style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 400; font-size: 12px; line-height: 16px; letter-spacing: 0; color: #666C71">3
-																			товара</span></td>
+																			товара</span>
+																	</td>
 																</tr>
 																<tr>
 																	<td align="left" class="totals-label"
 																		style="padding: 4px 0; margin: 0; text-align: left; font-family: HelveticaNeueCyr, Arial, sans-serif; font-size: 14px; font-weight: 400; color: #181818; line-height: 20px; letter-spacing: 0">
 																		<span
 																			style="font-family:HelveticaNeueCyr, Arial, sans-serif; font-weight:400; font-size:14px; line-height:20px; letter-spacing:0; color:#181818">Стоимость
-																			товаров</span></td>
+																			товаров</span>
+																	</td>
 																	<td align="right" class="totals-value"
 																		style="padding: 4px 0; margin: 0; text-align: right; white-space: nowrap; font-weight: 400; font-size: 14px; color: #181818; font-family: HelveticaNeueCyr, Arial, sans-serif; line-height: 20px; letter-spacing: 0">
 																		<span class="span-price"
 																			style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-size: 14px; line-height: 20px; letter-spacing: 0; color: #181818">2
-																			430.93 р.</span></td>
+																			430.93 р.</span>
+																	</td>
 																</tr>
 																<tr>
 																	<td align="left" class="totals-label"
@@ -794,12 +827,14 @@
 																		<span
 																			style="font-family:HelveticaNeueCyr, Arial, sans-serif; font-weight:400; font-size:14px; line-height:20px; letter-spacing:0; color:#181818">Доставка
 																			в
-																			Беларусь</span></td>
+																			Беларусь</span>
+																	</td>
 																	<td align="right" class="totals-value totals-free"
 																		style="padding: 4px 0; margin: 0; text-align: right; white-space: nowrap; font-weight: 400; font-size: 14px; color: #00910A !important; font-family: HelveticaNeueCyr, Arial, sans-serif; line-height: 20px; letter-spacing: 0">
 																		<span class="span-price"
 																			style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-size: 14px; line-height: 20px; letter-spacing: 0; color: #181818">56
-																			р.</span></td>
+																			р.</span>
+																	</td>
 																</tr>
 																<tr>
 																	<td align="left" class="totals-label"
@@ -807,13 +842,15 @@
 																		<span
 																			style="font-family:HelveticaNeueCyr, Arial, sans-serif; font-weight:400; font-size:14px; line-height:20px; letter-spacing:0; color:#181818">Скидка
 																			по
-																			промокоду</span></td>
+																			промокоду</span>
+																	</td>
 																	<td align="right"
 																		class="totals-value totals-discount"
 																		style="padding: 4px 0; margin: 0; text-align: right; white-space: nowrap; font-weight: 400; font-size: 14px; color: #CE0061 !important; font-family: HelveticaNeueCyr, Arial, sans-serif; line-height: 20px; letter-spacing: 0">
 																		<span class="span-discount"
 																			style="font-family: HelveticaNeueCyr, Arial, sans-serif; font-weight: 600; font-size: 14px; line-height: 20px; letter-spacing: 0; color: #CE0061">30
-																			р.</span></td>
+																			р.</span>
+																	</td>
 																</tr>
 															</tbody>
 														</table>
@@ -900,11 +937,12 @@
 																<tr>
 																	<td class="customs-duty-link-cell" colspan="2"
 																		style="padding: 0; margin: 0; padding-top: 8px">
-																		<a class="customs-duty-link" href="#"
+																		<a class="customs-duty-link" href="https://ikeya.by/help/customs/"
 																			rel="noopener noreferrer"
 																			style='color: #0058A3 !important; font-family: "HelveticaNeueCyr", Arial, sans-serif; font-size: 12px; text-decoration: underline !important'>Правила
 																			оплаты и
-																			формирование таможенной пошлины</a></td>
+																			формирование таможенной пошлины</a>
+																	</td>
 																</tr>
 															</tbody>
 														</table>
@@ -1142,270 +1180,268 @@
 			</tbody>
 		</table>
 		<!-- ADVANTAGES -->
-						<table cellspacing="0" cellpadding="0" align="center" class="wrapper advantages-block" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FFFFFF">
-							<tbody>
-								<tr>
-									<td class="advantages-inner" style="padding: 24px 32px 12px 32px; margin: 0; font-size: 0; text-align: center">
-										<p class="advantages-title" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 16px; line-height: 100%; font-weight: 700; color: #181818; text-align: center; margin: 0 0 16px 0">Наши преимущества</p>
-										<!--[if (gte mso 9)|(IE)]><table width="268" cellpadding="0" cellspacing="0"><tr><td width="268" valign="top"><![endif]--><div style="display: inline-block; width: 100%; max-width: 268px; vertical-align: top; box-sizing: border-box; text-align: center; padding-bottom: 16px;">
-					<table cellpadding="0" cellspacing="0" width="100%" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
-						<tbody>
-							<tr>
-								<td style="padding: 0; width: 50%; text-align: center; vertical-align: top; box-sizing: border-box; padding: 0 8px;">
-									<img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Resurs_1_1.png" alt="Resurs_1_1" width="80" height="80" style="border: 0; display: block; margin: 0 auto"/>
-											<p class="advantage-label" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 16px; color: #181818; text-align: center; margin: 8px 0 0 0">Вся IKEA — в одном месте</p>
-								</td>
-								<td style="padding: 0; width: 50%; text-align: center; vertical-align: top; box-sizing: border-box; padding: 0 8px;">
-									<img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Resurs_11_2_1.png" alt="Resurs_11_2_1" width="80" height="80" style="border: 0; display: block; margin: 0 auto"/>
-											<p class="advantage-label" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 16px; color: #181818; text-align: center; margin: 8px 0 0 0">От заказа до сборки</p>
-								</td>
-							</tr>
-						</tbody>
-					</table>
-				</div><!--[if (gte mso 9)|(IE)]></td></tr></table><![endif]--><!--
-					--><!--[if (gte mso 9)|(IE)]><table width="268" cellpadding="0" cellspacing="0"><tr><td width="268" valign="top"><![endif]--><div style="display: inline-block; width: 100%; max-width: 268px; vertical-align: top; box-sizing: border-box; text-align: center; padding-bottom: 16px;">
-					<table cellpadding="0" cellspacing="0" width="100%" style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
-						<tbody>
-							<tr>
-								<td style="padding: 0; width: 50%; text-align: center; vertical-align: top; box-sizing: border-box; padding: 0 8px;">
-									<img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Frame_2928.png" alt="Frame_2928" width="80" height="80" style="border: 0; display: block; margin: 0 auto"/>
-											<p class="advantage-label" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 16px; color: #181818; text-align: center; margin: 8px 0 0 0">Комфорт без лишних хлопот</p>
-								</td>
-								<td style="padding: 0; width: 50%; text-align: center; vertical-align: top; box-sizing: border-box; padding: 0 8px;">
-									<img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Resurs_2_1.png" alt="Resurs_2_1" width="80" height="80" style="border: 0; display: block; margin: 0 auto"/>
-											<p class="advantage-label" style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 16px; color: #181818; text-align: center; margin: 8px 0 0 0">Быстрая доставка по Беларуси</p>
-								</td>
-							</tr>
-						</tbody>
-					</table>
-				</div><!--[if (gte mso 9)|(IE)]></td></tr></table><![endif]-->
-									</td>
-								</tr>
-							</tbody>
-						</table>
-						<!-- SPECIAL_OFFERS -->
-		<table align="center" bgcolor="#FFFFFF" cellpadding="0" cellspacing="0" class="wrapper special-offers-block"
-			style="mso-table-lspace: 0; mso-table-rspace: 0; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FFF"
-			width="100%">
+		<table cellspacing="0" cellpadding="0" align="center" class="wrapper advantages-block"
+			style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #FFFFFF">
 			<tbody>
 				<tr>
-					<td class="special-offers-outer" style="padding: 16px 24px 12px 24px; margin: 0">
-						<table cellpadding="0" cellspacing="0"
-							style="mso-table-lspace:0; mso-table-rspace:0; border-collapse:separate; border-spacing:0; border-radius:8px; border:1px solid #EEE"
-							width="100%">
-							<tbody>
-								<tr>
-									<td bgcolor="#FAFAFA" class="special-offers-card"
-										style="padding: 16px; margin: 0; background-color: #FAFAFA; border-radius: 8px">
-										<table cellpadding="0" cellspacing="0"
-											style="mso-table-lspace:0; mso-table-rspace:0; border-collapse:collapse; border-spacing:0"
-											width="100%">
+					<td class="advantages-inner"
+						style="padding: 24px 0 12px 0; margin: 0; font-size: 0; text-align: center">
+						<a href="https://ikeya.by/" rel="noopener noreferrer"
+							style="text-decoration: none !important">
+							<p class="advantages-title"
+								style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 16px; line-height: 100%; font-weight: 700; color: #181818; text-align: center; margin: 0 0 16px 0">
+								Наши преимущества</p>
+						</a>
+						<!--[if (gte mso 9)|(IE)]><table width="268" cellpadding="0" cellspacing="0"><tr><td width="268" valign="top"><![endif]-->
+						<div class="advantages-pair-div" style="display: inline-block; width: 268px; max-width: 100%; vertical-align: top; box-sizing: border-box; text-align: center; padding-bottom: 16px;">
+							<table cellpadding="0" cellspacing="0" width="100%"
+								style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
+								<tbody>
+									<tr>
+										<td
+											style="padding: 0; width: 50%; text-align: center; vertical-align: top; box-sizing: border-box; padding: 0 8px;">
+											<a href="https://ikeya.by/" rel="noopener noreferrer"
+												style="text-decoration: none !important">
+												<img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Resurs_1_1.png"
+													alt="Resurs_1_1" width="80" height="80"
+													style="border: 0; display: block; margin: 0 auto" />
+												<p class="advantage-label"
+													style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 16px; color: #181818; text-align: center; margin: 8px 0 0 0">
+													Вся IKEA — в одном месте</p>
+											</a>
+										</td>
+										<td
+											style="padding: 0; width: 50%; text-align: center; vertical-align: top; box-sizing: border-box; padding: 0 8px;">
+											<a href="https://ikeya.by/" rel="noopener noreferrer"
+												style="text-decoration: none !important">
+												<img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Resurs_11_2_1.png"
+													alt="Resurs_11_2_1" width="80" height="80"
+													style="border: 0; display: block; margin: 0 auto" />
+												<p class="advantage-label"
+													style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 16px; color: #181818; text-align: center; margin: 8px 0 0 0">
+													От заказа до сборки</p>
+											</a>
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+						<!--[if (gte mso 9)|(IE)]></td></tr></table><![endif]--><!--
+		--><!--[if (gte mso 9)|(IE)]><table width="268" cellpadding="0" cellspacing="0"><tr><td width="268" valign="top"><![endif]-->
+						<div class="advantages-pair-div" style="display: inline-block; width: 268px; max-width: 100%; vertical-align: top; box-sizing: border-box; text-align: center; padding-bottom: 16px;">
+							<table cellpadding="0" cellspacing="0" width="100%"
+								style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
+								<tbody>
+									<tr>
+										<td
+											style="padding: 0; width: 50%; text-align: center; vertical-align: top; box-sizing: border-box; padding: 0 8px;">
+											<a href="https://ikeya.by/" rel="noopener noreferrer"
+												style="text-decoration: none !important">
+												<img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Frame_2928.png"
+													alt="Frame_2928" width="80" height="80"
+													style="border: 0; display: block; margin: 0 auto" />
+												<p class="advantage-label"
+													style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 16px; color: #181818; text-align: center; margin: 8px 0 0 0">
+													Комфорт без лишних хлопот</p>
+											</a>
+										</td>
+										<td
+											style="padding: 0; width: 50%; text-align: center; vertical-align: top; box-sizing: border-box; padding: 0 8px;">
+											<a href="https://ikeya.by/" rel="noopener noreferrer"
+												style="text-decoration: none !important">
+												<img src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Resurs_2_1.png"
+													alt="Resurs_2_1" width="80" height="80"
+													style="border: 0; display: block; margin: 0 auto" />
+												<p class="advantage-label"
+													style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 16px; color: #181818; text-align: center; margin: 8px 0 0 0">
+													Быстрая доставка по Беларуси</p>
+											</a>
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</div><!--[if (gte mso 9)|(IE)]></td></tr></table><![endif]-->
+					</td>
+				</tr>
+			</tbody>
+		</table>
+
+		<!-- FOOTER -->
+		<table cellspacing="0" cellpadding="0" align="center" class="wrapper footer"
+		style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #F5F5F5">
+		<tbody>
+			<tr>
+				<td class="footer-inner" style="padding: 24px; margin: 0"><!-- FOOTER: layout table -->
+					<table width="100%" cellspacing="0" cellpadding="0"
+						style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
+						<tbody>
+							<tr class="footer-main-row">
+								<td style="padding: 0; margin: 0; font-size: 0; vertical-align: top;">
+									<!--[if mso]><table width="552" cellpadding="0" cellspacing="0"><tr><td width="241" valign="top"><![endif]-->
+									<div
+										style="display: inline-block; width: 100%; max-width: 241px; vertical-align: top; box-sizing: border-box; padding-top: 2px;">
+										<a rel="noopener noreferrer" href="https://ikeya.by/"
+											style="text-decoration: none !important"><img
+												src="https://s9345793.sendpul.se/image/747991a0e145ac2bbe69f063a9402e69/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/title.png"
+												alt="title" width="101" height="18"
+												style="border: 0; display: block" /></a>
+										<p class="company-address company-address-top"
+											style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 10px; color: #9E9E9E; line-height: 100%; margin: 0; margin-top: 12px; margin-bottom: 16px">
+											ООО «БелкаБокс», 220019, г. Минск,
+											<br />ул. Сухаревская, д.16, пом. 6,
+											<br />BY25MTBK30120001093300124557 в ЗАО «МТБанк», БИК MTBKBY22.
+										</p>
+									</div><!--
+--><!--[if mso]></td><td width="311" valign="top"><![endif]--><!--
+-->
+									<div
+										style="display: inline-block; width: 100%; max-width: 311px; vertical-align: top; box-sizing: border-box;">
+										<table cellspacing="0" cellpadding="0" class="footer-right-table"
+											style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; text-align: right">
 											<tbody>
-												<tr>
-													<td class="special-offers-img-cell"
-														style="padding: 0; margin: 0; width: 64px; vertical-align: middle"
-														valign="middle" width="64"><img alt="Rectangle_1" height="64"
-															src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Rectangle_1.png"
-															style="border:0; display:block" width="64" /></td>
-													<td class="special-offers-gap-cell"
-														style="padding: 0; margin: 0; width: 24px" width="24"></td>
-													<td class="special-offers-text-cell"
-														style="padding: 0; margin: 0; vertical-align: middle"
-														valign="middle"><a class="special-offers-title" href="#"
-															rel="noopener noreferrer"
-															style='color: #0058A3 !important; font-family: "HelveticaNeueCyr", Arial, sans-serif; font-size: 15px; line-height: 20px; font-weight: 600; text-decoration: none !important; display: block; margin: 0 0 8px 0'><span
-																style="text-decoration: underline;">Подпишитесь</span>
-															на наши обновления</a>
-														<p class="special-offers-sub"
-															style='font-family: "HelveticaNeueCyr", Arial, sans-serif; font-size: 14px; line-height: 20px; font-weight: 400; color: #181818; margin: 0'>
-															Вы всегда будете в курсе наших
-															спецпредложений</p>
+												<tr class="footer-social-contacts-row"><!-- SOCIAL_NETWORKS -->
+													<td class="social-networks-block"
+														style="padding: 0; margin: 0; display: inline-block; text-align: left; vertical-align: top; padding-right: 24px">
+														<table cellspacing="0" cellpadding="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
+															<tbody>
+																<tr>
+																	<td colspan="5" class="social-networks-label"
+																		style="padding: 0; margin: 0 0 0 0; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 100%; font-weight: 600; color: #181818; text-align: left; white-space: nowrap">
+																		Наши соцсети</td>
+																</tr>
+																<tr class="social-networks-icons"
+																	style="padding-top: 13px">
+																	<td class="social-networks-icons"
+																		style="padding: 0; margin: 0; padding-top: 13px">
+																		<table cellspacing="0" cellpadding="0"
+																			class="social-networks-icons-table"
+																			style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; margin-top: 0">
+																			<tbody>
+																				<tr>
+																					<td
+																						style="padding: 0; margin: 0">
+																						<a rel="noopener noreferrer"
+																							href="https://t.me/ShopByShopBelarus"
+																							style="text-decoration: none !important"><img
+																								src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Icon_Button.png"
+																								alt="Telegram"
+																								width="24"
+																								height="24"
+																								style="border: 0; display: block" /></a>
+																					</td>
+																					<td class="social-networks-gap"
+																						style="padding: 0; margin: 0; width: 16px; min-width: 16px; font-size: 0; line-height: 0">
+																						&#160;</td>
+																					<td
+																						style="padding: 0; margin: 0">
+																						<a rel="noopener noreferrer"
+																							href="https://www.instagram.com/shopbyshop_by"
+																							style="text-decoration: none !important"><img
+																								src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Icon_Button_2.png"
+																								alt="Instagram"
+																								width="24"
+																								height="24"
+																								style="border: 0; display: block" /></a>
+																					</td>
+																				</tr>
+																			</tbody>
+																		</table>
+																	</td>
+																</tr>
+															</tbody>
+														</table>
+													</td>
+													<!-- FOOTER: sections gap -->
+													<td class="footer-sections-gap"
+														style="padding: 0; margin: 0; width: 32px"></td>
+													<!-- CONTACTS -->
+													<td class="contacts-block"
+														style="padding: 0 0 0 16px; margin: 0; display: inline-block; text-align: left; vertical-align: top">
+														<table cellspacing="0" cellpadding="0"
+															style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
+															<tbody><!-- CONTACTS: phone -->
+																<tr class="contacts-phone-row"
+																	style="white-space: nowrap">
+																	<td colspan="3"
+																		style="padding: 0 0 0 16px; margin: 0; font-size: 25px; line-height: 100%; height: 25px">
+																		&nbsp;</td>
+																</tr>
+																<!-- CONTACTS: telegram -->
+																<tr class="contacts-tg-row"
+																	style="padding-top: 4px; white-space: nowrap">
+																	<td colspan="3" class="contacts-tg-gap"
+																		style="padding: 0; margin: 0; padding-top: 4px; padding-left: 16px">
+																		<table cellspacing="0" cellpadding="0"
+																			style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
+																			<tbody>
+																				<tr>
+																					<td
+																						style="padding: 0; margin: 0; font-size: 0; line-height: 0; vertical-align: middle; width: 18px">
+																						<a rel="noopener noreferrer"
+																							href="tel:+375445794444"
+																							style="text-decoration: none !important; display: block; font-size: 0; line-height: 0"><img
+																								src="https://s9345793.sendpul.se/image/747991a0e145ac2bbe69f063a9402e69/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/call-fill.png"
+																								alt="call-fill"
+																								width="18"
+																								height="18"
+																								style="border: 0; display: block" /></a>
+																					</td>
+																					<td width="6"
+																						style="padding: 0; margin: 0; width: 6px; min-width: 6px; vertical-align: middle">
+																						&#160;</td>
+																						<td style="padding: 0 24px 0 0; margin: 0; vertical-align: middle">
+																						<a rel="noopener noreferrer"
+																							href="tel:+375445794444"
+																							class="contacts-phone-link"
+																							style="text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 700; font-size: 16px; line-height: 22px; color: #0058A3 !important">+375 (44) 579-44-44</a>
+																					</td>
+																					<td width="24" style="padding: 0; margin: 0; width: 24px; min-width: 24px; vertical-align: middle; font-size: 0; line-height: 0">&nbsp;</td>
+																				</tr>
+																			</tbody>
+																		</table>
+																	</td>
+																</tr>
+															</tbody>
+														</table>
 													</td>
 												</tr>
 											</tbody>
 										</table>
-									</td>
-								</tr>
-							</tbody>
-						</table>
-					</td>
-				</tr>
-			</tbody>
-		</table>
-		<!-- FOOTER -->
-		<table align="center" cellpadding="0" cellspacing="0" class="wrapper footer"
-			style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #F5F5F5">
-			<tbody>
-				<tr>
-					<td class="footer-inner" style="padding: 24px; margin: 0"><!-- FOOTER: layout table -->
-						<table cellpadding="0" cellspacing="0"
-							style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0"
-							width="100%">
-							<tbody>
-								<tr class="footer-main-row">
-									<td style="padding: 0; margin: 0; font-size: 0; vertical-align: top;">
-										<!--[if mso]><table width="552" cellpadding="0" cellspacing="0"><tr><td width="241" valign="top"><![endif]-->
-										<div
-											style="display: inline-block; width: 100%; max-width: 241px; vertical-align: top; box-sizing: border-box; padding-top: 2px;">
-											<a href="#" rel="noopener noreferrer"
-												style="color: inherit !important; text-decoration: none !important"><img
-													alt="title" height="18"
-													src="https://s9345793.sendpul.se/image/747991a0e145ac2bbe69f063a9402e69/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/title.png"
-													style="border: 0; display: block" width="101" /></a>
-											<p class="company-address company-address-top"
-												style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 10px; color: #9E9E9E; line-height: 100%; margin: 0; margin-top: 12px; margin-bottom: 16px">
-												ПТЧУП «В2В Авто»,
-												УНП: <a href="#"
-													style="color: #9E9E9E !important; text-decoration: none !important; pointer-events: none; cursor: default">690542762</a>,<br />г.
-												Минск, пр. Победителей, 23, корп.
-												4,<br />223017 агрогор.Гатово , ул.Металлургическая,
-												3-4<br />Директор - Есьман Е.Е.</p>
-										</div><!--
---><!--[if mso]></td><td width="311" valign="top"><![endif]--><!--
--->
-										<div
-											style="display: inline-block; width: 100%; max-width: 311px; vertical-align: top; box-sizing: border-box;">
-											<table cellpadding="0" cellspacing="0" class="footer-right-table"
-												style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; text-align: right">
-												<tbody>
-													<tr class="footer-social-contacts-row"><!-- SOCIAL_NETWORKS -->
-														<td class="social-networks-block"
-															style="padding: 0; margin: 0; display: inline-block; text-align: left; vertical-align: top; padding-right: 24px">
-															<table cellpadding="0" cellspacing="0"
-																style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
-																<tbody>
-																	<tr>
-																		<td class="social-networks-label" colspan="5"
-																			style="padding: 0; margin: 0 0 0 0; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 12px; line-height: 100%; font-weight: 600; color: #181818; text-align: left; white-space: nowrap">
-																			Наши соцсети</td>
-																	</tr>
-																	<tr class="social-networks-icons"
-																		style="padding-top: 13px">
-																		<td class="social-networks-icons"
-																			style="padding: 0; margin: 0; padding-top: 13px">
-																			<table cellpadding="0" cellspacing="0"
-																				class="social-networks-icons-table"
-																				style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; margin-top: 0">
-																				<tbody>
-																					<tr>
-																						<td
-																							style="padding: 0; margin: 0">
-																							<a href="#"
-																								rel="noopener noreferrer"
-																								style="color: inherit !important; text-decoration: none !important"><img
-																									alt="Telegram"
-																									height="24"
-																									src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Icon_Button.png"
-																									style="border: 0; display: block"
-																									width="24" /></a>
-																						</td>
-																						<td class="social-networks-gap"
-																							style="padding: 0; margin: 0; width: 16px; min-width: 16px; font-size: 0; line-height: 0">
-																							 </td>
-																						<td
-																							style="padding: 0; margin: 0">
-																							<a href="#"
-																								rel="noopener noreferrer"
-																								style="color: inherit !important; text-decoration: none !important"><img
-																									alt="Instagram"
-																									height="24"
-																									src="https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/Icon_Button_2.png"
-																									style="border: 0; display: block"
-																									width="24" /></a>
-																						</td>
-																					</tr>
-																				</tbody>
-																			</table>
-																		</td>
-																	</tr>
-																</tbody>
-															</table>
-														</td>
-														<!-- FOOTER: sections gap -->
-														<td class="footer-sections-gap"
-															style="padding: 0; margin: 0; width: 32px"></td>
-														<!-- CONTACTS -->
-														<td class="contacts-block"
-															style="padding: 0 0 0 16px; margin: 0; display: inline-block; text-align: left; vertical-align: top">
-															<table cellpadding="0" cellspacing="0"
-																style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
-																<tbody><!-- CONTACTS: phone -->
-																	<tr class="contacts-phone-row"
-																		style="white-space: nowrap">
-																		<td colspan="3"
-																			style="padding: 0 0 0 16px; margin: 0; font-size: 25px; line-height: 100%; height: 25px">
-																			 </td>
-																	</tr>
-																	<!-- CONTACTS: telegram -->
-																	<tr class="contacts-tg-row"
-																		style="padding-top: 4px; white-space: nowrap">
-																		<td class="contacts-tg-gap" colspan="3"
-																			style="padding: 0; margin: 0; padding-top: 4px; padding-left: 16px">
-																			<table cellpadding="0" cellspacing="0"
-																				style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0">
-																				<tbody>
-																					<tr>
-																						<td
-																							style="padding: 0; margin: 0; font-size: 0; line-height: 0; vertical-align: middle; width: 18px">
-																							<a href="tel:2626"
-																								rel="noopener noreferrer"
-																								style="color: inherit !important; text-decoration: none !important; display: block; font-size: 0; line-height: 0"><img
-																									alt="call-fill"
-																									height="18"
-																									src="https://s9345793.sendpul.se/image/747991a0e145ac2bbe69f063a9402e69/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/call-fill.png"
-																									style="border: 0; display: block"
-																									width="18" /></a>
-																						</td>
-																						<td style="padding: 0; margin: 0; width: 6px; min-width: 6px; vertical-align: middle"
-																							width="6"> </td>
-																						<td
-																							style="padding: 0; margin: 0; vertical-align: middle">
-																							<a class="contacts-phone-link"
-																								href="tel:2626"
-																								rel="noopener noreferrer"
-																								style="color: #0058A3 !important; text-decoration: none !important; font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-weight: 700; font-size: 18px; line-height: 24px">2626</a>
-																						</td>
-																					</tr>
-																				</tbody>
-																			</table>
-																		</td>
-																	</tr>
-																</tbody>
-															</table>
-														</td>
-													</tr>
-												</tbody>
-											</table>
-										</div>
-									</td>
-								</tr>
-							</tbody>
-						</table>
-					</td>
-				</tr>
-			</tbody>
-		</table>
-	</div>
-	<!--[if mso]></td></tr></table><![endif]-->
+								</td>
+							</tr>
+						</tbody>
+					</table>
+</div>
+<!--[if mso]></td></tr></table><![endif]-->
+</td>
+</tr>
+</tbody>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
 	<!-- HELP -->
-	<table align="center" bgcolor="#000000" cellpadding="0" cellspacing="0" class="wrapper help-bar"
-		style="mso-table-lspace: 0; mso-table-rspace: 0; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #000"
-		width="100%">
+	<table cellspacing="0" cellpadding="0" align="center" class="wrapper help-bar"
+		style="mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; border-spacing: 0; width: 100%; max-width: 600px; margin: 0 auto; background-color: #000000">
 		<tbody>
 			<tr>
-				<td align="center" class="help-inner" height="36"
+				<td class="help-inner"
 					style="padding: 0 24px; margin: 0; height: 36px; line-height: 36px; text-align: center">
 					<p class="help-text"
-						style='font-family: "HelveticaNeueCyr", Arial, sans-serif; font-size: 10px; line-height: 16px; font-weight: 400; color: #9E9E9E; margin: 0'>
-						Если возникли проблемы с заказом или вопросы, звоните круглосуточно <a class="help-link"
-							href="#" rel="noopener noreferrer"
-							style="color: #9E9E9E !important; text-decoration: none !important">2626</a> или напишите
-						нам в
-						чат-бот: <a class="help-link" href="#" rel="noopener noreferrer"
-							style="color: #9E9E9E !important; text-decoration: underline !important">telegram</a></p>
+						style="font-family: 'HelveticaNeueCyr', Arial, sans-serif; font-size: 10px; line-height: 16px; font-weight: 400; color: #9E9E9E; margin: 0">
+						Если возникли проблемы с заказом или вопросы, звоните <a rel="noopener noreferrer" href="tel:+375445794444" class="help-link"
+							style="text-decoration: underline; color: #9E9E9E !important">+375 (44) 579-44-44</a> или
+						напишите нам в <a rel="noopener noreferrer" href="https://t.me/ShopByShopBelarus" class="help-link"
+							style="text-decoration: underline !important; color: #9E9E9E !important">Telegram</a></p>
 				</td>
 			</tr>
 		</tbody>
+	</table>
+	</td>
+	</tr>
+	</tbody>
 	</table>
 </body>
 

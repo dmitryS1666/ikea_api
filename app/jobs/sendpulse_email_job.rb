@@ -1,7 +1,7 @@
 class SendpulseEmailJob < ApplicationJob
   queue_as :default
 
-  retry_on StandardError, wait: :exponentially_longer, attempts: 5
+  retry_on StandardError, wait: :polynomially_longer, attempts: 5
 
   def perform(**payload)
     result = Sendpulse::EmailSender.new.call(**payload, raise_on_error: true)

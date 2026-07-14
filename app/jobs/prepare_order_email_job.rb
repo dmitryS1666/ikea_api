@@ -41,7 +41,10 @@ class PrepareOrderEmailJob < ApplicationJob
   private
 
   def abandoned_cart_still_valid?(order, activity_at:, queued_at:)
-    unless order.checkout_draft? && order.status.to_s == "created" && order.user&.email.present?
+    unless order.checkout_draft? &&
+           order.status.to_s == "created" &&
+           order.user&.email.present? &&
+           MarketingSubscriptionService.subscribed?(order.user)
       return false
     end
 

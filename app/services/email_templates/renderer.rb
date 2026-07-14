@@ -2,6 +2,8 @@
 
 module EmailTemplates
   class Renderer
+    UNSUBSCRIBE_TEMPLATES = %i[abandoned_cart welcome email_changed].freeze
+
     TEMPLATES = {
       order_created: {
         file: "order_created.html",
@@ -79,7 +81,8 @@ module EmailTemplates
       html = load_template
       html = apply_common_replacements(html)
       html = apply_template_specific_replacements(html)
-      apply_fallback_links(html)
+      html = apply_fallback_links(html)
+      apply_unsubscribe_link(html)
     end
 
     private
@@ -126,9 +129,47 @@ module EmailTemplates
       site_root = "#{public_site_url}/"
       escaped = ERB::Util.html_escape(site_root)
 
+      html.gsub!("{{webversion}}", escaped)
       html.gsub!('href="#"', "href=\"#{escaped}\"")
       html.gsub!("href='#'", "href='#{escaped}'")
       html
+    end
+
+    def apply_unsubscribe_link(html)
+      return html unless UNSUBSCRIBE_TEMPLATES.include?(template_key)
+      return html unless user&.persisted? && user.email.present?
+
+      url = ERB::Util.html_escape(MarketingUnsubscribeService.url_for(user))
+
+      if html.include?("{{unsubscribe_url}}")
+        html.gsub!("{{unsubscribe_url}}", url)
+        return html
+      end
+
+      existing_pattern = /<a\b(?=[^>]*\bclass=(['"])[^'"]*\bunsubscribe-link\b[^'"]*\1)[^>]*>/i
+
+      if html.match?(existing_pattern)
+        html.gsub!(existing_pattern) do |tag|
+          if tag.match?(/\bhref=(['"])[^'"]*\1/i)
+            tag.sub(/\bhref=(['"])[^'"]*\1/i, "href=\"#{url}\"")
+          else
+            tag.sub(/>\z/, " href=\"#{url}\">")
+          end
+        end
+        return html
+      end
+
+      block = <<~HTML
+        <table role="presentation" cellspacing="0" cellpadding="0" width="100%" style="border-collapse: collapse; background-color: #F5F5F5;">
+          <tr>
+            <td align="center" style="padding: 0 24px 24px;">
+              <a class="unsubscribe-link" href="#{url}" rel="noopener noreferrer" style="display: inline-block; padding: 9px 18px; border: 1px solid #9E9E9E; border-radius: 6px; font-family: Arial, sans-serif; font-size: 12px; line-height: 16px; color: #666C71; text-decoration: none;">Отписаться от рассылки</a>
+            </td>
+          </tr>
+        </table>
+      HTML
+
+      html.include?("</body>") ? html.sub("</body>", "#{block}</body>") : "#{html}#{block}"
     end
 
     def apply_order_replacements(html)

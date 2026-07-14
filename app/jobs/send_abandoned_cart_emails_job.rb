@@ -24,7 +24,9 @@ class SendAbandonedCartEmailsJob < ApplicationJob
     Order
       .where(checkout_draft: true, status: Order.statuses[:created])
       .where(abandoned_cart_email_sent_at: nil)
-      .where("updated_at <= ?", cutoff)
+      .where("orders.updated_at <= ?", cutoff)
+      .joins(:user)
+      .where("users.email_marketing IS TRUE OR users.newsletter_consent IS TRUE")
       .includes(:user, order_items: :product)
   end
 
@@ -59,7 +61,8 @@ class SendAbandonedCartEmailsJob < ApplicationJob
       order.status.to_s == "created" &&
       order.abandoned_cart_email_sent_at.nil? &&
       order.updated_at <= cutoff &&
-      order.user&.email.present?
+      order.user&.email.present? &&
+      MarketingSubscriptionService.subscribed?(order.user)
   end
 
   def reset_queue_marker(order, queued_at)

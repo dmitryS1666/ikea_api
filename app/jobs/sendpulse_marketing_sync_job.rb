@@ -1,7 +1,7 @@
 class SendpulseMarketingSyncJob < ApplicationJob
   queue_as :default
 
-  retry_on Sendpulse::Error, wait: :exponentially_longer, attempts: 3
+  retry_on Sendpulse::Error, wait: :polynomially_longer, attempts: 3
 
   def perform(user_id, action)
     user = User.find_by(id: user_id)

@@ -4,7 +4,15 @@ require "rails_helper"
 
 RSpec.describe PrepareOrderEmailJob, type: :job do
   include ActiveJob::TestHelper
-  let(:user) { create(:user, email: "customer@example.com", username: "Татьяна") }
+  let(:user) do
+    create(
+      :user,
+      email: "customer@example.com",
+      username: "Татьяна",
+      email_marketing: true,
+      newsletter_consent: true
+    )
+  end
   let(:order) do
     create(
       :order,
@@ -155,5 +163,26 @@ RSpec.describe PrepareOrderEmailJob, type: :job do
 
     expect(SendpulseEmailJob).not_to have_received(:perform_later)
     expect(order.reload.abandoned_cart_email_sent_at).to be_nil
+  end
+
+  it "cancels a queued abandoned-cart email when the user unsubscribed meanwhile" do
+    queued_at = 1.minute.ago
+    activity_at = 31.minutes.ago
+    order.update_columns(
+      checkout_draft: true,
+      status: Order.statuses[:created],
+      updated_at: activity_at,
+      abandoned_cart_email_sent_at: queued_at
+    )
+    user.update!(email_marketing: false, newsletter_consent: false)
+
+    described_class.perform_now(
+      template_key: "abandoned_cart",
+      order_id: order.id,
+      abandoned_cart_activity_at: activity_at.iso8601(6),
+      abandoned_cart_queued_at: queued_at.iso8601(6)
+    )
+
+    expect(SendpulseEmailJob).not_to have_received(:perform_later)
   end
 end

@@ -132,6 +132,8 @@ Rails.application.routes.draw do
         end
       end
 
+      post "marketing/unsubscribe", to: "marketing_subscriptions#unsubscribe"
+
       # Homepage
       get 'homepage/slider/main', to: 'homepage#slider_main'
       get 'homepage/slider/banners', to: 'homepage#slider_banners'

@@ -14,6 +14,7 @@ class ConsentRecord < ApplicationRecord
     profile
     admin
     cooperation_form
+    email_unsubscribe_link
     unsubscribe_webhook
   ].freeze
 
