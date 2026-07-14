@@ -147,9 +147,78 @@ module Products
         next if sibling_skus.sort == record.normalized_variant_skus.map(&:to_s).sort
 
         record.update_columns(
-          variants: sibling_skus.to_json,
+          # Product сериализует колонку через JSON coder; массив нельзя
+          # предварительно превращать в JSON-строку.
+          variants: sibling_skus,
           updated_at: Time.current
         )
+      end
+
+      sync_single_axis_payload!(records)
+    end
+
+    # Для обычной одноосевой группы (только color либо только size) payload
+    # должен быть одинаковым у каждой карточки. Раньше синхронизировался только
+    # список SKU, поэтому часть карточек отвечала variants: null.
+    #
+    # Комбинированные color + size payload здесь не копируем: у них список
+    # размеров может зависеть от выбранного цвета.
+    def sync_single_axis_payload!(records)
+      candidates = records.filter_map { |record| single_axis_payload(record.variants_payload) }
+      candidate = candidates.max_by { |item| item[:skus].size }
+      return unless candidate
+      return unless records.all? { |record| payload_contains_sku?(candidate[:skus], record.sku) }
+
+      canonical_payload = JSON.generate(candidate[:groups])
+      canonical_type = candidate[:type]
+
+      records.each do |record|
+        updates = {}
+        updates[:variants_payload] = canonical_payload if record.variants_payload.to_s != canonical_payload
+        if Product.column_names.include?("variant_type") && record.variant_type.to_s != canonical_type
+          updates[:variant_type] = canonical_type
+        end
+        next if updates.empty?
+
+        updates[:updated_at] = Time.current
+        record.update_columns(updates)
+      end
+    end
+
+    def single_axis_payload(raw)
+      return nil if raw.blank?
+
+      parsed = JSON.parse(raw.to_s)
+      groups = parsed.is_a?(Array) ? parsed : [parsed]
+      return nil unless groups.size == 1 && groups.first.is_a?(Hash)
+
+      group = groups.first.deep_stringify_keys
+      type = group["type"].to_s
+      return nil unless %w[color size].include?(type)
+
+      rows = Array(group["data"])
+      return nil if rows.size < 2
+
+      skus = rows.filter_map do |row|
+        next unless row.is_a?(Hash)
+
+        item = row["item"] || row[:item]
+        next unless item.is_a?(Hash)
+
+        item["sku"] || item[:sku]
+      end.map(&:to_s).reject(&:blank?).uniq
+
+      return nil if skus.size < 2
+
+      { groups: groups, type: type, skus: skus }
+    rescue JSON::ParserError, TypeError
+      nil
+    end
+
+    def payload_contains_sku?(payload_skus, record_sku)
+      record_aliases = ListingSkuResolver.aliases(record_sku).map(&:to_s)
+      Array(payload_skus).any? do |payload_sku|
+        (record_aliases & ListingSkuResolver.aliases(payload_sku).map(&:to_s)).any?
       end
     end
 

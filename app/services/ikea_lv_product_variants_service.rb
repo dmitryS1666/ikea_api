@@ -49,7 +49,9 @@ class IkeaLvProductVariantsService
       all_variant_skus = variants_data.flat_map { |v| v[:data].map { |d| d.dig(:item, :sku) } }.compact.uniq
       
       # Сохраняем расширенную структуру в payload
-      update_data = { variants: all_variant_skus.to_json, updated_at: Time.current }
+      # `variants` сериализуется Product через JSON coder. Передаём массив,
+      # чтобы update_columns не сохранил JSON-массив как строковое значение.
+      update_data = { variants: all_variant_skus, updated_at: Time.current }
       
       # Тип теперь может быть комбинированным, если их несколько
       if Product.column_names.include?("variant_type")

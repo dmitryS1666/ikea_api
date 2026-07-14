@@ -57,6 +57,7 @@ RSpec.describe Products::VariantProductsEnsureService do
         {
           "type" => "color",
           "data" => [
+            { "item" => { "sku" => parent.sku } },
             { "item" => { "sku" => "s87654321" } },
             { "item" => { "sku" => "s22222222" } }
           ]
@@ -72,6 +73,43 @@ RSpec.describe Products::VariantProductsEnsureService do
       expect(parent.reload.normalized_variant_skus).to contain_exactly("s87654321", "s22222222")
       expect(variant_a.reload.normalized_variant_skus).to contain_exactly(parent.sku, "s22222222")
       expect(variant_b.reload.normalized_variant_skus).to contain_exactly(parent.sku, "s87654321")
+      expect(variant_a.variant_type).to eq("color")
+      expect(variant_b.variant_type).to eq("color")
+      expect(JSON.parse(variant_a.variants_payload)).to eq(JSON.parse(parent.variants_payload))
+      expect(JSON.parse(variant_b.variants_payload)).to eq(JSON.parse(parent.variants_payload))
+    end
+
+    it "does not copy a multi-axis payload to sibling cards" do
+      payload = [
+        {
+          "type" => "color",
+          "data" => [
+            { "item" => { "sku" => parent.sku } },
+            { "item" => { "sku" => "s87654321" } }
+          ]
+        },
+        {
+          "type" => "size",
+          "data" => [
+            { "item" => { "sku" => parent.sku } },
+            { "item" => { "sku" => "s87654321" } }
+          ]
+        }
+      ].to_json
+      parent.update!(variants_payload: payload, materials: "fabric", content: "ready", weight: 1.0)
+      variant = create(
+        :product,
+        sku: "s87654321",
+        name: "Variant",
+        price: 10,
+        weight: 1.0,
+        materials: "fabric",
+        content: "ready"
+      )
+
+      described_class.ensure!(parent, category: category)
+
+      expect(variant.reload.variants_payload).to be_blank
     end
   end
 

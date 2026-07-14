@@ -369,12 +369,13 @@ class Product < ApplicationRecord
   def normalized_variants_for_api_full
     # Сначала пробуем использовать сохраненный тип из БД
     type = variant_type.presence || variant_group_type
+    api_variants_payload = variants_payload_for_api
     
     # Если мы сохранили данные в variants_payload (в IkeaLvProductVariantsService), 
     # мы можем использовать их напрямую
-    if Product.column_names.include?("variants_payload") && variants_payload.present?
+    if Product.column_names.include?("variants_payload") && api_variants_payload.present?
       begin
-        payload = JSON.parse(variants_payload)
+        payload = JSON.parse(api_variants_payload)
         
         # Обработка как массива (новая структура) или объекта (старая)
         data_to_process = payload.is_a?(Array) ? payload : [payload]
@@ -605,6 +606,63 @@ class Product < ApplicationRecord
   end
 
   private
+
+  # У старых карточек одной цветовой/размерной группы variants_payload мог быть
+  # сохранён только у части SKU. Для одноосевой группы безопасно использовать
+  # payload соседней карточки: состав вариантов одинаков, а текущий SKU ниже
+  # всё равно переставляется на первое место и обогащается данными из БД.
+  #
+  # Многоосевые группы (color + size) намеренно не восстанавливаем этим
+  # fallback: размеры там зависят от выбранного цвета и требуют отдельной
+  # модели комбинаций.
+  def variants_payload_for_api
+    raw = variants_payload.to_s
+    return raw if parsed_variant_payload_groups(raw).present?
+    return nil if normalized_variant_skus.blank?
+
+    variant_products
+      .where.not(id: id)
+      .where.not(variants_payload: [nil, ""])
+      .pluck(:variants_payload)
+      .filter_map { |candidate| single_axis_payload_candidate(candidate) }
+      .max_by { |candidate| candidate[:size] }
+      &.dig(:raw)
+  end
+
+  def single_axis_payload_candidate(raw)
+    groups = parsed_variant_payload_groups(raw)
+    return nil unless groups.size == 1
+
+    group = groups.first.deep_stringify_keys
+    return nil unless %w[color size].include?(group["type"].to_s)
+
+    rows = Array(group["data"])
+    return nil if rows.size < 2
+    return nil unless variant_payload_rows_include_sku?(rows, sku)
+
+    { raw: raw.to_s, size: rows.size }
+  end
+
+  def parsed_variant_payload_groups(raw)
+    return [] if raw.blank?
+
+    parsed = JSON.parse(raw.to_s)
+    groups = parsed.is_a?(Array) ? parsed : [parsed]
+    groups.select { |group| group.is_a?(Hash) }
+  rescue JSON::ParserError, TypeError
+    []
+  end
+
+  def variant_payload_rows_include_sku?(rows, target_sku)
+    target_aliases = Products::ListingSkuResolver.aliases(target_sku).map(&:to_s)
+
+    Array(rows).any? do |row|
+      item = row.is_a?(Hash) ? (row["item"] || row[:item]) : nil
+      raw_sku = item.is_a?(Hash) ? (item["sku"] || item[:sku]) : nil
+      candidate_aliases = Products::ListingSkuResolver.aliases(raw_sku).map(&:to_s)
+      (target_aliases & candidate_aliases).any?
+    end
+  end
 
   def compact_variants_payload_for_teaser(payload)
     return nil if payload.blank?

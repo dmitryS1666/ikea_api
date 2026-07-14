@@ -196,6 +196,84 @@ RSpec.describe Product, type: :model do
       expect(colors).to include("оранжево красный", "темно серый")
       expect(colors).not_to include("полотенце")
     end
+
+    it "uses a sibling single-axis payload when the current card has no variants_payload" do
+      current = create(
+        :product,
+        sku: "s33333333",
+        variants: ["s44444444"],
+        variants_payload: nil,
+        price: 100,
+        quantity: 5,
+        small_desc_name: "Стеллаж, белый, 77x77 см"
+      )
+      sibling = create(
+        :product,
+        sku: "s44444444",
+        variants: ["s33333333"],
+        price: 120,
+        quantity: 5,
+        small_desc_name: "Стеллаж, черный, 77x77 см",
+        variants_payload: [
+          {
+            "type" => "color",
+            "data" => [
+              {
+                "color" => "белый",
+                "item" => { "sku" => "s33333333", "price" => "100", "quantity" => 5 }
+              },
+              {
+                "color" => "черный",
+                "item" => { "sku" => "s44444444", "price" => "120", "quantity" => 5 }
+              }
+            ]
+          }
+        ].to_json
+      )
+
+      out = current.normalized_variants_for_api
+
+      expect(out).to be_a(Array)
+      expect(out.first[:type]).to eq("color")
+      expect(out.first[:data].map { |row| row.dig(:item, :sku) }).to eq(%w[33333333 44444444])
+      expect(sibling.reload.variants_payload).to be_present
+    end
+
+    it "does not borrow a sibling multi-axis payload" do
+      current = create(
+        :product,
+        sku: "s55555555",
+        variants: ["s66666666"],
+        variants_payload: nil,
+        price: 100,
+        quantity: 5
+      )
+      create(
+        :product,
+        sku: "s66666666",
+        variants: ["s55555555"],
+        price: 120,
+        quantity: 5,
+        variants_payload: [
+          {
+            "type" => "color",
+            "data" => [
+              { "color" => "желтый", "item" => { "sku" => "s55555555" } },
+              { "color" => "красный", "item" => { "sku" => "s66666666" } }
+            ]
+          },
+          {
+            "type" => "size",
+            "data" => [
+              { "size" => "30x30 см", "item" => { "sku" => "s55555555" } },
+              { "size" => "50x100 см", "item" => { "sku" => "s66666666" } }
+            ]
+          }
+        ].to_json
+      )
+
+      expect(current.normalized_variants_for_api).to be_nil
+    end
   end
 
   describe "#normalized_variants_teaser_for_api" do
