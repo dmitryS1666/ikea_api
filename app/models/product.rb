@@ -856,7 +856,8 @@ class Product < ApplicationRecord
 
     phrase_map = {
       "z szerokimi podlokietnikami" => "с широкими подлокотниками",
-      "s szerokimi podlokietnikami" => "с широкими подлокотниками"
+      "s szerokimi podlokietnikami" => "с широкими подлокотниками",
+      "w paski" => "в полоску"
     }
 
     words_map = {
@@ -889,8 +890,12 @@ class Product < ApplicationRecord
       "średnio" => "средне",
       "srednio" => "средне",
       "szaroniebieski" => "серо-синий",
+      "szarobezowy" => "серо-бежевый",
       "czerwonobrązowy" => "красно-коричневый",
       "czerwonobrazowy" => "красно-коричневый",
+      "jasnobezowy" => "светло-бежевый",
+      "jasnoniebieski" => "светло-синий",
+      "jaskrawoniebieski" => "ярко-синий",
       "jasnozielony" => "светло-зеленый",
       "ciemnozielony" => "темно-зеленый",
       "ciemnozielononiebieski" => "темно-зелено-синий",

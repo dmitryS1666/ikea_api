@@ -3,6 +3,21 @@
 require "rails_helper"
 
 RSpec.describe Product, type: :model do
+  describe "#normalize_variant_small_desc_label" do
+    subject(:product) { build(:product) }
+
+    it "translates compound Polish beige and striped color labels" do
+      expect(product.send(:normalize_variant_small_desc_label, "Szarobeżowy")).to eq("серо-бежевый")
+      expect(product.send(:normalize_variant_small_desc_label, "Czarny/jasnobeżowy w paski"))
+        .to eq("черный светло-бежевый в полоску")
+    end
+
+    it "translates compound Polish blue striped color labels" do
+      expect(product.send(:normalize_variant_small_desc_label, "Jaskrawoniebieski/jasnoniebieski w paski"))
+        .to eq("ярко-синий светло-синий в полоску")
+    end
+  end
+
   describe "#normalized_variants_for_api" do
     let(:product) do
       build(

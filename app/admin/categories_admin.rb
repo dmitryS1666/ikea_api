@@ -228,9 +228,33 @@ Trestle.resource(:categories, model: Category) do
 
       if cp
         cp.destroy
+        clear_categories_cache
         flash[:notice] = "Товар удален из категории."
       else
         flash[:error] = "Связь не найдена."
+      end
+
+      redirect_back fallback_location: edit_categories_admin_path(@category.ikea_id)
+    end
+
+    def remove_products
+      @category = admin.find_instance(params)
+      product_ids = Array(params[:product_ids])
+                    .map { |value| value.to_s.match?(/\A\d+\z/) ? value.to_i : nil }
+                    .compact
+                    .uniq
+
+      if product_ids.empty?
+        flash[:error] = "Выберите хотя бы один товар."
+      else
+        removed_count = @category.category_products.where(product_id: product_ids).delete_all
+
+        if removed_count.positive?
+          clear_categories_cache
+          flash[:notice] = "Удалено товаров из категории: #{removed_count}."
+        else
+          flash[:error] = "Выбранные связи с категорией не найдены."
+        end
       end
 
       redirect_back fallback_location: edit_categories_admin_path(@category.ikea_id)
@@ -421,6 +445,7 @@ Trestle.resource(:categories, model: Category) do
     post :reindex_all_filters, on: :collection
     post :import_products_csv, on: :member
     post :add_product, on: :member
+    post :remove_products, on: :member
     post :remove_product, on: :member
     # Совместимость со ссылками старой админки, которые открывают action через GET.
     get :remove_product, on: :member
@@ -706,6 +731,58 @@ Trestle.resource(:categories, model: Category) do
                   });
                 }
               }
+
+              var bulkRemoveForm = document.getElementById('category-bulk-remove-products-form');
+              if (bulkRemoveForm && bulkRemoveForm.dataset.bound !== 'true') {
+                bulkRemoveForm.dataset.bound = 'true';
+
+                var selectAllProducts = document.getElementById('category-products-select-all');
+                var removeSelectedButton = bulkRemoveForm.querySelector('.category-products-remove-selected');
+                var productCheckboxes = Array.prototype.slice.call(
+                  document.querySelectorAll('.category-product-bulk-checkbox')
+                );
+
+                function selectedProductCheckboxes() {
+                  return productCheckboxes.filter(function(checkbox) { return checkbox.checked; });
+                }
+
+                function refreshBulkRemoveControls() {
+                  var selectedCount = selectedProductCheckboxes().length;
+                  if (removeSelectedButton) removeSelectedButton.disabled = selectedCount === 0;
+                  if (selectAllProducts) {
+                    selectAllProducts.checked = productCheckboxes.length > 0 && selectedCount === productCheckboxes.length;
+                    selectAllProducts.indeterminate = selectedCount > 0 && selectedCount < productCheckboxes.length;
+                  }
+                }
+
+                if (selectAllProducts) {
+                  selectAllProducts.addEventListener('change', function() {
+                    productCheckboxes.forEach(function(checkbox) {
+                      checkbox.checked = selectAllProducts.checked;
+                    });
+                    refreshBulkRemoveControls();
+                  });
+                }
+
+                productCheckboxes.forEach(function(checkbox) {
+                  checkbox.addEventListener('change', refreshBulkRemoveControls);
+                });
+
+                bulkRemoveForm.addEventListener('submit', function(event) {
+                  var selectedCount = selectedProductCheckboxes().length;
+                  if (selectedCount === 0) {
+                    event.preventDefault();
+                    alert('Выберите хотя бы один товар.');
+                    return;
+                  }
+
+                  if (!confirm('Удалить выбранные товары из этой категории: ' + selectedCount + '?')) {
+                    event.preventDefault();
+                  }
+                });
+
+                refreshBulkRemoveControls();
+              }
             }
 
             document.addEventListener('turbo:load', initCategoryForm);
@@ -798,7 +875,37 @@ Trestle.resource(:categories, model: Category) do
         divider
         h4 "Список товаров в категории"
 
+        render inline: <<-ERB, locals: { category: category, admin: admin }
+          <div class="category-products-bulk-actions" style="margin-bottom: 12px;">
+            <%= form_tag admin.path(:remove_products, id: category.ikea_id),
+                  method: :post,
+                  id: "category-bulk-remove-products-form",
+                  class: "form-inline" do %>
+              <label style="margin-right: 12px;">
+                <%= check_box_tag :select_all_products, "1", false, id: "category-products-select-all" %>
+                Выбрать все
+              </label>
+              <%= submit_tag "Удалить выбранные",
+                    class: "btn btn-danger btn-sm category-products-remove-selected" %>
+            <% end %>
+            <p class="help-block" style="margin-top: 6px;">
+              Удаляются только связи с текущей категорией. Сами товары остаются в базе.
+            </p>
+          </div>
+        ERB
+
         table category.category_products.includes(:product), label: "Товары" do
+          column :selection, header: false do |cp|
+            check_box_tag(
+              "product_ids[]",
+              cp.product_id,
+              false,
+              class: "category-product-bulk-checkbox",
+              form: "category-bulk-remove-products-form",
+              aria: { label: "Выбрать товар #{cp.product&.sku || cp.product_id}" }
+            )
+          end
+
           column :sku do |cp|
             cp.product.sku
           end
