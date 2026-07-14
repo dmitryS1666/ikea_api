@@ -91,6 +91,19 @@ RSpec.describe Search::QueryScope do
       expect(scope).to contain_exactly(both_terms)
       expect(scope).not_to include(only_brand, only_type)
     end
+
+    it "combines text and category branches without existence probes" do
+      query_scope = described_class.new("ÑˆÐºÐ°Ñ„")
+      text_scope = Product.where(id: create(:product, sku: "TEXT-001", quantity: 5).id)
+      category_scope = Product.none
+
+      allow(query_scope).to receive(:direct_text_scope).and_return(text_scope)
+      allow(query_scope).to receive(:products_from_matching_categories).and_return(category_scope)
+      expect(text_scope).not_to receive(:exists?)
+      expect(category_scope).not_to receive(:exists?)
+
+      expect(query_scope.call.pluck(:id)).to eq(text_scope.pluck(:id))
+    end
   end
 
   describe "#apply_default_order" do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_12_210000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_14_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -763,6 +763,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_12_210000) do
     t.index ["price"], name: "index_products_on_price"
     t.index ["sku"], name: "index_products_on_sku", unique: true
     t.index ["sku"], name: "index_products_on_sku_trgm", opclass: :gist_trgm_ops, using: :gist
+    t.index ["small_desc_name"], name: "index_products_on_small_desc_name_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["time_ikea_id"], name: "index_products_on_time_ikea_id"
     t.index ["unique_id"], name: "index_products_on_unique_id", unique: true, where: "(unique_id IS NOT NULL)"
     t.index ["updated_at"], name: "index_products_on_updated_at"

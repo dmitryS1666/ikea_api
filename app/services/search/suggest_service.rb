@@ -27,7 +27,11 @@ module Search
           default_sort: "relevance"
         ).call
 
-        sort_param.present? ? scope : Search::QueryScope.new(@query).apply_default_order(scope)
+        if sort_param.blank? || sort_param == "relevance"
+          Search::QueryScope.new(@query).apply_default_order(scope)
+        else
+          scope
+        end
       end
     end
 
@@ -43,14 +47,13 @@ module Search
       return [] unless @first_page
       return [] if @query.blank?
 
-      popular = PopularSearchQuery.active.matching(@query).ordered.limit(SUGGESTION_LIMIT)
-      SuggestionsBuilder.new(@query, popular_queries: popular).call
+      SuggestionsBuilder.new(@query, popular_queries: popular_queries).call
     end
 
     def popular_queries
       return [] unless @first_page
 
-      PopularSearchQuery.active.matching(@query).ordered.limit(SUGGESTION_LIMIT)
+      @popular_queries ||= PopularSearchQuery.active.matching(@query).ordered.limit(SUGGESTION_LIMIT).to_a
     end
 
     def category_records_for_page(products_page)

@@ -166,6 +166,16 @@ RSpec.describe Products::SearchService do
         service = described_class.new(nil, {}, base_scope: base, default_sort: "relevance")
         expect(service.call.pluck(:id)).to eq([other_product.id, scoped_product.id])
       end
+
+      it 'keeps an unordered relevance scope lazy until pagination' do
+        base = Product.where(id: [scoped_product.id, other_product.id])
+        expect(base).not_to receive(:pluck)
+
+        result = described_class.new(nil, {}, base_scope: base, default_sort: "relevance").call
+
+        expect(result).to be_a(ActiveRecord::Relation)
+        expect(result.loaded?).to be_falsey
+      end
     end
 
     context 'parent category includes products from descendant categories' do

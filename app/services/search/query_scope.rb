@@ -17,11 +17,11 @@ module Search
       text_scope = direct_text_scope
       category_scope = products_from_matching_categories
 
-      return text_scope unless category_scope.exists?
-      return category_scope unless text_scope.exists?
-
-      Product.with_available_stock.where(id: text_scope.select(:id))
-             .or(Product.with_available_stock.where(id: category_scope.select(:id)))
+      # Keep the search lazy. Calling `exists?` on both branches performed up
+      # to two additional database round trips before count/load pagination
+      # queries. Both relations are structurally compatible product scopes,
+      # and ActiveRecord handles `none` correctly when either branch is empty.
+      text_scope.or(category_scope)
     end
 
     def apply_default_order(scope)

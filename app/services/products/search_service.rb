@@ -157,12 +157,12 @@ module Products
     end
 
     def preserve_scope_order(scope)
-      return scope if scope.order_values.present?
-
-      ordered_ids = scope.pluck(:id)
-      return scope.none if ordered_ids.empty?
-
-      scope.in_order_of(:id, ordered_ids)
+      # A relation already carries its ORDER BY clauses. Materializing every
+      # matching id here made relevance searches load the entire result set
+      # before pagination and generated a very large CASE expression through
+      # `in_order_of`. Keep the relation lazy so PostgreSQL can sort and return
+      # only the requested page.
+      scope
     end
 
     def sort_by_display_price(direction:)
