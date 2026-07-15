@@ -33,6 +33,18 @@ RSpec.describe User, type: :model do
   end
 
   describe "admin permissions" do
+    it "defines every role from the approved role matrix" do
+      expect(described_class::ROLE_OPTIONS.values).to include(
+        "admin",
+        "site_admin",
+        "manager_requests",
+        "content_manager",
+        "accountant",
+        "technician",
+        "observer"
+      )
+    end
+
     it "normalizes legacy manager role to manager_requests" do
       user = build(:user, role: "manager")
       user.valid?
@@ -59,6 +71,99 @@ RSpec.describe User, type: :model do
 
       expect(accountant.allowed_for_admin_resource?("orders", "index")).to be(true)
       expect(accountant.allowed_for_admin_resource?("orders", "update")).to be(false)
+      expect(accountant.allowed_for_admin_resource?("return_requests", "index")).to be(false)
+      expect(accountant.allowed_for_admin_resource?("exchange_rates", "index")).to be(true)
+      expect(accountant.allowed_for_admin_resource?("exchange_rates", "update")).to be(false)
+      expect(accountant.allowed_for_admin_resource?("parser_control", "index")).to be(false)
+    end
+
+    it "limits the site administrator to content, orders and basic reports" do
+      user = build(:user, role: "site_admin", is_active: true)
+
+      expect(user.allowed_for_admin_resource?("products", "update")).to be(true)
+      expect(user.allowed_for_admin_resource?("orders", "update")).to be(true)
+      expect(user.allowed_for_admin_resource?("dashboard", "index")).to be(true)
+      expect(user.allowed_for_admin_resource?("exchange_rates", "index")).to be(false)
+      expect(user.allowed_for_admin_resource?("parser_control", "index")).to be(false)
+      expect(user.allowed_for_admin_resource?("users", "index")).to be(false)
+    end
+
+    it "limits the request manager to processing orders and requests" do
+      user = build(:user, role: "manager_requests", is_active: true)
+
+      expect(user.allowed_for_admin_resource?("orders", "update")).to be(true)
+      expect(user.allowed_for_admin_resource?("return_requests", "update")).to be(true)
+      expect(user.allowed_for_admin_resource?("cooperation_requests", "update")).to be(true)
+      expect(user.allowed_for_admin_resource?("favorites", "index")).to be(false)
+      expect(user.allowed_for_admin_resource?("products", "index")).to be(false)
+      expect(user.admin_landing_resource).to eq("orders")
+    end
+
+    it "limits the content manager to content without dashboard or personal data" do
+      user = build(:user, role: "content_manager", is_active: true)
+
+      expect(user.allowed_for_admin_resource?("products", "update")).to be(true)
+      expect(user.allowed_for_admin_resource?("breadcrumb_rules", "update")).to be(true)
+      expect(user.allowed_for_admin_resource?("featured_product_tabs", "update")).to be(true)
+      expect(user.allowed_for_admin_resource?("reviews", "index")).to be(false)
+      expect(user.allowed_for_admin_resource?("dashboard", "index")).to be(false)
+      expect(user.allowed_for_admin_resource?("orders", "index")).to be(false)
+      expect(user.can_view_personal_data?).to be(false)
+      expect(user.admin_landing_resource).to eq("products")
+    end
+
+    it "gives the technician only technical sections" do
+      user = build(:user, role: "technician", is_active: true)
+
+      expect(user.allowed_for_admin_resource?("parser_control", "update")).to be(true)
+      expect(user.allowed_for_admin_resource?("cron_schedules", "update")).to be(true)
+      expect(user.allowed_for_admin_resource?("orders", "index")).to be(false)
+      expect(user.allowed_for_admin_resource?("products", "index")).to be(false)
+      expect(user.admin_landing_resource).to eq("parser_control")
+    end
+
+    it "keeps the observer read-only and without personal data" do
+      user = build(:user, role: "observer", is_active: true)
+
+      expect(user.allowed_for_admin_resource?("dashboard", "index")).to be(true)
+      expect(user.allowed_for_admin_resource?("orders", "show")).to be(true)
+      expect(user.allowed_for_admin_resource?("orders", "update")).to be(false)
+      expect(user.allowed_for_admin_resource?("products", "index")).to be(false)
+      expect(user.can_view_personal_data?).to be(false)
+    end
+
+    it "reserves destructive actions for the owner by default" do
+      site_admin = build(:user, role: "site_admin", is_active: true)
+      owner = build(:user, role: "admin", is_active: true)
+
+      expect(site_admin.allowed_for_admin_resource?("products", "destroy")).to be(false)
+      expect(site_admin.allowed_for_admin_resource?("categories", "remove_product")).to be(false)
+      expect(owner.allowed_for_admin_resource?("products", "destroy")).to be(true)
+    end
+
+    it "requires a separate permission for data exports" do
+      content_manager = build(:user, role: "content_manager", is_active: true)
+      accountant = build(:user, role: "accountant", is_active: true)
+      owner = build(:user, role: "admin", is_active: true)
+
+      expect(content_manager.allowed_for_admin_resource?("products", "download_products_xlsx")).to be(false)
+      expect(accountant.allowed_for_admin_resource?("finance_entries", "export_registry")).to be(true)
+      expect(accountant.allowed_for_admin_resource?("orders", "export_registry")).to be(false)
+      expect(owner.allowed_for_admin_resource?("products", "download_products_xlsx")).to be(true)
+    end
+
+    it "limits the audit log to the owner" do
+      owner = build(:user, role: "admin", is_active: true)
+      site_admin = build(:user, role: "site_admin", is_active: true)
+
+      expect(owner.allowed_for_admin_resource?("admin_audit_logs", "index")).to be(true)
+      expect(site_admin.allowed_for_admin_resource?("admin_audit_logs", "index")).to be(false)
+    end
+
+    it "denies admin resources that have no explicit rule" do
+      user = build(:user, role: "site_admin", is_active: true)
+
+      expect(user.allowed_for_admin_resource?("unregistered_section", "index")).to be(false)
     end
   end
 

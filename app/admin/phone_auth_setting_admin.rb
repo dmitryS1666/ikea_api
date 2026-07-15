@@ -1,6 +1,7 @@
 Trestle.resource :phone_auth_setting, model: PhoneAuthSetting, singleton: true do
   menu do
-    item :phone_auth_setting, icon: "fa fa-phone", label: "Авторизация по телефону", group: "Клиенты", priority: 5
+    item :phone_auth_setting, icon: "fa fa-phone", label: "Авторизация по телефону", group: "Клиенты", priority: 5,
+                              if: -> { current_user&.allowed_for_admin_resource?(:phone_auth_setting, :index) }
   end
 
   controller do

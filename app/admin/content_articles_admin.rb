@@ -1,6 +1,7 @@
 Trestle.resource(:content_articles, model: ContentArticle) do
   menu do
-    item :content_articles, icon: "fa fa-newspaper", group: :content, label: "Статьи и Контент"
+    item :content_articles, icon: "fa fa-newspaper", group: :content, label: "Статьи и Контент",
+                            if: -> { current_user&.allowed_for_admin_resource?(:content_articles, :index) }
   end
 
   scopes do

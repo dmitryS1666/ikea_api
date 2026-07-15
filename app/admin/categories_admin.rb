@@ -2,7 +2,8 @@
 
 Trestle.resource(:categories, model: Category) do
   menu do
-    item :categories, icon: "fa fa-folder", group: :catalog, priority: 2, label: "Категории"
+    item :categories, icon: "fa fa-folder", group: :catalog, priority: 2, label: "Категории",
+                      if: -> { current_user&.allowed_for_admin_resource?(:categories, :index) }
   end
 
   scopes do

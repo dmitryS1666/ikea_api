@@ -1,6 +1,7 @@
 Trestle.resource(:home_banners, model: HomeBanner) do
   menu do
-    item :home_banners, icon: "fa fa-images", group: :content, label: "Слайдер на главной"
+    item :home_banners, icon: "fa fa-images", group: :content, label: "Слайдер на главной",
+                        if: -> { current_user&.allowed_for_admin_resource?(:home_banners, :index) }
   end
 
   scopes do
@@ -57,7 +58,7 @@ Trestle.resource(:home_banners, model: HomeBanner) do
     actions do |actions|
       actions.show
       actions.edit
-      actions.delete
+      actions.delete if current_user&.allowed_for_admin_resource?(:home_banners, :destroy)
     end
   end
 

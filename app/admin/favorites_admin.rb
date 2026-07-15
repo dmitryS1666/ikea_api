@@ -1,6 +1,7 @@
 Trestle.resource(:favorites) do
   menu do
-    item :favorites, icon: "fa fa-heart", priority: 10, label: "Избранное (клиенты)", group: "Клиенты"
+    item :favorites, icon: "fa fa-heart", priority: 10, label: "Избранное (клиенты)", group: "Клиенты",
+                     if: -> { current_user&.allowed_for_admin_resource?(:favorites, :index) }
   end
 
   # Показываем только избранное авторизованных пользователей

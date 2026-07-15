@@ -4,7 +4,8 @@ Trestle.resource(:featured_product_tabs, model: FeaturedProductTab) do
          icon: "fa fa-th-list",
          group: :catalog,
          priority: 11,
-         label: "Табы подборок товаров"
+         label: "Табы подборок товаров",
+         if: -> { current_user&.allowed_for_admin_resource?(:featured_product_tabs, :index) }
   end
 
   table do

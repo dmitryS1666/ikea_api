@@ -1,11 +1,32 @@
 Trestle.resource(:orders) do
   menu do
-    item :orders, icon: "fa fa-shopping-cart", group: :sales, priority: 1, label: "Заказы"
+    item :orders, icon: "fa fa-shopping-cart", group: :sales, priority: 1, label: "Заказы",
+                  if: -> { current_user&.allowed_for_admin_resource?(:orders, :index) }
+  end
+
+  routes do
+    post :add_manager_comment, on: :member
+  end
+
+  controller do
+    def add_manager_comment
+      order = admin.find_instance(params)
+      Admin::RequestWorkflowService.add_comment!(
+        record: order,
+        actor: current_user,
+        body: params[:manager_comment]
+      )
+      redirect_to admin.instance_path(order, action: :edit), notice: "Комментарий добавлен"
+    rescue ArgumentError, ActiveRecord::RecordInvalid => e
+      redirect_to admin.instance_path(order, action: :edit), alert: e.message
+    end
   end
 
   table do
     column :id
-    column :customer_name
+    column :customer_name do |order|
+      current_user&.can_view_personal_data? ? order.customer_name : "Скрыто"
+    end
     column :status, align: :center do |order|
       if order.status
         status_text = I18n.t("activerecord.attributes.order.statuses.#{order.status}")
@@ -76,20 +97,26 @@ Trestle.resource(:orders) do
       end
       
       divider
-      row do
-        col(sm: 6) { text_field :full_name, label: "ФИО получателя" }
-        col(sm: 6) { text_field :phone, label: "Телефон" }
-      end
-      
-      static_field :customer_name, label: "Покупатель" do
-        if order.user
-          link_to(
-            order.customer_name,
-            Trestle.lookup(:users).path(:show, id: order.user.id),
-            data: { turbo: false }
-          )
-        else
-          order.customer_name
+      if current_user&.can_view_personal_data?
+        row do
+          col(sm: 6) { text_field :full_name, label: "ФИО получателя" }
+          col(sm: 6) { text_field :phone, label: "Телефон" }
+        end
+
+        static_field :customer_name, label: "Покупатель" do
+          if order.user && current_user&.allowed_for_admin_resource?(:users, :show)
+            link_to(
+              order.customer_name,
+              Trestle.lookup(:users).path(:show, id: order.user.id),
+              data: { turbo: false }
+            )
+          else
+            order.customer_name
+          end
+        end
+      else
+        static_field :personal_data_hidden, label: "Данные получателя" do
+          "Скрыто: нет права на просмотр персональных данных"
         end
       end
     end
@@ -107,13 +134,13 @@ Trestle.resource(:orders) do
         order.track_number.presence || "—"
       end
 
-      if order.payment_url.present?
+      if order.payment_url.present? && current_user&.has_admin_permission?(:orders_manage)
         static_field :payment_url, label: "Ссылка на оплату (WebPay)" do
           admin_link_to(order.payment_url, order.payment_url, target: "_blank", rel: "noopener")
         end
       end
 
-      if order.payment_link_token.present?
+      if order.payment_link_token.present? && current_user&.has_admin_permission?(:orders_manage)
         static_field :payment_link_token, label: "Токен ссылки оплаты"
       end
 
@@ -121,21 +148,23 @@ Trestle.resource(:orders) do
         static_field :payment_expires_at, label: "Ссылка действует до"
       end
       
-      if (delivery_address = OrderAddressFormatter.display(order)).present?
-        static_field :address, label: "Адрес доставки" do
-          delivery_address
+      if current_user&.can_view_personal_data?
+        if (delivery_address = OrderAddressFormatter.display(order)).present?
+          static_field :address, label: "Адрес доставки" do
+            delivery_address
+          end
         end
-      end
 
-      if (elevator_label = OrderAddressFormatter.elevator_type_label(order)).present?
-        static_field :elevator_type, label: "Лифт" do
-          elevator_label
+        if (elevator_label = OrderAddressFormatter.elevator_type_label(order)).present?
+          static_field :elevator_type, label: "Лифт" do
+            elevator_label
+          end
         end
-      end
 
-      if (intercom = OrderAddressFormatter.intercom(order)).present?
-        static_field :intercom, label: "Домофон" do
-          intercom
+        if (intercom = OrderAddressFormatter.intercom(order)).present?
+          static_field :intercom, label: "Домофон" do
+            intercom
+          end
         end
       end
 
@@ -178,10 +207,28 @@ Trestle.resource(:orders) do
       end
     end
 
+    tab :workflow, label: "Обработка" do
+      if current_user&.has_admin_permission?(:orders_manage)
+        select :assigned_to_id,
+          User.active.where(role: %w[admin site_admin manager_requests]).order(:first_name, :username).map { |user| [user.full_name, user.id] },
+          label: "Ответственный", include_blank: "Не назначен"
+      else
+        static_field :assigned_to, label: "Ответственный"
+      end
+
+      render partial: "admin/shared/request_workflow",
+             locals: { record: order, admin: admin, can_manage: current_user&.has_admin_permission?(:orders_manage) }
+    end
+
     sidebar do
       form_group :order_status, label: "Статус заказа" do
-        select :status, Order.statuses.keys.map { |s| [I18n.t("activerecord.attributes.order.statuses.#{s}"), s] }, label: "Статус"
-        text_field :track_number, label: "Трек-номер"
+        if current_user&.has_admin_permission?(:orders_manage)
+          select :status, Order.statuses.keys.map { |s| [I18n.t("activerecord.attributes.order.statuses.#{s}"), s] }, label: "Статус"
+          text_field :track_number, label: "Трек-номер"
+        else
+          static_field :status, label: "Статус"
+          static_field :track_number, label: "Трек-номер"
+        end
       end
 
       form_group :meta, label: "Метаданные" do

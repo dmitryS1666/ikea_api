@@ -1,5 +1,6 @@
 <div id="trestle-smart-search-panel" class="card mb-4">
   <div class="card-body">
+    <% if current_user.allowed_for_admin_resource?(:products, :build_products_xlsx) %>
     <div class="d-flex gap-2 flex-wrap align-items-center">
       <% status_label = Admin::ProductsXlsxExportService.export_status_label %>
       <% if status_label.present? %>
@@ -38,12 +39,15 @@
                       data: { confirm: "Сформировать тестовую выгрузку из 5 товаров? Текущий файл XLSX будет заменён." } %>
       <% end %>
     </div>
+    <% end %>
 
     <div class="d-flex gap-2 flex-wrap mt-2">
+      <% if current_user.allowed_for_admin_resource?(:products, :export_extended_attrs_input) %>
       <%= link_to "⬇️ Выгрузить JSON для парсера расширенных атрибутов",
                   admin.path(:export_extended_attrs_input),
                   class: "btn btn-outline-primary",
                   data: { turbo: false } %>
+      <% end %>
 
       <%= form_tag admin.path(:import_extended_attrs),
                   method: :post,

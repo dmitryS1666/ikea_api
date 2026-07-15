@@ -1,6 +1,7 @@
 Trestle.resource(:calculator_setting, model: CalculatorSetting) do
   menu do
-    item :calculator_setting, icon: "fa fa-cog", group: :content, label: "Системные настройки"
+    item :calculator_setting, icon: "fa fa-cog", group: :content, label: "Системные настройки",
+                              if: -> { current_user&.allowed_for_admin_resource?(:calculator_setting, :index) }
   end
 
   table do

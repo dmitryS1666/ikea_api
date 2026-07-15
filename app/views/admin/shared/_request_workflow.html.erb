@@ -1,0 +1,58 @@
+<% activities = record.request_activities.includes(:actor, :assignee).recent_first.limit(100) %>
+<% labels = {
+  "created" => "Заявка создана",
+  "comment" => "Комментарий менеджера",
+  "assigned" => "Назначен ответственный",
+  "status_changed" => "Изменён статус"
+} %>
+
+<div class="card mb-3">
+  <div class="card-header"><strong>Обработка заявки</strong></div>
+  <div class="card-body">
+    <p><strong>Ответственный:</strong> <%= record.assigned_to&.full_name || "Не назначен" %></p>
+
+    <% if can_manage %>
+      <%= form_tag admin.instance_path(record, action: :add_manager_comment), method: :post do %>
+        <div class="form-group">
+          <%= label_tag :manager_comment, "Комментарий менеджера" %>
+          <%= text_area_tag :manager_comment, nil, rows: 3, class: "form-control", required: true %>
+        </div>
+        <%= submit_tag "Добавить комментарий", class: "btn btn-primary" %>
+      <% end %>
+    <% end %>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><strong>История обработки</strong></div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead>
+        <tr><th>Дата</th><th>Событие</th><th>Администратор</th><th>Детали</th></tr>
+      </thead>
+      <tbody>
+        <% activities.each do |activity| %>
+          <tr>
+            <td><%= l(activity.created_at, format: :short) %></td>
+            <td><%= labels.fetch(activity.activity_type, activity.activity_type.humanize) %></td>
+            <td><%= activity.actor_name %></td>
+            <td>
+              <% if activity.comment? %>
+                <%= can_manage ? simple_format(h(activity.body)) : "Скрыто" %>
+              <% elsif activity.status_changed? %>
+                <%= [activity.from_status, activity.to_status].compact.join(" → ") %>
+              <% elsif activity.assigned? %>
+                <%= activity.assignee&.full_name || "Ответственный снят" %>
+              <% else %>
+                <%= activity.to_status.presence || "—" %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+        <% if activities.empty? %>
+          <tr><td colspan="4">История пока пуста</td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>

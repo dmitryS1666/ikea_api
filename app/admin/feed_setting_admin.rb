@@ -1,6 +1,7 @@
 Trestle.resource :feed_setting, model: FeedSetting, singleton: true do
   menu do
-    item :feed_setting, icon: "fa fa-rss", label: "Фиды", group: "SEO"
+    item :feed_setting, icon: "fa fa-rss", label: "Фиды", group: "SEO",
+                        if: -> { current_user&.allowed_for_admin_resource?(:feed_setting, :index) }
   end
 
   controller do

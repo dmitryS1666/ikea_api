@@ -1,6 +1,8 @@
 Trestle.resource(:product_recommendation_settings, model: ProductRecommendationSetting, singleton: true) do
   menu do
-    item :product_recommendation_settings, icon: "fa fa-magic", group: :catalog, priority: 10, label: "Рекомендации в корзине"
+    item :product_recommendation_settings, icon: "fa fa-magic", group: :catalog, priority: 10,
+                                           label: "Рекомендации в корзине",
+                                           if: -> { current_user&.allowed_for_admin_resource?(:product_recommendation_settings, :index) }
   end
 
   controller do

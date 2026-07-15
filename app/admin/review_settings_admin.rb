@@ -1,6 +1,7 @@
 Trestle.resource(:review_settings, model: ReviewSetting) do
   menu do
-    item :review_settings, icon: "fa fa-cog", label: "Настройки рейтинга", group: "Контент"
+    item :review_settings, icon: "fa fa-cog", label: "Настройки рейтинга", group: "Контент",
+                           if: -> { current_user&.allowed_for_admin_resource?(:review_settings, :index) }
   end
 
   routes do

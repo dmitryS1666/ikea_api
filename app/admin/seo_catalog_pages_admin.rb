@@ -2,7 +2,8 @@
 
 Trestle.resource(:seo_catalog_pages, model: SeoCatalogPage) do
   menu do
-    item :seo_catalog_pages, icon: "fa fa-search", group: :catalog, priority: 8, label: "SEO-страницы каталога"
+    item :seo_catalog_pages, icon: "fa fa-search", group: :catalog, priority: 8, label: "SEO-страницы каталога",
+                             if: -> { current_user&.allowed_for_admin_resource?(:seo_catalog_pages, :index) }
   end
 
   routes do

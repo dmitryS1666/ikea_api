@@ -1,6 +1,7 @@
 Trestle.resource(:promo_codes, model: PromoCode) do
   menu do
-    item :promo_codes, icon: "fa fa-percent", group: :sales, label: "Промокоды"
+    item :promo_codes, icon: "fa fa-percent", group: :sales, label: "Промокоды",
+                       if: -> { current_user&.allowed_for_admin_resource?(:promo_codes, :index) }
   end
 
   table do

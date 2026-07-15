@@ -15,47 +15,60 @@
   <%# Быстрые ссылки %>
   <div class="quick-links-section mb-4">
     <div class="row">
+      <% if current_user.allowed_for_admin_resource?(:products, :index) %>
       <div class="col-md-2">
         <a href="<%= products_admin_index_path %>" class="quick-link-card">
           <i class="fa fa-box"></i>
           <span>Товары</span>
         </a>
       </div>
+      <% end %>
+      <% if current_user.allowed_for_admin_resource?(:orders, :index) %>
       <div class="col-md-2">
         <a href="<%= orders_admin_index_path %>" class="quick-link-card">
           <i class="fa fa-shopping-bag"></i>
           <span>Заказы</span>
         </a>
       </div>
+      <% end %>
+      <% if current_user.allowed_for_admin_resource?(:categories, :index) %>
       <div class="col-md-2">
         <a href="<%= categories_admin_index_path %>" class="quick-link-card">
           <i class="fa fa-tags"></i>
           <span>Категории</span>
         </a>
       </div>
+      <% end %>
+      <% if current_user.allowed_for_admin_resource?(:users, :index) %>
       <div class="col-md-2">
         <a href="<%= users_admin_index_path %>" class="quick-link-card">
           <i class="fa fa-user-friends"></i>
           <span>Клиенты</span>
         </a>
       </div>
+      <% end %>
+      <% if current_user.allowed_for_admin_resource?(:exchange_rates, :index) %>
       <div class="col-md-2">
         <a href="<%= exchange_rates_admin_index_path %>" class="quick-link-card">
           <i class="fa fa-dollar-sign"></i>
           <span>Валюты</span>
         </a>
       </div>
+      <% end %>
+      <% if current_user.allowed_for_admin_resource?(:calculator_setting, :index) %>
       <div class="col-md-2">
         <a href="<%= calculator_setting_admin_index_path %>" class="quick-link-card">
           <i class="fa fa-cog"></i>
           <span>Настройки</span>
         </a>
       </div>
+      <% end %>
     </div>
   </div>
 
   <div class="hero-section">
     <div class="stats-grid">
+      <% if current_user.has_admin_permission?(:finance_view) %>
       <div class="stat-card revenue-card">
         <div class="stat-icon">💰</div>
         <div class="stat-info">
@@ -64,6 +77,7 @@
           <div class="stat-pill positive">+12% за месяц</div>
         </div>
       </div>
+      <% end %>
       <div class="stat-card clients-card">
         <div class="stat-icon">👥</div>
         <div class="stat-info">
@@ -80,6 +94,7 @@
           <div class="stat-pill neutral">В наличии</div>
         </div>
       </div>
+      <% if current_user.has_admin_permission?(:finance_view) %>
       <div class="stat-card avg-check-card">
         <div class="stat-icon">💳</div>
         <div class="stat-info">
@@ -88,6 +103,7 @@
           <div class="stat-pill positive">Стабильно</div>
         </div>
       </div>
+      <% end %>
     </div>
   </div>
 
@@ -191,6 +207,7 @@
   </div>
 
   <%# База знаний администратора (скрывающаяся внизу) %>
+  <% if current_user.admin? %>
   <div class="readme-section mt-5">
     <details class="guide-details readme-card">
       <summary class="guide-summary readme-header">
@@ -255,4 +272,5 @@
       </div>
     </details>
   </div>
+  <% end %>
 </div>

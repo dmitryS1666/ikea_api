@@ -1,6 +1,7 @@
 Trestle.resource(:legal_pages, model: LegalPage) do
   menu do
-    item :legal_pages, icon: "fa fa-gavel", group: :content, priority: 8, label: "Правовая информация"
+    item :legal_pages, icon: "fa fa-gavel", group: :content, priority: 8, label: "Правовая информация",
+                       if: -> { current_user&.allowed_for_admin_resource?(:legal_pages, :index) }
   end
 
   scopes do

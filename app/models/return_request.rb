@@ -1,4 +1,6 @@
 class ReturnRequest < ApplicationRecord
+  include RequestWorkflowTrackable
+
   STATUSES = %w[new in_review approved rejected completed].freeze
   REASONS = %w[damaged wrong quality description other].freeze
   COMPENSATION_TYPES = %w[refund exchange].freeze

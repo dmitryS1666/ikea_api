@@ -1,6 +1,7 @@
 Trestle.resource(:breadcrumb_rules, model: BreadcrumbRule) do
   menu do
-    item :breadcrumb_rules, icon: "fa fa-list", priority: 1, label: "Правила хлебных крошек", group: "SEO"
+    item :breadcrumb_rules, icon: "fa fa-list", priority: 1, label: "Правила хлебных крошек", group: "SEO",
+                            if: -> { current_user&.allowed_for_admin_resource?(:breadcrumb_rules, :index) }
   end
 
   table do

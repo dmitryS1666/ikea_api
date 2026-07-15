@@ -1,7 +1,8 @@
 # Админ-панель для расчета цен (Обновленная логика Март 2026)
 Trestle.resource(:price_calculator, model: PriceCalculator) do
   menu do
-    item :price_calculator, icon: "fa fa-calculator", priority: 5, label: "Калькулятор цен", group: "Финансы"
+    item :price_calculator, icon: "fa fa-calculator", priority: 5, label: "Калькулятор цен", group: "Финансы",
+                            if: -> { current_user&.allowed_for_admin_resource?(:price_calculator, :index) }
   end
 
   controller do

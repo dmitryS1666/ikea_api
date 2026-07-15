@@ -1,7 +1,8 @@
 # Админ-панель для быстрого управления парсером
 Trestle.resource :parser_control, model: ParserControl do
   menu do
-    item :parser_control, icon: "fa fa-play-circle", group: :content, label: "Управление парсером"
+    item :parser_control, icon: "fa fa-play-circle", group: :content, label: "Управление парсером",
+                          if: -> { current_user&.allowed_for_admin_resource?(:parser_control, :index) }
   end
 
   # Показываем только форму управления

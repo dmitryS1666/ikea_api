@@ -3,7 +3,8 @@ Trestle.resource(:exchange_rates, model: ExchangeRate) do
   paginate per_page: 31
 
   menu do
-    item :exchange_rates, icon: "fa fa-dollar-sign", group: :content, label: "Курсы валют"
+    item :exchange_rates, icon: "fa fa-dollar-sign", group: :content, label: "Курсы валют",
+                          if: -> { current_user&.allowed_for_admin_resource?(:exchange_rates, :index) }
   end
 
   table do
@@ -103,4 +104,3 @@ Trestle.resource(:exchange_rates, model: ExchangeRate) do
     end
   end
 end
-

@@ -2,7 +2,8 @@
 
 Trestle.resource(:europost_tester, model: EuropostTester) do
   menu do
-    item :europost_tester, icon: "fa fa-truck", priority: 6, label: "Тест Европочты", group: "Финансы"
+    item :europost_tester, icon: "fa fa-truck", priority: 6, label: "Тест Европочты", group: "Финансы",
+                           if: -> { current_user&.allowed_for_admin_resource?(:europost_tester, :index) }
   end
 
   controller do

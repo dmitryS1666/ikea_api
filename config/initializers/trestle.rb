@@ -162,6 +162,10 @@ Trestle.configure do |config|
     user = controller.try(:current_user)
     next unless user
 
+    Current.admin_user = user
+    Current.request_id = controller.request.request_id
+    Current.ip_address = controller.request.remote_ip
+
     admin_resource = controller.try(:admin)&.name || controller.try(:admin)&.id
     next if admin_resource.nil?
 
@@ -169,7 +173,15 @@ Trestle.configure do |config|
     next if allowed
 
     controller.flash[:error] = "Недостаточно прав для раздела #{admin_resource}"
-    controller.redirect_to(Trestle.config.root)
+
+    landing_admin = Trestle.lookup(user.admin_landing_resource.to_sym)
+    landing_path = landing_admin&.path || Trestle.config.root
+
+    if controller.request.path == landing_path
+      controller.head(:forbidden)
+    else
+      controller.redirect_to(landing_path)
+    end
   end
 
   # Specify the scope for valid admin users.

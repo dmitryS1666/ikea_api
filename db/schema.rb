@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_14_190000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_15_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -41,6 +41,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_190000) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "admin_audit_logs", force: :cascade do |t|
+    t.bigint "actor_id"
+    t.string "auditable_type"
+    t.bigint "auditable_id"
+    t.string "action", null: false
+    t.string "resource", null: false
+    t.jsonb "changeset", default: {}, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.string "request_id"
+    t.string "ip_address"
+    t.datetime "created_at", null: false
+    t.index ["actor_id", "created_at"], name: "idx_admin_audit_logs_actor_created"
+    t.index ["actor_id"], name: "index_admin_audit_logs_on_actor_id"
+    t.index ["auditable_type", "auditable_id", "created_at"], name: "idx_admin_audit_logs_auditable_created"
+    t.index ["request_id"], name: "index_admin_audit_logs_on_request_id"
+    t.index ["resource", "action", "created_at"], name: "idx_admin_audit_logs_resource_action_created"
   end
 
   create_table "breadcrumb_rules", force: :cascade do |t|
@@ -270,6 +288,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_190000) do
     t.text "comment"
     t.boolean "personal_data_consent", default: false, null: false
     t.boolean "marketing_email_consent", default: false, null: false
+    t.bigint "assigned_to_id"
+    t.index ["assigned_to_id"], name: "index_cooperation_requests_on_assigned_to_id"
     t.index ["cooperation_type"], name: "index_cooperation_requests_on_cooperation_type"
     t.index ["created_at"], name: "index_cooperation_requests_on_created_at"
     t.index ["status"], name: "index_cooperation_requests_on_status"
@@ -383,6 +403,29 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_190000) do
     t.boolean "include_out_of_stock", default: false, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+  end
+
+  create_table "finance_entries", force: :cascade do |t|
+    t.bigint "order_id", null: false
+    t.string "payment_reference"
+    t.string "invoice_number"
+    t.decimal "amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.string "currency", default: "BYN", null: false
+    t.string "payment_status", default: "pending", null: false
+    t.string "invoice_status", default: "not_issued", null: false
+    t.string "reconciliation_status", default: "pending", null: false
+    t.datetime "paid_at"
+    t.datetime "reconciled_at"
+    t.bigint "reconciled_by_id"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["invoice_number"], name: "index_finance_entries_on_invoice_number", where: "(invoice_number IS NOT NULL)"
+    t.index ["order_id"], name: "index_finance_entries_on_order_id", unique: true
+    t.index ["payment_reference"], name: "index_finance_entries_on_payment_reference"
+    t.index ["payment_status", "created_at"], name: "idx_finance_entries_payment_created"
+    t.index ["reconciled_by_id"], name: "index_finance_entries_on_reconciled_by_id"
+    t.index ["reconciliation_status", "created_at"], name: "idx_finance_entries_reconciliation_created"
   end
 
   create_table "global_seo_settings", force: :cascade do |t|
@@ -554,6 +597,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_190000) do
     t.boolean "customs_broker_consent", default: false, null: false
     t.datetime "abandoned_cart_email_sent_at"
     t.jsonb "pricing_snapshot", default: {}, null: false
+    t.bigint "assigned_to_id"
+    t.index ["assigned_to_id"], name: "index_orders_on_assigned_to_id"
     t.index ["crm_external_id"], name: "index_orders_on_crm_external_id"
     t.index ["payment_link_token"], name: "index_orders_on_payment_link_token", unique: true
     t.index ["promo_code_id"], name: "index_orders_on_promo_code_id"
@@ -812,6 +857,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_190000) do
     t.index ["product_sku"], name: "index_recommended_products_on_product_sku", unique: true
   end
 
+  create_table "request_activities", force: :cascade do |t|
+    t.string "trackable_type", null: false
+    t.bigint "trackable_id", null: false
+    t.bigint "actor_id"
+    t.bigint "assignee_id"
+    t.string "activity_type", null: false
+    t.text "body"
+    t.string "from_status"
+    t.string "to_status"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["activity_type", "created_at"], name: "idx_request_activities_type_created"
+    t.index ["actor_id"], name: "index_request_activities_on_actor_id"
+    t.index ["assignee_id"], name: "index_request_activities_on_assignee_id"
+    t.index ["trackable_type", "trackable_id", "created_at"], name: "idx_request_activities_trackable_created"
+  end
+
   create_table "return_requests", force: :cascade do |t|
     t.bigint "user_id"
     t.bigint "order_id", null: false
@@ -827,6 +890,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_190000) do
     t.string "email"
     t.string "compensation_type"
     t.string "last_name"
+    t.bigint "assigned_to_id"
+    t.index ["assigned_to_id"], name: "index_return_requests_on_assigned_to_id"
     t.index ["order_id"], name: "index_return_requests_on_order_id"
     t.index ["order_number"], name: "index_return_requests_on_order_number"
     t.index ["status", "created_at"], name: "index_return_requests_on_status_and_created_at"
@@ -1034,6 +1099,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_190000) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "admin_audit_logs", "users", column: "actor_id", on_delete: :nullify
   add_foreign_key "cart_items", "carts"
   add_foreign_key "carts", "promo_codes"
   add_foreign_key "carts", "users"
@@ -1041,9 +1107,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_190000) do
   add_foreign_key "category_related_product_lists", "categories", primary_key: "ikea_id"
   add_foreign_key "consent_records", "orders"
   add_foreign_key "consent_records", "users"
+  add_foreign_key "cooperation_requests", "users", column: "assigned_to_id", on_delete: :nullify
   add_foreign_key "email_verification_tokens", "users"
   add_foreign_key "favorite_items", "favorites"
   add_foreign_key "favorites", "users"
+  add_foreign_key "finance_entries", "orders", on_delete: :cascade
+  add_foreign_key "finance_entries", "users", column: "reconciled_by_id", on_delete: :nullify
   add_foreign_key "home_banners", "categories", primary_key: "ikea_id", on_delete: :nullify
   add_foreign_key "home_slider_banners", "home_sliders"
   add_foreign_key "homepage_product_block_items", "homepage_product_blocks"
@@ -1053,10 +1122,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_190000) do
   add_foreign_key "order_status_events", "orders"
   add_foreign_key "orders", "promo_codes"
   add_foreign_key "orders", "users"
+  add_foreign_key "orders", "users", column: "assigned_to_id", on_delete: :nullify
   add_foreign_key "product_filter_values", "categories", primary_key: "ikea_id"
   add_foreign_key "product_filter_values", "products"
   add_foreign_key "promo_code_categories", "promo_codes"
   add_foreign_key "promo_code_products", "promo_codes"
+  add_foreign_key "request_activities", "users", column: "actor_id", on_delete: :nullify
+  add_foreign_key "request_activities", "users", column: "assignee_id", on_delete: :nullify
+  add_foreign_key "return_requests", "users", column: "assigned_to_id", on_delete: :nullify
   add_foreign_key "review_helpful_votes", "reviews"
   add_foreign_key "review_helpful_votes", "users"
   add_foreign_key "reviews", "orders"

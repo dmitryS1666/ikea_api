@@ -7,11 +7,11 @@ class User < ApplicationRecord
     "manager" => "manager_requests"
   }.freeze
   ROLE_OPTIONS = {
-    "Директор / Владелец" => "admin",
+    "Владелец / директор" => "admin",
     "Администратор сайта" => "site_admin",
     "Менеджер по заявкам" => "manager_requests",
     "Контент-менеджер" => "content_manager",
-    "Бухгалтер" => "accountant",
+    "Бухгалтер / финансовый сотрудник" => "accountant",
     "Технический специалист" => "technician",
     "Наблюдатель" => "observer",
     "Пользователь" => "user"
@@ -28,12 +28,20 @@ class User < ApplicationRecord
   ADMIN_PERMISSION_KEYS = %i[
     manage_users
     restrictions_manage
+    destructive_manage
+    data_export
     view_personal_data
+    customer_data_read
+    customer_data_manage
     content_read
     content_manage
     orders_read
     orders_manage
+    requests_read
+    requests_manage
     finance_view
+    finance_manage
+    audit_view
     reports_view
     technical_read
     technical_manage
@@ -42,15 +50,17 @@ class User < ApplicationRecord
     "dashboard" => { read: :reports_view, write: :reports_view },
     "users" => { read: :manage_users, write: :manage_users },
     "orders" => { read: :orders_read, write: :orders_manage },
-    "return_requests" => { read: :orders_read, write: :orders_manage },
-    "cooperation_requests" => { read: :orders_read, write: :orders_manage },
-    "user_delivery_addresses" => { read: :orders_read, write: :orders_manage },
-    "phone_verification_requests" => { read: :orders_read, write: :orders_manage },
-    "consent_records" => { read: :orders_read, write: :orders_manage },
-    "favorites" => { read: :orders_read, write: :orders_manage },
-    "reviews" => { read: :orders_read, write: :orders_manage },
+    "return_requests" => { read: :requests_read, write: :requests_manage },
+    "cooperation_requests" => { read: :requests_read, write: :requests_manage },
+    "user_delivery_addresses" => { read: :customer_data_read, write: :customer_data_manage },
+    "phone_verification_requests" => { read: :customer_data_read, write: :customer_data_manage },
+    "consent_records" => { read: :customer_data_read, write: :customer_data_manage },
+    "favorites" => { read: :customer_data_read, write: :customer_data_manage },
+    "reviews" => { read: :customer_data_read, write: :customer_data_manage },
     "products" => { read: :content_read, write: :content_manage },
     "categories" => { read: :content_read, write: :content_manage },
+    "breadcrumb_rules" => { read: :content_read, write: :content_manage },
+    "featured_product_tabs" => { read: :content_read, write: :content_manage },
     "home_banners" => { read: :content_read, write: :content_manage },
     "content_articles" => { read: :content_read, write: :content_manage },
     "legal_pages" => { read: :content_read, write: :content_manage },
@@ -61,96 +71,172 @@ class User < ApplicationRecord
     "promo_code_products" => { read: :content_read, write: :content_manage },
     "promo_code_categories" => { read: :content_read, write: :content_manage },
     "search_query_logs" => { read: :reports_view, write: :reports_view },
-    "popular_search_queries" => { read: :reports_view, write: :reports_view },
-    "exchange_rates" => { read: :finance_view, write: :technical_manage },
-    "price_calculator" => { read: :finance_view, write: :technical_manage },
+    "popular_search_queries" => { read: :reports_view, write: :content_manage },
+    "exchange_rates" => { read: :finance_view, write: :finance_manage },
+    "price_calculator" => { read: :finance_view, write: :finance_manage },
+    "finance_entries" => { read: :finance_view, write: :finance_manage },
+    "admin_audit_logs" => { read: :audit_view, write: :audit_view },
     "parser_control" => { read: :technical_read, write: :technical_manage },
     "cron_schedules" => { read: :technical_read, write: :technical_manage },
     "phone_auth_setting" => { read: :technical_read, write: :technical_manage },
     "calculator_setting" => { read: :technical_read, write: :technical_manage },
     "feed_setting" => { read: :technical_read, write: :technical_manage },
-    "customs_duty_calculator" => { read: :technical_read, write: :technical_manage },
+    "customs_duty_calculator" => { read: :finance_view, write: :finance_manage },
     "review_settings" => { read: :technical_read, write: :technical_manage },
     "europost_tester" => { read: :technical_read, write: :technical_manage },
     "auth/account" => { read: :reports_view, write: :reports_view }
   }.freeze
-  ADMIN_READ_ACTIONS = %w[index show stats].freeze
+  ADMIN_READ_ACTIONS = %w[index show stats search by_category].freeze
+  ADMIN_DESTRUCTIVE_ACTIONS = %w[
+    destroy
+    delete_photo
+    remove_product
+    remove_products
+    reassign_products
+    soft_delete
+  ].freeze
+  # Единственная точка регистрации выгрузок админки. Ключ — Trestle resource,
+  # значения — action names. Новый export-action обязательно добавляется сюда.
+  ADMIN_EXPORT_ACTIONS = {
+    "products" => %w[
+      build_products_xlsx
+      reset_products_xlsx_export
+      download_products_xlsx
+      export_extended_attrs_input
+    ].freeze,
+    "finance_entries" => %w[export_registry].freeze
+  }.freeze
+  ADMIN_EXPORT_ACTION_PATTERN = /export|download|xlsx/i
+  ADMIN_LANDING_RESOURCES = {
+    "manager_requests" => "orders",
+    "content_manager" => "products",
+    "accountant" => "finance_entries",
+    "technician" => "parser_control"
+  }.freeze
   BASE_ADMIN_PERMISSIONS = {
     "admin" => ADMIN_PERMISSION_KEYS.index_with(true),
     "site_admin" => {
       manage_users: false,
       restrictions_manage: false,
+      destructive_manage: false,
+      data_export: false,
       view_personal_data: true,
+      customer_data_read: true,
+      customer_data_manage: true,
       content_read: true,
       content_manage: true,
       orders_read: true,
       orders_manage: true,
-      finance_view: true,
+      requests_read: true,
+      requests_manage: true,
+      finance_view: false,
+      finance_manage: false,
+      audit_view: false,
       reports_view: true,
-      technical_read: true,
+      technical_read: false,
       technical_manage: false
     },
     "manager_requests" => {
       manage_users: false,
       restrictions_manage: false,
+      destructive_manage: false,
+      data_export: false,
       view_personal_data: true,
+      customer_data_read: false,
+      customer_data_manage: false,
       content_read: false,
       content_manage: false,
       orders_read: true,
       orders_manage: true,
+      requests_read: true,
+      requests_manage: true,
       finance_view: false,
-      reports_view: true,
+      finance_manage: false,
+      audit_view: false,
+      reports_view: false,
       technical_read: false,
       technical_manage: false
     },
     "content_manager" => {
       manage_users: false,
       restrictions_manage: false,
+      destructive_manage: false,
+      data_export: false,
       view_personal_data: false,
+      customer_data_read: false,
+      customer_data_manage: false,
       content_read: true,
       content_manage: true,
       orders_read: false,
       orders_manage: false,
+      requests_read: false,
+      requests_manage: false,
       finance_view: false,
-      reports_view: true,
+      finance_manage: false,
+      audit_view: false,
+      reports_view: false,
       technical_read: false,
       technical_manage: false
     },
     "accountant" => {
       manage_users: false,
       restrictions_manage: false,
+      destructive_manage: false,
+      data_export: true,
       view_personal_data: true,
+      customer_data_read: false,
+      customer_data_manage: false,
       content_read: false,
       content_manage: false,
       orders_read: true,
       orders_manage: false,
+      requests_read: false,
+      requests_manage: false,
       finance_view: true,
+      finance_manage: false,
+      audit_view: false,
       reports_view: true,
-      technical_read: true,
+      technical_read: false,
       technical_manage: false
     },
     "technician" => {
       manage_users: false,
       restrictions_manage: false,
+      destructive_manage: false,
+      data_export: false,
       view_personal_data: false,
+      customer_data_read: false,
+      customer_data_manage: false,
       content_read: false,
       content_manage: false,
       orders_read: false,
       orders_manage: false,
+      requests_read: false,
+      requests_manage: false,
       finance_view: false,
-      reports_view: true,
+      finance_manage: false,
+      audit_view: false,
+      reports_view: false,
       technical_read: true,
       technical_manage: true
     },
     "observer" => {
       manage_users: false,
       restrictions_manage: false,
+      destructive_manage: false,
+      data_export: false,
       view_personal_data: false,
-      content_read: true,
+      customer_data_read: false,
+      customer_data_manage: false,
+      content_read: false,
       content_manage: false,
       orders_read: true,
       orders_manage: false,
-      finance_view: true,
+      requests_read: true,
+      requests_manage: false,
+      finance_view: false,
+      finance_manage: false,
+      audit_view: false,
       reports_view: true,
       technical_read: false,
       technical_manage: false
@@ -186,6 +272,9 @@ class User < ApplicationRecord
   scope :active, -> { where(is_active: true) }
 
   has_many :orders, dependent: :nullify
+  has_many :assigned_orders, class_name: "Order", foreign_key: :assigned_to_id, dependent: :nullify, inverse_of: :assigned_to
+  has_many :assigned_return_requests, class_name: "ReturnRequest", foreign_key: :assigned_to_id, dependent: :nullify, inverse_of: :assigned_to
+  has_many :assigned_cooperation_requests, class_name: "CooperationRequest", foreign_key: :assigned_to_id, dependent: :nullify, inverse_of: :assigned_to
   has_many :user_delivery_addresses, dependent: :destroy
   has_many :user_pickup_points, dependent: :destroy
   has_many :reviews, dependent: :destroy
@@ -239,6 +328,10 @@ class User < ApplicationRecord
     has_admin_permission?(:view_personal_data)
   end
 
+  def admin_landing_resource
+    ADMIN_LANDING_RESOURCES.fetch(role, "dashboard")
+  end
+
   def allowed_for_admin_resource?(resource_name, action_name)
     return false unless can_access_admin_panel?
     return true if admin?
@@ -249,7 +342,20 @@ class User < ApplicationRecord
     rules = ADMIN_RESOURCE_RULES[resource_key]
     return false unless rules
 
-    permission = if ADMIN_READ_ACTIONS.include?(action_name.to_s)
+    action = action_name.to_s
+    if ADMIN_DESTRUCTIVE_ACTIONS.include?(action)
+      return false unless has_admin_permission?(:destructive_manage)
+    end
+
+    registered_export = ADMIN_EXPORT_ACTIONS.fetch(resource_key, []).include?(action)
+    return false if action.match?(ADMIN_EXPORT_ACTION_PATTERN) && !registered_export
+
+    if registered_export
+      return false unless has_admin_permission?(:data_export)
+      return has_admin_permission?(rules[:read])
+    end
+
+    permission = if ADMIN_READ_ACTIONS.include?(action)
                    rules[:read]
                  else
                    rules[:write]
@@ -264,12 +370,20 @@ class User < ApplicationRecord
     {
       manage_users: "Управление пользователями и ролями",
       restrictions_manage: "Настройка индивидуальных ограничений",
+      destructive_manage: "Удаление данных",
+      data_export: "Скачивание и экспорт данных",
       view_personal_data: "Доступ к персональным данным",
+      customer_data_read: "Просмотр клиентских данных",
+      customer_data_manage: "Изменение клиентских данных",
       content_read: "Просмотр контента",
       content_manage: "Редактирование контента",
       orders_read: "Просмотр заявок/заказов",
       orders_manage: "Обработка заявок/заказов",
+      requests_read: "Просмотр возвратов и обращений",
+      requests_manage: "Обработка возвратов и обращений",
       finance_view: "Доступ к финансовым данным",
+      finance_manage: "Изменение финансовых настроек",
+      audit_view: "Просмотр журнала действий администраторов",
       reports_view: "Просмотр отчетов и дашборда",
       technical_read: "Просмотр технических настроек",
       technical_manage: "Изменение технических настроек"

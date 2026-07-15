@@ -84,10 +84,12 @@ RSpec.describe EmailTemplates::Renderer do
 
     expect(html).to include("6 товаров")
     expect(html).to include("202,55 р.")
+    expect(html).to include("56,00 р.")
     expect(html).to include("248,55 р.")
     expect(html).not_to include("2 430.93")
     expect(html).not_to include("2 556.93")
-    expect(html).not_to include("Скидка по промокоду")
+    expect(html).not_to match(/Скидка\s+по\s+промокоду/m)
+    expect(html).not_to include("totals-discount")
     expect(html).not_to include("≈65")
   end
 
@@ -239,7 +241,11 @@ RSpec.describe EmailTemplates::Renderer do
     expect(html).to include("№#{order.public_uid}")
     expect(html).to include("3 товара")
     expect(html).to include("197,32 р.")
+    expect(html).to include("56,00 р.")
+    expect(html).to include("30,00 р.")
     expect(html).to include("348,59 р.")
+    expect(html).to match(/Скидка\s+по\s+промокоду/m)
+    expect(html).to include('class="span-discount">30,00 р.</span>')
     expect(html).not_to include("2 430.93")
     expect(html).not_to include("2 556.93")
     expect(html).not_to include("NATTSLÄNDA")
@@ -250,6 +256,52 @@ RSpec.describe EmailTemplates::Renderer do
     expect(html).to include("Доставка мебели")
     expect(html).to include("Сборка мебели")
     expect(html).not_to include("Подъём и занос мебели")
+  end
+
+  it "removes placeholder discount and delivery amounts in received_poland when discount is zero" do
+    order.update!(
+      checkout_draft: false,
+      total_amount: 222.22,
+      delivery_price: 24.90,
+      discount_amount: 0.0,
+      delivery_type: DeliveryTypeNormalizer::EUROPOST_PICKUP,
+      payment_method: "card",
+      full_name: "Тестовый Получатель"
+    )
+    create(:order_item, order: order, product_sku: "789", quantity: 2, price: 93.66)
+    order.update_column(:status, Order.statuses[:received_poland])
+
+    allow(CheckoutPricingPresenter).to receive(:for_order).and_return(
+      items: [
+        {
+          sku: "123",
+          quantity: 1,
+          pricing: { unit_price_new_byn: "10.00", line_total_new_byn: "10.00" }
+        },
+        {
+          sku: "789",
+          quantity: 2,
+          pricing: { unit_price_new_byn: "93.66", line_total_new_byn: "187.32" }
+        }
+      ],
+      totals: {
+        subtotal_new_byn: "197.32",
+        delivery_to_belarus_byn: "24.90",
+        discount_total_byn: "0.00",
+        final_total_byn: "222.22",
+        customs_total_byn: "0.00"
+      }
+    )
+
+    html = described_class.render(:received_poland, order: order.reload, user: user)
+
+    expect(html).to include("197,32 р.")
+    expect(html).to include("24,90 р.")
+    expect(html).to include("222,22 р.")
+    expect(html).not_to match(/Скидка\s+по\s+промокоду/m)
+    expect(html).not_to include("totals-discount")
+    expect(html).not_to match(/span-price[^>]*>\s*56\s*р\./m)
+    expect(html).not_to include("2 430.93")
   end
 
   it "renders shipped_to_pvz template with order totals and delivery details" do

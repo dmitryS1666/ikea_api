@@ -1,7 +1,8 @@
 # Админ-панель для управления cron расписаниями
 Trestle.resource :cron_schedules, model: CronSchedule do
   menu do
-    item :cron_schedules, icon: "fa fa-clock", priority: 2, label: "Cron расписания", group: "Парсер"
+    item :cron_schedules, icon: "fa fa-clock", priority: 2, label: "Cron расписания", group: "Парсер",
+                          if: -> { current_user&.allowed_for_admin_resource?(:cron_schedules, :index) }
   end
 
   # Таблица
@@ -136,4 +137,3 @@ Trestle.resource :cron_schedules, model: CronSchedule do
     post :sync, on: :collection
   end
 end
-

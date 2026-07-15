@@ -1,4 +1,6 @@
 class Order < ApplicationRecord
+  include RequestWorkflowTrackable
+
   DEFAULT_PAYMENT_TIMEOUT_MINUTES = 20
 
   def self.payment_timeout
@@ -10,6 +12,7 @@ class Order < ApplicationRecord
   has_many :order_items, dependent: :destroy
   has_many :order_status_events, dependent: :destroy
   has_many :consent_records, dependent: :nullify
+  has_one :finance_entry, dependent: :destroy
 
   attr_accessor :status_changed_at, :status_change_source, :status_change_raw_payload
 
@@ -105,6 +108,11 @@ class Order < ApplicationRecord
   after_update_commit :record_status_change_event, if: :saved_change_to_status?
   after_create_commit :sync_with_crm, if: :persist_non_draft_for_crm?
   after_update_commit :sync_with_crm_after_draft_finalized
+  # Финансовая проекция является частью целостности заказа, поэтому создаём её
+  # в той же транзакции. after_commit не выполняется до конца transactional
+  # RSpec-примера и оставляет временное окно без FinanceEntry на production.
+  after_create :sync_finance_entry
+  after_update :sync_finance_entry, if: :finance_data_changed?
 
   def purchased?
     status.in?(PURCHASED_STATUSES)
@@ -354,5 +362,16 @@ class Order < ApplicationRecord
     return unless change&.first == true && change&.last == false
 
     CrmSyncJob.perform_later('Order', id)
+  end
+
+  def finance_data_changed?
+    (saved_changes.keys & %w[
+      checkout_draft total_amount status webpay_transaction_id webpay_paid_at
+      payment_order_number purchased_at
+    ]).any?
+  end
+
+  def sync_finance_entry
+    FinanceEntry.sync_from_order!(self)
   end
 end

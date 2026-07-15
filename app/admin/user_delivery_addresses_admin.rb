@@ -1,6 +1,7 @@
 Trestle.resource(:user_delivery_addresses, model: UserDeliveryAddress) do
   menu do
-    item :user_delivery_addresses, icon: "fa fa-map-marker", group: :sales, priority: 3, label: "Адреса доставки"
+    item :user_delivery_addresses, icon: "fa fa-map-marker", group: :sales, priority: 3, label: "Адреса доставки",
+                                    if: -> { current_user&.allowed_for_admin_resource?(:user_delivery_addresses, :index) }
   end
 
   collection do

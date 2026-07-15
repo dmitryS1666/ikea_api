@@ -1,12 +1,16 @@
 class DashboardStats
   require 'groupdate'
+
+  def initialize(user: nil)
+    @user = user
+  end
   
   def call
     {
-      revenue: revenue,
+      revenue: finance_access? ? revenue : nil,
       new_clients: new_clients,
       active_products: active_products,
-      avg_check: avg_check,
+      avg_check: finance_access? ? avg_check : nil,
       orders_count: orders_count,
       chart_data: chart_data,
       top_products: top_products,
@@ -56,7 +60,7 @@ class DashboardStats
     Order.order(created_at: :desc).limit(4).map do |o|
       {
         id: o.id,
-        customer: o.customer_name,
+        customer: personal_data_access? ? o.customer_name : "Скрыто",
         total: o.total_amount.to_f,
         status: o.status,
         created_at: o.created_at
@@ -94,5 +98,13 @@ class DashboardStats
     return 0 if total.zero?
     responded = Review.where.not(admin_note: [nil, ""]).count
     (responded.to_f / total * 100).round(1)
+  end
+
+  def finance_access?
+    @user.nil? || @user.has_admin_permission?(:finance_view)
+  end
+
+  def personal_data_access?
+    @user.nil? || (@user.can_view_personal_data? && @user.has_admin_permission?(:orders_manage))
   end
 end

@@ -1,6 +1,7 @@
 Trestle.resource(:promo_code_categories, model: PromoCodeCategory) do
   menu do
-    item :promo_code_categories, icon: "fa fa-folder-open", label: "Промо-категории", group: "Маркетинг"
+    item :promo_code_categories, icon: "fa fa-folder-open", label: "Промо-категории", group: "Маркетинг",
+                                 if: -> { current_user&.allowed_for_admin_resource?(:promo_code_categories, :index) }
   end
 
   table do

@@ -1,6 +1,7 @@
 Trestle.resource(:popular_search_queries, model: PopularSearchQuery) do
   menu do
-    item :popular_search_queries, icon: "fa fa-search", group: :catalog, label: "Популярные запросы"
+    item :popular_search_queries, icon: "fa fa-search", group: :catalog, label: "Популярные запросы",
+                                  if: -> { current_user&.allowed_for_admin_resource?(:popular_search_queries, :index) }
   end
 
   table do

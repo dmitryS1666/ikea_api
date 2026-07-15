@@ -1,6 +1,7 @@
 Trestle.resource(:reviews, model: Review) do
   menu do
-    item :reviews, icon: "fa fa-star", group: :sales, label: "Отзывы"
+    item :reviews, icon: "fa fa-star", group: :sales, label: "Отзывы",
+                   if: -> { current_user&.allowed_for_admin_resource?(:reviews, :index) }
   end
 
   scopes do
@@ -113,13 +114,15 @@ Trestle.resource(:reviews, model: Review) do
                             target: "_blank",
                             rel: "noopener"
                           ),
-                          content_tag(:div, class: "caption", style: "text-align: center; margin-top: 8px;") do
-                            link_to(
-                              "Удалить",
-                              admin.path(:delete_photo, id: review.id, photo_id: photo.id),
-                              data: { confirm: "Удалить это фото?" },
-                              class: "btn btn-danger btn-xs"
-                            )
+                          if current_user&.allowed_for_admin_resource?(:reviews, :delete_photo)
+                            content_tag(:div, class: "caption", style: "text-align: center; margin-top: 8px;") do
+                              link_to(
+                                "Удалить",
+                                admin.path(:delete_photo, id: review.id, photo_id: photo.id),
+                                data: { confirm: "Удалить это фото?" },
+                                class: "btn btn-danger btn-xs"
+                              )
+                            end
                           end
                         ]
                       )

@@ -6,6 +6,27 @@ module EmailTemplates
     UNSUBSCRIBE_PLACEHOLDER = "{{ikeya_unsubscribe_url}}".freeze
     LEGACY_UNSUBSCRIBE_PLACEHOLDER = "{{unsubscribe_url}}".freeze
 
+    # Labels in exported HTML may be split across lines/whitespace
+    # ("Скидка\nпо\nпромокоду"). Match words with flexible whitespace.
+    DISCOUNT_LABEL_PATTERN = /Скидка\s+по\s+промокоду/m
+    DELIVERY_LABEL_PATTERN = /Доставка\s+в\s+Беларусь/m
+    DISCOUNT_ROW_PATTERN = %r{
+      <tr\b[^>]*>
+      (?:(?!</tr>)[\s\S])*?
+      (?:class="[^"]*\btotals-discount\b[^"]*"|#{DISCOUNT_LABEL_PATTERN.source})
+      (?:(?!</tr>)[\s\S])*?
+      </tr>
+    }mx
+    DELIVERY_VALUE_PATTERN = %r{
+      (<tr\b[^>]*>
+      (?:(?!</tr>)[\s\S])*?
+      #{DELIVERY_LABEL_PATTERN.source}
+      (?:(?!</tr>)[\s\S])*?
+      <td\b[^>]*class="[^"]*\btotals-value[^"]*"[^>]*>)
+      [\s\S]*?
+      (</td>)
+    }mx
+
     TEMPLATES = {
       order_created: {
         file: "order_created.html",
@@ -240,19 +261,13 @@ module EmailTemplates
       updated.sub!(/<span class="span-price"[^>]*>[\s\S]*?<\/span>/m, "<span class=\"span-price\">#{totals[:items_total]}</span>")
 
       if totals[:discount_row].blank?
-        updated.gsub!(%r{<tr>(?:(?!</tr>)[\s\S])*Скидка по промокоду(?:(?!</tr>)[\s\S])*</tr>}m, "")
+        updated.gsub!(DISCOUNT_ROW_PATTERN, "")
       else
-        updated.sub!(
-          %r{<tr>(?:(?!</tr>)[\s\S])*Скидка по промокоду(?:(?!</tr>)[\s\S])*</tr>}m,
-          totals[:discount_row].strip
-        )
+        updated.sub!(DISCOUNT_ROW_PATTERN, totals[:discount_row].strip)
       end
 
-      if updated.include?("Доставка в Беларусь")
-        updated.sub!(
-          %r{(<tr>(?:(?!</tr>)[\s\S])*Доставка в Беларусь(?:(?!</tr>)[\s\S])*<td class="totals-value[^"]*"[^>]*>)[\s\S]*?(</td>)}m,
-          "\\1#{totals[:delivery_price]}\\2"
-        )
+      if updated.match?(DELIVERY_LABEL_PATTERN)
+        updated.sub!(DELIVERY_VALUE_PATTERN, "\\1#{totals[:delivery_price]}\\2")
       end
 
       html.sub!(totals_section_pattern, updated)

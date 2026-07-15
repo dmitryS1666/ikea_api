@@ -1,6 +1,7 @@
 Trestle.resource(:global_seo_settings, model: GlobalSeoSetting) do
   menu do
-    item :global_seo_settings, icon: "fa fa-globe", group: :content, label: "Глобальные SEO"
+    item :global_seo_settings, icon: "fa fa-globe", group: :content, label: "Глобальные SEO",
+                               if: -> { current_user&.allowed_for_admin_resource?(:global_seo_settings, :index) }
   end
 
   table do

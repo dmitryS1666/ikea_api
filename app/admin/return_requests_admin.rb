@@ -1,6 +1,25 @@
 Trestle.resource(:return_requests, model: ReturnRequest) do
   menu do
-    item :return_requests, icon: "fa fa-undo", group: :sales, label: "Возвраты"
+    item :return_requests, icon: "fa fa-undo", group: :sales, label: "Возвраты",
+                           if: -> { current_user&.allowed_for_admin_resource?(:return_requests, :index) }
+  end
+
+  routes do
+    post :add_manager_comment, on: :member
+  end
+
+  controller do
+    def add_manager_comment
+      request_record = admin.find_instance(params)
+      Admin::RequestWorkflowService.add_comment!(
+        record: request_record,
+        actor: current_user,
+        body: params[:manager_comment]
+      )
+      redirect_to admin.instance_path(request_record, action: :edit), notice: "Комментарий добавлен"
+    rescue ArgumentError, ActiveRecord::RecordInvalid => e
+      redirect_to admin.instance_path(request_record, action: :edit), alert: e.message
+    end
   end
 
   collection do
@@ -13,7 +32,7 @@ Trestle.resource(:return_requests, model: ReturnRequest) do
     column :id, header: "ID", link: true, sort: true
 
     column :user, header: "Пользователь" do |rr|
-      rr.user&.full_name || "—"
+      current_user&.can_view_personal_data? ? (rr.user&.full_name || "—") : "Скрыто"
     end
 
     column :order, header: "Заказ", sort: :order_id do |rr|
@@ -25,7 +44,7 @@ Trestle.resource(:return_requests, model: ReturnRequest) do
     end
 
     column :phone, header: "Телефон" do |rr|
-      rr.phone.presence || "—"
+      current_user&.can_view_personal_data? ? (rr.phone.presence || "—") : "Скрыто"
     end
 
     column :reason, header: "Причина" do |rr|
@@ -60,7 +79,9 @@ Trestle.resource(:return_requests, model: ReturnRequest) do
 
         col(sm: 4) do
           static_field :user, label: "Пользователь" do
-            if rr.user
+            if !current_user&.can_view_personal_data?
+              "Скрыто"
+            elsif rr.user && current_user&.allowed_for_admin_resource?(:users, :show)
               link_to(
                 rr.user.full_name,
                 Trestle.lookup(:users).path(:show, id: rr.user.id),
@@ -89,15 +110,21 @@ Trestle.resource(:return_requests, model: ReturnRequest) do
 
       divider
 
-      row do
-        col(sm: 4) { text_field :first_name, label: "Имя" }
-        col(sm: 4) { text_field :patronymic, label: "Отчество" }
-        col(sm: 4) { text_field :order_number, label: "Номер заказа" }
-      end
+      if current_user&.can_view_personal_data?
+        row do
+          col(sm: 4) { text_field :first_name, label: "Имя" }
+          col(sm: 4) { text_field :patronymic, label: "Отчество" }
+          col(sm: 4) { text_field :order_number, label: "Номер заказа" }
+        end
 
-      row do
-        col(sm: 6) { text_field :phone, label: "Телефон" }
-        col(sm: 6) { text_field :email, label: "Email" }
+        row do
+          col(sm: 6) { text_field :phone, label: "Телефон" }
+          col(sm: 6) { text_field :email, label: "Email" }
+        end
+      else
+        static_field :personal_data_hidden, label: "Данные клиента" do
+          "Скрыто: нет права на просмотр персональных данных"
+        end
       end
 
       divider
@@ -125,12 +152,16 @@ Trestle.resource(:return_requests, model: ReturnRequest) do
         end
       end
 
-      text_area :comment, label: "Комментарий клиента", rows: 5
+      if current_user&.can_view_personal_data?
+        text_area :comment, label: "Комментарий клиента", rows: 5
+      end
 
       divider
 
       static_field :attachments, label: "Вложения" do
-        if rr.attachments.attached?
+        if !current_user&.can_view_personal_data?
+          "Скрыто: вложения могут содержать персональные данные"
+        elsif rr.attachments.attached?
           safe_join(
             rr.attachments.map.with_index(1) do |attachment, index|
               blob = attachment.blob
@@ -194,17 +225,35 @@ Trestle.resource(:return_requests, model: ReturnRequest) do
       end
     end
 
+
+    tab :workflow, label: "Обработка" do
+      if current_user&.has_admin_permission?(:requests_manage)
+        select :assigned_to_id,
+          User.active.where(role: %w[admin site_admin manager_requests]).order(:first_name, :username).map { |user| [user.full_name, user.id] },
+          label: "Ответственный", include_blank: "Не назначен"
+      else
+        static_field :assigned_to, label: "Ответственный"
+      end
+
+      render partial: "admin/shared/request_workflow",
+             locals: { record: rr, admin: admin, can_manage: current_user&.has_admin_permission?(:requests_manage) }
+    end
+
     sidebar do
       form_group :status, label: "Статус" do
-        select :status,
-          [
-            ["Новая", "new"],
-            ["В работе", "in_review"],
-            ["Одобрена", "approved"],
-            ["Отклонена", "rejected"],
-            ["Завершена", "completed"]
-          ],
-          label: false
+        if current_user&.has_admin_permission?(:requests_manage)
+          select :status,
+            [
+              ["Новая", "new"],
+              ["В работе", "in_review"],
+              ["Одобрена", "approved"],
+              ["Отклонена", "rejected"],
+              ["Завершена", "completed"]
+            ],
+            label: false
+        else
+          static_field :status, label: false
+        end
       end
 
       form_group :meta, label: "Данные" do

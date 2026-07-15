@@ -1,6 +1,7 @@
 Trestle.resource(:phone_verification_requests) do
   menu do
-    item :phone_verification_requests, icon: "fa fa-phone", label: "Запросы звонков", group: "Клиенты", priority: 6
+    item :phone_verification_requests, icon: "fa fa-phone", label: "Запросы звонков", group: "Клиенты", priority: 6,
+                                       if: -> { current_user&.allowed_for_admin_resource?(:phone_verification_requests, :index) }
   end
 
   # Scope to show latest first

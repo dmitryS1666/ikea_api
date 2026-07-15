@@ -5,7 +5,8 @@ Trestle.resource(:users, model: User) do
   end
 
   menu do
-    item :users, icon: "fa fa-users", group: :sales, priority: 2, label: "Пользователи"
+    item :users, icon: "fa fa-users", group: :sales, priority: 2, label: "Пользователи",
+                 if: -> { current_user&.allowed_for_admin_resource?(:users, :index) }
   end
 
   table do
@@ -20,7 +21,7 @@ Trestle.resource(:users, model: User) do
     column :role do |user|
       case user.role
       when 'admin'
-        status_tag('Директор / Владелец', :success)
+        status_tag('Владелец / директор', :success)
       when 'site_admin'
         status_tag('Администратор сайта', :info)
       when 'manager_requests'
@@ -28,7 +29,7 @@ Trestle.resource(:users, model: User) do
       when 'content_manager'
         status_tag('Контент-менеджер', :info)
       when 'accountant'
-        status_tag('Бухгалтер', :warning)
+        status_tag('Бухгалтер / финансовый сотрудник', :warning)
       when 'technician'
         status_tag('Технический специалист', :secondary)
       when 'observer'

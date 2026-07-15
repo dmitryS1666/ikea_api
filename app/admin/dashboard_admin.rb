@@ -1,6 +1,7 @@
 Trestle.admin(:dashboard) do
   menu do
-    item :dashboard, icon: "fa fa-tachometer-alt", priority: :first, label: "Дашборд"
+    item :dashboard, icon: "fa fa-tachometer-alt", priority: :first, label: "Дашборд",
+                     if: -> { current_user&.allowed_for_admin_resource?(:dashboard, :index) }
   end
 
   routes do
@@ -9,7 +10,7 @@ Trestle.admin(:dashboard) do
 
   controller do
     def index
-      @stats = DashboardStats.new.call
+      @stats = DashboardStats.new(user: current_user).call
       @top_products = @stats[:top_products]
       @recent_orders = @stats[:recent_orders]
       @chart_data = @stats[:chart_data]
@@ -19,7 +20,7 @@ Trestle.admin(:dashboard) do
     end
 
     def stats
-      render json: DashboardStats.new.call
+      render json: DashboardStats.new(user: current_user).call
     end
   end
 end

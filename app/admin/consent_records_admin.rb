@@ -1,6 +1,7 @@
 Trestle.resource(:consent_records, model: ConsentRecord) do
   menu do
-    item :consent_records, icon: "fa fa-file-signature", group: :sales, priority: 3, label: "История согласий"
+    item :consent_records, icon: "fa fa-file-signature", group: :sales, priority: 3, label: "История согласий",
+                           if: -> { current_user&.allowed_for_admin_resource?(:consent_records, :index) }
   end
 
   remove_action :new, :create, :edit, :update, :destroy

@@ -1,4 +1,6 @@
 class CooperationRequest < ApplicationRecord
+  include RequestWorkflowTrackable
+
   STATUSES = %w[new in_review contacted closed rejected].freeze
 
   validates :first_name, :last_name, :email, :phone, :city, :cooperation_type, :comment, presence: true

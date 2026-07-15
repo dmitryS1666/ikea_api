@@ -1,6 +1,7 @@
 Trestle.resource(:products, model: Product) do
   menu do
-    item :products, icon: "fa fa-cube", group: :catalog, priority: 1, label: "Товары"
+    item :products, icon: "fa fa-cube", group: :catalog, priority: 1, label: "Товары",
+                    if: -> { current_user&.allowed_for_admin_resource?(:products, :index) }
   end
 
   routes do
@@ -95,7 +96,9 @@ Trestle.resource(:products, model: Product) do
     column :updated_at, align: :center
     actions do |toolbar, instance, admin|
       toolbar.edit if admin.actions.include?(:edit)
-      toolbar.delete if admin.actions.include?(:destroy)
+      if current_user&.allowed_for_admin_resource?(:products, :destroy) && admin.actions.include?(:destroy)
+        toolbar.delete
+      end
     end
   end
 
