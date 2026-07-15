@@ -7,7 +7,7 @@ namespace :sendpulse do
     abort <<~MSG if target_email.blank?
       Не указан тестовый email.
       Пример:
-        SEND_REAL_EMAILS=YES RAILS_ENV=production bundle exec rake 'sendpulse:real_smoke[test@example.com]'
+        SEND_REAL_EMAILS=YES SMOKE_USER_EMAIL=test@example.com RAILS_ENV=production bundle exec rake 'sendpulse:real_smoke[test@example.com]'
     MSG
 
     unless target_email.match?(URI::MailTo::EMAIL_REGEXP)
@@ -24,14 +24,13 @@ namespace :sendpulse do
 
     keep_data = ActiveModel::Type::Boolean.new.cast(ENV.fetch("KEEP_DATA", "false"))
     created_records = []
-
-    unique_phone = lambda do
-      loop do
-        suffix = SecureRandom.random_number(10_000_000).to_s.rjust(7, "0")
-        candidate = "37529#{suffix}"
-        break candidate unless User.exists?(phone: candidate)
-      end
-    end
+    smoke_user_email = ENV["SMOKE_USER_EMAIL"].to_s.strip.presence || target_email
+    user = User.find_by(email: smoke_user_email)
+    abort <<~MSG unless user
+      Не найден сохранённый smoke-пользователь с email #{smoke_user_email.inspect}.
+      Подписанная ссылка отписки создаётся только для существующего пользователя.
+      Укажите его email через SMOKE_USER_EMAIL.
+    MSG
 
     deliver = lambda do |template_key, user:, order: nil, verify_email_url: nil|
       html = EmailTemplates::Renderer.render(
@@ -109,22 +108,8 @@ namespace :sendpulse do
     begin
       puts "== SendPulse real smoke =="
       puts "Получатель: #{target_email}"
+      puts "Пользователь для подписанной ссылки: #{user.email} (id=#{user.id})"
       puts "Отправка выполняется синхронно; Sidekiq для этого теста не требуется."
-
-      # Для smoke-теста не сохраняем пользователя в production-БД:
-      # письмам достаточно объекта с именем/email, а Order допускает user=nil.
-      # Это исключает влияние production-валидаций и after_commit-интеграций
-      # (CRM/SendPulse marketing sync) на проверку транзакционных писем.
-      user = User.new(
-        username: "sendpulse_smoke_#{Time.current.to_i}_#{SecureRandom.hex(3)}",
-        first_name: "Тестовый",
-        last_name: "Получатель",
-        email: target_email,
-        phone: unique_phone.call,
-        role: "user",
-        is_active: true,
-        personal_data_consent: true
-      )
 
       products = Product.where.not(price: nil).where("price > 0").limit(2).to_a
       abort("Нужно минимум 2 товара с ценой > 0") if products.size < 2
@@ -162,7 +147,7 @@ namespace :sendpulse do
         rescue StandardError => e
           warn("Не удалось удалить #{record.class} id=#{record.id}: #{e.class} #{e.message}")
         end
-        puts "🗑️ Временные заказы удалены; пользователь в БД не создавался."
+        puts "🗑️ Временные заказы удалены; сохранённый smoke-пользователь не удалялся."
       end
     end
   end

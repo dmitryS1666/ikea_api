@@ -100,7 +100,7 @@ RSpec.describe EmailTemplates::Renderer do
   it "injects verification URL for email_changed status button" do
     verify_url = "https://ikeya.by/account/verify-email?token=abc123"
 
-    html = described_class.render(:email_changed, verify_email_url: verify_url)
+    html = described_class.render(:email_changed, user: user, verify_email_url: verify_url)
 
     expect(html).to include("href=\"#{verify_url}\"")
     expect(html).not_to include("href=\"#\" class=\"status-btn\"")
@@ -118,6 +118,7 @@ RSpec.describe EmailTemplates::Renderer do
     expect(html).to include('href="https://ikeya.by/cart"')
     expect(html).to include('href="https://ikeya.by/unsubscribe?token=signed-token"')
     expect(html).to include("отписаться")
+    expect(html).not_to include("{{ikeya_unsubscribe_url}}")
     expect(html).not_to include("{{unsubscribe_url}}")
     expect(html).not_to include('href="https://ikeya.by/checkout" class="status-btn"')
   end
@@ -126,6 +127,7 @@ RSpec.describe EmailTemplates::Renderer do
     html = described_class.render(:order_created, order: order, user: user)
 
     expect(html).not_to include("{{unsubscribe_url}}")
+    expect(html).not_to include("{{ikeya_unsubscribe_url}}")
     expect(html).not_to include("/unsubscribe?token=")
   end
 
@@ -142,8 +144,30 @@ RSpec.describe EmailTemplates::Renderer do
       )
 
       expect(html).to include('href="https://ikeya.by/unsubscribe?token=signed-token"')
+      expect(html).not_to include("{{ikeya_unsubscribe_url}}")
       expect(html).not_to include("{{unsubscribe_url}}")
     end
+  end
+
+  it "refuses to render marketing templates without a persisted email recipient" do
+    transient_user = User.new(email: "smoke@example.com")
+
+    expect do
+      described_class.render(
+        :welcome,
+        user: transient_user,
+        verify_email_url: "https://ikeya.by/profile"
+      )
+    end.to raise_error(ArgumentError, /persisted user with email is required/)
+  end
+
+  it "refuses to send a SendPulse-reserved unsubscribe placeholder" do
+    renderer = described_class.new(:welcome, user: user)
+    allow(renderer).to receive(:load_template)
+      .and_return('<a href="{{unsubscribe_url}}">отписаться</a>')
+
+    expect { renderer.render }
+      .to raise_error(ArgumentError, /unresolved unsubscribe placeholder/)
   end
 
   it "links repeat order button to the signed reorder endpoint" do

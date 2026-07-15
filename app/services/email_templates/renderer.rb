@@ -3,6 +3,8 @@
 module EmailTemplates
   class Renderer
     UNSUBSCRIBE_TEMPLATES = %i[abandoned_cart welcome email_changed].freeze
+    UNSUBSCRIBE_PLACEHOLDER = "{{ikeya_unsubscribe_url}}".freeze
+    LEGACY_UNSUBSCRIBE_PLACEHOLDER = "{{unsubscribe_url}}".freeze
 
     TEMPLATES = {
       order_created: {
@@ -78,11 +80,14 @@ module EmailTemplates
     end
 
     def render
-      html = load_template
+      validate_unsubscribe_recipient!
+      html = load_template.to_s.dup
       html = apply_common_replacements(html)
       html = apply_template_specific_replacements(html)
       html = apply_fallback_links(html)
-      apply_unsubscribe_link(html)
+      html = apply_unsubscribe_link(html)
+      ensure_unsubscribe_link_resolved!(html)
+      html
     end
 
     private
@@ -137,12 +142,11 @@ module EmailTemplates
 
     def apply_unsubscribe_link(html)
       return html unless UNSUBSCRIBE_TEMPLATES.include?(template_key)
-      return html unless user&.persisted? && user.email.present?
 
       url = ERB::Util.html_escape(MarketingUnsubscribeService.url_for(user))
 
-      if html.include?("{{unsubscribe_url}}")
-        html.gsub!("{{unsubscribe_url}}", url)
+      if html.include?(UNSUBSCRIBE_PLACEHOLDER)
+        html.gsub!(UNSUBSCRIBE_PLACEHOLDER, url)
         return html
       end
 
@@ -170,6 +174,22 @@ module EmailTemplates
       HTML
 
       html.include?("</body>") ? html.sub("</body>", "#{block}</body>") : "#{html}#{block}"
+    end
+
+    def validate_unsubscribe_recipient!
+      return unless UNSUBSCRIBE_TEMPLATES.include?(template_key)
+      return if user&.persisted? && user.email.present?
+
+      raise ArgumentError, "persisted user with email is required for #{template_key} unsubscribe link"
+    end
+
+    def ensure_unsubscribe_link_resolved!(html)
+      unresolved = [UNSUBSCRIBE_PLACEHOLDER, LEGACY_UNSUBSCRIBE_PLACEHOLDER].find do |placeholder|
+        html.include?(placeholder)
+      end
+      return unless unresolved
+
+      raise ArgumentError, "unresolved unsubscribe placeholder #{unresolved} in #{template_key} template"
     end
 
     def apply_order_replacements(html)
