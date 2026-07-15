@@ -122,4 +122,30 @@ RSpec.describe User, type: :model do
       end.not_to have_enqueued_job(CrmSyncJob)
     end
   end
+
+  describe "#email_marketing_enabled=" do
+    it "treats either legacy email flag as an active subscription" do
+      user = build(:user, email_marketing: false, newsletter_consent: true)
+
+      expect(user.email_marketing_enabled?).to be(true)
+    end
+
+    it "enables both email consent fields" do
+      user = build(:user, email_marketing: false, newsletter_consent: false)
+
+      user.email_marketing_enabled = "1"
+
+      expect(user.email_marketing).to be(true)
+      expect(user.newsletter_consent).to be(true)
+    end
+
+    it "disables both email consent fields" do
+      user = build(:user, email_marketing: true, newsletter_consent: true)
+
+      user.email_marketing_enabled = "0"
+
+      expect(user.email_marketing).to be(false)
+      expect(user.newsletter_consent).to be(false)
+    end
+  end
 end

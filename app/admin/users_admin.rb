@@ -48,11 +48,8 @@ Trestle.resource(:users, model: User) do
     column :personal_data_consent, label: "ПД" do |user|
       status_tag(user.personal_data_consent? ? 'Да' : 'Нет', user.personal_data_consent? ? :success : :danger)
     end
-    column :email_marketing, label: "Email" do |user|
-      status_tag(user.email_marketing? ? 'Да' : 'Нет', user.email_marketing? ? :success : :secondary)
-    end
-    column :newsletter_consent, label: "Рассылка" do |user|
-      status_tag(user.newsletter_consent? ? 'Да' : 'Нет', user.newsletter_consent? ? :success : :secondary)
+    column :email_marketing_enabled, label: "Email-рассылка" do |user|
+      status_tag(user.email_marketing_enabled? ? 'Да' : 'Нет', user.email_marketing_enabled? ? :success : :secondary)
     end
     column :is_active do |user|
       status_tag(user.is_active? ? 'Да' : 'Нет', 
@@ -156,9 +153,18 @@ Trestle.resource(:users, model: User) do
     end
 
     tab :marketing, label: "Маркетинг" do
-      check_box :email_marketing, label: "Рассылка через Email"
+      static_field :email_verification_status, label: "Статус подтверждения Email" do
+        if user.email.blank?
+          status_tag("Email не указан", :secondary)
+        elsif user.email_verified?
+          status_tag("Подтверждён · #{user.email_verified_at.strftime('%d.%m.%Y %H:%M')}", :success)
+        else
+          status_tag("Не подтверждён", :warning)
+        end
+      end
+
+      check_box :email_marketing_enabled, label: "Рассылка через Email"
       check_box :telegram_marketing, label: "Рассылка через Telegram"
-      check_box :newsletter_consent, label: "Общее согласие на рассылку"
       check_box :gdpr_consent, label: "Согласие GDPR"
       check_box :personal_data_consent, label: "Согласие на обработку ПД"
       datetime_field :personal_data_consented_at, label: "Дата согласия на ПД"
@@ -307,7 +313,7 @@ Trestle.resource(:users, model: User) do
     params.require(:user).permit(
       :last_name, :first_name, :middle_name, :username, :email, :phone, :country_code,
       :dob, :gender, :region, :city, :postcode, :street, :house, :building, :apartment,
-      :address, :email_marketing, :telegram_marketing, :newsletter_consent, :gdpr_consent,
+      :address, :email_marketing_enabled, :telegram_marketing, :gdpr_consent,
       :personal_data_consent, :personal_data_consented_at,
       :password, :password_confirmation, :role, :is_active,
       *User::ADMIN_PERMISSION_KEYS.map { |key| :"custom_permission_#{key}" }

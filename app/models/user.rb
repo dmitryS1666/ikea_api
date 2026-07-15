@@ -320,6 +320,21 @@ class User < ApplicationRecord
     email_verified_at.present?
   end
 
+  # Единый виртуальный переключатель для админки. newsletter_consent остаётся
+  # legacy-полем, поэтому при ручном изменении email-рассылки обновляем оба
+  # флага и не допускаем противоречивого состояния.
+  def email_marketing_enabled
+    email_marketing == true || newsletter_consent == true
+  end
+
+  alias email_marketing_enabled? email_marketing_enabled
+
+  def email_marketing_enabled=(value)
+    enabled = ActiveModel::Type::Boolean.new.cast(value)
+    self.email_marketing = enabled
+    self.newsletter_consent = enabled
+  end
+
   def self.normalize_gender(value)
     return nil if value.blank?
 
