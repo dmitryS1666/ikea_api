@@ -602,6 +602,8 @@ class ProductSerializer
     s = s.gsub(/\bcm\b/i, "см")
     s = s.gsub(/\bkg\b/i, "кг")
     s = s.gsub(/\bg\b/i, "гр")
+    s = s.gsub(%r{/\s*inch\s*[²2]\b?}i, "/дюйм²")
+    s = s.gsub(/\binch\s*[²2]\b?/i, "дюйм²")
     s = s.gsub(/\b(\d+)\.0(?=\s|$)/, '\1')
   
     s

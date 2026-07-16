@@ -3067,6 +3067,8 @@ end
   
     s = s.gsub(/\bcm\b/i, "см")
     s = s.gsub(/\bkg\b/i, "кг")
+    s = s.gsub(%r{/\s*inch\s*[²2]\b?}i, "/дюйм²")
+    s = s.gsub(/\binch\s*[²2]\b?/i, "дюйм²")
   
     # 79.0 -> 79
     # 153.0 см -> 153 см
