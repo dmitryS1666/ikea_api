@@ -14,7 +14,7 @@ Trestle.resource(:users, model: User) do
     if current_user&.allowed_for_admin_resource?(:users, :export_marketing_emails) &&
        current_user&.can_view_personal_data?
       link_to "Выгрузить email для рассылки (CSV)", admin.path(:export_marketing_emails),
-              class: "btn btn-primary"
+              class: "btn btn-primary", data: { turbo: false }
     end
   end
 
