@@ -98,6 +98,7 @@ module Categories
       Rails.cache.delete('categories_children_counts')
       Rails.cache.delete('categories_max_updated_at')
       ids.uniq.each { |id| Rails.cache.delete("category_#{id}_children_count") }
+      Categories::ShowCache.bust_all!
     rescue => e
       Rails.logger.warn("MoveNodeService cache clear failed: #{e.class} #{e.message}")
     end

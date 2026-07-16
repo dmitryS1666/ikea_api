@@ -37,6 +37,7 @@ class Category < ApplicationRecord
   before_save :cache_slug, if: -> { name_changed? || translated_name_changed? || cached_slug.blank? }
   before_validation :assign_parent_ikea_id_from_parent_ids
   before_validation :optimize_uploaded_images
+  after_commit :bust_category_show_cache
 
   validate :parent_cannot_be_self
   validate :parent_cannot_be_descendant
@@ -494,6 +495,14 @@ class Category < ApplicationRecord
 
   def cache_slug
     self.cached_slug = generate_slug
+  end
+
+  def bust_category_show_cache
+    # children вложены в payload родителя — сбрасываем себя и предков
+    Categories::ShowCache.bust!(ikea_id)
+    self.class.normalize_parent_ids(parent_ids).each { |id| Categories::ShowCache.bust!(id) }
+  rescue StandardError => e
+    Rails.logger.warn("[Category] show cache bust failed for #{ikea_id}: #{e.class} #{e.message}")
   end
 
   def generate_slug

@@ -67,6 +67,7 @@ class CalculatorSetting < ApplicationRecord
 
   def clear_cache
     Rails.cache.delete("calculator_setting/#{key}")
+    Categories::ShowCache.bust_all! if key.to_s == "exchange_rate_buffer"
   end
   
   # Инициализация дефолтных настроек

@@ -26,10 +26,14 @@ module Api
       end
       
       def show
-        category = Category.includes(:seo_meta).with_attached_icon.with_attached_background_image.find_by(ikea_id: params[:id])
-        render json: CategorySerializer.new(category, {
-          params: seo_serialization_params
-        })
+        payload = Categories::ShowCache.fetch(
+          ikea_id: params[:id],
+          city: current_city,
+          site_url: public_site_url
+        )
+        return render json: { error: "Category not found" }, status: :not_found if payload.blank?
+
+        render json: payload
       end
 
       def products

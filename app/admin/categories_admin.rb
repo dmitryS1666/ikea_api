@@ -432,6 +432,7 @@ Trestle.resource(:categories, model: Category) do
       Rails.cache.delete("categories_children_counts")
       Rails.cache.delete("categories_max_updated_at")
       Rails.cache.delete_matched("category_*_children_count")
+      Categories::ShowCache.bust_all!
     end
   end
 

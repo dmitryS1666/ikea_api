@@ -39,6 +39,7 @@ module Categories
       end
 
       category.update_columns(available_filters: filters)
+      Categories::ShowCache.bust!(category.ikea_id)
       true
     end
 

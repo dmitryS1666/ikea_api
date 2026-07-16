@@ -28,6 +28,7 @@ namespace :seo do
           categories_tree_v2_*
           categories_map_json_v2
           categories_map_json_v3_*
+          category_show_v1_*
         ].each { |pattern| Rails.cache.delete_matched(pattern) }
         puts "Category caches invalidated."
       rescue Redis::CommandError, RedisClient::CommandError => e

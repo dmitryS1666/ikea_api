@@ -1,0 +1,69 @@
+# frozen_string_literal: true
+
+module Categories
+  # Кеш JSON для GET /api/v1/categories/:id.
+  # Основной выигрыш — не пересчитывать available_filters/children на каждый запрос.
+  class ShowCache
+    PREFIX = "category_show_v1"
+    TTL = 1.hour
+
+    class << self
+      def fetch(ikea_id:, city:, site_url:)
+        ikea_id = ikea_id.to_s
+        category = Category.find_by(ikea_id: ikea_id)
+        return nil unless category
+
+        Rails.cache.fetch(
+          cache_key(ikea_id: ikea_id, city: city, site_url: site_url),
+          expires_in: TTL,
+          skip_nil: true
+        ) do
+          record = Category
+                   .includes(:seo_meta)
+                   .with_attached_icon
+                   .with_attached_background_image
+                   .find_by(ikea_id: ikea_id)
+
+          next nil unless record
+
+          CategorySerializer.new(record, {
+            params: { city: city, site_url: site_url }
+          }).serializable_hash
+        end
+      end
+
+      def bust!(ikea_id)
+        return if ikea_id.blank?
+
+        delete_matched("#{PREFIX}_#{ikea_id}_*")
+      end
+
+      def bust_all!
+        delete_matched("#{PREFIX}_*")
+      end
+
+      private
+
+      def cache_key(ikea_id:, city:, site_url:)
+        pln_rate = ExchangeRate.fetch_or_create("PLN")&.rate_per_unit
+        buffer = CalculatorSetting.get("exchange_rate_buffer")
+        fingerprint = Digest::SHA1.hexdigest([site_url, pln_rate, buffer].join("|"))[0, 12]
+
+        [
+          PREFIX,
+          ikea_id,
+          city.to_s.presence || "default",
+          fingerprint
+        ].join("_")
+      end
+
+      def delete_matched(pattern)
+        return unless Rails.cache.respond_to?(:delete_matched)
+
+        Rails.cache.delete_matched(pattern)
+      rescue StandardError => e
+        Rails.logger.warn("[Categories::ShowCache] delete_matched failed: #{e.class} #{e.message}")
+      end
+    end
+  end
+end

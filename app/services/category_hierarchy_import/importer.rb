@@ -574,6 +574,7 @@ module CategoryHierarchyImport
       ].each { |key| Rails.cache.delete(key) }
 
       Rails.cache.delete_matched('category_*_children_count') if Rails.cache.respond_to?(:delete_matched)
+      Categories::ShowCache.bust_all!
     rescue => e
       warn!("Failed to clear category caches: #{e.class} #{e.message}")
     end
