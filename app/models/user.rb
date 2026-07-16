@@ -291,6 +291,7 @@ class User < ApplicationRecord
   has_one :cart, dependent: :destroy
   has_one :favorite, dependent: :destroy
   has_many :consent_records, dependent: :destroy
+  has_many :email_verification_tokens, dependent: :destroy
   
   def admin?
     role == 'admin'

@@ -203,6 +203,22 @@ RSpec.describe User, type: :model do
 
       expect(log.reload.customer_id).to be_nil
     end
+
+    it "destroys email verification tokens instead of blocking deletion" do
+      user = create(:user, email: "delete-me@example.com")
+      token = EmailVerificationToken.create!(
+        user: user,
+        email: user.email,
+        token: SecureRandom.hex(16),
+        purpose: "welcome",
+        expires_at: 1.day.from_now
+      )
+
+      expect { user.destroy! }.to change(described_class, :count).by(-1)
+        .and change(EmailVerificationToken, :count).by(-1)
+
+      expect(EmailVerificationToken.exists?(token.id)).to be(false)
+    end
   end
 
   describe "consent CRM sync" do
