@@ -104,7 +104,8 @@ class User < ApplicationRecord
       download_products_xlsx
       export_extended_attrs_input
     ].freeze,
-    "finance_entries" => %w[export_registry].freeze
+    "finance_entries" => %w[export_registry].freeze,
+    "users" => %w[export_marketing_emails].freeze
   }.freeze
   ADMIN_EXPORT_ACTION_PATTERN = /export|download|xlsx/i
   ADMIN_LANDING_RESOURCES = {
@@ -270,6 +271,12 @@ class User < ApplicationRecord
   validates :password, presence: true, on: :create, if: -> { can_access_admin_panel? }
   
   scope :active, -> { where(is_active: true) }
+  # Получатели коммерческой email-рассылки: есть email и согласие
+  # (отписавшиеся через unsubscribe получают оба флага false).
+  scope :marketing_email_recipients, lambda {
+    where.not(email: [nil, ""])
+         .where("email_marketing IS TRUE OR newsletter_consent IS TRUE")
+  }
 
   has_many :orders, dependent: :nullify
   has_many :assigned_orders, class_name: "Order", foreign_key: :assigned_to_id, dependent: :nullify, inverse_of: :assigned_to

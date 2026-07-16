@@ -145,11 +145,14 @@ RSpec.describe User, type: :model do
       content_manager = build(:user, role: "content_manager", is_active: true)
       accountant = build(:user, role: "accountant", is_active: true)
       owner = build(:user, role: "admin", is_active: true)
+      site_admin = build(:user, role: "site_admin", is_active: true)
 
       expect(content_manager.allowed_for_admin_resource?("products", "download_products_xlsx")).to be(false)
       expect(accountant.allowed_for_admin_resource?("finance_entries", "export_registry")).to be(true)
       expect(accountant.allowed_for_admin_resource?("orders", "export_registry")).to be(false)
       expect(owner.allowed_for_admin_resource?("products", "download_products_xlsx")).to be(true)
+      expect(owner.allowed_for_admin_resource?("users", "export_marketing_emails")).to be(true)
+      expect(site_admin.allowed_for_admin_resource?("users", "export_marketing_emails")).to be(false)
     end
 
     it "limits the audit log to the owner" do

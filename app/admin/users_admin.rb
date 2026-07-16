@@ -2,11 +2,20 @@ Trestle.resource(:users, model: User) do
   routes do
     post :request_call, on: :member
     post :verify_call, on: :member
+    get :export_marketing_emails, on: :collection
   end
 
   menu do
     item :users, icon: "fa fa-users", group: :sales, priority: 2, label: "Пользователи",
                  if: -> { current_user&.allowed_for_admin_resource?(:users, :index) }
+  end
+
+  hook("resource.index.header") do
+    if current_user&.allowed_for_admin_resource?(:users, :export_marketing_emails) &&
+       current_user&.can_view_personal_data?
+      link_to "Выгрузить email для рассылки (CSV)", admin.path(:export_marketing_emails),
+              class: "btn btn-primary"
+    end
   end
 
   table do
@@ -100,6 +109,20 @@ Trestle.resource(:users, model: User) do
         flash[:message] = "Паспорт успешно верифицирован через звонок"
       end
       redirect_to admin.path(:show, id: user.id)
+    end
+
+    def export_marketing_emails
+      unless current_user&.can_view_personal_data?
+        flash[:error] = "Нет права на персональные данные"
+        redirect_to admin.path(:index) and return
+      end
+
+      send_data(
+        Admin::MarketingEmailsExport.call,
+        filename: "marketing-emails-#{Date.current.iso8601}.csv",
+        type: "text/csv; charset=utf-8",
+        disposition: "attachment"
+      )
     end
   end
 
