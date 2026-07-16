@@ -8,7 +8,7 @@ Trestle.resource(:admin_audit_logs, model: AdminAuditLog) do
   end
 
   collection do
-    AdminAuditLog.includes(:actor).recent
+    AdminAuditLog.includes(:actor).recent_first
   end
 
   table do
