@@ -218,7 +218,7 @@ RSpec.describe "Checkout delivery types", type: :request do
     expect(body.dig("data", "attributes", "address")).to be_present
   end
 
-  it "enqueues client and admin sendpulse emails after successful order create" do
+  it "enqueues sequential client prepare job and admin sendpulse email after successful order create" do
     allow(ENV).to receive(:[]).and_call_original
     allow(ENV).to receive(:[]).with("SENDPULSE_ADMIN_NOTIFY_EMAIL").and_return("manager@example.com")
 
@@ -230,10 +230,16 @@ RSpec.describe "Checkout delivery types", type: :request do
         payment_method: "card",
         pickup_point_id: "70130010"
       )
-    end.to change { enqueued_jobs.count { |job| job[:job] == SendpulseEmailJob } }.by(2)
+    end.to change { enqueued_jobs.count { |job| job[:job] == PrepareOrderEmailJob } }.by(1)
+      .and change { enqueued_jobs.count { |job| job[:job] == SendpulseEmailJob } }.by(1)
+
+    prepare_args = enqueued_jobs.find { |job| job[:job] == PrepareOrderEmailJob }[:args].first
+    expect(prepare_args["template_key"] || prepare_args[:template_key]).to eq("order_created")
+    expect(prepare_args["next_template_keys"] || prepare_args[:next_template_keys])
+      .to eq(["order_awaiting_payment"])
   end
 
-  it "enqueues only client sendpulse email when admin email is not set" do
+  it "enqueues only the sequential client prepare job when admin email is not set" do
     allow(ENV).to receive(:[]).and_call_original
     allow(ENV).to receive(:[]).with("SENDPULSE_ADMIN_NOTIFY_EMAIL").and_return(nil)
 
@@ -245,7 +251,8 @@ RSpec.describe "Checkout delivery types", type: :request do
         payment_method: "card",
         pickup_point_id: "70130010"
       )
-    end.to change { enqueued_jobs.count { |job| job[:job] == SendpulseEmailJob } }.by(1)
+    end.to change { enqueued_jobs.count { |job| job[:job] == PrepareOrderEmailJob } }.by(1)
+      .and change { enqueued_jobs.count { |job| job[:job] == SendpulseEmailJob } }.by(0)
   end
 
   it "does not enqueue sendpulse notifications for unsuccessful order creation" do

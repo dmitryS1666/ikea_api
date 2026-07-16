@@ -8,16 +8,19 @@ RSpec.describe OrderNotificationService do
 
   before do
     allow(TransactionalEmailService).to receive(:send_order_email)
+    allow(TransactionalEmailService).to receive(:send_order_emails)
     allow(TelegramService).to receive(:send_message)
     allow(described_class).to receive(:enqueue_admin_order_created_email)
     allow(described_class).to receive(:send_telegram_manager_notification)
   end
 
-  it "enqueues order-created and awaiting-payment emails only after finalization" do
+  it "enqueues order-created and awaiting-payment emails as a sequential chain after finalization" do
     described_class.call(order)
 
-    expect(TransactionalEmailService).to have_received(:send_order_email).with(:order_created, order).once
-    expect(TransactionalEmailService).to have_received(:send_order_email).with(:order_awaiting_payment, order).once
+    expect(TransactionalEmailService).to have_received(:send_order_emails)
+      .with(%i[order_created order_awaiting_payment], order)
+      .once
+    expect(TransactionalEmailService).not_to have_received(:send_order_email)
   end
 
   it "does not rebuild the cart automatically when an order is cancelled" do

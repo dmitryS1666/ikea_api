@@ -85,7 +85,23 @@ RSpec.describe PrepareOrderEmailJob, type: :job do
         expect(payload[:html]).not_to include("NATTSLÄNDA")
         expect(payload[:html]).not_to include("2 556.93")
         expect(payload[:html]).not_to include("Скидка по промокоду")
+        expect(payload).not_to have_key(:next_order_email)
       end
+    end
+  end
+
+  it "passes the remaining template chain to SendpulseEmailJob" do
+    described_class.perform_now(
+      template_key: "order_created",
+      order_id: order.id,
+      next_template_keys: %w[order_awaiting_payment]
+    )
+
+    expect(SendpulseEmailJob).to have_received(:perform_later) do |payload|
+      expect(payload[:next_order_email]).to eq(
+        "order_id" => order.id,
+        "template_keys" => %w[order_awaiting_payment]
+      )
     end
   end
 

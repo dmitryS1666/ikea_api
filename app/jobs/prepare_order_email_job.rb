@@ -3,12 +3,15 @@
 # Rendering is performed in a retryable job instead of the checkout request.
 # This guarantees that template/rendering failures are retried and that the
 # order is reloaded only after the checkout transaction has committed.
+#
+# When next_template_keys is present, SendpulseEmailJob enqueues the next
+# PrepareOrderEmailJob only after the current email is accepted by SendPulse.
 class PrepareOrderEmailJob < ApplicationJob
   queue_as :default
 
   retry_on StandardError, wait: :polynomially_longer, attempts: 5
 
-  def perform(template_key:, order_id:, abandoned_cart_activity_at: nil, abandoned_cart_queued_at: nil)
+  def perform(template_key:, order_id:, next_template_keys: [], abandoned_cart_activity_at: nil, abandoned_cart_queued_at: nil)
     order = Order.includes(:user, order_items: :product).find(order_id)
     key = template_key.to_sym
 
@@ -29,7 +32,8 @@ class PrepareOrderEmailJob < ApplicationJob
       to_email: order.user&.email,
       to_name: order.full_name.presence || order.user&.full_name,
       order: order.reload,
-      user: order.user
+      user: order.user,
+      next_order_email: next_order_email_payload(order_id, next_template_keys)
     )
   rescue StandardError => e
     Rails.logger.error(
@@ -39,6 +43,13 @@ class PrepareOrderEmailJob < ApplicationJob
   end
 
   private
+
+  def next_order_email_payload(order_id, next_template_keys)
+    keys = Array(next_template_keys).map(&:to_s).reject(&:blank?)
+    return if keys.empty?
+
+    { "order_id" => order_id, "template_keys" => keys }
+  end
 
   def abandoned_cart_still_valid?(order, activity_at:, queued_at:)
     unless order.checkout_draft? &&
