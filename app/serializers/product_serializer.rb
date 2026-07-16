@@ -420,6 +420,10 @@ class ProductSerializer
     "glebokosc siedziska, szezlong" => "Глубина сиденья, козетка",
     "grubość materaca" => "Толщина матраса",
     "grubosc materaca" => "Толщина матраса",
+    "maksymalna grubość materaca" => "Максимальная толщина матраса",
+    "maksymalna grubosc materaca" => "Максимальная толщина матраса",
+    "gęstość nici" => "Плотность нитей",
+    "gestosc nici" => "Плотность нитей",
     "wysokość podłokietnika" => "Высота подлокотника",
     "wysokosc podlokietnika" => "Высота подлокотника",
 
@@ -580,6 +584,10 @@ class ProductSerializer
       "Толщина"
     when "grubość materaca", "grubosc materaca"
       "Толщина матраса"
+    when "maksymalna grubość materaca", "maksymalna grubosc materaca"
+      "Максимальная толщина матраса"
+    when "gęstość nici", "gestosc nici"
+      "Плотность нитей"
     when "głębokość do zabudowy", "glebokosc do zabudowy", "built-in depth", "depth for built-in"
       "Глубина для встраивания"
     else
