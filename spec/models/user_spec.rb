@@ -171,12 +171,17 @@ RSpec.describe User, type: :model do
   end
 
   describe "#destroy" do
-    it "detaches orders instead of blocking deletion" do
+    it "destroys orders and their status history" do
       user = create(:user)
       order = create(:order, user: user)
+      event_ids = order.order_status_events.pluck(:id)
+      expect(event_ids).not_to be_empty
 
       expect { user.destroy! }.to change(described_class, :count).by(-1)
-      expect(order.reload.user_id).to be_nil
+        .and change(Order, :count).by(-1)
+
+      expect(Order.exists?(order.id)).to be(false)
+      expect(OrderStatusEvent.where(id: event_ids)).to be_empty
     end
 
     it "destroys reviews and helpful votes" do
@@ -218,6 +223,21 @@ RSpec.describe User, type: :model do
         .and change(EmailVerificationToken, :count).by(-1)
 
       expect(EmailVerificationToken.exists?(token.id)).to be(false)
+    end
+
+    it "destroys all favorites and carts for the user" do
+      user = create(:user)
+      first_favorite = Favorite.create!(user: user, guest_token: SecureRandom.hex(24), expires_at: 1.day.from_now)
+      second_favorite = Favorite.create!(user: user, guest_token: SecureRandom.hex(24), expires_at: 1.day.from_now)
+      first_cart = Cart.create!(user: user, guest_token: SecureRandom.hex(24), expires_at: 1.day.from_now)
+      second_cart = Cart.create!(user: user, guest_token: SecureRandom.hex(24), expires_at: 1.day.from_now)
+
+      expect { user.destroy! }.to change(described_class, :count).by(-1)
+        .and change(Favorite, :count).by(-2)
+        .and change(Cart, :count).by(-2)
+
+      expect(Favorite.where(id: [first_favorite.id, second_favorite.id])).to be_empty
+      expect(Cart.where(id: [first_cart.id, second_cart.id])).to be_empty
     end
   end
 

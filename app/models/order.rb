@@ -11,6 +11,8 @@ class Order < ApplicationRecord
   belongs_to :promo_code, optional: true
   has_many :order_items, dependent: :destroy
   has_many :order_status_events, dependent: :destroy
+  has_many :return_requests, dependent: :destroy
+  has_many :reviews, dependent: :nullify
   has_many :consent_records, dependent: :nullify
   has_one :finance_entry, dependent: :destroy
 

@@ -278,18 +278,23 @@ class User < ApplicationRecord
          .where("email_marketing IS TRUE OR newsletter_consent IS TRUE")
   }
 
-  has_many :orders, dependent: :nullify
+  # Сначала удаляем заявки/отзывы, затем заказы с их историей статусов.
+  has_many :return_requests, dependent: :destroy
+  has_many :reviews, dependent: :destroy
+  has_many :review_helpful_votes, dependent: :destroy
+  has_many :orders, dependent: :destroy
   has_many :assigned_orders, class_name: "Order", foreign_key: :assigned_to_id, dependent: :nullify, inverse_of: :assigned_to
   has_many :assigned_return_requests, class_name: "ReturnRequest", foreign_key: :assigned_to_id, dependent: :nullify, inverse_of: :assigned_to
   has_many :assigned_cooperation_requests, class_name: "CooperationRequest", foreign_key: :assigned_to_id, dependent: :nullify, inverse_of: :assigned_to
   has_many :user_delivery_addresses, dependent: :destroy
   has_many :user_pickup_points, dependent: :destroy
-  has_many :reviews, dependent: :destroy
-  has_many :review_helpful_votes, dependent: :destroy
   has_many :search_query_logs, foreign_key: :customer_id, dependent: :nullify, inverse_of: :customer
-  has_many :return_requests, dependent: :destroy
-  has_one :cart, dependent: :destroy
-  has_one :favorite, dependent: :destroy
+  # У пользователя в БД может быть несколько корзин/избранных (нет unique на user_id),
+  # поэтому удаляем все через has_many; has_one оставляем для API (favorite/cart).
+  has_many :carts, dependent: :destroy
+  has_one :cart
+  has_many :favorites, dependent: :destroy
+  has_one :favorite
   has_many :consent_records, dependent: :destroy
   has_many :email_verification_tokens, dependent: :destroy
   
