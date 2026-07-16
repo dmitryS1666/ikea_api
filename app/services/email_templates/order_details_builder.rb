@@ -16,6 +16,18 @@ module EmailTemplates
       DeliveryTypeNormalizer::IKEYA_DELIVERY => "Доставка IKEYA"
     }.freeze
 
+    # SendPulse-hosted icons used in transactional email warehouse block.
+    EUROPOST_DELIVERY_ICON_URL =
+      "https://s9392398.sendpul.se/image/files/emailservice/userfiles/4f71504901e3bb8e5f180e2f07a251949392398/delivery_img.png".freeze
+    IKEYA_DELIVERY_ICON_URL =
+      "https://s9345793.sendpul.se/image/files/emailservice/userfiles/948de547f0f9f922c2ab185bfdd293909345793/delivery_img.png".freeze
+
+    DELIVERY_ICON_URLS = {
+      DeliveryTypeNormalizer::EUROPOST_PICKUP => EUROPOST_DELIVERY_ICON_URL,
+      DeliveryTypeNormalizer::COURIER => EUROPOST_DELIVERY_ICON_URL,
+      DeliveryTypeNormalizer::IKEYA_DELIVERY => IKEYA_DELIVERY_ICON_URL
+    }.freeze
+
     UNPAID_TEMPLATE_KEYS = %i[order_created order_awaiting_payment].freeze
 
     def self.call(order, template_key:)
@@ -31,6 +43,7 @@ module EmailTemplates
       {
         delivery_address: delivery_address,
         delivery_subtitle: delivery_subtitle,
+        delivery_icon_url: delivery_icon_url,
         payment_method_label: payment_method_label,
         payment_status_label: payment_status[:label],
         payment_status_class: payment_status[:css_class],
@@ -48,8 +61,17 @@ module EmailTemplates
     end
 
     def delivery_subtitle
-      normalized = DeliveryTypeNormalizer.normalize(order.delivery_type)
-      DELIVERY_SUBTITLES[normalized] || CheckoutPricingPresenter::DELIVERY_TITLES[normalized] || normalized
+      DELIVERY_SUBTITLES[normalized_delivery_type] ||
+        CheckoutPricingPresenter::DELIVERY_TITLES[normalized_delivery_type] ||
+        normalized_delivery_type
+    end
+
+    def delivery_icon_url
+      DELIVERY_ICON_URLS.fetch(normalized_delivery_type, EUROPOST_DELIVERY_ICON_URL)
+    end
+
+    def normalized_delivery_type
+      @normalized_delivery_type ||= DeliveryTypeNormalizer.normalize(order.delivery_type)
     end
 
     def payment_method_label

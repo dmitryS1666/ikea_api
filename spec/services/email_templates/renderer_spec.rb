@@ -42,6 +42,25 @@ RSpec.describe EmailTemplates::Renderer do
     expect(html).not_to match(/>\s*Имя\s*</)
   end
 
+  it "swaps delivery icon by delivery type in order_created" do
+    europost_icon = EmailTemplates::OrderDetailsBuilder::EUROPOST_DELIVERY_ICON_URL
+    ikeya_icon = EmailTemplates::OrderDetailsBuilder::IKEYA_DELIVERY_ICON_URL
+
+    order.update!(delivery_type: DeliveryTypeNormalizer::EUROPOST_PICKUP)
+    html = described_class.render(:order_created, order: order.reload, user: user)
+    expect(html).to include(%(src="#{europost_icon}"))
+    expect(html).not_to include(%(src="#{ikeya_icon}"))
+
+    order.update!(delivery_type: DeliveryTypeNormalizer::COURIER)
+    html = described_class.render(:order_created, order: order.reload, user: user)
+    expect(html).to include(%(src="#{europost_icon}"))
+
+    order.update!(delivery_type: DeliveryTypeNormalizer::IKEYA_DELIVERY)
+    html = described_class.render(:order_created, order: order.reload, user: user)
+    expect(html).to include(%(src="#{ikeya_icon}"))
+    expect(html).not_to include(%(src="#{europost_icon}"))
+  end
+
   it "renders order_awaiting_payment totals when template spans have inline styles" do
     order.update!(
       checkout_draft: false,
@@ -251,6 +270,8 @@ RSpec.describe EmailTemplates::Renderer do
     expect(html).not_to include("NATTSLÄNDA")
     expect(html).not_to include("Автолайт")
     expect(html).to include("Европочта")
+    expect(html).to include(%(src="#{EmailTemplates::OrderDetailsBuilder::EUROPOST_DELIVERY_ICON_URL}"))
+    expect(html).not_to include("delivery_img_1.png")
     expect(html).to include("Оплата картой онлайн")
     expect(html).to include("Оплачено")
     expect(html).to include("Доставка мебели")
@@ -350,7 +371,7 @@ RSpec.describe EmailTemplates::Renderer do
 
     html = described_class.render(:shipped_to_pvz, order: order.reload, user: user)
 
-    expect(html).to include("Ваш заказ в доставке!")
+    expect(html).to include("Ваш заказ в пути")
     expect(html).to include("Татьяна")
     expect(html).to include("№#{order.public_uid}")
     expect(html).to include("3 товара")

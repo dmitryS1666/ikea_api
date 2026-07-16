@@ -304,6 +304,7 @@ module EmailTemplates
     end
 
     def apply_order_details!(html, details)
+      replace_delivery_icon!(html, details[:delivery_icon_url])
       replace_first_paragraph_content!(html, "warehouse-address", details[:delivery_address], scope: warehouse_section_pattern)
       replace_first_paragraph_content!(html, "warehouse-address-sub", details[:delivery_subtitle], scope: warehouse_section_pattern)
 
@@ -316,6 +317,27 @@ module EmailTemplates
         remove_services_sections!(html)
       end
 
+      html
+    end
+
+    def replace_delivery_icon!(html, icon_url)
+      return html if icon_url.blank?
+
+      section = html[warehouse_section_pattern]
+      return html unless section
+
+      escaped = ERB::Util.html_escape(icon_url.to_s)
+      updated = section.sub(
+        %r{<img\b(?=[^>]*\balt=(['"])delivery_img\1)[^>]*>}i
+      ) do |tag|
+        if tag.match?(/\bsrc=(['"])[^'"]*\1/i)
+          tag.sub(/\bsrc=(['"])[^'"]*\1/i, "src=\"#{escaped}\"")
+        else
+          tag.sub(/\A<img\b/i, "<img src=\"#{escaped}\"")
+        end
+      end
+
+      html.sub!(warehouse_section_pattern, updated)
       html
     end
 
