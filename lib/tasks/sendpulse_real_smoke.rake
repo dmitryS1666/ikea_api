@@ -33,17 +33,18 @@ namespace :sendpulse do
     MSG
 
     deliver = lambda do |template_key, user:, order: nil, verify_email_url: nil|
-      html = EmailTemplates::Renderer.render(
-        template_key,
+      locals = {
         user: user,
         order: order,
         verify_email_url: verify_email_url
-      )
+      }.compact
+
+      html = EmailTemplates::Renderer.render(template_key, **locals)
 
       SendpulseEmailJob.perform_now(
         to_email: target_email,
         to_name: user.full_name,
-        subject: "[SMOKE] #{EmailTemplates::Renderer.subject_for(template_key)}",
+        subject: "[SMOKE] #{EmailTemplates::Renderer.subject_for(template_key, **locals)}",
         html: html,
         text: html.to_s.gsub(/<[^>]+>/, " ").gsub(/\s+/, " ").strip
       )

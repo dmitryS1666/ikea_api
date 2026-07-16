@@ -387,4 +387,64 @@ RSpec.describe EmailTemplates::Renderer do
     expect(described_class.template_for_order(order.reload)).to eq(:shipped_to_pvz)
   end
 
+  it "uses static subjects without template variables" do
+    expect(described_class.subject_for(:order_created, order: order, user: user))
+      .to eq("Ваш заказ находится в обработке")
+    expect(described_class.subject_for(:order_cancelled, order: order, user: user))
+      .to eq("Ваш заказ отменён")
+    expect(described_class.subject_for(:abandoned_cart, order: order, user: user))
+      .to eq("В вашей корзине остались товары")
+    expect(described_class.subject_for(:welcome, user: user))
+      .to eq("Добро пожаловать в IKEYA- подтвердите Ваш e-mail")
+    expect(described_class.subject_for(:email_changed, user: user))
+      .to eq("Подтвердите новый e-mail для аккаунта IKEYA")
+
+    described_class::TEMPLATES.each_value do |config|
+      expect(config.fetch(:subject)).not_to include("{{")
+    end
+  end
+
+  it "injects preheader before visible body content" do
+    html = described_class.render(:order_cancelled, order: order, user: user)
+
+    expect(html).to include("Оплата не поступила, поэтому заказ был отменён.")
+    expect(html).to match(/<body\b[^>]*>.*display:none!important/im)
+    expect(html.index("Оплата не поступила")).to be < html.index("Письмо не открывается?")
+  end
+
+  it "renders updated status headers from the copy sheet" do
+    allow(MarketingUnsubscribeService).to receive(:url_for)
+      .with(user)
+      .and_return("https://ikeya.by/unsubscribe?token=signed-token")
+
+    expect(described_class.render(:order_created, order: order, user: user))
+      .to include("Ваш заказ находится в обработке")
+    expect(described_class.render(:order_awaiting_payment, order: order, user: user))
+      .to include("Ваш заказ ожидает оплаты")
+    expect(described_class.render(:order_placed, order: order, user: user))
+      .to include("Ваш заказ успешно оформлен")
+    expect(described_class.render(:received_poland, order: order, user: user))
+      .to include("Ваш заказ поступил на склад в Польше")
+    expect(described_class.render(:shipped_to_pvz, order: order, user: user))
+      .to include("Ваш заказ в пути")
+    expect(described_class.render(:order_cancelled, order: order, user: user))
+      .to include("Ваш заказ отменён")
+    expect(described_class.render(:abandoned_cart, order: order, user: user))
+      .to include("В вашей корзине остались товары")
+    expect(
+      described_class.render(
+        :welcome,
+        user: user,
+        verify_email_url: "https://ikeya.by/profile"
+      )
+    ).to include("Добро пожаловать в IKEYA-")
+    expect(
+      described_class.render(
+        :email_changed,
+        user: user,
+        verify_email_url: "https://ikeya.by/profile"
+      )
+    ).to include("Подтвердите новый e-mail")
+  end
+
 end

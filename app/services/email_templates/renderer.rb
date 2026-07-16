@@ -27,44 +27,56 @@ module EmailTemplates
       (</td>)
     }mx
 
+    # Headers/subjects without template variables; preheaders are injected on render.
     TEMPLATES = {
       order_created: {
         file: "order_created.html",
-        subject: "Ваш заказ создан"
+        subject: "Ваш заказ находится в обработке",
+        preheader: "Заказ находится в обработке. Сообщим, когда проверка будет завершена."
       },
       order_awaiting_payment: {
         file: "order_awaiting_payment.html",
-        subject: "Ваш заказ ожидает оплаты"
+        subject: "Ваш заказ ожидает оплаты",
+        preheader: "Оплатите заказ, чтобы продолжить оформление."
       },
       order_placed: {
         file: "order_placed.html",
-        subject: "Ваш заказ оформлен"
+        subject: "Ваш заказ успешно оформлен",
+        preheader: "Вы можете следить за статусом заказа в личном кабинете."
       },
       received_poland: {
         file: "received_poland.html",
-        subject: "Заказ получен на склад в Польше"
+        subject: "Ваш заказ поступил на склад в Польше",
+        preheader: "Заказ получен на склад и готовится к дальнейшей доставке."
       },
       shipped_to_pvz: {
         file: "shipped_to_pvz.html",
-        subject: "Заказ в доставке в ПВЗ"
+        subject: "Ваш заказ в пути",
+        preheader: "Заказ передан в доставку. Следите за его статусом в личном кабинете."
       },
       order_cancelled: {
         file: "order_cancelled.html",
-        subject: "Заказ отменён"
+        subject: "Ваш заказ отменён",
+        preheader: "Оплата не поступила, поэтому заказ был отменён."
       },
       abandoned_cart: {
         file: "abandoned_cart.html",
-        subject: "Вы не завершили оформление заказа"
+        subject: "В вашей корзине остались товары",
+        preheader: "Вернитесь к корзину, пока цены и наличие товаров не изменились."
       },
       welcome: {
         file: "welcome.html",
-        subject: "Добро пожаловать в IKEYA"
+        subject: "Добро пожаловать в IKEYA- подтвердите Ваш e-mail",
+        preheader: "Подтвердите адрес электронной почты, чтобы завершить регистрацию."
       },
       email_changed: {
         file: "email_changed.html",
-        subject: "Подтвердите ваш e-mail"
+        subject: "Подтвердите новый e-mail для аккаунта IKEYA",
+        preheader: "Мы получили Ваш запрос на изменение адреса электронной почты."
       }
     }.freeze
+
+    PREHEADER_FILLER = (("&nbsp;&zwnj;" * 50) + "&nbsp;").freeze
 
     STATUS_TEMPLATE_MAP = {
       "paid" => :order_placed,
@@ -78,7 +90,7 @@ module EmailTemplates
         new(template_key, **locals).render
       end
 
-      def subject_for(template_key)
+      def subject_for(template_key, **_locals)
         TEMPLATES.fetch(template_key).fetch(:subject)
       end
 
@@ -103,6 +115,7 @@ module EmailTemplates
     def render
       validate_unsubscribe_recipient!
       html = load_template.to_s.dup
+      html = inject_preheader(html)
       html = apply_common_replacements(html)
       html = apply_template_specific_replacements(html)
       html = apply_fallback_links(html)
@@ -119,6 +132,20 @@ module EmailTemplates
       config = TEMPLATES.fetch(template_key)
       path = Rails.root.join("app/views/email_templates", config[:file])
       File.read(path)
+    end
+
+    def inject_preheader(html)
+      text = TEMPLATES.fetch(template_key)[:preheader]
+      return html if text.blank?
+
+      escaped = ERB::Util.html_escape(text)
+      block = %(<div style="display:none!important;visibility:hidden;mso-hide:all;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">#{escaped}#{PREHEADER_FILLER}</div>)
+
+      if html.match?(/<body\b[^>]*>/im)
+        html.sub(/<body\b[^>]*>/im) { |opening| "#{opening}#{block}" }
+      else
+        "#{block}#{html}"
+      end
     end
 
     def apply_common_replacements(html)

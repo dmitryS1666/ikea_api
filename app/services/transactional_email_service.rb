@@ -6,7 +6,7 @@ class TransactionalEmailService
       return if to_email.blank?
 
       html = EmailTemplates::Renderer.render(template_key, **locals)
-      subject = EmailTemplates::Renderer.subject_for(template_key)
+      subject = EmailTemplates::Renderer.subject_for(template_key, **locals)
       text = strip_html(html)
 
       SendpulseEmailJob.perform_later(
