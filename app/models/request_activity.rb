@@ -14,6 +14,10 @@ class RequestActivity < ApplicationRecord
   scope :recent_first, -> { order(created_at: :desc, id: :desc) }
   scope :comments, -> { where(activity_type: "comment") }
 
+  ACTIVITY_TYPES.each do |type|
+    define_method(:"#{type}?") { activity_type == type }
+  end
+
   def actor_name
     actor&.full_name || "Система"
   end
