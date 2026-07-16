@@ -1,4 +1,7 @@
 class FeedsController < ApplicationController
+  # Публичные фиды для Google / Meta / Yandex — без JWT.
+  skip_before_action :authenticate_user
+
   before_action :load_feed_settings
   before_action :ensure_feeds_enabled
   before_action :authorize_access

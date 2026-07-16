@@ -33,9 +33,21 @@ module Feeds
 
       def build_presenters
         presenters = []
+        pricing = {
+          pln_rate: ExchangeRate.fetch_or_create("PLN")&.rate_per_unit.to_f,
+          buffer: PriceCalculationService.exchange_rate_buffer
+        }
+        promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
+        categories = Category.all.index_by(&:ikea_id)
 
         scope.find_each do |product|
-          presenter = Feeds::ProductPresenter.new(product: product, settings: settings)
+          presenter = Feeds::ProductPresenter.new(
+            product: product,
+            settings: settings,
+            pricing_context: pricing,
+            active_promos: promos,
+            category_index: categories
+          )
           next unless presenter.valid?
           next unless presenter.available_for_yandex?
 
@@ -66,13 +78,19 @@ module Feeds
         presenters.each do |presenter|
           xml.offer(id: presenter.id, available: presenter.available_for_yandex?) do
             xml.url(presenter.link_url)
-            xml.price(formatted_price(presenter.price_amount))
+            if presenter.sale_price_amount.present?
+              xml.price(formatted_price(presenter.sale_price_amount))
+              xml.oldprice(formatted_price(presenter.price_amount))
+            else
+              xml.price(formatted_price(presenter.price_amount))
+            end
             xml.currencyId(presenter.currency)
             xml.categoryId(presenter.category_id)
             xml.name(presenter.title)
             picture_urls_for(presenter).each { |picture| xml.picture(picture) }
             xml.description { xml.cdata(presenter.description) }
             xml.vendor(presenter.brand) if presenter.brand.present?
+            xml.vendorCode(presenter.mpn) if presenter.mpn.present?
             add_delivery(xml)
           end
         end

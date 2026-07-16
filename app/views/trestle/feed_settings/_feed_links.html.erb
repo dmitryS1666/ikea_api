@@ -6,20 +6,33 @@
     <% if feed_setting.persisted? && feed_setting.base_url.present? %>
       <% base_url = feed_setting.base_url_root %>
       <% token_query = feed_setting.token_query %>
+      <p class="text-muted mb-3">
+        Google / Meta: RSS 2.0 XML (<code>.xml</code>). URL должен начинаться с
+        <code>http://</code> или <code>https://</code> и вести напрямую к файлу фида.
+      </p>
       <p>
-        <strong>Google / Meta:</strong>
-        <%= link_to "#{base_url}/api/v1/feeds/google.xml#{token_query}", "#{base_url}/api/v1/feeds/google.xml#{token_query}", target: "_blank", rel: "noopener" %>
+        <strong>Google / Meta (Facebook):</strong>
+        <%= link_to "#{base_url}/feeds/google.xml#{token_query}", "#{base_url}/feeds/google.xml#{token_query}", target: "_blank", rel: "noopener" %>
+      </p>
+      <p class="text-muted small">
+        Alias: <%= link_to "#{base_url}/api/v1/feeds/google.xml#{token_query}", "#{base_url}/api/v1/feeds/google.xml#{token_query}", target: "_blank", rel: "noopener" %>
       </p>
       <p>
         <strong>Yandex:</strong>
-        <%= link_to "#{base_url}/api/v1/feeds/yandex.yml#{token_query}", "#{base_url}/api/v1/feeds/yandex.yml#{token_query}", target: "_blank", rel: "noopener" %>
+        <%= link_to "#{base_url}/feeds/yandex.yml#{token_query}", "#{base_url}/feeds/yandex.yml#{token_query}", target: "_blank", rel: "noopener" %>
       </p>
       <p>
         <strong>Sitemap:</strong>
         <%= link_to "#{base_url}/sitemap.xml", "#{base_url}/sitemap.xml", target: "_blank", rel: "noopener" %>
       </p>
+      <hr>
+      <p class="small text-muted mb-0">
+        В Google/Meta фид входят: id, title, description (с применимостью: коллекция/категория/цвет/размер/материал),
+        link, image_link, availability, price, sale_price (при акции), product_type, brand, material, pattern,
+        mpn, custom_label_0–4. GTIN добавляется только если известен.
+      </p>
       <% if token_query.blank? && feed_setting.token_feed_access_mode? %>
-        <p class="text-warning">
+        <p class="text-warning mt-2">
           Токен для защищенного доступа отсутствует — генерация фида будет недоступна.
         </p>
       <% end %>

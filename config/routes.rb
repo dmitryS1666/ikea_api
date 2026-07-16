@@ -210,6 +210,9 @@ Rails.application.routes.draw do
   get '/payment/success', to: 'payment#success'
   get '/feeds/google.xml', to: 'feeds#google'
   get '/feeds/yandex.yml', to: 'feeds#yandex'
+  # Alias under /api/v1 for storefront reverse-proxies that only expose that prefix
+  get '/api/v1/feeds/google.xml', to: 'feeds#google'
+  get '/api/v1/feeds/yandex.yml', to: 'feeds#yandex'
   get '/sitemap.xml', to: 'sitemaps#show'
   get '/robots.txt', to: 'robots#show'
 end

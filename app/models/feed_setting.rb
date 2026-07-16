@@ -31,7 +31,7 @@ class FeedSetting < ApplicationRecord
   end
 
   def availability_mapping_hash
-    availability_mapping.presence || default_availability_mapping
+    normalize_availability_values(availability_mapping.presence || default_availability_mapping)
   end
 
   def base_url_root
@@ -56,10 +56,20 @@ class FeedSetting < ApplicationRecord
 
   def default_availability_mapping
     {
-      "in_stock" => "in stock",
-      "out_of_stock" => "out of stock",
+      "in_stock" => "in_stock",
+      "out_of_stock" => "out_of_stock",
       "preorder" => "preorder"
     }
+  end
+
+  def normalize_availability_values(hash)
+    hash.to_h.transform_values do |value|
+      case value.to_s.strip.downcase
+      when "in stock" then "in_stock"
+      when "out of stock" then "out_of_stock"
+      else value
+      end
+    end
   end
 
   def parse_json(value)

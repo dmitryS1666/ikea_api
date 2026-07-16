@@ -1,4 +1,6 @@
 class SitemapsController < ApplicationController
+  skip_before_action :authenticate_user
+
   def show
     settings = FeedSetting.instance
     return head(:not_found) unless settings.base_url.present?

@@ -11,7 +11,7 @@ module Feeds
     end
 
     def call
-      Product.includes(:category)
+      Product.includes(:category, :category_products)
              .where.not(price: nil)
              .where.not(url: [nil, ""])
              .where.not(category_id: [nil, ""])

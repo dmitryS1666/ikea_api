@@ -75,7 +75,7 @@ Trestle.resource :feed_setting, model: FeedSetting, singleton: true do
                   label: "Map наличия",
                   value: feed_setting.availability_mapping_json,
                   rows: 4,
-                  help: "JSON, например {\"in_stock\":\"in stock\",\"out_of_stock\":\"out of stock\"}"
+                  help: "JSON. Значения Google/Meta: in_stock, out_of_stock, preorder. Пример {\"in_stock\":\"in_stock\",\"out_of_stock\":\"out_of_stock\"}"
       end
     end
 
