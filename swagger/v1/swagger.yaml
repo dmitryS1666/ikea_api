@@ -37,6 +37,7 @@ info:
     - `GET /api/v1/categories/{id}/products` — Товары в категории
     - `GET /api/v1/homepage/slider/main` — Слайдер на главной
     - `GET /api/v1/homepage/recommendations` — Рекомендации товаров для главной страницы
+    - `GET /api/v1/cart/recommendations` — Рекомендации товаров для корзины (ProductRecommendationSetting, placement=cart)
     - `POST /api/v1/auth/login` — Вход (только для админов/менеджеров)
     - `POST /api/v1/auth/phone/check` — Проверка, существует ли номер телефона в базе
     - `POST /api/v1/auth/phone/send` — Запрос звонка для входа/регистрации
@@ -2401,6 +2402,87 @@ paths:
                       placement:
                         type: string
                         example: homepage
+        '500':
+          description: Внутренняя ошибка сервера
+
+  /api/v1/cart/recommendations:
+    get:
+      summary: Рекомендации товаров для корзины
+      description: |
+        Возвращает товары из активной настройки `ProductRecommendationSetting` с `placement=cart`
+        (админка: «Рекомендации в корзине»).
+
+        Источник может быть задан:
+        - списком SKU (порядок сохраняется);
+        - категорией товаров.
+
+        Параметр `exclude_skus` позволяет исключить SKU, уже лежащие в корзине.
+        Параметр `per_page` ограничивает количество возвращаемых товаров.
+      tags:
+        - Cart
+      parameters:
+        - name: per_page
+          in: query
+          description: Количество товаров в ответе. По умолчанию 8, допустимый диапазон от 1 до 24.
+          schema:
+            type: integer
+            default: 8
+            minimum: 1
+            maximum: 24
+        - name: exclude_skus
+          in: query
+          description: SKU для исключения (массив или строка через запятую).
+          schema:
+            oneOf:
+              - type: array
+                items:
+                  type: string
+              - type: string
+            example: ["11111111", "22222222"]
+      responses:
+        '200':
+          description: Список товаров для блока рекомендаций в корзине
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProductTeaser'
+                  meta:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                        example: 8
+                      placement:
+                        type: string
+                        example: cart
+              example:
+                data:
+                  - id: "11111111"
+                    type: product
+                    attributes:
+                      name: "Пододеяльник"
+                      small_desc_name: "Пододеяльник"
+                      slug: "pododeyalnik"
+                      price_byn: "49.90"
+                      category_id: "bm003"
+                      local_images: ["/uploads/products/11111111/1_preview.webp"]
+                      is_bestseller: false
+                      is_new: false
+                      is_recommended: false
+                      is_popular: false
+                      rating_avg: null
+                      rating_count: 0
+                      variants: []
+                      promo: null
+                      delivery_days: 30
+                meta:
+                  total: 1
+                  placement: cart
         '500':
           description: Внутренняя ошибка сервера
 

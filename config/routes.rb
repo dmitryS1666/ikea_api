@@ -140,6 +140,8 @@ Rails.application.routes.draw do
       get 'homepage/recommendations', to: 'homepage#recommendations'
 
       # Cart
+      get 'cart/recommendations', to: 'cart_recommendations#index'
+
       resource :cart, controller: 'cart', only: [:show] do
         delete '/', action: :clear, on: :member
       end
