@@ -5,6 +5,8 @@
   "assigned" => "Назначен ответственный",
   "status_changed" => "Изменён статус"
 } %>
+<% comment_form_id = "manager-comment-form-#{dom_id(record)}" %>
+<% comment_url = admin.instance_path(record, action: :add_manager_comment) %>
 
 <div class="card mb-3">
   <div class="card-header"><strong>Обработка заявки</strong></div>
@@ -12,13 +14,42 @@
     <p><strong>Ответственный:</strong> <%= record.assigned_to&.full_name || "Не назначен" %></p>
 
     <% if can_manage %>
-      <%= form_tag admin.instance_path(record, action: :add_manager_comment), method: :post do %>
-        <div class="form-group">
-          <%= label_tag :manager_comment, "Комментарий менеджера" %>
-          <%= text_area_tag :manager_comment, nil, rows: 3, class: "form-control", required: true %>
-        </div>
-        <%= submit_tag "Добавить комментарий", class: "btn btn-primary" %>
-      <% end %>
+      <div class="form-group">
+        <%= label_tag :manager_comment, "Комментарий менеджера" %>
+        <%= text_area_tag :manager_comment, nil,
+              rows: 3,
+              class: "form-control",
+              id: "#{comment_form_id}-body",
+              form: comment_form_id,
+              required: true %>
+      </div>
+      <%= submit_tag "Добавить комментарий", class: "btn btn-primary", form: comment_form_id %>
+
+      <script>
+        (function() {
+          var formId = <%= comment_form_id.to_json %>;
+          if (document.getElementById(formId)) return;
+
+          var form = document.createElement("form");
+          form.id = formId;
+          form.method = "post";
+          form.action = <%= comment_url.to_json %>;
+          form.acceptCharset = "UTF-8";
+          form.style.display = "none";
+
+          var token = document.querySelector('meta[name="csrf-token"]') ||
+                      document.querySelector('input[name="authenticity_token"]');
+          if (token) {
+            var input = document.createElement("input");
+            input.type = "hidden";
+            input.name = "authenticity_token";
+            input.value = token.content || token.value;
+            form.appendChild(input);
+          }
+
+          document.body.appendChild(form);
+        })();
+      </script>
     <% end %>
   </div>
 </div>
