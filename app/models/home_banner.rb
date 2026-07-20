@@ -126,16 +126,8 @@ class HomeBanner < ApplicationRecord
     change = attachment_changes["image"]
     return unless change.respond_to?(:attachable)
 
-    optimized = Images::WebpOptimizer.optimize_attachable(change.attachable)
-    return unless optimized
-
-    image.attach(optimized.except(:io).merge(io: optimized[:io]))
-  ensure
-    io = optimized&.dig(:io)
-    if io.respond_to?(:close) && !io.closed?
-      io.close
-    end
-    io.unlink if io.respond_to?(:unlink)
+    blob = Images::WebpOptimizer.optimize_attachable_as_blob(change.attachable)
+    image.attach(blob) if blob
   end
   
   def validate_variant_matches_section

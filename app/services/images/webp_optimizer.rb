@@ -26,6 +26,22 @@ module Images
         nil
       end
 
+      # Optimizes an upload and returns an already-uploaded blob.
+      # Prefer this over attaching a Tempfile IO — callers must not close the IO
+      # before ActiveStorage has read it, which is easy to get wrong with attach(io:).
+      def optimize_attachable_as_blob(attachable, max_bytes: TARGET_MAX_BYTES)
+        optimized = optimize_attachable(attachable, max_bytes: max_bytes)
+        return nil unless optimized
+
+        ActiveStorage::Blob.create_and_upload!(
+          io: optimized[:io],
+          filename: optimized[:filename],
+          content_type: optimized[:content_type]
+        )
+      ensure
+        cleanup_io(optimized&.dig(:io))
+      end
+
       def optimize_blob(blob, max_bytes: TARGET_MAX_BYTES)
         return blob unless blob
         return blob unless raster_content_type?(blob.content_type)
