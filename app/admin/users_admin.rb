@@ -177,17 +177,19 @@ Trestle.resource(:users, model: User) do
     end
 
     tab :marketing, label: "Маркетинг" do
-      static_field :email_verification_status, label: "Статус подтверждения Email" do
-        if user.email.blank?
-          status_tag("Email не указан", :secondary)
-        elsif user.email_verified?
-          status_tag("Подтверждён · #{user.email_verified_at.strftime('%d.%m.%Y %H:%M')}", :success)
-        else
-          status_tag("Не подтверждён", :warning)
+      static_field :email_mailing_rules, label: "Правила email" do
+        content_tag(:div, class: "text-muted", style: "margin-bottom: 12px;") do
+          "Транзакционные — при наличии email (если нет полного стопа). " \
+          "Маркетинг — email подтверждён + согласие на рассылку. " \
+          "Отписка с неподтверждённого email блокирует любые письма."
         end
       end
 
-      check_box :email_marketing_enabled, label: "Рассылка через Email"
+      check_box :email_verified_flag, label: "Email подтверждён (верификация)"
+      datetime_field :email_verified_at, label: "Дата подтверждения почты"
+      check_box :email_suppressed_flag, label: "Полный стоп писем (после отписки без верификации)"
+      datetime_field :email_suppressed_at, label: "Дата полного стопа писем"
+      check_box :email_marketing_enabled, label: "Рассылка через Email (маркетинг)"
       check_box :telegram_marketing, label: "Рассылка через Telegram"
       check_box :gdpr_consent, label: "Согласие GDPR"
       check_box :personal_data_consent, label: "Согласие на обработку ПД"
@@ -248,7 +250,6 @@ Trestle.resource(:users, model: User) do
         end
         
         datetime_field :passport_verified_at, label: "Дата верификации паспорта"
-        datetime_field :email_verified_at, label: "Дата подтверждения почты"
 
         divider
 
@@ -337,7 +338,9 @@ Trestle.resource(:users, model: User) do
     params.require(:user).permit(
       :last_name, :first_name, :middle_name, :username, :email, :phone, :country_code,
       :dob, :gender, :region, :city, :postcode, :street, :house, :building, :apartment,
-      :address, :email_marketing_enabled, :telegram_marketing, :gdpr_consent,
+      :address, :email_verified_flag, :email_verified_at,
+      :email_suppressed_flag, :email_suppressed_at, :email_marketing_enabled,
+      :telegram_marketing, :gdpr_consent,
       :personal_data_consent, :personal_data_consented_at,
       :password, :password_confirmation, :role, :is_active,
       *User::ADMIN_PERMISSION_KEYS.map { |key| :"custom_permission_#{key}" }

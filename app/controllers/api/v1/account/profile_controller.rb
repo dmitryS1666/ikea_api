@@ -12,11 +12,17 @@ module Api
 
         # PATCH /api/v1/account/profile
         def update
-          pending_email = nil
           passport_input = extract_passport_input
-          if params[:email].present? && params[:email] != current_user.email
-            pending_email = params[:email]
-            EmailVerificationService.send_code(current_user, pending_email)
+          email_changing = false
+          new_email = nil
+
+          if params[:email].present?
+            normalized_email = params[:email].to_s.strip.downcase
+            current_email = current_user.email.to_s.strip.downcase
+            if normalized_email.present? && normalized_email != current_email
+              email_changing = true
+              new_email = normalized_email
+            end
           end
 
           passport_error = save_passport_if_verified(passport_input)
@@ -30,10 +36,16 @@ module Api
           }
 
           update_params = profile_params.to_h.symbolize_keys
-          update_params = update_params.except(:email) if pending_email.present?
+          if email_changing
+            # Email сохраняем сразу → можно слать транзакционные письма.
+            # Верификация отдельно включает право на маркетинг.
+            update_params[:email] = new_email
+            update_params[:email_verified_at] = nil
+          end
           update_params.merge!(UserPassportService.profile_attributes(passport_input)) if passport_input.present?
 
           if current_user.update(update_params)
+            EmailVerificationService.send_code(current_user, current_user.email) if email_changing
             ConsentService.record_profile_consent_changes!(
               user: current_user,
               previous_values: @previous_consent_values,

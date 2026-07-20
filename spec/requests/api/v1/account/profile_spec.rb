@@ -167,6 +167,28 @@ RSpec.describe "Account Profile API", type: :request do
       expect(user.reload.first_name).to eq("Иван")
     end
 
+    it "saves a new email immediately, clears verification and sends confirmation" do
+      user.update!(email_verified_at: 1.day.ago)
+      new_email = "changed_#{SecureRandom.hex(4)}@example.com"
+
+      expect do
+        patch "/api/v1/account/profile",
+              params: { email: new_email, first_name: "Иван" },
+              headers: headers
+      end.to change { enqueued_jobs.count { |job| job[:job] == SendpulseEmailJob } }.by(1)
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["email"]).to eq(new_email)
+      expect(body["email_verified"]).to be(false)
+      expect(body["first_name"]).to eq("Иван")
+
+      user.reload
+      expect(user.email).to eq(new_email)
+      expect(user.email_verified?).to be(false)
+      expect(EmailVerificationToken.where(user: user, verified_at: nil).count).to eq(1)
+    end
+
     it "normalizes gender from the storefront format" do
       patch "/api/v1/account/profile",
             params: { gender: "female" },

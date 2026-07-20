@@ -26,6 +26,8 @@ class SendAbandonedCartEmailsJob < ApplicationJob
       .where(abandoned_cart_email_sent_at: nil)
       .where("orders.updated_at <= ?", cutoff)
       .joins(:user)
+      .where.not(users: { email: [nil, ""] })
+      .where.not(users: { email_verified_at: nil })
       .where("users.email_marketing IS TRUE OR users.newsletter_consent IS TRUE")
       .includes(:user, order_items: :product)
   end

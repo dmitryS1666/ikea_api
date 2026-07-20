@@ -4,7 +4,13 @@ require "rails_helper"
 
 RSpec.describe SendAbandonedCartEmailsJob, type: :job do
   let(:user) do
-    create(:user, email: "customer@example.com", email_marketing: true, newsletter_consent: true)
+    create(
+      :user,
+      email: "customer@example.com",
+      email_marketing: true,
+      newsletter_consent: true,
+      email_verified_at: 1.day.ago
+    )
   end
 
   before do

@@ -271,10 +271,12 @@ class User < ApplicationRecord
   validates :password, presence: true, on: :create, if: -> { can_access_admin_panel? }
   
   scope :active, -> { where(is_active: true) }
-  # Получатели коммерческой email-рассылки: есть email и согласие
-  # (отписавшиеся через unsubscribe получают оба флага false).
+  # Получатели коммерческой email-рассылки:
+  # email указан + подтверждён + согласие на маркетинг.
+  # (отписавшиеся через unsubscribe получают оба флага согласия false).
   scope :marketing_email_recipients, lambda {
     where.not(email: [nil, ""])
+         .where.not(email_verified_at: nil)
          .where("email_marketing IS TRUE OR newsletter_consent IS TRUE")
   }
 
@@ -447,6 +449,47 @@ class User < ApplicationRecord
     email_verified_at.present?
   end
 
+  # Полный стоп любых писем на этот адрес (после отписки с неподтверждённого email).
+  def email_suppressed?
+    email_suppressed_at.present?
+  end
+
+  # Можно слать любые письма (транзакционные/сервисные).
+  # После отписки без верификации — нельзя.
+  def accepts_email?
+    email.present? && !email_suppressed?
+  end
+
+  # Виртуальный флаг верификации для админки (в блоке флагов рассылок).
+  def email_verified_flag
+    email_verified?
+  end
+
+  alias email_verified_flag? email_verified_flag
+
+  def email_verified_flag=(value)
+    if ActiveModel::Type::Boolean.new.cast(value)
+      self.email_verified_at ||= Time.current
+      self.email_suppressed_at = nil
+    else
+      self.email_verified_at = nil
+    end
+  end
+
+  def email_suppressed_flag
+    email_suppressed?
+  end
+
+  alias email_suppressed_flag? email_suppressed_flag
+
+  def email_suppressed_flag=(value)
+    if ActiveModel::Type::Boolean.new.cast(value)
+      self.email_suppressed_at ||= Time.current
+    else
+      self.email_suppressed_at = nil
+    end
+  end
+
   # Единый виртуальный переключатель для админки. newsletter_consent остаётся
   # legacy-полем, поэтому при ручном изменении email-рассылки обновляем оба
   # флага и не допускаем противоречивого состояния.
@@ -480,10 +523,22 @@ class User < ApplicationRecord
     super(normalized.nil? && value.present? ? value.to_s.strip : normalized)
   end
 
+  before_save :clear_email_verification_if_email_changed
   after_commit :sync_with_crm, on: [:create, :update], if: :should_sync_crm?
   after_commit :sync_marketing_subscription, on: [:create, :update], if: :should_sync_marketing_subscription?
 
   private
+
+  # Смена email сбрасывает верификацию, кроме случая verify!,
+  # где email и email_verified_at выставляются вместе.
+  # Новый адрес снова может получать письма (снимаем suppress).
+  def clear_email_verification_if_email_changed
+    return unless will_save_change_to_email?
+    return if will_save_change_to_email_verified_at? && email_verified_at.present?
+
+    self.email_verified_at = nil
+    self.email_suppressed_at = nil unless will_save_change_to_email_suppressed_at?
+  end
 
   def normalize_admin_resource_name(name)
     raw = name.to_s
@@ -515,7 +570,10 @@ class User < ApplicationRecord
   def should_sync_marketing_subscription?
     return false if email.blank?
 
-    saved_change_to_email_marketing? || saved_change_to_newsletter_consent? || saved_change_to_email?
+    saved_change_to_email_marketing? ||
+      saved_change_to_newsletter_consent? ||
+      saved_change_to_email? ||
+      saved_change_to_email_verified_at?
   end
 
   def sync_with_crm

@@ -10,7 +10,8 @@ RSpec.describe PrepareOrderEmailJob, type: :job do
       email: "customer@example.com",
       username: "Татьяна",
       email_marketing: true,
-      newsletter_consent: true
+      newsletter_consent: true,
+      email_verified_at: 1.day.ago
     )
   end
   let(:order) do

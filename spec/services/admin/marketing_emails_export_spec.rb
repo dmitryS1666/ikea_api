@@ -10,25 +10,36 @@ RSpec.describe Admin::MarketingEmailsExport do
       first_name: "Иван",
       last_name: "Иванов",
       email_marketing: true,
-      newsletter_consent: false
+      newsletter_consent: false,
+      email_verified_at: 1.day.ago
     )
     create(
       :user,
       email: "legacy@example.com",
       email_marketing: false,
-      newsletter_consent: true
+      newsletter_consent: true,
+      email_verified_at: 1.day.ago
+    )
+    create(
+      :user,
+      email: "unverified@example.com",
+      email_marketing: true,
+      newsletter_consent: true,
+      email_verified_at: nil
     )
     create(
       :user,
       email: "unsubscribed@example.com",
       email_marketing: false,
-      newsletter_consent: false
+      newsletter_consent: false,
+      email_verified_at: 1.day.ago
     )
     create(
       :user,
       email: nil,
       email_marketing: true,
       newsletter_consent: true,
+      email_verified_at: 1.day.ago,
       phone: "375291000001"
     )
 
@@ -40,7 +51,10 @@ RSpec.describe Admin::MarketingEmailsExport do
       "subscribed@example.com",
       "legacy@example.com"
     )
-    expect(parsed.map { |row| row["Email"] }).not_to include("unsubscribed@example.com")
+    expect(parsed.map { |row| row["Email"] }).not_to include(
+      "unsubscribed@example.com",
+      "unverified@example.com"
+    )
 
     subscribed_row = parsed.find { |row| row["Email"] == subscribed.email }
     expect(subscribed_row["ID пользователя"]).to eq(subscribed.id.to_s)

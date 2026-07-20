@@ -28,17 +28,28 @@ class MarketingUnsubscribeService
       changed = false
 
       user.with_lock do
-        changed = MarketingSubscriptionService.subscribed?(user)
+        opted_in = MarketingSubscriptionService.opted_in?(user)
+        # Неподтверждённый email + отписка = полный стоп любых писем.
+        needs_suppress = !user.email_verified? && !user.email_suppressed?
 
-        if changed
-          user.update!(email_marketing: false, newsletter_consent: false)
+        if !opted_in && !needs_suppress
+          changed = false
+        else
+          attrs = {
+            email_marketing: false,
+            newsletter_consent: false
+          }
+          attrs[:email_suppressed_at] = Time.current if needs_suppress
+
+          user.update!(attrs)
           ConsentService.record!(
             user: user,
             consent_type: :newsletter_email,
             accepted: false,
             source: source,
-            metadata: metadata
+            metadata: metadata.merge(email_suppressed: needs_suppress).compact
           )
+          changed = true
         end
       end
 

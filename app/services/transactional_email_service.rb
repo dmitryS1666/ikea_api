@@ -12,6 +12,7 @@ class TransactionalEmailService
       **locals
     )
       return if to_email.blank?
+      return if email_blocked_for?(locals[:user])
 
       html = EmailTemplates::Renderer.render(template_key, **locals)
       subject = EmailTemplates::Renderer.subject_for(template_key, **locals)
@@ -50,6 +51,7 @@ class TransactionalEmailService
       return if order.checkout_draft? && !draft_allowed
       return if !order.checkout_draft? && first_key == :abandoned_cart
       return if order.user&.email.blank?
+      return if email_blocked_for?(order.user)
 
       if first_key == :abandoned_cart
         PrepareOrderEmailJob.perform_later(
@@ -80,12 +82,15 @@ class TransactionalEmailService
 
     def send_welcome(user)
       return if user.email.blank?
+      return if email_blocked_for?(user)
 
       token = EmailVerificationService.issue_token!(user: user, email: user.email, purpose: "welcome")
       send_email_verification(user, token)
     end
 
     def send_email_verification(user, token_record)
+      return if email_blocked_for?(user)
+
       send_template(
         :welcome,
         to_email: token_record.email,
@@ -97,6 +102,7 @@ class TransactionalEmailService
 
     def send_email_changed(user, new_email)
       return if new_email.blank?
+      return if email_blocked_for?(user)
 
       token = EmailVerificationService.issue_token!(user: user, email: new_email, purpose: "email_change")
       send_template(
@@ -109,6 +115,10 @@ class TransactionalEmailService
     end
 
     private
+
+    def email_blocked_for?(user)
+      user.present? && user.email_suppressed?
+    end
 
     def serialize_time(value)
       return if value.blank?

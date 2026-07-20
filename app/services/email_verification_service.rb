@@ -45,6 +45,12 @@ class EmailVerificationService
           code: "email_already_verified"
         ) if user.email_verified?
 
+        return failure(
+          "Отправка писем на этот адрес отключена (отписка)",
+          status: :forbidden,
+          code: "email_suppressed"
+        ) if user.email_suppressed?
+
         last_sent_at = EmailVerificationToken.where(user_id: user.id).maximum(:created_at)
         if last_sent_at.present? && last_sent_at > RESEND_INTERVAL.ago
           retry_after = [(RESEND_INTERVAL - (Time.current - last_sent_at)).ceil, 1].max
@@ -90,7 +96,11 @@ class EmailVerificationService
         return { error: "Неверный или просроченный токен" } unless record
         return { error: "Email не совпадает" } if email.present? && record.email != normalize_email(email)
 
-        unless user.update(email: record.email, email_verified_at: Time.current)
+        unless user.update(
+          email: record.email,
+          email_verified_at: Time.current,
+          email_suppressed_at: nil
+        )
           return { error: user.errors.full_messages.join(", ") }
         end
 

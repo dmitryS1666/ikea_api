@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_20_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_21_002650) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -1084,6 +1084,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_120000) do
     t.datetime "personal_data_consented_at"
     t.jsonb "custom_permissions", default: {}, null: false
     t.datetime "email_verified_at"
+    t.datetime "email_suppressed_at"
     t.index ["crm_contact_id"], name: "index_users_on_crm_contact_id"
     t.index ["email"], name: "index_users_on_email", unique: true, where: "(email IS NOT NULL)"
     t.index ["phone"], name: "index_users_on_phone", unique: true

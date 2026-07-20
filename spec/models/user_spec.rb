@@ -267,6 +267,46 @@ RSpec.describe User, type: :model do
     end
   end
 
+  describe "#email_verified_flag=" do
+    it "sets email_verified_at when enabled" do
+      user = build(:user, email_verified_at: nil)
+
+      user.email_verified_flag = "1"
+
+      expect(user.email_verified?).to be(true)
+      expect(user.email_verified_at).to be_present
+    end
+
+    it "clears email_verified_at when disabled" do
+      user = build(:user, email_verified_at: 1.day.ago)
+
+      user.email_verified_flag = "0"
+
+      expect(user.email_verified?).to be(false)
+      expect(user.email_verified_at).to be_nil
+    end
+  end
+
+  describe "email change clears verification" do
+    it "resets verification when email changes without a simultaneous verify" do
+      user = create(:user, email_verified_at: 1.day.ago)
+
+      user.update!(email: "fresh_#{SecureRandom.hex(4)}@example.com")
+
+      expect(user.reload.email_verified?).to be(false)
+    end
+
+    it "keeps verification when email and verified_at are set together" do
+      user = create(:user, email_verified_at: nil)
+      new_email = "verified_#{SecureRandom.hex(4)}@example.com"
+
+      user.update!(email: new_email, email_verified_at: Time.current)
+
+      expect(user.reload.email).to eq(new_email)
+      expect(user.email_verified?).to be(true)
+    end
+  end
+
   describe "#email_marketing_enabled=" do
     it "treats either legacy email flag as an active subscription" do
       user = build(:user, email_marketing: false, newsletter_consent: true)
