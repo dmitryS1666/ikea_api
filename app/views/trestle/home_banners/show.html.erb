@@ -21,13 +21,17 @@
             <dd class="col-sm-9">
               <% case @banner.variant %>
               <% when 'main_1500x516' %>
-                1500×516
+                1500×516 (desktop)
+              <% when 'main_960x516' %>
+                960×516 (планшет)
               <% when 'main_572x594' %>
-                572×594
+                572×594 (mobile)
               <% when 'secondary_1500x256' %>
-                1500×256
+                1500×256 (desktop)
+              <% when 'secondary_960x256' %>
+                960×256 (планшет)
               <% when 'secondary_742x256' %>
-                742×256
+                742×256 (mobile)
               <% end %>
             </dd>
 

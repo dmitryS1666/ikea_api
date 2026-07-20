@@ -11,7 +11,9 @@ class HomeBanner < ApplicationRecord
     main_1500x516: 0,
     main_572x594: 1,
     secondary_1500x256: 2,
-    secondary_742x256: 3
+    secondary_742x256: 3,
+    main_960x516: 4,
+    secondary_960x256: 5
   }
   
   # Associations
@@ -47,10 +49,14 @@ class HomeBanner < ApplicationRecord
     case variant
     when 'main_1500x516'
       [1500, 516]
+    when 'main_960x516'
+      [960, 516]
     when 'main_572x594'
       [572, 594]
     when 'secondary_1500x256'
       [1500, 256]
+    when 'secondary_960x256'
+      [960, 256]
     when 'secondary_742x256'
       [742, 256]
     else
@@ -135,12 +141,12 @@ class HomeBanner < ApplicationRecord
     
     case section
     when 'main'
-      unless %w[main_1500x516 main_572x594].include?(variant)
-        errors.add(:variant, 'must be main_1500x516 or main_572x594 for main section')
+      unless %w[main_1500x516 main_960x516 main_572x594].include?(variant)
+        errors.add(:variant, 'must be main_1500x516, main_960x516 or main_572x594 for main section')
       end
     when 'secondary'
-      unless %w[secondary_1500x256 secondary_742x256].include?(variant)
-        errors.add(:variant, 'must be secondary_1500x256 or secondary_742x256 for secondary section')
+      unless %w[secondary_1500x256 secondary_960x256 secondary_742x256].include?(variant)
+        errors.add(:variant, 'must be secondary_1500x256, secondary_960x256 or secondary_742x256 for secondary section')
       end
     end
   end

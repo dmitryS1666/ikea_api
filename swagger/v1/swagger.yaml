@@ -2310,7 +2310,7 @@ paths:
       description: |
         Возвращает активные баннеры секции "Главный баннер" для главной страницы.
         Баннеры фильтруются по активному статусу (active = true) и отсортированы по позиции.
-        Доступные варианты размеров: 1500×516, 572×594
+        Доступные варианты размеров: 1500×516 (desktop), 960×516 (планшет), 572×594 (mobile)
       tags:
         - Homepage
       responses:
@@ -2339,7 +2339,7 @@ paths:
       description: |
         Возвращает активные Горизонтальынй баннер секции "Баннеры" для главной страницы.
         Горизонтальынй баннер фильтруются по активному статусу (active = true) и отсортированы по позиции.
-        Доступные варианты размеров: 1500×256, 742×256
+        Доступные варианты размеров: 1500×256 (desktop), 960×256 (планшет), 742×256 (mobile)
       tags:
         - Homepage
       responses:
@@ -3991,8 +3991,27 @@ components:
               description: Секция баннера - main (Главный баннер) или secondary (Баннеры)
             variant:
               type: string
-              enum: [main_1500x516, main_572x594, secondary_1500x256, secondary_742x256]
-              description: Вариант размера изображения
+              enum:
+                - main_1500x516
+                - main_960x516
+                - main_572x594
+                - secondary_1500x256
+                - secondary_960x256
+                - secondary_742x256
+              description: >
+                Вариант размера изображения.
+                main: desktop 1500×516, tablet 960×516, mobile 572×594;
+                secondary: desktop 1500×256, tablet 960×256, mobile 742×256
+            width:
+              type: integer
+              nullable: true
+              description: Ожидаемая ширина изображения в пикселях
+              example: 960
+            height:
+              type: integer
+              nullable: true
+              description: Ожидаемая высота изображения в пикселях
+              example: 516
             position:
               type: integer
               description: Позиция для сортировки

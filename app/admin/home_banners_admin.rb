@@ -33,13 +33,17 @@ Trestle.resource(:home_banners, model: HomeBanner) do
     column :variant do |banner|
       case banner.variant
       when 'main_1500x516'
-        '1500×516'
+        '1500×516 (desktop)'
+      when 'main_960x516'
+        '960×516 (планшет)'
       when 'main_572x594'
-        '572×594'
+        '572×594 (mobile)'
       when 'secondary_1500x256'
-        '1500×256'
+        '1500×256 (desktop)'
+      when 'secondary_960x256'
+        '960×256 (планшет)'
       when 'secondary_742x256'
-        '742×256'
+        '742×256 (mobile)'
       else
         banner.variant
       end
@@ -65,12 +69,14 @@ Trestle.resource(:home_banners, model: HomeBanner) do
   form do |banner|
     section_variants = {
       'main' => {
-        '1500×516' => 'main_1500x516',
-        '572×594' => 'main_572x594'
+        '1500×516 (desktop)' => 'main_1500x516',
+        '960×516 (планшет)' => 'main_960x516',
+        '572×594 (mobile)' => 'main_572x594'
       },
       'secondary' => {
-        '1500×256' => 'secondary_1500x256',
-        '742×256' => 'secondary_742x256'
+        '1500×256 (desktop)' => 'secondary_1500x256',
+        '960×256 (планшет)' => 'secondary_960x256',
+        '742×256 (mobile)' => 'secondary_742x256'
       }
     }
 

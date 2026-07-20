@@ -19,4 +19,12 @@ class HomeBannerSerializer
   attribute :link_url do |banner|
     banner.final_link
   end
+
+  attribute :width do |banner|
+    banner.expected_dimensions&.first
+  end
+
+  attribute :height do |banner|
+    banner.expected_dimensions&.last
+  end
 end
