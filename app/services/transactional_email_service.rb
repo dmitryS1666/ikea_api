@@ -2,7 +2,15 @@
 
 class TransactionalEmailService
   class << self
-    def send_template(template_key, to_email:, to_name: nil, next_order_email: nil, **locals)
+    def send_template(
+      template_key,
+      to_email:,
+      to_name: nil,
+      next_order_email: nil,
+      continue_order_queue: false,
+      order_id: nil,
+      **locals
+    )
       return if to_email.blank?
 
       html = EmailTemplates::Renderer.render(template_key, **locals)
@@ -17,6 +25,11 @@ class TransactionalEmailService
         text: text
       }
       payload[:next_order_email] = next_order_email if next_order_email.present?
+      if continue_order_queue && order_id.present?
+        payload[:continue_order_queue] = true
+        payload[:order_id] = order_id
+        payload[:template_key] = template_key.to_s
+      end
 
       SendpulseEmailJob.perform_later(**payload)
     rescue StandardError => e
@@ -24,31 +37,30 @@ class TransactionalEmailService
       raise
     end
 
-    # Enqueues order emails as a chain: the next template is prepared only after
-    # the previous one was accepted by SendPulse, so they arrive sequentially.
+    # Enqueues order emails into a per-order FIFO. Status emails append and wait;
+    # the next template is prepared only after SendPulse accepts the previous one.
     def send_order_emails(template_keys, order, abandoned_cart_activity_at: nil, abandoned_cart_queued_at: nil)
       order = order.reload if order.persisted?
       keys = Array(template_keys).map { |key| key.to_s }.reject(&:blank?)
       return if keys.empty?
 
-      first, *rest = keys
-      key = first.to_sym
+      first_key = keys.first.to_sym
 
-      return if order.checkout_draft? && key != :abandoned_cart
-      return if !order.checkout_draft? && key == :abandoned_cart
+      return if order.checkout_draft? && first_key != :abandoned_cart
+      return if !order.checkout_draft? && first_key == :abandoned_cart
       return if order.user&.email.blank?
 
-      payload = {
-        template_key: first,
-        order_id: order.id,
-        next_template_keys: rest
-      }
-      if key == :abandoned_cart
-        payload[:abandoned_cart_activity_at] = serialize_time(abandoned_cart_activity_at)
-        payload[:abandoned_cart_queued_at] = serialize_time(abandoned_cart_queued_at)
+      if first_key == :abandoned_cart
+        PrepareOrderEmailJob.perform_later(
+          template_key: keys.first,
+          order_id: order.id,
+          abandoned_cart_activity_at: serialize_time(abandoned_cart_activity_at),
+          abandoned_cart_queued_at: serialize_time(abandoned_cart_queued_at)
+        )
+        return
       end
 
-      PrepareOrderEmailJob.perform_later(**payload)
+      OrderEmailQueue.enqueue!(order, keys)
     rescue StandardError => e
       Rails.logger.error(
         "[TransactionalEmail] Failed to enqueue #{template_keys.inspect} for order=#{order&.id}: #{e.class} #{e.message}"

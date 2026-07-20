@@ -85,24 +85,45 @@ RSpec.describe PrepareOrderEmailJob, type: :job do
         expect(payload[:html]).not_to include("NATTSLÄNDA")
         expect(payload[:html]).not_to include("2 556.93")
         expect(payload[:html]).not_to include("Скидка по промокоду")
+        expect(payload[:continue_order_queue]).to be_falsey
         expect(payload).not_to have_key(:next_order_email)
       end
     end
   end
 
-  it "passes the remaining template chain to SendpulseEmailJob" do
+  it "asks SendpulseEmailJob to continue the per-order queue" do
     described_class.perform_now(
       template_key: "order_created",
       order_id: order.id,
-      next_template_keys: %w[order_awaiting_payment]
+      continue_order_queue: true
     )
 
     expect(SendpulseEmailJob).to have_received(:perform_later) do |payload|
-      expect(payload[:next_order_email]).to eq(
-        "order_id" => order.id,
-        "template_keys" => %w[order_awaiting_payment]
-      )
+      expect(payload[:continue_order_queue]).to eq(true)
+      expect(payload[:order_id]).to eq(order.id)
+      expect(payload[:template_key]).to eq("order_created")
     end
+  end
+
+  it "skips awaiting_payment when the order is already paid and continues the queue" do
+    order.update!(
+      status: :paid,
+      webpay_paid_at: Time.current,
+      pending_order_email_keys: %w[order_placed],
+      email_dispatch_locked_at: Time.current
+    )
+
+    described_class.perform_now(
+      template_key: "order_awaiting_payment",
+      order_id: order.id,
+      continue_order_queue: true
+    )
+
+    expect(SendpulseEmailJob).not_to have_received(:perform_later)
+    expect(enqueued_jobs.count { |job| job[:job] == PrepareOrderEmailJob }).to eq(1)
+    next_job = enqueued_jobs.find { |job| job[:job] == PrepareOrderEmailJob }
+    expect(next_job[:args].first["template_key"] || next_job[:args].first[:template_key])
+      .to eq("order_placed")
   end
 
   it "rejects draft orders instead of sending incomplete data" do

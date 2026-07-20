@@ -235,8 +235,8 @@ RSpec.describe "Checkout delivery types", type: :request do
 
     prepare_args = enqueued_jobs.find { |job| job[:job] == PrepareOrderEmailJob }[:args].first
     expect(prepare_args["template_key"] || prepare_args[:template_key]).to eq("order_created")
-    expect(prepare_args["next_template_keys"] || prepare_args[:next_template_keys])
-      .to eq(["order_awaiting_payment"])
+    expect(prepare_args["continue_order_queue"] || prepare_args[:continue_order_queue]).to eq(true)
+    expect(Order.last.pending_order_email_keys).to eq(["order_awaiting_payment"])
   end
 
   it "enqueues only the sequential client prepare job when admin email is not set" do

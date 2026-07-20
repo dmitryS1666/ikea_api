@@ -3,8 +3,8 @@ class OrderNotificationService
     if status_changed
       handle_status_change(order)
     else
-      # Оба клиентских письма — только после финализации, платёжной ссылки и snapshot.
-      # Ставятся в цепочку: awaiting_payment уходит после успешной отправки order_created.
+      # После оформления: сразу «в обработке», через ~20с «ожидает оплаты»
+      # (если к этому моменту ещё не оплачен). Статусные письма — в той же FIFO.
       TransactionalEmailService.send_order_emails(%i[order_created order_awaiting_payment], order)
       enqueue_admin_order_created_email(order)
       send_telegram_manager_notification(order)

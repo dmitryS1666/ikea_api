@@ -3,6 +3,9 @@ require "rails_helper"
 RSpec.describe SendpulseEmailJob, type: :job do
   include ActiveJob::TestHelper
 
+  let(:user) { create(:user, email: "customer@example.com") }
+  let(:order) { create(:order, user: user, checkout_draft: false) }
+
   before do
     ActiveJob::Base.queue_adapter = :test
     clear_enqueued_jobs
@@ -27,44 +30,61 @@ RSpec.describe SendpulseEmailJob, type: :job do
     )
   end
 
-  it "enqueues the next order email only after a successful send" do
+  it "advances the per-order queue only after a successful send" do
     sender = instance_double(Sendpulse::EmailSender)
     allow(Sendpulse::EmailSender).to receive(:new).and_return(sender)
     allow(sender).to receive(:call).and_return(Sendpulse::Result.new(success: true, response: { "ok" => true }))
+
+    order.update!(
+      pending_order_email_keys: %w[order_awaiting_payment],
+      email_dispatch_locked_at: Time.current
+    )
 
     expect do
       described_class.perform_now(
         to_email: "user@example.com",
         subject: "Test",
         html: "<p>Test</p>",
-        next_order_email: { "order_id" => 42, "template_keys" => %w[order_awaiting_payment] }
+        continue_order_queue: true,
+        order_id: order.id,
+        template_key: "order_created"
       )
     end.to have_enqueued_job(PrepareOrderEmailJob).with(
-      template_key: "order_awaiting_payment",
-      order_id: 42,
-      next_template_keys: []
+      hash_including(
+        template_key: "order_awaiting_payment",
+        order_id: order.id,
+        continue_order_queue: true
+      )
     )
 
     next_job = enqueued_jobs.find { |job| job[:job] == PrepareOrderEmailJob }
-    expect(next_job[:at]).to be_within(1.second).of(15.seconds.from_now.to_f)
+    expect(next_job[:at]).to be_within(1.second).of(20.seconds.from_now.to_f)
   end
 
-  it "does not enqueue the next order email when send fails" do
+  it "does not advance the queue when send fails" do
     sender = instance_double(Sendpulse::EmailSender)
     allow(Sendpulse::EmailSender).to receive(:new).and_return(sender)
     allow(sender).to receive(:call).and_return(Sendpulse::Result.new(success: false, error: "fail"))
     allow(Rails.logger).to receive(:error)
 
+    order.update!(
+      pending_order_email_keys: %w[order_awaiting_payment],
+      email_dispatch_locked_at: Time.current
+    )
+
     expect do
       described_class.perform_now(
         to_email: "user@example.com",
         subject: "Test",
         html: "<p>Test</p>",
-        next_order_email: { "order_id" => 42, "template_keys" => %w[order_awaiting_payment] }
+        continue_order_queue: true,
+        order_id: order.id,
+        template_key: "order_created"
       )
     end.to have_enqueued_job(described_class)
 
     expect(enqueued_jobs.count { |job| job[:job] == PrepareOrderEmailJob }).to eq(0)
+    expect(order.reload.pending_order_email_keys).to eq(%w[order_awaiting_payment])
   end
 
   it "retries when the service returns a failed result" do
