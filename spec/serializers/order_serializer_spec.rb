@@ -94,6 +94,56 @@ RSpec.describe OrderSerializer do
       expect(canceled_row[:is_current]).to be(true)
       expect(timeline.none? { |row| row[:code] == "cancelled" }).to be(true)
     end
+
+    it "marks only Europost courier branch completed for Europost orders" do
+      order = create(
+        :order,
+        status: "handed_to_courier",
+        delivery_type: DeliveryTypeNormalizer::EUROPOST_PICKUP
+      )
+      order.order_status_events.create!(
+        from_status: "arrived_pvz",
+        to_status: "handed_to_courier_ikeya",
+        changed_at: 1.hour.ago,
+        source: "test"
+      )
+
+      attrs = described_class.new(order).serializable_hash[:data][:attributes]
+      timeline = attrs[:status_timeline]
+      europost_row = timeline.find { |row| row[:code] == "handed_to_courier" }
+      ikeya_row = timeline.find { |row| row[:code] == "handed_to_courier_ikeya" }
+
+      expect(europost_row[:is_current]).to be(true)
+      expect(europost_row[:is_completed]).to be(true)
+      expect(ikeya_row[:is_current]).to be(false)
+      expect(ikeya_row[:is_completed]).to be(false)
+      expect(ikeya_row[:at]).to be_nil
+    end
+
+    it "marks only IKEYA courier branch completed for IKEYA orders" do
+      order = create(
+        :order,
+        status: "handed_to_courier_ikeya",
+        delivery_type: DeliveryTypeNormalizer::IKEYA_DELIVERY
+      )
+      order.order_status_events.create!(
+        from_status: "arrived_pvz",
+        to_status: "handed_to_courier",
+        changed_at: 1.hour.ago,
+        source: "test"
+      )
+
+      attrs = described_class.new(order).serializable_hash[:data][:attributes]
+      timeline = attrs[:status_timeline]
+      europost_row = timeline.find { |row| row[:code] == "handed_to_courier" }
+      ikeya_row = timeline.find { |row| row[:code] == "handed_to_courier_ikeya" }
+
+      expect(ikeya_row[:is_current]).to be(true)
+      expect(ikeya_row[:is_completed]).to be(true)
+      expect(europost_row[:is_current]).to be(false)
+      expect(europost_row[:is_completed]).to be(false)
+      expect(europost_row[:at]).to be_nil
+    end
   end
   describe "tracking fields" do
     let(:tracking_info) { { "europost_create" => { "status" => "created" } } }
@@ -127,6 +177,47 @@ RSpec.describe OrderSerializer do
       expect(attrs[:status]).to eq("in_transit_pvz")
       expect(attrs[:track_number]).to eq("BY080027046773")
       expect(attrs[:tracking_info]).to eq(tracking_info)
+    end
+
+    it "keeps Europost pickup track number after handed_to_courier" do
+      order = create(
+        :order,
+        status: "handed_to_courier",
+        delivery_type: DeliveryTypeNormalizer::EUROPOST_PICKUP,
+        track_number: "BY080060073722",
+        tracking_info: {
+          "europost_create" => {
+            "track_number" => "BY080060073722",
+            "response" => { "number" => "BY080060073722" }
+          }
+        }
+      )
+
+      attrs = described_class.new(order).serializable_hash[:data][:attributes]
+
+      expect(attrs[:status]).to eq("handed_to_courier")
+      expect(attrs[:track_number]).to eq("BY080060073722")
+      expect(attrs[:tracking_info].dig("europost_create", "track_number")).to eq("BY080060073722")
+    end
+
+    it "resolves track number from europost_create when track_number column is blank" do
+      order = create(
+        :order,
+        status: "arrived_pvz",
+        delivery_type: DeliveryTypeNormalizer::EUROPOST_PICKUP,
+        track_number: nil,
+        tracking_info: {
+          "europost_create" => {
+            "track_number" => "BY080060073722",
+            "response" => { "number" => "BY080060073722" }
+          }
+        }
+      )
+
+      attrs = described_class.new(order).serializable_hash[:data][:attributes]
+
+      expect(attrs[:track_number]).to eq("BY080060073722")
+      expect(attrs[:tracking_info]).to be_present
     end
 
     it "hides track number and tracking info before Belarus customs" do
@@ -166,6 +257,22 @@ RSpec.describe OrderSerializer do
         delivery_type: DeliveryTypeNormalizer::IKEYA_DELIVERY,
         track_number: "BY080027046773",
         tracking_info: tracking_info
+      )
+
+      attrs = described_class.new(order).serializable_hash[:data][:attributes]
+
+      expect(attrs[:track_number]).to be_nil
+      expect(attrs[:tracking_info]).to be_nil
+    end
+
+    it "does not expose tracking for checkout draft orders" do
+      order = create(
+        :order,
+        status: "created",
+        checkout_draft: true,
+        delivery_type: DeliveryTypeNormalizer::EUROPOST_PICKUP,
+        track_number: nil,
+        tracking_info: nil
       )
 
       attrs = described_class.new(order).serializable_hash[:data][:attributes]

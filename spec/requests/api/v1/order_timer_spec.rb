@@ -71,6 +71,8 @@ RSpec.describe 'Order Payment Timer', type: :request do
 
     it 'returns Europost track number and tracking info' do
       order.update!(
+        status: :shipped,
+        delivery_type: DeliveryTypeNormalizer::EUROPOST_PICKUP,
         track_number: 'BY080027046773',
         tracking_info: { 'europost_create' => { 'status' => 'created' } }
       )

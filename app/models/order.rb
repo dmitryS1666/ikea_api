@@ -56,19 +56,25 @@ class Order < ApplicationRecord
       customs_belarus
       shipped
       arrived_pvz
+      handed_to_courier
       completed
     ].freeze,
     "pickup" => %w[
       customs_belarus
       shipped
       arrived_pvz
+      handed_to_courier
       completed
     ].freeze,
     DeliveryTypeNormalizer::COURIER => %w[
+      customs_belarus
+      shipped
+      arrived_pvz
       handed_to_courier
       completed
     ].freeze
   }.freeze
+  COURIER_TIMELINE_STATUSES = %w[handed_to_courier handed_to_courier_ikeya].freeze
 
   scope :purchased, -> { where(status: PURCHASED_STATUSES) }
   scope :expired_unpaid_for_autocancel, lambda { |cutoff_time = Time.current|
@@ -136,13 +142,24 @@ class Order < ApplicationRecord
   def customer_track_number
     return nil unless customer_tracking_visible?
 
-    track_number
+    resolved_track_number
   end
 
   def customer_tracking_info
     return nil unless customer_tracking_visible?
 
     tracking_info
+  end
+
+  # Фактический номер Европочты: колонка или сохранённый ответ europost_create.
+  def resolved_track_number
+    return track_number if track_number.present?
+
+    europost_create = tracking_info.is_a?(Hash) ? tracking_info["europost_create"] : nil
+    return nil unless europost_create.is_a?(Hash)
+
+    europost_create["track_number"].presence ||
+      europost_create.dig("response", "number").presence
   end
 
   # ЛК: в URL можно передавать public_uid (6–8 цифр) или числовой id (как раньше).
@@ -251,14 +268,15 @@ class Order < ApplicationRecord
     event_times["created"] ||= created_at
 
     sequence.map do |code|
-      at = event_times[code]
+      applicable = timeline_status_applicable?(code)
+      at = applicable ? event_times[code] : nil
       frontend_code = frontend_status_for(code, delivery_type: delivery_type)
       {
         code: frontend_code,
         title: frontend_status_title_for(code, frontend_code),
         at: at&.iso8601,
-        is_current: status.to_s == code,
-        is_completed: at.present?
+        is_current: applicable && status.to_s == code,
+        is_completed: applicable && at.present?
       }
     end
   end
@@ -285,10 +303,28 @@ class Order < ApplicationRecord
     PVZ_DELIVERY_TYPES.include?(value.to_s)
   end
 
+  # Courier-ветки взаимоисключающие: Европочта vs IKEYA.
+  def timeline_status_applicable?(code)
+    return true unless COURIER_TIMELINE_STATUSES.include?(code.to_s)
+
+    normalized = DeliveryTypeNormalizer.normalize(delivery_type)
+    case code.to_s
+    when "handed_to_courier_ikeya"
+      normalized == DeliveryTypeNormalizer::IKEYA_DELIVERY
+    when "handed_to_courier"
+      normalized != DeliveryTypeNormalizer::IKEYA_DELIVERY
+    else
+      true
+    end
+  end
+
   def customer_tracking_visible?
-    return false unless track_number.present?
+    return false if status.to_s == "handed_to_courier_ikeya"
 
     normalized_delivery_type = DeliveryTypeNormalizer.normalize(delivery_type)
+    return false if normalized_delivery_type == DeliveryTypeNormalizer::IKEYA_DELIVERY
+    return false unless resolved_track_number.present?
+
     visible_statuses = EUROPOST_TRACKING_VISIBLE_STATUSES_BY_DELIVERY_TYPE[normalized_delivery_type]
     visible_statuses.present? && status.to_s.in?(visible_statuses)
   end
