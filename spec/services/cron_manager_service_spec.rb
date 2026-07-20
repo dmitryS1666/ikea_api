@@ -14,7 +14,9 @@ RSpec.describe CronManagerService do
         name: 'parser_categories',
         cron: '0 2 * * *',
         class: 'ParseCategoriesJob',
-        args: []
+        args: [],
+        active_job: true,
+        queue: 'parser'
       )
     end
 
@@ -47,7 +49,9 @@ RSpec.describe CronManagerService do
         name: 'parser_seo_catalog_pages',
         cron: '0 8 * * *',
         class: 'RegenerateSeoCatalogPagesJob',
-        args: []
+        args: [],
+        active_job: true,
+        queue: 'default'
       )
     end
 
@@ -62,8 +66,40 @@ RSpec.describe CronManagerService do
         name: 'parser_cancel_expired_unpaid_orders',
         cron: '*/5 * * * *',
         class: 'CancelExpiredUnpaidOrdersJob',
-        args: []
+        args: [],
+        active_job: true,
+        queue: 'default'
       )
+    end
+
+    it 'creates pl_prices_stock cron as ActiveJob on parser queue' do
+      schedule = create(:cron_schedule, task_type: 'pl_prices_stock', schedule: '0 5 * * *')
+      allow(Sidekiq::Cron::Job).to receive(:find).and_return(nil)
+      allow(Sidekiq::Cron::Job).to receive(:create)
+
+      CronManagerService.setup_cron_schedule(schedule)
+
+      expect(Sidekiq::Cron::Job).to have_received(:create).with(
+        name: 'parser_pl_prices_stock',
+        cron: '0 5 * * *',
+        class: 'RefreshPlPricesAndStockJob',
+        args: [],
+        active_job: true,
+        queue: 'parser'
+      )
+    end
+
+    it 'enqueues ActiveJob via perform_later instead of perform_async' do
+      schedule = create(:cron_schedule, task_type: 'pl_prices_stock', schedule: '0 5 * * *')
+
+      CronManagerService.setup_cron_schedule(schedule)
+
+      job = Sidekiq::Cron::Job.find('parser_pl_prices_stock')
+      expect(job).to be_present
+
+      expect {
+        job.enque!
+      }.to have_enqueued_job(RefreshPlPricesAndStockJob)
     end
   end
 
