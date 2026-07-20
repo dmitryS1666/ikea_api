@@ -46,7 +46,8 @@ class TransactionalEmailService
 
       first_key = keys.first.to_sym
 
-      return if order.checkout_draft? && first_key != :abandoned_cart
+      draft_allowed = %i[abandoned_cart order_created].include?(first_key)
+      return if order.checkout_draft? && !draft_allowed
       return if !order.checkout_draft? && first_key == :abandoned_cart
       return if order.user&.email.blank?
 

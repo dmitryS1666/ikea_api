@@ -21,7 +21,7 @@ class PrepareOrderEmailJob < ApplicationJob
         activity_at: abandoned_cart_activity_at,
         queued_at: abandoned_cart_queued_at
       )
-    elsif order.checkout_draft?
+    elsif order.checkout_draft? && key != :order_created
       raise ArgumentError, "cannot email checkout draft order=#{order.id}"
     end
 

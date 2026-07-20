@@ -46,7 +46,31 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     allow(CrmIntegrationService).to receive(:sync_order).and_return({ success: true })
     allow(WebpayPaymentLinkService).to receive(:issue_link!).and_call_original
     allow(OrderNotificationService).to receive(:call)
+    allow(OrderNotificationService).to receive(:notify_checkout_started)
     allow(TelegramService).to receive(:send_message)
+  end
+
+  it "enqueues order_created when creating a new checkout draft" do
+    allow(OrderNotificationService).to receive(:notify_checkout_started).and_call_original
+
+    expect do
+      post "/api/v1/checkout", params: { draft: true }, headers: headers
+    end.to change { enqueued_jobs.count { |job| job[:job] == PrepareOrderEmailJob } }.by(1)
+
+    expect(response).to have_http_status(:created)
+    prepare_args = enqueued_jobs.find { |job| job[:job] == PrepareOrderEmailJob }[:args].first
+    expect(prepare_args["template_key"] || prepare_args[:template_key]).to eq("order_created")
+  end
+
+  it "does not re-enqueue order_created when reusing an existing draft" do
+    allow(OrderNotificationService).to receive(:notify_checkout_started).and_call_original
+    post "/api/v1/checkout", params: { draft: true }, headers: headers
+    expect(response).to have_http_status(:created)
+    clear_enqueued_jobs
+
+    expect do
+      post "/api/v1/checkout", params: { draft: true }, headers: headers
+    end.not_to change { enqueued_jobs.count { |job| job[:job] == PrepareOrderEmailJob } }
   end
 
   it "creates draft, updates delivery, finalizes with Webpay link and clears checkout_draft" do

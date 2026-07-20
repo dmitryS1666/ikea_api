@@ -250,7 +250,7 @@ module EmailTemplates
       apply_order_details!(html, details)
 
       replace_status_button_link!(html, order_cta_url)
-      replace_class_link!(html, "check-link", profile_orders_url)
+      replace_class_link!(html, "check-link", order_account_link_url)
       replace_class_link!(html, "customs-duty-link", customs_help_url)
       apply_customs_duty!(html, built[:totals_html])
 
@@ -427,6 +427,11 @@ module EmailTemplates
       else
         profile_order_url
       end
+    end
+
+    # «Узнать статус» / info-box in order emails → конкретный заказ в ЛК.
+    def order_account_link_url
+      profile_order_url
     end
 
     def apply_customs_duty!(html, totals)

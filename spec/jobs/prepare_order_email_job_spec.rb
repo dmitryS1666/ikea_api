@@ -126,14 +126,48 @@ RSpec.describe PrepareOrderEmailJob, type: :job do
       .to eq("order_placed")
   end
 
-  it "rejects draft orders instead of sending incomplete data" do
+  it "rejects non-order_created drafts instead of sending incomplete data" do
     order.update_column(:checkout_draft, true)
 
     expect do
-      described_class.perform_now(template_key: "order_created", order_id: order.id)
+      described_class.perform_now(template_key: "order_awaiting_payment", order_id: order.id)
     end.to have_enqueued_job(described_class)
 
     expect(SendpulseEmailJob).not_to have_received(:perform_later)
+  end
+
+  it "allows order_created for a checkout draft" do
+    order.update_column(:checkout_draft, true)
+    allow(CheckoutPricingPresenter).to receive(:for_order).and_return(
+      items: [
+        {
+          sku: "SKU-SNAPSHOT",
+          quantity: 2,
+          pricing: {
+            unit_price_new_byn: "77.47",
+            line_total_new_byn: "154.93"
+          }
+        }
+      ],
+      totals: {
+        subtotal_new_byn: "154.93",
+        delivery_to_belarus_byn: "56.00",
+        discount_total_byn: "0.00",
+        final_total_byn: "210.93",
+        customs_total_byn: "0.00"
+      }
+    )
+
+    described_class.perform_now(
+      template_key: "order_created",
+      order_id: order.id,
+      continue_order_queue: true
+    )
+
+    expect(SendpulseEmailJob).to have_received(:perform_later) do |payload|
+      expect(payload[:to_email]).to eq("customer@example.com")
+      expect(payload[:continue_order_queue]).to eq(true)
+    end
   end
 
   it "allows the abandoned-cart template for a checkout draft" do

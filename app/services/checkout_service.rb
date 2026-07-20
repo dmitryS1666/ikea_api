@@ -455,6 +455,8 @@ class CheckoutService
 
       WebpayPaymentLinkService.issue_link!(order)
       OrderEmailSnapshotService.capture!(order.reload, pricing: pricing, force: true)
+      # One-shot checkout without draft: both «в обработке» and «ожидает оплаты».
+      OrderNotificationService.notify_checkout_started(order)
       OrderNotificationService.call(order.reload)
       { success: true, order: order.reload }
     else
@@ -511,6 +513,8 @@ class CheckoutService
         order = update_result[:order]
         pricing_for_response = update_result[:pricing]
       end
+
+      OrderNotificationService.notify_checkout_started(order)
 
       {
         success: true,

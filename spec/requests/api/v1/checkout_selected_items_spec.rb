@@ -62,6 +62,7 @@ RSpec.describe "Checkout with selected cart items", type: :request do
     allow(CrmIntegrationService).to receive(:sync_order).and_return({ success: true })
     allow(WebpayPaymentLinkService).to receive(:issue_link!).and_call_original
     allow(OrderNotificationService).to receive(:call)
+    allow(OrderNotificationService).to receive(:notify_checkout_started)
     allow(TelegramService).to receive(:send_message)
   end
 

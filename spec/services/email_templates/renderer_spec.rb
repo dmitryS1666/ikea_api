@@ -202,11 +202,13 @@ RSpec.describe EmailTemplates::Renderer do
     expect(html).not_to include('href="https://ikeya.by/profile/orders" class="status-btn"')
   end
 
-  it "links personal account info box to profile orders list" do
+  it "links personal account info box and status button to the current order" do
     html = described_class.render(:order_placed, order: order, user: user)
 
-    expect(html).to include("href=\"https://ikeya.by/profile/orders\"")
-    expect(html).not_to include("href=\"https://ikeya.by/profile/orders/7654321\" class=\"check-link\"")
+    expect(html).to include('href="https://ikeya.by/profile/orders/7654321" class="status-btn"')
+    expect(html).to include('href="https://ikeya.by/profile/orders/7654321"')
+    expect(html).to include("class=\"check-link\"")
+    expect(html).not_to include('href="https://ikeya.by/profile/orders" class="check-link"')
   end
 
   it "renders received_poland template with order totals and delivery details" do

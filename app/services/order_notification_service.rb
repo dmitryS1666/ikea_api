@@ -3,12 +3,21 @@ class OrderNotificationService
     if status_changed
       handle_status_change(order)
     else
-      # После оформления: сразу «в обработке», через ~20с «ожидает оплаты»
-      # (если к этому моменту ещё не оплачен). Статусные письма — в той же FIFO.
-      TransactionalEmailService.send_order_emails(%i[order_created order_awaiting_payment], order)
+      # Финализация: ссылка на оплату готова → «ожидает оплаты» (если ещё не оплачен).
+      # «В обработке» уходит раньше — при создании черновика (корзина → оформление).
+      TransactionalEmailService.send_order_emails(%i[order_awaiting_payment], order)
       enqueue_admin_order_created_email(order)
       send_telegram_manager_notification(order)
     end
+  end
+
+  # Переход из корзины на оформление: сразу «заказ в обработке».
+  def self.notify_checkout_started(order)
+    TransactionalEmailService.send_order_email(:order_created, order)
+  rescue StandardError => e
+    Rails.logger.error(
+      "[TransactionalEmail] Failed to enqueue order_created for draft order=#{order&.id}: #{e.class} #{e.message}"
+    )
   end
 
   private
