@@ -52,19 +52,24 @@ RSpec.describe MarketingUnsubscribeService do
     expect(user.email_suppressed?).to be(true)
   end
 
-  it "blocks all email after unsubscribe of an unverified address" do
+  it "blocks verify/marketing mail after unsubscribe of an unverified address, but keeps order emails" do
     user.update_columns(email_verified_at: nil, email_marketing: true, newsletter_consent: true)
     token = Rack::Utils.parse_query(URI(described_class.url_for(user)).query).fetch("token")
 
     described_class.unsubscribe_by_token!(token)
     user.reload
 
-    expect(user.accepts_email?).to be(false)
+    expect(user.email_suppressed?).to be(true)
     expect(MarketingSubscriptionService.subscribed?(user)).to be(false)
 
     expect do
       TransactionalEmailService.send_welcome(user)
     end.not_to have_enqueued_job(SendpulseEmailJob)
+
+    order = create(:order, user: user, checkout_draft: false)
+    expect do
+      TransactionalEmailService.send_order_email(:order_created, order)
+    end.to change { enqueued_jobs.count }.by_at_least(1)
   end
 
   it "still allows transactional email after verified user unsubscribes" do
@@ -75,11 +80,10 @@ RSpec.describe MarketingUnsubscribeService do
     user.reload
 
     expect(user.email_suppressed?).to be(false)
-    expect(user.accepts_email?).to be(true)
     expect(MarketingSubscriptionService.subscribed?(user)).to be(false)
   end
 
-  it "suppresses all mail after change to unverified email and unsubscribe" do
+  it "keeps order emails after change to unverified email and unsubscribe" do
     user.update_columns(email_verified_at: nil, email_marketing: true, newsletter_consent: true)
     new_email = "fresh_#{SecureRandom.hex(4)}@example.com"
 
@@ -93,11 +97,15 @@ RSpec.describe MarketingUnsubscribeService do
 
     expect(user.email).to eq(new_email)
     expect(user.email_suppressed?).to be(true)
-    expect(user.accepts_email?).to be(false)
 
     expect do
       TransactionalEmailService.send_welcome(user)
     end.not_to have_enqueued_job(SendpulseEmailJob)
+
+    order = create(:order, user: user, checkout_draft: false)
+    expect do
+      TransactionalEmailService.send_order_email(:order_created, order)
+    end.to change { enqueued_jobs.count }.by_at_least(1)
   end
 
   it "rejects a modified token" do

@@ -179,16 +179,16 @@ Trestle.resource(:users, model: User) do
     tab :marketing, label: "Маркетинг" do
       static_field :email_mailing_rules, label: "Правила email" do
         content_tag(:div, class: "text-muted", style: "margin-bottom: 12px;") do
-          "Транзакционные — при наличии email (если нет полного стопа). " \
+          "Письма о заказах — всегда при наличии email (verify/подписка/отписка не важны). " \
           "Маркетинг — email подтверждён + согласие на рассылку. " \
-          "Отписка с неподтверждённого email блокирует любые письма."
+          "Отписка с неподтверждённого email стопит маркетинг и письма подтверждения, но не заказы."
         end
       end
 
       check_box :email_verified_flag, label: "Email подтверждён (верификация)"
       datetime_field :email_verified_at, label: "Дата подтверждения почты"
-      check_box :email_suppressed_flag, label: "Полный стоп писем (после отписки без верификации)"
-      datetime_field :email_suppressed_at, label: "Дата полного стопа писем"
+      check_box :email_suppressed_flag, label: "Стоп маркетинга/подтверждений (после отписки без верификации)"
+      datetime_field :email_suppressed_at, label: "Дата стопа маркетинга/подтверждений"
       check_box :email_marketing_enabled, label: "Рассылка через Email (маркетинг)"
       check_box :telegram_marketing, label: "Рассылка через Telegram"
       check_box :gdpr_consent, label: "Согласие GDPR"
