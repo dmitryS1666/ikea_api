@@ -78,7 +78,9 @@ Trestle.resource(:home_banners, model: HomeBanner) do
         '742×256 (mobile)' => 'horizontal_742x256'
       },
       'advertising' => {
-        '742×256 (все разрешения)' => 'advertising_742x256'
+        '1500×256 (desktop)' => 'advertising_1500x256',
+        '960×256 (планшет)' => 'advertising_960x256',
+        '742×256 (mobile)' => 'advertising_742x256'
       }
     }
 
@@ -86,7 +88,7 @@ Trestle.resource(:home_banners, model: HomeBanner) do
       check_box :active, label: "Активен"
       number_field :position, label: "Позиция слота"
       text_field :slot_key, label: "Slot key", placeholder: "main-beds-1"
-      content_tag :small, "Одинаковый slot_key объединяет desktop/tablet/mobile одного визуального слайда. Для рекламы — отдельный ключ на каждый баннер.", class: "text-muted"
+      content_tag :small, "Одинаковый slot_key объединяет desktop/tablet/mobile одного визуального слайда (включая рекламные).", class: "text-muted"
     end
 
     row do
@@ -312,14 +314,22 @@ Trestle.resource(:home_banners, model: HomeBanner) do
       permitted
     end
 
-    # Shift other visual slots only — same slot_key responsive variants share position.
+    # Shift other visual slots only when creating a brand-new slot.
+    # Adding tablet/mobile for an existing slot_key must not bump neighbors.
     def adjust_positions_on_create
-      other_slots = HomeBanner.where(section: @instance.section)
-                              .where.not(id: @instance.id)
-                              .where.not(slot_key: @instance.slot_key)
-                              .where('position >= ?', @instance.position)
+      existing_slot = HomeBanner.where(section: @instance.section, slot_key: @instance.slot_key)
+                                .where.not(id: @instance.id)
+                                .exists?
 
-      other_slots.update_all('position = position + 1')
+      unless existing_slot
+        other_slots = HomeBanner.where(section: @instance.section)
+                                .where.not(id: @instance.id)
+                                .where.not(slot_key: @instance.slot_key)
+                                .where('position >= ?', @instance.position)
+
+        other_slots.update_all('position = position + 1')
+      end
+
       HomeBanner.where(section: @instance.section, slot_key: @instance.slot_key)
                 .update_all(position: @instance.position)
     end

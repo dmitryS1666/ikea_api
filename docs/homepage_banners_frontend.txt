@@ -5,18 +5,18 @@
 ---------
 GET /api/v1/homepage/slider/main          — главный слайдер
 GET /api/v1/homepage/slider/horizontal    — широкий горизонтальный баннер
-GET /api/v1/homepage/slider/advertising   — рекламные баннеры (по 1 записи = 1 баннер)
+GET /api/v1/homepage/slider/advertising   — рекламные баннеры
 
 Legacy (алиас horizontal):
 GET /api/v1/homepage/slider/banners
 
 Ответ: массив активных баннеров, отсортированных по position ASC
-(внутри слота: desktop → tablet → mobile → all).
+(внутри слота: desktop → tablet → mobile).
 
 Поля attributes:
   - section     — "main" | "horizontal" | "advertising"
   - slot_key    — стабильный id визуального слота (общий для responsive-вариантов)
-  - breakpoint  — "desktop" | "tablet" | "mobile" | "all"
+  - breakpoint  — "desktop" | "tablet" | "mobile" | "all" (all — legacy)
   - variant     — код размера
   - width       — ожидаемая ширина в px
   - height      — ожидаемая высота в px
@@ -29,18 +29,19 @@ GET /api/v1/homepage/slider/banners
 
 Как выбирать картинку
 ---------------------
-Main / horizontal: один визуальный слайд = несколько записей с одним slot_key.
-Группируй строго по slot_key (не по position+link_url) и выбирай по breakpoint:
+Один визуальный слайд = несколько записей с одним slot_key.
+Группируй строго по slot_key и выбирай по breakpoint:
 
-  Breakpoint | Main                         | Horizontal
-  -----------|------------------------------|-----------------------------
-  desktop    | main_1500x516  (1500×516)    | horizontal_1500x256 (1500×256)
-  tablet     | main_960x516   (960×516)     | horizontal_960x256  (960×256)
-  mobile     | main_572x594   (572×594)     | horizontal_742x256  (742×256)
+  Breakpoint | Main                         | Horizontal                  | Advertising
+  -----------|------------------------------|-----------------------------|-----------------------------
+  desktop    | main_1500x516  (1500×516)    | horizontal_1500x256 (1500×256) | advertising_1500x256 (1500×256)
+  tablet     | main_960x516   (960×516)     | horizontal_960x256  (960×256)  | advertising_960x256  (960×256)
+  mobile     | main_572x594   (572×594)     | horizontal_742x256  (742×256)  | advertising_742x256  (742×256)
 
-Advertising: одна запись на баннер, variant advertising_742x256 (742×256),
-breakpoint обычно "all". На desktop (>=1200) показывайте по 2 баннера в ряд;
-на меньших экранах — по 1. Не склеивайте два баннера в одну API-запись.
+Advertising раскладка (после выбора картинки по breakpoint):
+  desktop >= 1200 px: по 2 баннера (слота) в ряд;
+  меньше: по 1.
+Не склеивайте два advertising-слота в одну API-запись.
 
 Фоллбек, если нужного размера нет:
   tablet → desktop → mobile (что есть в ответе по slot_key).
@@ -57,9 +58,8 @@ Scopes:
   - Горизонтальный баннер
   - Рекламные баннеры
 
-На каждый слот main/horizontal создайте 3 записи (desktop/tablet/mobile)
-с одинаковым slot_key, position и ссылкой.
-Для advertising — отдельный slot_key на каждый баннер.
+На каждый слот (включая advertising) создайте 3 записи
+(desktop/tablet/mobile) с одинаковым slot_key, position и ссылкой.
 
 Важно:
   - Текст/кнопка на баннере зашиты в картинку

@@ -13,7 +13,9 @@ class HomeBanner < ApplicationRecord
       'mobile' => 'horizontal_742x256'
     },
     'advertising' => {
-      'all' => 'advertising_742x256'
+      'desktop' => 'advertising_1500x256',
+      'tablet' => 'advertising_960x256',
+      'mobile' => 'advertising_742x256'
     }
   }.freeze
 
@@ -24,6 +26,8 @@ class HomeBanner < ApplicationRecord
     'horizontal_1500x256' => [1500, 256],
     'horizontal_960x256' => [960, 256],
     'horizontal_742x256' => [742, 256],
+    'advertising_1500x256' => [1500, 256],
+    'advertising_960x256' => [960, 256],
     'advertising_742x256' => [742, 256]
   }.freeze
 
@@ -34,7 +38,9 @@ class HomeBanner < ApplicationRecord
     'horizontal_1500x256' => 'desktop',
     'horizontal_960x256' => 'tablet',
     'horizontal_742x256' => 'mobile',
-    'advertising_742x256' => 'all'
+    'advertising_1500x256' => 'desktop',
+    'advertising_960x256' => 'tablet',
+    'advertising_742x256' => 'mobile'
   }.freeze
 
   # Enums — integer values kept for backward compatibility with existing rows.
@@ -52,7 +58,9 @@ class HomeBanner < ApplicationRecord
     horizontal_742x256: 3,
     main_960x516: 4,
     horizontal_960x256: 5,
-    advertising_742x256: 6
+    advertising_742x256: 6,
+    advertising_1500x256: 7,
+    advertising_960x256: 8
   }
 
   enum breakpoint: {
@@ -185,6 +193,9 @@ class HomeBanner < ApplicationRecord
 
   def sync_slot_position
     return if slot_key.blank? || section.blank?
+    # Do not overwrite an explicit position change on update — otherwise the admin
+    # value is immediately reset to the sibling's old position.
+    return if persisted? && will_save_change_to_position?
 
     sibling = HomeBanner.where(section: section, slot_key: slot_key)
                         .where.not(id: id || 0)

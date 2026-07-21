@@ -29,6 +29,29 @@ RSpec.describe HomeBanner, type: :model do
       expect(banner.errors[:variant]).to be_present
     end
 
+    it 'maps advertising tablet variant and breakpoint' do
+      banner = described_class.new(
+        section: :advertising,
+        variant: :advertising_960x256,
+        position: 1,
+        slot_key: 'ads-1',
+        custom_url: '/promo',
+        active: true
+      )
+      banner.valid?
+      expect(banner.breakpoint).to eq('tablet')
+      expect(banner.expected_dimensions).to eq([960, 256])
+    end
+
+    it 'allows all three advertising responsive variants' do
+      expect(described_class::SECTION_VARIANTS['advertising'].keys).to contain_exactly('desktop', 'tablet', 'mobile')
+      expect(described_class::SECTION_VARIANTS['advertising'].values).to contain_exactly(
+        'advertising_1500x256',
+        'advertising_960x256',
+        'advertising_742x256'
+      )
+    end
+
     it 'requires category or custom_url' do
       banner = described_class.new(
         section: :advertising,
@@ -39,6 +62,34 @@ RSpec.describe HomeBanner, type: :model do
       )
       expect(banner).not_to be_valid
       expect(banner.errors[:base].join).to include('категорию или кастомную ссылку')
+    end
+
+    it 'keeps an explicit position change on update for an existing slot' do
+      sibling = described_class.new(
+        section: :main,
+        variant: :main_1500x516,
+        position: 1,
+        slot_key: 'main-test-slot',
+        custom_url: '/a',
+        active: false
+      )
+      sibling.save!(validate: false)
+
+      banner = described_class.new(
+        section: :main,
+        variant: :main_960x516,
+        position: 1,
+        slot_key: 'main-test-slot',
+        custom_url: '/a',
+        active: false
+      )
+      banner.save!(validate: false)
+
+      banner.position = 4
+      banner.valid?
+      expect(banner.position).to eq(4)
+    ensure
+      described_class.where(slot_key: 'main-test-slot').delete_all
     end
   end
 
