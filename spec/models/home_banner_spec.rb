@@ -29,8 +29,22 @@ RSpec.describe HomeBanner, type: :model do
       expect(banner.errors[:variant]).to be_present
     end
 
-    it 'maps advertising tablet variant and breakpoint' do
+    it 'maps advertising desktop to 742×256' do
       banner = described_class.new(
+        section: :advertising,
+        variant: :advertising_742x256,
+        position: 1,
+        slot_key: 'ads-1',
+        custom_url: '/promo',
+        active: true
+      )
+      banner.valid?
+      expect(banner.breakpoint).to eq('desktop')
+      expect(banner.expected_dimensions).to eq([742, 256])
+    end
+
+    it 'maps advertising tablet and mobile to 960×256' do
+      tablet = described_class.new(
         section: :advertising,
         variant: :advertising_960x256,
         position: 1,
@@ -38,17 +52,29 @@ RSpec.describe HomeBanner, type: :model do
         custom_url: '/promo',
         active: true
       )
-      banner.valid?
-      expect(banner.breakpoint).to eq('tablet')
-      expect(banner.expected_dimensions).to eq([960, 256])
+      tablet.valid?
+      expect(tablet.breakpoint).to eq('tablet')
+      expect(tablet.expected_dimensions).to eq([960, 256])
+
+      mobile = described_class.new(
+        section: :advertising,
+        variant: :advertising_mobile_960x256,
+        position: 1,
+        slot_key: 'ads-1',
+        custom_url: '/promo',
+        active: true
+      )
+      mobile.valid?
+      expect(mobile.breakpoint).to eq('mobile')
+      expect(mobile.expected_dimensions).to eq([960, 256])
     end
 
     it 'allows all three advertising responsive variants' do
       expect(described_class::SECTION_VARIANTS['advertising'].keys).to contain_exactly('desktop', 'tablet', 'mobile')
       expect(described_class::SECTION_VARIANTS['advertising'].values).to contain_exactly(
-        'advertising_1500x256',
+        'advertising_742x256',
         'advertising_960x256',
-        'advertising_742x256'
+        'advertising_mobile_960x256'
       )
     end
 

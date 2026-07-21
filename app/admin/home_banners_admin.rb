@@ -78,9 +78,9 @@ Trestle.resource(:home_banners, model: HomeBanner) do
         '742×256 (mobile)' => 'horizontal_742x256'
       },
       'advertising' => {
-        '1500×256 (desktop)' => 'advertising_1500x256',
+        '742×256 (desktop, 2 в ряд)' => 'advertising_742x256',
         '960×256 (планшет)' => 'advertising_960x256',
-        '742×256 (mobile)' => 'advertising_742x256'
+        '960×256 (mobile)' => 'advertising_mobile_960x256'
       }
     }
 

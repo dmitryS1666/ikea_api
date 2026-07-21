@@ -32,19 +32,20 @@ GET /api/v1/homepage/slider/banners
 Один визуальный слайд = несколько записей с одним slot_key.
 Группируй строго по slot_key и выбирай по breakpoint:
 
-  Breakpoint | Main                         | Horizontal                  | Advertising
-  -----------|------------------------------|-----------------------------|-----------------------------
-  desktop    | main_1500x516  (1500×516)    | horizontal_1500x256 (1500×256) | advertising_1500x256 (1500×256)
-  tablet     | main_960x516   (960×516)     | horizontal_960x256  (960×256)  | advertising_960x256  (960×256)
-  mobile     | main_572x594   (572×594)     | horizontal_742x256  (742×256)  | advertising_742x256  (742×256)
+  Breakpoint | Main                         | Horizontal                     | Advertising
+  -----------|------------------------------|--------------------------------|------------------------------------------
+  desktop    | main_1500x516  (1500×516)    | horizontal_1500x256 (1500×256) | advertising_742x256        (742×256)
+  tablet     | main_960x516   (960×516)     | horizontal_960x256  (960×256)  | advertising_960x256        (960×256)
+  mobile     | main_572x594   (572×594)     | horizontal_742x256  (742×256)  | advertising_mobile_960x256 (960×256)
 
-Advertising раскладка (после выбора картинки по breakpoint):
-  desktop >= 1200 px: по 2 баннера (слота) в ряд;
-  меньше: по 1.
+Advertising раскладка:
+  desktop: по 2 баннера (слота) 742×256 в ряд;
+  tablet / mobile: по 1 баннеру 960×256.
 Не склеивайте два advertising-слота в одну API-запись.
 
 Фоллбек, если нужного размера нет:
   tablet → desktop → mobile (что есть в ответе по slot_key).
+Для advertising mobile↔tablet размеры одинаковые (960×256) — можно фоллбечить друг в друга.
 
 Клик: переход на link_url.
 
@@ -60,6 +61,11 @@ Scopes:
 
 На каждый слот (включая advertising) создайте 3 записи
 (desktop/tablet/mobile) с одинаковым slot_key, position и ссылкой.
+
+Advertising размеры в админке:
+  - 742×256 (desktop, 2 в ряд)
+  - 960×256 (планшет)
+  - 960×256 (mobile)
 
 Важно:
   - Текст/кнопка на баннере зашиты в картинку
