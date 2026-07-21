@@ -3,58 +3,64 @@
 
 Эндпоинты
 ---------
-GET /api/v1/homepage/slider/main      — главный слайдер
-GET /api/v1/homepage/slider/banners   — горизонтальный баннер
+GET /api/v1/homepage/slider/main          — главный слайдер
+GET /api/v1/homepage/slider/horizontal    — широкий горизонтальный баннер
+GET /api/v1/homepage/slider/advertising   — рекламные баннеры (по 1 записи = 1 баннер)
 
-Ответ: массив баннеров (активные, отсортированы по position).
+Legacy (алиас horizontal):
+GET /api/v1/homepage/slider/banners
 
-Поля attributes у баннера:
-  - section     — "main" | "secondary"
-  - variant     — код размера (см. таблицу ниже)
+Ответ: массив активных баннеров, отсортированных по position ASC
+(внутри слота: desktop → tablet → mobile → all).
+
+Поля attributes:
+  - section     — "main" | "horizontal" | "advertising"
+  - slot_key    — стабильный id визуального слота (общий для responsive-вариантов)
+  - breakpoint  — "desktop" | "tablet" | "mobile" | "all"
+  - variant     — код размера
   - width       — ожидаемая ширина в px
   - height      — ожидаемая высота в px
-  - position    — порядок в слайдере
+  - position    — порядок слота в блоке
   - active      — всегда true в этом API
   - image_url   — URL картинки
-  - link_url    — итоговая ссылка (категория или custom_url)
+  - link_url    — итоговая ссылка (custom_url или /categories/:ikea_id)
+  - updated_at
 
 
-Как выбирать картинку по разрешению
------------------------------------
-Один визуальный слот = несколько записей с разными размерами
-(одна и та же ссылка, разные variant / width).
+Как выбирать картинку
+---------------------
+Main / horizontal: один визуальный слайд = несколько записей с одним slot_key.
+Группируй строго по slot_key (не по position+link_url) и выбирай по breakpoint:
 
-Группируй баннеры одного слота (например по link_url + position)
-и выбирай картинку под текущий breakpoint:
+  Breakpoint | Main                         | Horizontal
+  -----------|------------------------------|-----------------------------
+  desktop    | main_1500x516  (1500×516)    | horizontal_1500x256 (1500×256)
+  tablet     | main_960x516   (960×516)     | horizontal_960x256  (960×256)
+  mobile     | main_572x594   (572×594)     | horizontal_742x256  (742×256)
 
-  Breakpoint | Main (слайдер)              | Secondary (горизонтальный)
-  -----------|-----------------------------|---------------------------
-  Desktop    | main_1500x516  (1500×516)   | secondary_1500x256 (1500×256)
-  Tablet     | main_960x516   (960×516)    | secondary_960x256  (960×256)
-  Mobile     | main_572x594   (572×594)    | secondary_742x256  (742×256)
-
-Рекомендация: ориентируйся на width / height, а не парси имя variant.
+Advertising: одна запись на баннер, variant advertising_742x256 (742×256),
+breakpoint обычно "all". На desktop (>=1200) показывайте по 2 баннера в ряд;
+на меньших экранах — по 1. Не склеивайте два баннера в одну API-запись.
 
 Фоллбек, если нужного размера нет:
-  tablet → desktop → mobile (что есть в ответе).
+  tablet → desktop → mobile (что есть в ответе по slot_key).
 
-Клик по баннеру: переход на link_url.
+Клик: переход на link_url.
 
 
-Настройка в админке
--------------------
-Раздел: «Слайдер на главной» (/admin/home_banners)
+Админка
+-------
+Раздел: «Баннеры на главной» (/admin/home_banners)
 
-На каждый слот создай 3 баннера — desktop / планшет / mobile:
+Scopes:
+  - Главный слайдер
+  - Горизонтальный баннер
+  - Рекламные баннеры
 
-  1. Секция: «Главный баннер» или «Горизонтальный баннер»
-  2. Вариант размера — нужный breakpoint
-  3. Картинка строго под размер выбранного варианта
-  4. Ссылка: категория ИЛИ кастомный URL
-  5. Одинаковый position у трёх размеров одного слота
-  6. Галочка «Активен»
+На каждый слот main/horizontal создайте 3 записи (desktop/tablet/mobile)
+с одинаковым slot_key, position и ссылкой.
+Для advertising — отдельный slot_key на каждый баннер.
 
 Важно:
   - Текст/кнопка на баннере зашиты в картинку
-    (отдельных полей title / subtitle / button_text в API нет)
-  - description в админке — только служебные заметки, на фронт не отдаётся
+  - description в админке — только служебные заметки

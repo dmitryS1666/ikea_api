@@ -11,27 +11,27 @@
             <dd class="col-sm-9">
               <% case @banner.section %>
               <% when 'main' %>
-                <span class="badge badge-info">Главный баннер</span>
-              <% when 'secondary' %>
+                <span class="badge badge-info">Главный слайдер</span>
+              <% when 'horizontal' %>
                 <span class="badge badge-success">Горизонтальный баннер</span>
+              <% when 'advertising' %>
+                <span class="badge badge-warning">Рекламный баннер</span>
               <% end %>
             </dd>
 
+            <dt class="col-sm-3">Slot key:</dt>
+            <dd class="col-sm-9"><code><%= @banner.slot_key %></code></dd>
+
+            <dt class="col-sm-3">Breakpoint:</dt>
+            <dd class="col-sm-9"><%= @banner.breakpoint %></dd>
+
             <dt class="col-sm-3">Вариант размера:</dt>
             <dd class="col-sm-9">
-              <% case @banner.variant %>
-              <% when 'main_1500x516' %>
-                1500×516 (desktop)
-              <% when 'main_960x516' %>
-                960×516 (планшет)
-              <% when 'main_572x594' %>
-                572×594 (mobile)
-              <% when 'secondary_1500x256' %>
-                1500×256 (desktop)
-              <% when 'secondary_960x256' %>
-                960×256 (планшет)
-              <% when 'secondary_742x256' %>
-                742×256 (mobile)
+              <% dims = @banner.expected_dimensions %>
+              <% if dims %>
+                <%= dims[0] %>×<%= dims[1] %> (<%= @banner.variant %>)
+              <% else %>
+                <%= @banner.variant %>
               <% end %>
             </dd>
 
@@ -82,12 +82,12 @@
         </div>
         <div class="card-body" style="text-align: center;">
           <% if @banner.image.attached? %>
-            <%= image_tag Rails.application.routes.url_helpers.rails_blob_path(@banner.image, only_path: true), 
-                          class: "img-fluid", 
+            <%= image_tag Rails.application.routes.url_helpers.rails_blob_path(@banner.image, only_path: true),
+                          class: "img-fluid",
                           style: "max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px; padding: 5px;" %>
             <p class="mt-3">
               <small class="text-muted">
-                Размер: 
+                Размер:
                 <% begin %>
                   <% @banner.image.blob.open do |file| %>
                     <% img = MiniMagick::Image.open(file.path) %>

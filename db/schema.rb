@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_21_002650) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_21_124000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -452,8 +452,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_21_002650) do
     t.datetime "updated_at", null: false
     t.text "description"
     t.string "custom_url"
+    t.string "slot_key", null: false
+    t.integer "breakpoint", default: 0, null: false
     t.index ["category_id"], name: "index_home_banners_on_category_id"
     t.index ["section", "active", "position"], name: "index_home_banners_on_section_and_active_and_position"
+    t.index ["section", "active", "slot_key", "breakpoint"], name: "index_home_banners_unique_active_slot_breakpoint", unique: true, where: "(active = true)"
+    t.index ["section", "slot_key", "breakpoint"], name: "index_home_banners_on_section_slot_key_breakpoint"
   end
 
   create_table "home_slider_banners", force: :cascade do |t|

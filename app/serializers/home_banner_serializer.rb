@@ -1,11 +1,12 @@
 class HomeBannerSerializer
   include FastJsonapi::ObjectSerializer
-  
-  attributes :section, 
-             :variant, 
+
+  attributes :section,
+             :slot_key,
+             :breakpoint,
+             :variant,
              :position,
              :active,
-             :created_at,
              :updated_at
 
   attribute :image_url do |banner|
@@ -15,7 +16,7 @@ class HomeBannerSerializer
   rescue
     nil
   end
-  
+
   attribute :link_url do |banner|
     banner.final_link
   end

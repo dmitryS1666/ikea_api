@@ -2,13 +2,12 @@ module Api
   module V1
     class HomepageController < ApplicationController
       def slider_main
-        banners = HomeBanner.active
-                           .main
-                           .by_position
-                           .includes(:category, :image_attachment)
+        banners = homepage_banners_for(:main)
 
         global_seo = GlobalSeoSetting.find_by(target_type: 'home')
         site_url = public_site_url
+
+        set_homepage_banners_cache_headers!
 
         render json: HomeBannerSerializer.new(banners, {
           meta: {
@@ -27,13 +26,19 @@ module Api
         })
       end
 
-      def slider_banners
-        banners = HomeBanner.active
-                           .secondary
-                           .by_position
-                           .includes(:category, :image_attachment)
+      def slider_horizontal
+        set_homepage_banners_cache_headers!
+        render json: HomeBannerSerializer.new(homepage_banners_for(:horizontal))
+      end
 
-        render json: HomeBannerSerializer.new(banners)
+      def slider_advertising
+        set_homepage_banners_cache_headers!
+        render json: HomeBannerSerializer.new(homepage_banners_for(:advertising))
+      end
+
+      # Legacy alias — same payload as /homepage/slider/horizontal
+      def slider_banners
+        slider_horizontal
       end
 
       def recommendations
@@ -57,6 +62,18 @@ module Api
       end
 
       private
+
+      def homepage_banners_for(section)
+        HomeBanner.active
+                  .public_send(section)
+                  .by_position
+                  .includes(:category, :image_attachment)
+      end
+
+      def set_homepage_banners_cache_headers!
+        response.set_header('Cache-Control', 'private, no-cache, must-revalidate')
+        response.set_header('X-Home-Banners-Version', HomeBanner.cache_version.to_s)
+      end
 
       def per_page
         value = params[:per_page].to_i

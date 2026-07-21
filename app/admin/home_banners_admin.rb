@@ -1,13 +1,14 @@
 Trestle.resource(:home_banners, model: HomeBanner) do
   menu do
-    item :home_banners, icon: "fa fa-images", group: :content, label: "Слайдер на главной",
+    item :home_banners, icon: "fa fa-images", group: :content, label: "Баннеры на главной",
                         if: -> { current_user&.allowed_for_admin_resource?(:home_banners, :index) }
   end
 
   scopes do
     scope :all, default: true, label: "Все"
-    scope :main, -> { HomeBanner.main }, label: "Главные"
-    scope :secondary, -> { HomeBanner.secondary }, label: "Вторичные"
+    scope :main, -> { HomeBanner.main }, label: "Главный слайдер"
+    scope :horizontal, -> { HomeBanner.horizontal }, label: "Горизонтальный баннер"
+    scope :advertising, -> { HomeBanner.advertising }, label: "Рекламные баннеры"
     scope :active, -> { HomeBanner.active }, label: "Активные"
   end
 
@@ -23,30 +24,28 @@ Trestle.resource(:home_banners, model: HomeBanner) do
     column :section do |banner|
       case banner.section
       when 'main'
-        status_tag('Главный баннер', :info)
-      when 'secondary'
-        status_tag('Горизонтальный баннер', :success)
+        status_tag('Главный слайдер', :info)
+      when 'horizontal'
+        status_tag('Горизонтальный', :success)
+      when 'advertising'
+        status_tag('Рекламный', :warning)
       else
         banner.section
       end
     end
-    column :variant do |banner|
-      case banner.variant
-      when 'main_1500x516'
-        '1500×516 (desktop)'
-      when 'main_960x516'
-        '960×516 (планшет)'
-      when 'main_572x594'
-        '572×594 (mobile)'
-      when 'secondary_1500x256'
-        '1500×256 (desktop)'
-      when 'secondary_960x256'
-        '960×256 (планшет)'
-      when 'secondary_742x256'
-        '742×256 (mobile)'
-      else
-        banner.variant
+    column :slot_key, label: "Slot key"
+    column :breakpoint do |banner|
+      case banner.breakpoint
+      when 'desktop' then 'Desktop'
+      when 'tablet' then 'Tablet'
+      when 'mobile' then 'Mobile'
+      when 'all' then 'All'
+      else banner.breakpoint
       end
+    end
+    column :variant do |banner|
+      dims = banner.expected_dimensions
+      dims ? "#{dims[0]}×#{dims[1]}" : banner.variant
     end
     column :description, link: true
     column :category do |banner|
@@ -55,7 +54,7 @@ Trestle.resource(:home_banners, model: HomeBanner) do
     column :custom_url
     column :position, sortable: true
     column :active do |banner|
-      status_tag(banner.active? ? 'Да' : 'Нет', 
+      status_tag(banner.active? ? 'Да' : 'Нет',
                  banner.active? ? :success : :danger)
     end
     column :created_at, align: :center
@@ -73,16 +72,21 @@ Trestle.resource(:home_banners, model: HomeBanner) do
         '960×516 (планшет)' => 'main_960x516',
         '572×594 (mobile)' => 'main_572x594'
       },
-      'secondary' => {
-        '1500×256 (desktop)' => 'secondary_1500x256',
-        '960×256 (планшет)' => 'secondary_960x256',
-        '742×256 (mobile)' => 'secondary_742x256'
+      'horizontal' => {
+        '1500×256 (desktop)' => 'horizontal_1500x256',
+        '960×256 (планшет)' => 'horizontal_960x256',
+        '742×256 (mobile)' => 'horizontal_742x256'
+      },
+      'advertising' => {
+        '742×256 (все разрешения)' => 'advertising_742x256'
       }
     }
 
     sidebar do
       check_box :active, label: "Активен"
-      number_field :position, label: "Позиция"
+      number_field :position, label: "Позиция слота"
+      text_field :slot_key, label: "Slot key", placeholder: "main-beds-1"
+      content_tag :small, "Одинаковый slot_key объединяет desktop/tablet/mobile одного визуального слайда. Для рекламы — отдельный ключ на каждый баннер.", class: "text-muted"
     end
 
     row do
@@ -90,12 +94,13 @@ Trestle.resource(:home_banners, model: HomeBanner) do
         row do
           col(sm: 6) do
             select :section, {
-              'Главный баннер' => 'main',
-              'Горизонтальный баннер' => 'secondary'
+              'Главный слайдер' => 'main',
+              'Горизонтальный баннер' => 'horizontal',
+              'Рекламные баннеры' => 'advertising'
             }, label: "Секция", html: { id: "home_banner_section", data: { variants: section_variants.to_json } }
           end
           col(sm: 6) do
-            current_section = banner.section.presence || (banner.persisted? ? banner.section : 'main')
+            current_section = banner.section.presence || 'main'
             variant_options = section_variants[current_section] || section_variants['main']
 
             select :variant, variant_options, { include_blank: false }, label: "Вариант размера", html: { id: "home_banner_variant", data: { selected: banner.variant } }
@@ -103,7 +108,6 @@ Trestle.resource(:home_banners, model: HomeBanner) do
         end
         row do
           col(sm: 6) do
-            # Выпадающий список категорий (1 и 2 уровень)
             categories = Category.active.order(:name).map do |cat|
               name = cat.translated_name.presence || cat.name
               level_indicator = cat.is_important || (cat.parent_ids.blank? || (cat.parent_ids.is_a?(Array) && cat.parent_ids.empty?)) ? "★ " : "  "
@@ -112,7 +116,7 @@ Trestle.resource(:home_banners, model: HomeBanner) do
             select :category_id, categories, { include_blank: 'Выберите категорию...' }, label: "Категория"
           end
           col(sm: 6) do
-            text_field :custom_url, label: "Кастомная ссылка (приоритетнее категории)", placeholder: "/search?q=table"
+            text_field :custom_url, label: "Кастомная ссылка (приоритетнее категории)", placeholder: "/catalog/beds или https://..."
           end
         end
         row do
@@ -121,7 +125,6 @@ Trestle.resource(:home_banners, model: HomeBanner) do
           end
         end
       end
-
 
       col(sm: 6) do
         concat(content_tag(:script, type: "text/javascript") do
@@ -147,23 +150,23 @@ Trestle.resource(:home_banners, model: HomeBanner) do
                   if (value === prevValue) {
                     option.selected = true;
                   }
-                
+
                   variantSelect.appendChild(option);
                 });
-                
+
                 if (!variantSelect.value && variantSelect.options.length) {
                   variantSelect.selectedIndex = 0;
                 }
               }
-            
+
               sectionSelect.addEventListener("change", function() {
                 rebuildOptions();
               });
-            
+
               function init() {
                 rebuildOptions();
               }
-            
+
               document.addEventListener("turbo:load", init);
               if (document.readyState === "loading") {
                 document.addEventListener("DOMContentLoaded", init);
@@ -192,10 +195,10 @@ Trestle.resource(:home_banners, model: HomeBanner) do
               end
               content.html_safe
             end)
-          
+
             file_field :image, label: "Изображение"
             content_tag :small, "Разрешены: WebP, AVIF, PNG, JPEG. При сохранении автоматически конвертируется в WebP и сжимается до ~200KB. Размер в пикселях должен соответствовать выбранному варианту.", class: "text-muted"
-          
+
             if banner.variant.present?
               expected = banner.expected_dimensions
               if expected
@@ -204,29 +207,28 @@ Trestle.resource(:home_banners, model: HomeBanner) do
                 end
               end
             end
-          
-            # JavaScript для предпросмотра изображения
+
             concat(content_tag(:script, type: "text/javascript") do
               raw <<-JS.strip_heredoc
                 (function() {
                   function initImagePreview() {
                     var fileInput = document.querySelector('input[type="file"][name*="[image]"]');
                     if (!fileInput) return;
-            
+
                     var preview = document.getElementById('image-preview');
                     var container = document.getElementById('new-image-preview');
                     var currentPreview = document.querySelector('.current-image-preview');
-            
+
                     fileInput.addEventListener('change', function(e) {
                       if (e.target.files && e.target.files[0]) {
                         var reader = new FileReader();
-            
+
                         reader.onload = function(event) {
                           if (preview) preview.src = event.target.result;
                           if (container) container.style.display = 'block';
                           if (currentPreview) currentPreview.style.display = 'none';
                         };
-                          
+
                         reader.readAsDataURL(e.target.files[0]);
                       } else {
                         if (container) container.style.display = 'none';
@@ -234,7 +236,7 @@ Trestle.resource(:home_banners, model: HomeBanner) do
                       }
                     });
                   }
-                
+
                   document.addEventListener('turbo:load', initImagePreview);
                   if (document.readyState === 'loading') {
                     document.addEventListener('DOMContentLoaded', initImagePreview);
@@ -257,6 +259,7 @@ Trestle.resource(:home_banners, model: HomeBanner) do
         adjust_positions_on_create
         redirect_to admin.instance_path(@instance), notice: "Баннер успешно создан"
       else
+        flash.now[:error] = @instance.errors.full_messages.to_sentence
         render :new
       end
     end
@@ -265,14 +268,15 @@ Trestle.resource(:home_banners, model: HomeBanner) do
       @instance = admin.find_instance(params)
       old_position = @instance.position
       old_section = @instance.section
-      
+      old_slot_key = @instance.slot_key
+
       if @instance.update(home_banner_params)
-        # Adjust positions if position or section changed
-        if old_position != @instance.position || old_section != @instance.section
-          adjust_positions_on_update(@instance, old_position, old_section)
+        if old_position != @instance.position || old_section != @instance.section || old_slot_key != @instance.slot_key
+          adjust_positions_on_update(@instance, old_position, old_section, old_slot_key)
         end
         redirect_to admin.instance_path(@instance), notice: "Баннер успешно обновлен"
       else
+        flash.now[:error] = @instance.errors.full_messages.to_sentence
         render :edit
       end
     end
@@ -283,11 +287,18 @@ Trestle.resource(:home_banners, model: HomeBanner) do
     end
 
     private
+
     def home_banner_params
-      permitted = params.require(:home_banner).permit(
-        :section, :variant, :description, :category_id, :custom_url, :position, :active, :image
+      normalize_home_banner_params(
+        params.require(:home_banner).permit(
+          :section, :variant, :slot_key, :description, :category_id, :custom_url, :position, :active, :image
+        )
       )
+    end
+
+    def normalize_home_banner_params(permitted)
       permitted[:category_id] = nil if permitted[:category_id].blank?
+      permitted[:slot_key] = permitted[:slot_key].to_s.strip.presence if permitted.key?(:slot_key)
       if permitted.key?(:active)
         permitted[:active] = case permitted[:active]
         when "1", "true", true
@@ -301,49 +312,55 @@ Trestle.resource(:home_banners, model: HomeBanner) do
       permitted
     end
 
-
+    # Shift other visual slots only — same slot_key responsive variants share position.
     def adjust_positions_on_create
-      # If position is taken, shift others up
-      same_section_banners = HomeBanner.where(section: @instance.section)
-                                       .where.not(id: @instance.id)
-                                       .where('position >= ?', @instance.position)
-      
-      same_section_banners.update_all('position = position + 1')
+      other_slots = HomeBanner.where(section: @instance.section)
+                              .where.not(id: @instance.id)
+                              .where.not(slot_key: @instance.slot_key)
+                              .where('position >= ?', @instance.position)
+
+      other_slots.update_all('position = position + 1')
+      HomeBanner.where(section: @instance.section, slot_key: @instance.slot_key)
+                .update_all(position: @instance.position)
     end
 
-    def adjust_positions_on_update(banner, old_position, old_section)
+    def adjust_positions_on_update(banner, old_position, old_section, old_slot_key)
       new_position = banner.position
-      same_section_banners = HomeBanner.where(section: banner.section)
-                                       .where.not(id: banner.id)
-      
-      if old_section != banner.section
-        # Section changed - adjust positions in both sections
-        # Shift down in old section (close gap left by moving banner)
+
+      if old_section != banner.section || old_slot_key != banner.slot_key
         HomeBanner.where(section: old_section)
+                  .where.not(slot_key: old_slot_key)
                   .where('position > ?', old_position)
                   .update_all('position = position - 1')
-        # Shift up in new section (make room for moved banner)
-        same_section_banners.where('position >= ?', new_position)
-                           .update_all('position = position + 1')
+
+        HomeBanner.where(section: banner.section)
+                  .where.not(id: banner.id)
+                  .where.not(slot_key: banner.slot_key)
+                  .where('position >= ?', new_position)
+                  .update_all('position = position + 1')
       elsif new_position > old_position
-        # Moving down - shift banners in between up
-        same_section_banners.where('position > ? AND position <= ?', old_position, new_position)
-                           .update_all('position = position - 1')
+        HomeBanner.where(section: banner.section)
+                  .where.not(slot_key: banner.slot_key)
+                  .where('position > ? AND position <= ?', old_position, new_position)
+                  .update_all('position = position - 1')
       elsif new_position < old_position
-        # Moving up - shift banners in between down
-        same_section_banners.where('position >= ? AND position < ?', new_position, old_position)
-                           .update_all('position = position + 1')
+        HomeBanner.where(section: banner.section)
+                  .where.not(slot_key: banner.slot_key)
+                  .where('position >= ? AND position < ?', new_position, old_position)
+                  .update_all('position = position + 1')
       end
+
+      HomeBanner.where(section: banner.section, slot_key: banner.slot_key)
+                .update_all(position: new_position)
     end
   end
 
   params do |params|
     permitted = params.require(:home_banner).permit(
-      :section, :variant, :description, :category_id, :custom_url, :position, :active, :image
+      :section, :variant, :slot_key, :description, :category_id, :custom_url, :position, :active, :image
     )
-    # Normalize empty category_id to nil
     permitted[:category_id] = nil if permitted[:category_id].blank?
-    # Normalize active checkbox - Trestle sends "1" or "0" as string, or true/false
+    permitted[:slot_key] = permitted[:slot_key].to_s.strip.presence if permitted.key?(:slot_key)
     if permitted.key?(:active)
       permitted[:active] = case permitted[:active]
       when "1", "true", true

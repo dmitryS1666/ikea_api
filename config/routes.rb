@@ -136,6 +136,9 @@ Rails.application.routes.draw do
 
       # Homepage
       get 'homepage/slider/main', to: 'homepage#slider_main'
+      get 'homepage/slider/horizontal', to: 'homepage#slider_horizontal'
+      get 'homepage/slider/advertising', to: 'homepage#slider_advertising'
+      # Legacy alias for horizontal banners
       get 'homepage/slider/banners', to: 'homepage#slider_banners'
       get 'homepage/recommendations', to: 'homepage#recommendations'
 

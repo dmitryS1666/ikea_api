@@ -92,7 +92,7 @@ en:
         favorites: { label: "Избранное" }
         feed_setting: { label: "Настройки фида" }
         global_seo_settings: { label: "Глобальные SEO настройки" }
-        home_banners: { label: "Слайдер на главной" }
+        home_banners: { label: "Баннеры на главной" }
         orders: { label: "Заказы" }
         parser_control: { label: "Управление парсером" }
         phone_verification_requests: { label: "Запросы верификации" }
@@ -216,6 +216,8 @@ en:
       home_banner:
         section: "Секция"
         variant: "Размер"
+        slot_key: "Slot key"
+        breakpoint: "Breakpoint"
         description: "Описание"
         category_id: "Категория"
         custom_url: "Кастомная ссылка"
