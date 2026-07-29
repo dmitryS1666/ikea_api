@@ -1,6 +1,16 @@
-# Сервис для работы с API Национального банка Республики Беларусь
+# Сервис для работы с API Национального банка Республики Беларусь.
+# Таймауты намеренно короткие: вызов идёт из request path при расчёте цен.
 class NbrbApiService
-  BASE_URL = 'https://www.nbrb.by/api/exrates/rates'.freeze
+  BASE_URL = "https://www.nbrb.by/api/exrates/rates".freeze
+  OPEN_TIMEOUT = 2
+  READ_TIMEOUT = 3
+
+  CURRENCY_IDS = {
+    "USD" => 431,
+    "EUR" => 451,
+    "PLN" => 452,
+    "RUB" => 456
+  }.freeze
 
   # Получить курс валюты по коду (USD, EUR, PLN и т.д.)
   # @param currency_code [String] Код валюты (USD, EUR, PLN)
@@ -8,41 +18,39 @@ class NbrbApiService
   # @return [Hash, nil] Информация о курсе или nil при ошибке
   def self.get_rate(currency_code, date = nil)
     date ||= Date.today
-    
-    # Коды валют в API НБ РБ (актуальные ID на 2025 год)
-    currency_ids = {
-      'USD' => 431,
-      'EUR' => 451,
-      'PLN' => 452,
-      'RUB' => 456
-    }
-    
-    currency_id = currency_ids[currency_code.upcase]
+    code = currency_code.to_s.upcase
+
+    currency_id = CURRENCY_IDS[code]
     return nil unless currency_id
-    
+
     url = "#{BASE_URL}/#{currency_id}?ondate=#{date.strftime('%Y-%m-%d')}"
-    
+
     begin
-      response = HTTParty.get(url, timeout: 10)
-      
+      response = HTTParty.get(
+        url,
+        open_timeout: OPEN_TIMEOUT,
+        read_timeout: READ_TIMEOUT,
+        timeout: READ_TIMEOUT
+      )
+
       if response.success?
         data = JSON.parse(response.body)
         {
-          currency_code: currency_code.upcase,
-          date: Date.parse(data['Date']),
-          rate: data['Cur_OfficialRate'].to_f,
-          scale: data['Cur_Scale'].to_i
+          currency_code: code,
+          date: Date.parse(data["Date"]),
+          rate: data["Cur_OfficialRate"].to_f,
+          scale: data["Cur_Scale"].to_i
         }
       else
         Rails.logger.error "NBRB API error: #{response.code} - #{response.body}"
         nil
       end
-    rescue => e
+    rescue StandardError => e
       Rails.logger.error "NBRB API exception: #{e.class} - #{e.message}"
       nil
     end
   end
-  
+
   # Получить курс валюты с учетом масштаба (например, для PLN курс на 10 единиц)
   # @param currency_code [String] Код валюты
   # @param date [Date, nil] Дата курса
@@ -50,11 +58,10 @@ class NbrbApiService
   def self.get_rate_per_unit(currency_code, date = nil)
     rate_data = get_rate(currency_code, date)
     return nil unless rate_data
-    
-    # Курс уже в расчете на scale единиц, делим на scale
+
     rate_data[:rate] / rate_data[:scale].to_f
   end
-  
+
   # Получить курсы нескольких валют одновременно
   # @param currency_codes [Array<String>] Массив кодов валют
   # @param date [Date, nil] Дата курса
@@ -63,9 +70,8 @@ class NbrbApiService
     result = {}
     currency_codes.each do |code|
       rate = get_rate_per_unit(code, date)
-      result[code.upcase] = rate if rate
+      result[code.to_s.upcase] = rate if rate
     end
     result
   end
 end
-
