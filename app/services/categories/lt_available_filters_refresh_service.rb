@@ -6,7 +6,7 @@ module Categories
   # Обновляет Category#available_filters из LT-поиска IKEA.
   # LT выбран как приоритетный источник, потому что он возвращает русские подписи фильтров/значений.
   class LtAvailableFiltersRefreshService
-    SEARCH_URL = "https://sik.search.blue.cdtapps.com/lt/lt/search?c=listaf&v=20241114".freeze
+    SEARCH_URL = "https://sik.search.blue.cdtapps.com/lt/ru/search?c=listaf&v=20241114".freeze
     PAGE_SIZE = 24
 
     REQUIRED_PARAMETERS = Categories::FilterPolicy::REQUIRED_PARAMETERS
@@ -128,7 +128,7 @@ module Categories
       raise ArgumentError, "category is required" unless @category
 
       lt_filters = fetch_lt_filters
-      merged_filters = merge_with_existing_required_filters(lt_filters)
+      merged_filters = merge_with_local_filters(lt_filters)
       changed = !filters_equal?(@category.available_filters, merged_filters)
 
       @category.update!(available_filters: merged_filters) if changed
@@ -221,8 +221,9 @@ module Categories
     def looks_like_filter?(hash)
       h = hash.stringify_keys
       raw_parameter = h["parameter"] || h["filterParameter"] || h["filterId"] || h["id"]
-      values = h["values"] || h["options"] || h["items"] || h["filterValues"]
-      values.is_a?(Array) && values.any? && (raw_parameter.present? || filter_name(h).present?)
+      values = raw_filter_values(h)
+      boolean = h["type"].to_s.upcase.include?("BOOLEAN")
+      (values.any? || boolean) && (raw_parameter.present? || filter_name(h).present?)
     end
 
     def normalize_required_filters(raw_filters)
@@ -234,12 +235,15 @@ module Categories
         next if parameter.blank?
         next unless Categories::FilterPolicy.allowed?(parameter, category: @category)
 
-        values = normalize_values(h["values"] || h["options"] || h["items"] || h["filterValues"], parameter: parameter)
+        values = normalize_values(raw_filter_values(h), parameter: parameter)
+        if values.blank? && h["type"].to_s.upcase.include?("BOOLEAN")
+          values = [{ "id" => "true", "name" => filter_name(h).presence || parameter }]
+        end
         next if values.blank? && !REQUIRED_PARAMETERS.key?(parameter)
 
         by_parameter[parameter] ||= {
           "parameter" => parameter,
-          "name" => FILTER_PARAMETERS.fetch(parameter),
+          "name" => filter_title(parameter, filter_name(h)),
           "values" => []
         }
 
@@ -251,15 +255,27 @@ module Categories
 
     def normalize_parameter(raw_parameter, raw_name)
       parameter = raw_parameter.to_s.strip
+      return parameter if parameter.start_with?("f-")
+
       aliased = PARAMETER_ALIASES[parameter]
       return aliased if aliased.present?
-      return parameter if FILTER_PARAMETERS.key?(parameter) || Categories::FilterPolicy.excluded?(parameter, category: @category)
 
       NAME_TO_PARAMETER[normalize_text(raw_name)]
     end
 
     def filter_name(hash)
       hash["name"] || hash["label"] || hash["title"] || hash.dig("text", "title")
+    end
+
+    def raw_filter_values(hash)
+      direct = hash["values"] || hash["options"] || hash["items"] || hash["filterValues"]
+      typed = Array(hash["types"]).flat_map do |type|
+        next [] unless type.is_a?(Hash)
+
+        h = type.stringify_keys
+        h["values"] || h["options"] || h["items"] || h["filterValues"] || []
+      end
+      Array(direct) + typed
     end
 
     def normalize_values(raw_values, parameter: nil)
@@ -269,30 +285,27 @@ module Categories
         next unless raw.is_a?(Hash)
 
         h = raw.stringify_keys
+        next if h.key?("count") && h["count"].to_i <= 0
+
         id = h["id"].to_s.strip.presence || h["value"].to_s.strip.presence || h["filterValue"].to_s.strip.presence
         name = h["name"].to_s.strip.presence || h["label"].to_s.strip.presence || h["title"].to_s.strip.presence || id
         next if id.blank? || name.blank?
 
-        { "id" => id, "name" => clean_value_name(name) }
+        value = { "id" => id, "name" => clean_value_name(name) }
+        value["hex"] = h["hex"].to_s if h["hex"].present?
+        value["count"] = h["count"].to_i if h.key?("count")
+        value
       end.uniq { |value| [value["id"], normalize_text(value["name"])] }
     end
 
-    def merge_with_existing_required_filters(lt_filters)
+    def merge_with_local_filters(lt_filters)
       by_parameter = normalize_filters(@category.available_filters)
-        .select { |filter| Categories::FilterPolicy.allowed?(filter["parameter"].to_s, category: @category) }
+        .select { |filter| Categories::FilterPolicy.local?(filter["parameter"].to_s) }
         .index_by { |filter| filter["parameter"].to_s }
 
       lt_filters.each do |filter|
         parameter = filter["parameter"].to_s
-        existing = by_parameter[parameter]
-        by_parameter[parameter] = if existing
-          existing.merge(
-            "name" => FILTER_PARAMETERS.fetch(parameter),
-            "values" => merge_values(Array(existing["values"]), Array(filter["values"]))
-          )
-        else
-          filter
-        end
+        by_parameter[parameter] = filter
       end
 
       REQUIRED_PARAMETERS.each do |parameter, title|
@@ -317,13 +330,13 @@ module Categories
       Array(existing_values).concat(Array(incoming_values)).each do |raw|
         next unless raw.is_a?(Hash)
 
-        value = raw.stringify_keys.slice("id", "name", "label")
+        value = raw.stringify_keys.slice("id", "name", "label", "hex", "count")
         value["id"] = value["id"].to_s.strip
         value["name"] = clean_value_name(value["name"].presence || value["label"].presence || value["id"])
         next if value["id"].blank? || value["name"].blank?
 
         key = value_key(value)
-        values[key] ||= value.slice("id", "name")
+        values[key] ||= value.slice("id", "name", "hex", "count").compact
       end
 
       values.values.sort_by { |value| normalize_text(value["name"]) }
@@ -357,7 +370,7 @@ module Categories
 
         {
           "parameter" => parameter,
-          "name" => FILTER_PARAMETERS.fetch(parameter),
+          "name" => filter_title(parameter, h["name"]),
           "values" => normalize_values(h["values"], parameter: parameter)
         }
       end
@@ -372,7 +385,9 @@ module Categories
         {
           "parameter" => filter["parameter"],
           "name" => filter["name"],
-          "values" => Array(filter["values"]).sort_by { |v| [v["id"].to_s, v["name"].to_s] }
+          "values" => Array(filter["values"])
+            .map { |value| value.slice("id", "name", "hex", "count").compact }
+            .sort_by { |v| [v["id"].to_s, v["name"].to_s] }
         }
       end.to_json
     end
@@ -387,6 +402,12 @@ module Categories
       }
       replacements.each { |from, to| text = text.tr(from, to) }
       text.tr("\u00A0", " ").squeeze(" ").strip
+    end
+
+    def filter_title(parameter, upstream_name = nil)
+      upstream_name.to_s.strip.presence ||
+        Categories::FilterPolicy.display_name(parameter).presence ||
+        parameter
     end
   end
 end

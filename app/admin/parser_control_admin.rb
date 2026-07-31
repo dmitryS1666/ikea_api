@@ -67,6 +67,12 @@ Trestle.resource :parser_control, model: ParserControl do
         else
           payload = {}
 
+          if task_type == "refresh_category_catalog"
+            rc = parse_category_filters_one_extra(extra_data)
+            payload[:ikea_id] = rc[:ikea_id]
+            payload[:threads] = threads
+          end
+
           if task_type == "refresh_category_lt" || task_type == "harvest_category_related_products"
             rc = parse_refresh_category_lt_extra(extra_data)
             if rc[:ikea_id].blank?
@@ -203,7 +209,13 @@ Trestle.resource :parser_control, model: ParserControl do
           )
 
           # Передаем task_id в job и сохраняем job_id
-          job = if task_type == 'refresh_category_lt'
+          job = if task_type == 'refresh_category_catalog'
+                  job_class.perform_later(
+                    task_id: task.id,
+                    ikea_id: payload[:ikea_id].presence,
+                    threads: threads
+                  )
+                elsif task_type == 'refresh_category_lt'
                   job_class.perform_later(task_id: task.id, ikea_id: payload[:ikea_id].to_s, threads: threads)
                 elsif task_type == 'refresh_product_lt'
                   job_class.perform_later(task_id: task.id, sku: payload[:sku].to_s)
@@ -703,6 +715,8 @@ Trestle.resource :parser_control, model: ParserControl do
         RecoverMissingPackagingDimensionsJob
       when 'refresh_category_lt'
         RefreshCategoryFromLtJob
+      when 'refresh_category_catalog'
+        RefreshCategoryCatalogJob
       when 'refresh_product_lt'
         RefreshProductFromLtJob
       when 'harvest_category_related_products'
@@ -766,6 +780,7 @@ Trestle.resource :parser_control, model: ParserControl do
         'update_product_variants' => 'Актуализация вариантов (цвета/размеры)',
         'recover_missing_weights' => 'Восполнение недостающего веса (2 потока + прокси)',
         'recover_missing_packaging_dimensions' => 'Восполнение размеров упаковки (PL+LT, measurements_modal)',
+        'refresh_category_catalog' => 'Полная актуализация категории или всего каталога',
         'refresh_category_lt' => 'Актуализация категории (список с LT, PL-поля)',
         'refresh_product_lt' => 'Актуализация одного товара по SKU (LT/PL)',
         'harvest_category_related_products' => 'Сбор category related_products (1-й/последний SKU)',

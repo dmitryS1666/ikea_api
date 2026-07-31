@@ -94,11 +94,8 @@ module Products
       eff = filters_to_apply
       return if eff.blank?
 
-      if selective_mode?
-        ProductFilterValue.where(category_id: @category.ikea_id, parameter: @parameters).delete_all
-      else
-        ProductFilterValue.where(category_id: @category.ikea_id).delete_all
-      end
+      parameters = eff.map { |filter| filter["parameter"].to_s }.uniq
+      ProductFilterValue.where(category_id: @category.ikea_id, parameter: parameters).delete_all
 
       products = Product.catalog_category_scope(@category.ikea_id)
       promo_skus = active_promo_skus(products).to_set
@@ -116,11 +113,10 @@ module Products
       eff = filters_to_apply
       return if eff.blank?
 
-      if selective_mode?
-        ProductFilterValue.where(category_id: @category.ikea_id, product_id: product.id, parameter: @parameters).delete_all
-      else
-        ProductFilterValue.where(category_id: @category.ikea_id, product_id: product.id).delete_all
-      end
+      parameters = eff.map { |filter| filter["parameter"].to_s }.uniq
+      ProductFilterValue
+        .where(category_id: @category.ikea_id, product_id: product.id, parameter: parameters)
+        .delete_all
 
       return unless product.quantity.to_i.positive?
 
@@ -186,7 +182,9 @@ module Products
     def filters_to_apply
       return [] if @filters.blank?
 
-      available = @filters.reject { |f| excluded_parameter?(f["parameter"].to_s) }
+      # Характеристики IKEA индексирует Categories::IkeaFacetMembershipSyncService.
+      # Здесь остаются только локальные параметры, которые отсутствуют в IKEA API.
+      available = @filters.select { |f| Categories::FilterPolicy.local?(f["parameter"].to_s) }
       return available unless selective_mode?
       return [] if @parameters.blank?
 

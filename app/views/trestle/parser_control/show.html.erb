@@ -49,6 +49,7 @@
                     ['Восполнение недостающего веса', 'recover_missing_weights'],
                     ['Восполнение размеров упаковки (measurements_modal)', 'recover_missing_packaging_dimensions'],
                     ['Восстановление битых картинок (по логу/SKU)', 'recover_broken_product_images'],
+                    ['Полная актуализация категории / всего каталога', 'refresh_category_catalog'],
                     ['Актуализация категории (список с LT)', 'refresh_category_lt'],
                     ['Сбор category related_products (1-й/последний SKU)', 'harvest_category_related_products'],
                     ['Актуализация одного товара по SKU (LT/PL)', 'refresh_product_lt'],
@@ -194,6 +195,11 @@
                 Запрос к LT search IKEA: обновляет <code>available_filters</code> (цвет, свойства, материал, размер, серия и др., без <code>f-type</code>).
                 Пустое поле — все категории в БД; иначе <code>ikea_id</code> или <code>{"ikea_id":"20515"}</code>. Для ветки включите «включая потомков».
               </small>
+              <small id="refresh_category_catalog_hint" class="form-text text-muted d-none">
+                Единый процесс: обновляет состав категории, товары, русские атрибуты и ВГХ (LT, при отсутствии — PL + перевод),
+                загружает все рабочие ненулевые фасеты IKEA, синхронизирует точные связи SKU с фильтрами и сбрасывает кеш категории.
+                Укажите <code>ikea_id</code> либо оставьте поле пустым для всех доступных категорий.
+              </small>
               <div class="mt-2" id="extra_data_sku_file_block">
                 <%= label_tag :sku_file_path, "ИЛИ путь к файлу со списком SKU на сервере", class: "form-label" %>
                 <%= text_field_tag :sku_file_path, nil, class: "form-control", placeholder: "/absolute/path/to/file.txt" %>
@@ -310,6 +316,7 @@
                         'recover_missing_weights' => 'Восполнение недостающего веса',
                         'recover_missing_packaging_dimensions' => 'Восполнение размеров упаковки',
                         'recover_broken_product_images' => 'Восстановление битых картинок',
+                        'refresh_category_catalog' => 'Полная актуализация категории',
                         'refresh_category_lt' => 'Актуализация категории (LT)',
                         'harvest_category_related_products' => 'Сбор category related_products',
                         'refresh_product_lt' => 'Актуализация товара (SKU)',
@@ -438,6 +445,7 @@
                       'generate_product_image_previews' => 'Генерация preview-картинок',
                       'optimize_home_banner_images' => 'Оптимизация картинок главной (WebP ≤ 200KB)',
                       'recover_broken_product_images' => 'Восстановление битых картинок',
+                      'refresh_category_catalog' => 'Полная актуализация категории',
                       'refresh_category_lt' => 'Актуализация категории (LT)',
                       'harvest_category_related_products' => 'Сбор category related_products',
                       'refresh_product_lt' => 'Актуализация товара (SKU)',
@@ -611,6 +619,7 @@
             'generate_product_image_previews': 'Генерация preview-картинок',
             'optimize_home_banner_images': 'Оптимизация картинок главной (WebP ≤ 200KB)',
             'recover_broken_product_images': 'Восстановление битых картинок',
+            'refresh_category_catalog': 'Полная актуализация категории',
             'refresh_category_lt': 'Актуализация категории (LT)',
             'harvest_category_related_products': 'Сбор category related_products',
             'refresh_product_lt': 'Актуализация товара (SKU)',
@@ -768,6 +777,7 @@
     const rebuildCategoryFseriesFiltersField = document.getElementById('rebuild_category_fseries_filters_field');
     const refreshCategoryFiltersLtHint = document.getElementById('refresh_category_filters_lt_hint');
     const refreshCategoryFiltersLtField = document.getElementById('refresh_category_filters_lt_field');
+    const refreshCategoryCatalogHint = document.getElementById('refresh_category_catalog_hint');
     const extraDataSkuFileBlock = document.getElementById('extra_data_sku_file_block');
 
     function toggleFields() {
@@ -793,11 +803,12 @@
       if (rebuildCategoryFseriesFiltersField) rebuildCategoryFseriesFiltersField.classList.add('d-none');
       if (refreshCategoryFiltersLtHint) refreshCategoryFiltersLtHint.classList.add('d-none');
       if (refreshCategoryFiltersLtField) refreshCategoryFiltersLtField.classList.add('d-none');
+      if (refreshCategoryCatalogHint) refreshCategoryCatalogHint.classList.add('d-none');
       if (extraDataSkuFileBlock) extraDataSkuFileBlock.classList.remove('d-none');
       if (extraDataMainLabel) extraDataMainLabel.textContent = 'Список SKU (через пробел или запятую)';
       if (extraDataTextarea) extraDataTextarea.placeholder = 'Например: 123.456.78, 987.654.32';
 
-      if (task === 'extended_attributes_by_skus' || task === 'import_products_by_skus' || task === 'recover_broken_product_images' || task === 'update_product_variants' || task === 'refresh_category_lt' || task === 'harvest_category_related_products' || task === 'refresh_product_lt' || task === 'category_filters_one' || task === 'merge_parent_category_filters' || task === 'rebuild_category_fseries_filters' || task === 'refresh_category_filters_lt' || task === 'generate_product_image_previews') {
+      if (task === 'extended_attributes_by_skus' || task === 'import_products_by_skus' || task === 'recover_broken_product_images' || task === 'update_product_variants' || task === 'refresh_category_catalog' || task === 'refresh_category_lt' || task === 'harvest_category_related_products' || task === 'refresh_product_lt' || task === 'category_filters_one' || task === 'merge_parent_category_filters' || task === 'rebuild_category_fseries_filters' || task === 'refresh_category_filters_lt' || task === 'generate_product_image_previews') {
         extraDataField.classList.remove('d-none');
       } else if (task === 'extended_attrs_import') {
         extraFileField.classList.remove('d-none');
@@ -823,7 +834,17 @@
         if (recoverBrokenTranslationsField) recoverBrokenTranslationsField.classList.remove('d-none');
       }
 
-      if (task === 'category_filters_one') {
+      if (task === 'refresh_category_catalog' || task === 'refresh_category_lt') {
+        threadsField.classList.remove('d-none');
+      }
+
+      if (task === 'refresh_category_catalog') {
+        limitField.classList.add('d-none');
+        if (refreshCategoryCatalogHint) refreshCategoryCatalogHint.classList.remove('d-none');
+        if (extraDataSkuFileBlock) extraDataSkuFileBlock.classList.add('d-none');
+        if (extraDataMainLabel) extraDataMainLabel.textContent = 'IKEA ID категории (необязательно)';
+        if (extraDataTextarea) extraDataTextarea.placeholder = 'Пусто = весь каталог; или 20515; или {"ikea_id":"20515"}';
+      } else if (task === 'category_filters_one') {
         limitField.classList.add('d-none');
         if (categoryFiltersOneHint) categoryFiltersOneHint.classList.remove('d-none');
         if (extraDataSkuFileBlock) extraDataSkuFileBlock.classList.add('d-none');

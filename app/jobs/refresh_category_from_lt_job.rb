@@ -22,7 +22,7 @@
 class RefreshCategoryFromLtJob < ApplicationJob
   queue_as :parser
 
-  def perform(ikea_id:, task_id: nil, max_created: nil, threads: 2)
+  def perform(ikea_id:, task_id: nil, max_created: nil, threads: 2, manage_task: true)
     task =
       if task_id.present?
         ParserTask.find(task_id)
@@ -65,21 +65,21 @@ class RefreshCategoryFromLtJob < ApplicationJob
     threads = 10 if threads > 10
 
     category = Category.find_by(ikea_id: ikea_id.to_s)
-    unless category
-      Rails.logger.error "RefreshCategoryFromLtJob: category not found for ikea_id=#{ikea_id}"
-      return
-    end
+    raise ActiveRecord::RecordNotFound, "Category not found for ikea_id=#{ikea_id}" unless category
     check_task_not_stopped!(task)
-    task.mark_as_running!
+    task.mark_as_running! if manage_task
 
-    notify_started("refresh_category_lt", limit: nil)
+    notify_started("refresh_category_lt", limit: nil) if manage_task
     started = Time.current
 
     unless CategoryLtListingService.pl_listing_url(category)
       msg = "Нет URL категории (или нечисловой ikea_id) — невозможно построить адрес витрины PL"
-      task.mark_as_failed!(msg)
-      notify_error("refresh_category_lt", StandardError.new(msg))
-      return
+      if manage_task
+        task.mark_as_failed!(msg)
+        notify_error("refresh_category_lt", StandardError.new(msg))
+        return
+      end
+      raise StandardError, msg
     end
 
     rows_by_sku = load_lt_jsonl_index(lt_jsonl_path)
@@ -177,8 +177,9 @@ class RefreshCategoryFromLtJob < ApplicationJob
       stats[:missing_related_skus] = stats[:missing_related_skus].uniq.sort
       stats[:missing_related_skus_count] = stats[:missing_related_skus].size
       task.update_payload!("created_skus" => stats[:created_skus]) if stats[:created_skus].present?
-      task.mark_as_completed!(stats)
-      notify_completed("refresh_category_lt", stats)
+      task.mark_as_completed!(stats) if manage_task
+      notify_completed("refresh_category_lt", stats) if manage_task
+      stats
     rescue StandardError => e
       if e.message == "Task was stopped manually"
         Rails.logger.info "RefreshCategoryFromLtJob: task #{task.id} stopped manually"
@@ -186,8 +187,12 @@ class RefreshCategoryFromLtJob < ApplicationJob
       end
 
       Rails.logger.error "RefreshCategoryFromLtJob: #{e.message}\n#{e.backtrace&.first(15)&.join("\n")}"
-      task.mark_as_failed!(e.message)
-      notify_error("refresh_category_lt", e)
+      if manage_task
+        task.mark_as_failed!(e.message)
+        notify_error("refresh_category_lt", e)
+      else
+        raise
+      end
     end
   end
 

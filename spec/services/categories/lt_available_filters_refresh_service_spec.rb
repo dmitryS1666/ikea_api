@@ -4,7 +4,7 @@ require "rails_helper"
 
 RSpec.describe Categories::LtAvailableFiltersRefreshService do
   describe "filter policy" do
-    it "keeps required filters and drops globally excluded filters" do
+    it "keeps all working IKEA filters, including firmness, seats and type" do
       category = Category.create!(ikea_id: "filter-policy-1", name: "Столы")
       service = described_class.new(category, reindex: false, ensure_series: false)
 
@@ -17,15 +17,22 @@ RSpec.describe Categories::LtAvailableFiltersRefreshService do
         { "parameter" => "f-type", "name" => "Тип", "values" => [{ "id" => "table", "name" => "Стол" }] }
       ]
 
-      filters = service.send(:merge_with_existing_required_filters, service.send(:normalize_required_filters, raw))
+      filters = service.send(:merge_with_local_filters, service.send(:normalize_required_filters, raw))
       parameters = filters.map { |filter| filter["parameter"] }
 
-      expect(parameters).to include("f-series", "f-price-buckets", "f-material", "f-colors")
-      expect(parameters).not_to include("f-type", "f-firmness", "f-number-of-seats")
+      expect(parameters).to include(
+        "f-series",
+        "f-price-buckets",
+        "f-material",
+        "f-colors",
+        "f-type",
+        "f-firmness",
+        "f-number-of-seats"
+      )
       expect(filters.find { |f| f["parameter"] == "f-price-buckets" }["values"]).to eq([{ "id" => "PRICE_RANGE", "name" => "Цена" }])
     end
 
-    it "drops shape only for lighting categories" do
+    it "does not hide a working shape filter for lighting categories" do
       lighting = Category.create!(ikea_id: "lighting-policy-1", name: "Освещение")
       furniture = Category.create!(ikea_id: "furniture-policy-1", name: "Столы")
 
@@ -39,8 +46,30 @@ RSpec.describe Categories::LtAvailableFiltersRefreshService do
       lighting_filters = lighting_service.send(:normalize_required_filters, raw)
       furniture_filters = furniture_service.send(:normalize_required_filters, raw)
 
-      expect(lighting_filters.map { |filter| filter["parameter"] }).not_to include("f-shape")
+      expect(lighting_filters.map { |filter| filter["parameter"] }).to include("f-shape")
       expect(furniture_filters.map { |filter| filter["parameter"] }).to include("f-shape")
+    end
+
+    it "reads typed values and drops values with a zero upstream count" do
+      category = Category.create!(ikea_id: "typed-filter-1", name: "Диваны")
+      service = described_class.new(category, reindex: false, ensure_series: false)
+
+      raw = [{
+        "parameter" => "f-measurement-buckets",
+        "name" => "Размер",
+        "types" => [{
+          "values" => [
+            { "id" => "WIDTH_100_150", "name" => "100–149 см", "count" => 3 },
+            { "id" => "WIDTH_150_200", "name" => "150–199 см", "count" => 0 }
+          ]
+        }]
+      }]
+
+      filters = service.send(:normalize_required_filters, raw)
+
+      expect(filters.first["values"]).to eq([
+        { "id" => "WIDTH_100_150", "name" => "100–149 см", "count" => 3 }
+      ])
     end
   end
 
@@ -50,10 +79,7 @@ RSpec.describe Categories::LtAvailableFiltersRefreshService do
         ikea_id: "reindex-policy-1",
         name: "Столы",
         available_filters: [
-          { "parameter" => "f-series", "name" => "Коллекция", "values" => [] },
-          { "parameter" => "f-price-buckets", "name" => "Цена", "values" => [{ "id" => "PRICE_RANGE", "name" => "Цена" }] },
-          { "parameter" => "f-material", "name" => "Материал", "values" => [] },
-          { "parameter" => "f-colors", "name" => "Цвет", "values" => [] }
+          { "parameter" => "f-price-buckets", "name" => "Цена", "values" => [{ "id" => "PRICE_RANGE", "name" => "Цена" }] }
         ]
       )
       service = described_class.new(category, reindex: true, ensure_series: false)
