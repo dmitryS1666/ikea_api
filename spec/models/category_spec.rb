@@ -103,20 +103,23 @@ RSpec.describe Category, type: :model do
 
   describe "#catalog_url" do
     it "returns a slug-based path for a root category" do
-      category = create(:category, ikea_id: "root-1", name: "Мебель", cached_slug: "mebel", parent_ids: [])
+      category = create(:category, ikea_id: "root-1", name: "Мебель", parent_ids: [])
+      category.update_column(:cached_slug, "mebel")
 
       expect(category.catalog_url).to eq("/catalog/mebel/")
     end
 
     it "includes ancestor slugs for nested categories" do
-      parent = create(:category, ikea_id: "parent-1", name: "Хранение", cached_slug: "mebel-dlya-hraneniya", parent_ids: [])
+      parent = create(:category, ikea_id: "parent-1", name: "Хранение", parent_ids: [])
+      parent.update_column(:cached_slug, "mebel-dlya-hraneniya")
+
       child = create(
         :category,
         ikea_id: "child-1",
         name: "Встроенные шкафы",
-        cached_slug: "vstroennye-shkafy",
         parent_ids: [parent.ikea_id]
       )
+      child.update_column(:cached_slug, "vstroennye-shkafy")
 
       expect(child.catalog_url).to eq("/catalog/mebel-dlya-hraneniya/vstroennye-shkafy/")
     end

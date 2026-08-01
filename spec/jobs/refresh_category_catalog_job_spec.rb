@@ -13,13 +13,12 @@ RSpec.describe RefreshCategoryCatalogJob, type: :job do
     )
     facet_service = instance_double(
       Categories::IkeaFacetMembershipSyncService,
-      call: double(memberships_count: 7, unmatched_skus: [])
+      call: double(memberships_count: 7, unmatched_skus: [], errors: [])
     )
     local_filters_indexer = instance_double(
       Products::FilterValuesIndexer,
       reindex!: nil
     )
-
     allow(RefreshCategoryFromLtJob).to receive(:new).and_return(product_job)
     allow(product_job).to receive(:perform).with(
       ikea_id: category.ikea_id,
@@ -28,16 +27,17 @@ RSpec.describe RefreshCategoryCatalogJob, type: :job do
       manage_task: false
     ).and_return(processed: 5)
     allow(Categories::LtAvailableFiltersRefreshService).to receive(:new)
-      .with(category, reindex: false, ensure_series: false)
+      .with(
+        an_object_having_attributes(ikea_id: category.ikea_id),
+        reindex: false,
+        ensure_series: false
+      )
       .and_return(filters_service)
     allow(Categories::IkeaFacetMembershipSyncService).to receive(:new)
       .and_return(facet_service)
     allow(Products::FilterValuesIndexer).to receive(:new)
       .and_return(local_filters_indexer)
     allow(Categories::ShowCache).to receive(:bust!)
-    allow(Product).to receive(:catalog_category_scope)
-      .with(category.ikea_id)
-      .and_return(Product.none)
 
     described_class.perform_now(ikea_id: category.ikea_id, task_id: task.id, threads: 3)
 
@@ -51,11 +51,117 @@ RSpec.describe RefreshCategoryCatalogJob, type: :job do
     )
   end
 
+  it "keeps later stages running and marks the task failed when one facet value fails" do
+    category = create(:category, ikea_id: "57542")
+    task = create(:parser_task, task_type: "refresh_category_catalog")
+    product_job = instance_double(RefreshCategoryFromLtJob)
+    facet_result = Categories::IkeaFacetMembershipSyncService::Result.new(
+      memberships_count: 2,
+      unmatched_skus: [],
+      errors: [{
+        "parameter" => "f-home-smart",
+        "value_id" => "true",
+        "error_class" => "RuntimeError",
+        "message" => "HTTP 400"
+      }]
+    )
+    local_filters_indexer = instance_double(Products::FilterValuesIndexer, reindex!: nil)
+
+    allow(RefreshCategoryFromLtJob).to receive(:new).and_return(product_job)
+    allow(product_job).to receive(:perform).and_return(processed: 3)
+    allow(Categories::LtAvailableFiltersRefreshService).to receive(:new)
+      .and_return(instance_double(Categories::LtAvailableFiltersRefreshService, call: nil))
+    allow(Categories::IkeaFacetMembershipSyncService).to receive(:new)
+      .and_return(instance_double(Categories::IkeaFacetMembershipSyncService, call: facet_result))
+    allow(Products::FilterValuesIndexer).to receive(:new).and_return(local_filters_indexer)
+    allow(Categories::ShowCache).to receive(:bust!)
+    allow(Product).to receive(:catalog_category_scope).and_return(Product.none)
+
+    described_class.perform_now(ikea_id: category.ikea_id, task_id: task.id)
+
+    expect(local_filters_indexer).to have_received(:reindex!)
+    expect(task.reload.status).to eq("failed")
+    expect(task.processed).to eq(1)
+    expect(task.error_count).to eq(1)
+    expect(task.payload).to include(
+      "stage" => "completed_with_errors",
+      "products_processed" => 3,
+      "facet_memberships" => 2
+    )
+    expect(task.payload.dig("facet_errors", category.ikea_id).first).to include(
+      "parameter" => "f-home-smart",
+      "value_id" => "true",
+      "message" => "HTTP 400"
+    )
+  end
+
   it "uses every non-deleted category when ikea_id is absent" do
     active = create(:category, ikea_id: "20515")
     create(:category, ikea_id: "20516", is_deleted: true)
     job = described_class.new
 
     expect(job.send(:categories_scope, nil).pluck(:ikea_id)).to eq([active.ikea_id])
+  end
+
+  it "includes the requested top-level category and every non-deleted descendant" do
+    parent = create(:category, ikea_id: "57542", parent_ids: [])
+    child = create(:category, ikea_id: "50003", parent_ids: [parent.ikea_id])
+    grandchild = create(
+      :category,
+      ikea_id: "50004",
+      parent_ids: [parent.ikea_id, child.ikea_id]
+    )
+    create(:category, ikea_id: "50005", parent_ids: [parent.ikea_id], is_deleted: true)
+    create(:category, ikea_id: "outside", parent_ids: [])
+
+    scope = described_class.new.send(:categories_scope, parent.ikea_id)
+
+    expect(scope).to contain_exactly(parent, child, grandchild)
+  end
+
+  it "refreshes descendants before the parent and finalizes parent filters" do
+    parent = create(:category, ikea_id: "57542", parent_ids: [])
+    child = create(:category, ikea_id: "50003", parent_ids: [parent.ikea_id])
+    task = create(:parser_task, task_type: "refresh_category_catalog")
+    execution_order = []
+
+    product_job = instance_double(RefreshCategoryFromLtJob)
+    allow(RefreshCategoryFromLtJob).to receive(:new).and_return(product_job)
+    allow(product_job).to receive(:perform) do |args|
+      execution_order << args[:ikea_id]
+      { processed: 1 }
+    end
+
+    allow(Categories::LtAvailableFiltersRefreshService).to receive(:new)
+      .and_return(instance_double(Categories::LtAvailableFiltersRefreshService, call: double(changed: false)))
+    allow(Categories::IkeaFacetMembershipSyncService).to receive(:new)
+      .and_return(
+        instance_double(
+          Categories::IkeaFacetMembershipSyncService,
+          call: double(memberships_count: 1, unmatched_skus: [], errors: [])
+        )
+      )
+
+    indexer = instance_double(Products::FilterValuesIndexer, reindex!: nil)
+    allow(Products::FilterValuesIndexer).to receive(:new).and_return(indexer)
+    merge_service = instance_double(
+      Categories::MergeDescendantAvailableFiltersService,
+      call: double(merge_changed: true)
+    )
+    allow(Categories::MergeDescendantAvailableFiltersService).to receive(:new)
+      .with(an_object_having_attributes(ikea_id: parent.ikea_id))
+      .and_return(merge_service)
+    allow(Categories::ShowCache).to receive(:bust!)
+    allow(Product).to receive(:catalog_category_scope).and_return(Product.none)
+
+    described_class.perform_now(ikea_id: parent.ikea_id, task_id: task.id)
+
+    expect(execution_order).to eq([child.ikea_id, parent.ikea_id])
+    expect(Categories::MergeDescendantAvailableFiltersService).to have_received(:new).once
+    # Один reindex на каждый узел и ещё один для родителя после merge.
+    expect(indexer).to have_received(:reindex!).exactly(3).times
+    expect(task.reload.status).to eq("completed")
+    expect(task.processed).to eq(2)
+    expect(task.payload["products_processed"]).to eq(2)
   end
 end
