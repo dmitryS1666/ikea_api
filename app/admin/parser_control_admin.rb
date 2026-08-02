@@ -388,6 +388,7 @@ Trestle.resource :parser_control, model: ParserControl do
 
     def resume_task
       task_id = params[:task_id]
+      resume_mode = params[:resume_mode].to_s.presence || "resume"
       if task_id.blank?
         flash[:error] = "Не указан ID задачи"
         return redirect_to admin.instance_path(ParserControl.new(id: 'show'))
@@ -399,7 +400,7 @@ Trestle.resource :parser_control, model: ParserControl do
         return redirect_to admin.instance_path(ParserControl.new(id: 'show'))
       end
 
-      unless %w[extended_attrs_import update_all_product_images].include?(task.task_type)
+      unless %w[extended_attrs_import update_all_product_images refresh_category_catalog].include?(task.task_type)
         flash[:error] = "Эта задача не поддерживает продолжение"
         return redirect_to admin.instance_path(ParserControl.new(id: 'show'))
       end
@@ -409,14 +410,58 @@ Trestle.resource :parser_control, model: ParserControl do
         return redirect_to admin.instance_path(ParserControl.new(id: 'show'))
       end
 
-      task.update!(status: 'pending', error_message: nil, completed_at: nil)
-      
       job_class = job_class_for_task_type(task.task_type)
-      job = job_class.perform_later(task_id: task.id)
-      
+
+      if task.task_type == "refresh_category_catalog"
+        unless %w[resume retry_failed restart].include?(resume_mode)
+          flash[:error] = "Неизвестный режим продолжения"
+          return redirect_to admin.instance_path(ParserControl.new(id: 'show'))
+        end
+
+        checkpoint = task.payload.to_h.deep_stringify_keys
+        if Array(checkpoint["category_ids"]).empty?
+          flash[:error] = "У задачи нет checkpoint. Запустите актуализацию заново."
+          return redirect_to admin.instance_path(ParserControl.new(id: 'show'))
+        end
+
+        if resume_mode == "retry_failed" && Array(checkpoint["failed_category_ids"]).empty?
+          flash[:error] = "В задаче нет ошибочных категорий для повтора"
+          return redirect_to admin.instance_path(ParserControl.new(id: 'show'))
+        end
+
+        ikea_id = checkpoint["ikea_id"].presence
+        threads = checkpoint["threads"].to_i.positive? ? checkpoint["threads"].to_i : 2
+
+        if resume_mode == "restart"
+          task = ParserTask.create!(
+            task_type: task.task_type,
+            status: "pending",
+            payload: { "ikea_id" => ikea_id, "threads" => threads }
+          )
+          job = job_class.perform_later(task_id: task.id, ikea_id: ikea_id, threads: threads)
+        else
+          task.update!(status: "pending", error_message: nil, completed_at: nil)
+          job = job_class.perform_later(
+            task_id: task.id,
+            ikea_id: ikea_id,
+            threads: threads,
+            resume: resume_mode == "resume",
+            retry_failed: resume_mode == "retry_failed"
+          )
+        end
+      else
+        task.update!(status: 'pending', error_message: nil, completed_at: nil)
+        job = job_class.perform_later(task_id: task.id)
+      end
+
       task.update!(job_id: job.job_id) if job.respond_to?(:job_id)
 
-      flash[:message] = "Продолжение задачи '#{task_type_label(task.task_type)}' запущено"
+      action = {
+        "resume" => "Продолжение",
+        "retry_failed" => "Повтор ошибочных категорий",
+        "restart" => "Новый полный запуск"
+      }.fetch(resume_mode, "Продолжение")
+      flash[:message] = "#{action} задачи '#{task_type_label(task.task_type)}' запущено"
       redirect_to admin.instance_path(ParserControl.new(id: 'show'))
     rescue => e
       Rails.logger.error "Error resuming task: #{e.class} - #{e.message}"

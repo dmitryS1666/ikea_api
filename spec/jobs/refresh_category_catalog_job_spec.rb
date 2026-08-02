@@ -164,4 +164,167 @@ RSpec.describe RefreshCategoryCatalogJob, type: :job do
     expect(task.processed).to eq(2)
     expect(task.payload["products_processed"]).to eq(2)
   end
+
+  context "with resumable checkpoints" do
+    let(:product_job) { instance_double(RefreshCategoryFromLtJob) }
+    let(:local_filters_indexer) { instance_double(Products::FilterValuesIndexer, reindex!: nil) }
+    let(:facet_result) do
+      Categories::IkeaFacetMembershipSyncService::Result.new(
+        memberships_count: 1,
+        unmatched_skus: [],
+        errors: []
+      )
+    end
+
+    before do
+      allow(RefreshCategoryFromLtJob).to receive(:new).and_return(product_job)
+      allow(Categories::LtAvailableFiltersRefreshService).to receive(:new)
+        .and_return(instance_double(Categories::LtAvailableFiltersRefreshService, call: nil))
+      allow(Categories::IkeaFacetMembershipSyncService).to receive(:new)
+        .and_return(instance_double(Categories::IkeaFacetMembershipSyncService, call: facet_result))
+      allow(Products::FilterValuesIndexer).to receive(:new).and_return(local_filters_indexer)
+      allow(Categories::ShowCache).to receive(:bust!)
+      allow(Product).to receive(:catalog_category_scope).and_return(Product.none)
+    end
+
+    it "resumes only failed and unfinished categories" do
+      failed_category = create(:category, ikea_id: "10001")
+      completed_category = create(:category, ikea_id: "10002")
+      task = create(:parser_task, task_type: "refresh_category_catalog")
+      calls = []
+      failed_once = false
+
+      allow(product_job).to receive(:perform) do |args|
+        calls << args[:ikea_id]
+        if args[:ikea_id] == failed_category.ikea_id && !failed_once
+          failed_once = true
+          raise ArgumentError, "invalid upstream response"
+        end
+
+        { processed: 1 }
+      end
+
+      described_class.perform_now(task_id: task.id, threads: 3)
+
+      expect(task.reload.status).to eq("failed")
+      expect(task.payload["completed_category_ids"]).to eq([completed_category.ikea_id])
+      expect(task.payload["failed_category_ids"]).to eq([failed_category.ikea_id])
+      expect(task.payload["category_ids"]).to contain_exactly(
+        failed_category.ikea_id,
+        completed_category.ikea_id
+      )
+
+      calls.clear
+      described_class.perform_now(task_id: task.id, resume: true)
+
+      expect(calls).to eq([failed_category.ikea_id])
+      expect(task.reload.status).to eq("completed")
+      expect(task.processed).to eq(2)
+      expect(task.updated).to eq(2)
+      expect(task.error_count).to eq(0)
+      expect(task.payload["completed_category_ids"]).to contain_exactly(
+        failed_category.ikea_id,
+        completed_category.ikea_id
+      )
+      expect(task.payload["failed_category_ids"]).to be_empty
+      expect(task.payload["products_processed"]).to eq(2)
+    end
+
+    it "retries transient stage failures up to three times" do
+      category = create(:category, ikea_id: "20001")
+      task = create(:parser_task, task_type: "refresh_category_catalog")
+      job = described_class.new
+      attempts = 0
+
+      allow(job).to receive(:sleep)
+      allow(product_job).to receive(:perform) do
+        attempts += 1
+        raise StandardError, "connection timed out" if attempts < 3
+
+        { processed: 1 }
+      end
+
+      job.perform(ikea_id: category.ikea_id, task_id: task.id)
+
+      expect(attempts).to eq(3)
+      expect(job).to have_received(:sleep).with(1).once
+      expect(job).to have_received(:sleep).with(3).once
+      expect(task.reload.status).to eq("completed")
+      expect(task.payload.dig("last_retry", "stage")).to eq("products")
+      expect(task.payload.dig("last_retry", "attempt")).to eq(2)
+    end
+
+    it "retries transient facet result errors before recording them" do
+      category = create(:category, ikea_id: "20002")
+      task = create(:parser_task, task_type: "refresh_category_catalog")
+      job = described_class.new
+      failed_result = Categories::IkeaFacetMembershipSyncService::Result.new(
+        memberships_count: 0,
+        unmatched_skus: [],
+        errors: [{
+          "parameter" => "f-test",
+          "value_id" => "value",
+          "error_class" => "RuntimeError",
+          "message" => "HTTP 500"
+        }]
+      )
+      successful_result = Categories::IkeaFacetMembershipSyncService::Result.new(
+        memberships_count: 4,
+        unmatched_skus: [],
+        errors: []
+      )
+
+      allow(job).to receive(:sleep)
+      allow(product_job).to receive(:perform).and_return(processed: 1)
+      allow(Categories::IkeaFacetMembershipSyncService).to receive(:new).and_return(
+        instance_double(Categories::IkeaFacetMembershipSyncService, call: failed_result),
+        instance_double(Categories::IkeaFacetMembershipSyncService, call: successful_result)
+      )
+
+      job.perform(ikea_id: category.ikea_id, task_id: task.id)
+
+      expect(Categories::IkeaFacetMembershipSyncService).to have_received(:new).twice
+      expect(job).to have_received(:sleep).with(1).once
+      expect(task.reload.status).to eq("completed")
+      expect(task.error_count).to eq(0)
+      expect(task.payload["facet_errors"]).to be_empty
+      expect(task.payload["facet_memberships"]).to eq(4)
+    end
+
+    it "retries only failed categories when retry_failed is requested" do
+      failed_category = create(:category, ikea_id: "30001")
+      untouched_category = create(:category, ikea_id: "30002")
+      task = create(
+        :parser_task,
+        task_type: "refresh_category_catalog",
+        status: "failed",
+        payload: {
+          "ikea_id" => nil,
+          "threads" => 2,
+          "category_ids" => [failed_category.ikea_id, untouched_category.ikea_id],
+          "attempted_category_ids" => [failed_category.ikea_id],
+          "completed_category_ids" => [],
+          "failed_category_ids" => [failed_category.ikea_id],
+          "category_errors" => {
+            failed_category.ikea_id => { "message" => "HTTP 500" }
+          }
+        }
+      )
+      calls = []
+
+      allow(product_job).to receive(:perform) do |args|
+        calls << args[:ikea_id]
+        { processed: 1 }
+      end
+
+      described_class.perform_now(task_id: task.id, retry_failed: true)
+
+      expect(calls).to eq([failed_category.ikea_id])
+      expect(task.reload.status).to eq("failed")
+      expect(task.error_count).to eq(0)
+      expect(task.payload["stage"]).to eq("incomplete")
+      expect(task.payload["completed_category_ids"]).to eq([failed_category.ikea_id])
+      expect(task.payload["failed_category_ids"]).to be_empty
+    end
+  end
 end

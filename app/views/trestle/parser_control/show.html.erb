@@ -478,6 +478,25 @@
                         <%= submit_tag "Продолжить", class: "btn btn-sm btn-outline-primary" %>
                       <% end %>
                     <% end %>
+                    <% if task.task_type == 'refresh_category_catalog' && task.status == 'failed' && Array(task.payload.to_h['category_ids']).any? %>
+                      <%= form_tag resume_task_parser_control_admin_index_path, method: :post, data: { turbo: false }, style: "display: inline;" do %>
+                        <%= hidden_field_tag :task_id, task.id %>
+                        <%= hidden_field_tag :resume_mode, 'resume' %>
+                        <%= submit_tag "Продолжить", class: "btn btn-sm btn-outline-primary" %>
+                      <% end %>
+                      <% if Array(task.payload.to_h['failed_category_ids']).any? %>
+                        <%= form_tag resume_task_parser_control_admin_index_path, method: :post, data: { turbo: false }, style: "display: inline;" do %>
+                          <%= hidden_field_tag :task_id, task.id %>
+                          <%= hidden_field_tag :resume_mode, 'retry_failed' %>
+                          <%= submit_tag "Повторить ошибки", class: "btn btn-sm btn-outline-warning" %>
+                        <% end %>
+                      <% end %>
+                      <%= form_tag resume_task_parser_control_admin_index_path, method: :post, data: { turbo: false, confirm: "Запустить актуализацию заново с первой категории?" }, style: "display: inline;" do %>
+                        <%= hidden_field_tag :task_id, task.id %>
+                        <%= hidden_field_tag :resume_mode, 'restart' %>
+                        <%= submit_tag "Запустить заново", class: "btn btn-sm btn-outline-secondary" %>
+                      <% end %>
+                    <% end %>
                   </td>
                 </tr>
               <% end %>
