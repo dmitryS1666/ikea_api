@@ -28,9 +28,16 @@ class ParseProductsJob < ApplicationJob
                      Category.not_deleted
                    end
       
-      categories_count = categories.count
-      Rails.logger.info "ParseProductsJob: Found #{categories_count} categories to process"
-      
+      # Production uses an ActiveRecord::Relation, but callers/tests may provide
+      # any find_each-compatible scope. Counting is diagnostic only and must not
+      # become a requirement for running the parser.
+      categories_count = categories.count if categories.respond_to?(:count)
+      if categories_count.nil?
+        Rails.logger.info "ParseProductsJob: Processing categories from the selected scope"
+      else
+        Rails.logger.info "ParseProductsJob: Found #{categories_count} categories to process"
+      end
+
       if categories_count == 0
         Rails.logger.warn "ParseProductsJob: No categories found. Task will complete with 0 processed items."
       end
@@ -384,6 +391,9 @@ class ParseProductsJob < ApplicationJob
     # ВАЖНО: Создаем или обновляем продукт (не меняем sku у существующей строки — избегаем дублей s*/без s)
     if product
       attributes.delete(:sku)
+      # IKEA иногда возвращает 0 при временно неполной карточке. Не затираем
+      # последнюю валидную цену существующего товара таким ответом.
+      attributes.delete(:price) unless Products::StockAvailability.sale_price?(price)
       preserve_existing_product_from_listing!(product, attributes)
       product.update!(attributes)
       result = { created: false, updated: true, sku: product.sku }
@@ -607,4 +617,3 @@ class ParseProductsJob < ApplicationJob
     nil
   end
 end
-

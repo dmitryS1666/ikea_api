@@ -439,7 +439,8 @@ module Products
     end
 
     def price_to_cents(price)
-      return nil if price.blank?
+      return nil unless Products::StockAvailability.sale_price?(price)
+
       (price.to_f * 100).round
     end
 

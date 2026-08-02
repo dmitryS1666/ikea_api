@@ -15,6 +15,7 @@ class RefreshCategoryCatalogJob < ApplicationJob
     task.mark_as_running!
 
     checkpoint_run = resume || retry_failed
+    task.update_payload!(RefreshCategoryFromLtJob::PRODUCT_CHECKPOINT_KEY => nil) unless checkpoint_run
     if checkpoint_run
       saved_threads = task.payload.to_h["threads"].to_i
       threads = saved_threads if saved_threads.positive?
@@ -46,6 +47,7 @@ class RefreshCategoryCatalogJob < ApplicationJob
         )
       end
       stats[:products_processed_by_category][category.ikea_id.to_s] =
+        product_stats.to_h.with_indifferent_access[:products_completed].presence&.to_i ||
         product_stats.to_h.with_indifferent_access[:processed].to_i
       persist_checkpoint!(task, stats, current_category: category, stage: "products_completed")
 
@@ -75,13 +77,18 @@ class RefreshCategoryCatalogJob < ApplicationJob
       # достаточно сбросить кеш сериализованной категории.
       bust_catalog_tree_cache!(category)
 
-      missing_delivery_metrics = missing_delivery_metric_skus(category)
+      quality_issues = product_quality_issues(category)
+      missing_delivery_metrics = Array(quality_issues["missing_delivery_metrics"])
       if missing_delivery_metrics.any?
         stats[:missing_delivery_metrics][category.ikea_id] = missing_delivery_metrics.first(200)
+      end
+      if quality_issues.values.any?(&:present?)
+        stats[:product_quality_issues][category.ikea_id] = quality_issues
       end
 
       mark_category_attempt_finished!(stats, category)
       persist_checkpoint!(task, stats, current_category: category, stage: "category_completed")
+      task.update_payload!(RefreshCategoryFromLtJob::PRODUCT_CHECKPOINT_KEY => nil)
     rescue StandardError => e
       raise if e.message == "Task was stopped manually"
 
@@ -154,6 +161,7 @@ class RefreshCategoryCatalogJob < ApplicationJob
       facet_memberships_by_category: payload.fetch("facet_memberships_by_category", {}).to_h,
       unmatched_skus: payload.fetch("unmatched_skus", {}).to_h,
       missing_delivery_metrics: payload.fetch("missing_delivery_metrics", {}).to_h,
+      product_quality_issues: payload.fetch("product_quality_issues", {}).to_h,
       facet_errors: payload.fetch("facet_errors", {}).to_h,
       category_errors: payload.fetch("category_errors", {}).to_h,
       processed: 0,
@@ -182,6 +190,7 @@ class RefreshCategoryCatalogJob < ApplicationJob
     stats[:facet_errors].delete(id)
     stats[:unmatched_skus].delete(id)
     stats[:missing_delivery_metrics].delete(id)
+    stats[:product_quality_issues].delete(id)
     stats[:products_processed_by_category].delete(id)
     stats[:facet_memberships_by_category].delete(id)
     persist_checkpoint!(task, stats, current_category: category, stage: "products")
@@ -234,6 +243,7 @@ class RefreshCategoryCatalogJob < ApplicationJob
       "facet_memberships" => stats[:facet_memberships],
       "unmatched_skus" => stats[:unmatched_skus],
       "missing_delivery_metrics" => stats[:missing_delivery_metrics],
+      "product_quality_issues" => stats[:product_quality_issues],
       "facet_errors" => stats[:facet_errors],
       "category_errors" => stats[:category_errors]
     }
@@ -283,6 +293,8 @@ class RefreshCategoryCatalogJob < ApplicationJob
   end
 
   def transient_error?(error)
+    return false if error.message.to_s.include?("headless retries exhausted")
+
     error.class.name.match?(TRANSIENT_ERROR_PATTERN) || error.message.to_s.match?(TRANSIENT_ERROR_PATTERN)
   end
 
@@ -419,11 +431,27 @@ class RefreshCategoryCatalogJob < ApplicationJob
     Category.not_deleted.where(ikea_id: category.self_and_descendant_ikea_ids)
   end
 
-  def missing_delivery_metric_skus(category)
-    Product.catalog_category_scope(category.ikea_id).filter_map do |product|
+  def product_quality_issues(category)
+    issues = {
+      "missing_delivery_metrics" => [],
+      "invalid_sale_price" => [],
+      "untranslated_polish_text" => []
+    }
+
+    Product.catalog_category_scope(category.ikea_id).find_each do |product|
       metrics = Delivery::ParcelPackingService.export_parcel_metrics(product)
       values = metrics.values_at(:weight_kg, :width_cm, :height_cm, :depth_cm)
-      product.sku.to_s if values.any? { |value| value.to_f <= 0 }
+      issues["missing_delivery_metrics"] << product.sku.to_s if values.any? { |value| value.to_f <= 0 }
+      unless Products::StockAvailability.sale_price?(product.price)
+        issues["invalid_sale_price"] << product.sku.to_s
+      end
+
+      translated_fields = [product.small_desc_name, product.materials, product.care_instructions]
+      if translated_fields.compact.any? { |text| TranslationService.needs_polish_to_russian_translation?(text) }
+        issues["untranslated_polish_text"] << product.sku.to_s
+      end
     end
+
+    issues.transform_values { |skus| skus.uniq.first(200) }
   end
 end

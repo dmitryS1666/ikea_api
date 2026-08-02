@@ -8,8 +8,12 @@ require 'securerandom'
 require 'json'
 require 'tmpdir'
 require 'strscan'
+require 'timeout'
 
 class PlDetailsFetcher
+  class HeadlessFetchError < StandardError; end
+  class HeadlessTimeoutError < HeadlessFetchError; end
+
   # Пути по умолчанию (Linux/macOS); на проде без браузера Ferrum падает с BinaryNotFoundError.
   BROWSER_PATH_CANDIDATES = %w[
     /usr/bin/google-chrome-stable
@@ -834,6 +838,7 @@ class PlDetailsFetcher
     end
 
     begin
+      Timeout.timeout(headless_timeout_seconds, HeadlessTimeoutError) do
       Rails.logger.info "PlDetailsFetcher.fetch_modal_with_headless_browser: Starting headless browser for #{url}"
       proxy_host = nil
       proxy_port = nil
@@ -1051,6 +1056,10 @@ end
         sleep(10) # Ждем прохождения Cloudflare проверки
         page_html = browser.body
       end
+
+      if headless_blocked_page?(page_html)
+        raise HeadlessFetchError, "headless proxy blocked by IKEA (HTTP 403/Cloudflare)"
+      end
       
       Rails.logger.debug "PlDetailsFetcher.fetch_modal_with_headless_browser: Page loaded, HTML length: #{page_html.length}"
       
@@ -1243,24 +1252,22 @@ measurements_opened =
       Rails.logger.info "PlDetailsFetcher.fetch_modal_with_headless_browser: Extracted - materials: #{result[:materials].present?}, care: #{result[:care_instructions].present?}, safety: #{result[:safety_info].present?}, good_to_know: #{result[:good_to_know].present?}, included_products: #{included_skus&.length || 0}, related_products: #{Array(result[:related_products]).length}"
       
       result
+      end
       
     rescue Ferrum::BinaryNotFoundError => e
       Rails.logger.warn "PlDetailsFetcher.fetch_modal_with_headless_browser: #{e.class} — #{e.message.strip} (CHROME_PATH / BROWSER_PATH)"
       {}
+    rescue HeadlessFetchError => e
+      Rails.logger.error "PlDetailsFetcher.fetch_modal_with_headless_browser: #{e.class} - #{e.message}"
+      raise
     rescue Ferrum::StatusError => e
       Rails.logger.error "PlDetailsFetcher.fetch_modal_with_headless_browser: Error: #{e.class} - #{e.message}\n#{e.backtrace.first(5).join("\n")}"
-      {}
+      raise HeadlessFetchError, "headless browser status error: #{e.message}"
     rescue => e
       Rails.logger.error "PlDetailsFetcher.fetch_modal_with_headless_browser: Error: #{e.class} - #{e.message}\n#{e.backtrace.first(5).join("\n")}"
-      {}
+      raise HeadlessFetchError, "headless browser failed: #{e.class}: #{e.message}"
     ensure
-      if browser
-        begin
-          browser.quit
-        rescue
-          # ignore
-        end
-      end
+      shutdown_headless_browser!(browser) if browser
 
       if extension_dir && Dir.exist?(extension_dir)
         FileUtils.rm_rf(extension_dir)
@@ -4824,5 +4831,31 @@ end
   def full_browser_mode?
     browser_mode == 'full'
   end
-end
 
+  def headless_timeout_seconds
+    ENV.fetch("PL_FETCHER_HEADLESS_TIMEOUT_SECONDS", "120").to_i.clamp(30, 300)
+  end
+
+  def headless_blocked_page?(html)
+    body = html.to_s
+    return true if body.blank?
+
+    body.match?(/(?:403\s+Forbidden|Access\s+Denied|Cloudflare|Just\s+a\s+moment)/i)
+  end
+
+  def shutdown_headless_browser!(browser)
+    pid = begin
+      browser.process&.pid
+    rescue StandardError
+      nil
+    end
+    Timeout.timeout(5) { browser.quit }
+  rescue StandardError => e
+    Rails.logger.warn "PlDetailsFetcher: browser.quit failed pid=#{pid}: #{e.class} #{e.message}"
+    begin
+      Process.kill("TERM", pid) if pid.to_i.positive?
+    rescue Errno::ESRCH, Errno::EPERM => kill_error
+      Rails.logger.warn "PlDetailsFetcher: cannot terminate Chrome pid=#{pid}: #{kill_error.class} #{kill_error.message}"
+    end
+  end
+end

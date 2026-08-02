@@ -23,8 +23,20 @@ RSpec.describe Products::ExtendedAttributesFetchService do
       expect(service.send(:pl_product_url, product)).to eq("https://www.ikea.com/pl/pl/p/-s29545213/")
     end
 
-    it "uses plain item number for regular component URLs" do
+    it "uses plain item number for a bundle component alias" do
       product = build(:product, sku: "s60489549", item_no: "60489549")
+      service.instance_variable_set(:@bundle_component, true)
+
+      expect(service.send(:pl_product_url, product)).to eq("https://www.ikea.com/pl/pl/p/-60489549/")
+    end
+
+    it "uses a plain article from the original component URL even if DB SKU has an s alias" do
+      product = build(
+        :product,
+        sku: "s60489549",
+        item_no: "60489549",
+        url: "https://www.ikea.com/lt/ru/p/component-name-60489549/"
+      )
 
       expect(service.send(:pl_product_url, product)).to eq("https://www.ikea.com/pl/pl/p/-60489549/")
     end
@@ -162,6 +174,51 @@ RSpec.describe Products::ExtendedAttributesFetchService do
       result = service.send(:fetch_details_with_optional_headless, url)
 
       expect(result[:materials]).to eq("Rama")
+    end
+
+    it "rotates to another headless attempt after a timeout or proxy block" do
+      light = { materials: nil, care_instructions: "Odkurzać" }
+      complete = { materials: "Rama", care_instructions: "Odkurzać" }
+      attempts = 0
+
+      allow(service).to receive(:sleep)
+      allow(PlDetailsFetcher).to receive(:fetch)
+        .with(url, use_headless: false, scope_sku: nil)
+        .and_return(light)
+      allow(PlDetailsFetcher).to receive(:fetch)
+        .with(url, use_headless: true, scope_sku: nil) do
+          attempts += 1
+          raise PlDetailsFetcher::HeadlessFetchError, "HTTP 403" if attempts < 3
+
+          complete
+        end
+
+      result = service.send(:fetch_details_with_optional_headless, url)
+
+      expect(attempts).to eq(3)
+      expect(service).to have_received(:sleep).with(1).once
+      expect(service).to have_received(:sleep).with(2).once
+      expect(result[:materials]).to eq("Rama")
+    end
+  end
+
+  describe "price protection" do
+    let(:service) { described_class.new }
+
+    it "does not overwrite a valid stored price with zero from an incomplete card" do
+      attributes = { price: 199 }
+
+      service.send(:assign_valid_pl_price!, { price: 0 }, attributes)
+
+      expect(attributes[:price]).to eq(199)
+    end
+
+    it "accepts a valid IKEA sale price" do
+      attributes = {}
+
+      service.send(:assign_valid_pl_price!, { price: "3798" }, attributes)
+
+      expect(attributes[:price]).to eq("3798")
     end
   end
 end

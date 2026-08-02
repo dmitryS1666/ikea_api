@@ -22,6 +22,10 @@
 class RefreshCategoryFromLtJob < ApplicationJob
   queue_as :parser
 
+  PRODUCT_CHECKPOINT_KEY = "product_checkpoint".freeze
+
+  class ProductStageIncompleteError < StandardError; end
+
   def perform(ikea_id:, task_id: nil, max_created: nil, threads: 2, manage_task: true)
     task =
       if task_id.present?
@@ -97,7 +101,11 @@ class RefreshCategoryFromLtJob < ApplicationJob
       images_synced: 0,
       created_skus: [],
       related_skus: [],
-      missing_related_skus: []
+      missing_related_skus: [],
+      listing_errors: [],
+      products_total: 0,
+      products_resumed: 0,
+      products_completed: 0
     }
     parser = ParseProductsJob.new
     canonical_listing_skus = []
@@ -151,6 +159,12 @@ class RefreshCategoryFromLtJob < ApplicationJob
         break if max_created.present? && stats[:created] >= max_created
       end
 
+      product_checkpoint = prepare_product_checkpoint!(task, category, products_to_enrich)
+      product_checkpoint["listing_errors"] = stats[:listing_errors]
+      task.update_payload!(PRODUCT_CHECKPOINT_KEY => product_checkpoint.deep_dup)
+      stats[:products_total] = product_checkpoint["listing_skus"].size
+      stats[:products_resumed] = product_checkpoint["completed_skus"].size
+
       enrich_products_batch!(
         products_to_enrich: products_to_enrich,
         category: category,
@@ -158,8 +172,12 @@ class RefreshCategoryFromLtJob < ApplicationJob
         task: task,
         stats: stats,
         process_related: process_related,
-        threads: threads
+        threads: threads,
+        checkpoint: product_checkpoint
       )
+
+      product_checkpoint = task.reload.payload.to_h[PRODUCT_CHECKPOINT_KEY].to_h
+      stats[:products_completed] = Array(product_checkpoint["completed_skus"]).size
 
       touched_canonical_skus.compact!
       touched_canonical_skus.uniq!
@@ -183,6 +201,7 @@ class RefreshCategoryFromLtJob < ApplicationJob
     rescue StandardError => e
       if e.message == "Task was stopped manually"
         Rails.logger.info "RefreshCategoryFromLtJob: task #{task.id} stopped manually"
+        raise unless manage_task
         return
       end
 
@@ -198,46 +217,68 @@ class RefreshCategoryFromLtJob < ApplicationJob
 
   private
 
-  def enrich_products_batch!(products_to_enrich:, category:, rows_by_sku:, task:, stats:, process_related:, threads:)
-    product_ids = Array(products_to_enrich).compact.uniq
-    return if product_ids.empty?
+  def enrich_products_batch!(products_to_enrich:, category:, rows_by_sku:, task:, stats:, process_related:, threads:, checkpoint:)
+    product_ids = pending_product_ids(products_to_enrich, checkpoint)
+    if product_ids.empty?
+      raise_product_stage_incomplete!(task, checkpoint)
+      finalize_product_checkpoint!(task, checkpoint)
+      return
+    end
+
+    checkpoint_mutex = Mutex.new
 
     if threads <= 1
       Product.where(id: product_ids).find_each(batch_size: 100) do |product|
-        enrich_product!(product, category, rows_by_sku, task, stats, nil, process_related: process_related)
+        outcome = enrich_product!(product, category, rows_by_sku, task, stats, nil, process_related: process_related)
+        persist_product_checkpoint_result!(task, checkpoint, product, outcome)
       end
+      raise_product_stage_incomplete!(task, checkpoint)
+      finalize_product_checkpoint!(task, checkpoint)
       return
     end
 
     queue = Queue.new
     product_ids.each { |id| queue << id }
     mutex = Mutex.new
+    fatal_error = nil
 
     workers = Array.new(threads) do
       Thread.new do
         ActiveRecord::Base.connection_pool.with_connection do
           loop do
+            break if mutex.synchronize { fatal_error.present? }
+
             product_id = queue.pop(true)
             check_task_not_stopped!(task)
             product = Product.find_by(id: product_id)
             next unless product
 
-            enrich_product!(product, category, rows_by_sku, task, stats, mutex, process_related: process_related)
+            outcome = enrich_product!(product, category, rows_by_sku, task, stats, mutex, process_related: process_related)
+            checkpoint_mutex.synchronize do
+              persist_product_checkpoint_result!(task, checkpoint, product, outcome)
+            end
           rescue ThreadError
             break
           rescue StandardError => e
             Rails.logger.warn "RefreshCategoryFromLtJob: enrich worker failed: #{e.class} #{e.message}"
-            break if e.message == "Task was stopped manually"
+            mutex.synchronize { fatal_error ||= e }
+            break
           end
         end
       end
     end
 
     workers.each(&:join)
+    raise fatal_error if fatal_error
+
+    raise_product_stage_incomplete!(task, checkpoint)
+    finalize_product_checkpoint!(task, checkpoint)
   end
 
   def enrich_product!(product, category, rows_by_sku, task, stats, mutex, process_related: false)
     check_task_not_stopped!(task)
+
+    outcome = { ok: true }
 
     begin
       row = jsonl_row_for_product(rows_by_sku, product.sku)
@@ -306,6 +347,8 @@ class RefreshCategoryFromLtJob < ApplicationJob
       sync_local_images!(product, stats, mutex)
       sync_variant_siblings_images!(product, stats, mutex)
     rescue StandardError => e
+      raise if e.message == "Task was stopped manually"
+
       Rails.logger.error "RefreshCategoryFromLtJob: enrich #{product.sku}: #{e.message}"
       if mutex
         mutex.synchronize do
@@ -316,9 +359,115 @@ class RefreshCategoryFromLtJob < ApplicationJob
         stats[:errors] += 1
         task.increment_errors!
       end
+      outcome = {
+        ok: false,
+        error_class: e.class.name,
+        message: e.message.to_s
+      }
     ensure
       ensure_included_products_bootstrap!(product)
     end
+
+    outcome
+  end
+
+  def prepare_product_checkpoint!(task, category, product_ids)
+    listing_skus = Product.where(id: Array(product_ids).compact.uniq).pluck(:sku).map(&:to_s).uniq
+    saved = task.reload.payload.to_h[PRODUCT_CHECKPOINT_KEY].to_h.deep_stringify_keys
+
+    checkpoint =
+      if saved["category_ikea_id"].to_s == category.ikea_id.to_s
+        saved
+      else
+        {}
+      end
+
+    completed_skus = Array(checkpoint["completed_skus"]).map(&:to_s) & listing_skus
+    failed_skus = checkpoint.fetch("failed_skus", {}).to_h.slice(*listing_skus)
+    checkpoint = {
+      "category_ikea_id" => category.ikea_id.to_s,
+      "stage" => "products",
+      "listing_skus" => listing_skus,
+      "completed_skus" => completed_skus,
+      "failed_skus" => failed_skus,
+      "products_total" => listing_skus.size,
+      "products_completed" => completed_skus.size,
+      "updated_at" => Time.current.iso8601
+    }
+    task.update_payload!(PRODUCT_CHECKPOINT_KEY => checkpoint)
+    checkpoint
+  end
+
+  def pending_product_ids(product_ids, checkpoint)
+    completed_skus = Array(checkpoint["completed_skus"]).map(&:to_s)
+
+    Product.where(id: Array(product_ids).compact.uniq).filter_map do |product|
+      product.id unless completed_skus.include?(product.sku.to_s)
+    end
+  end
+
+  def persist_product_checkpoint_result!(task, checkpoint, product, outcome)
+    sku = product.sku.to_s
+    completed_skus = Array(checkpoint["completed_skus"]).map(&:to_s)
+    failed_skus = checkpoint.fetch("failed_skus", {}).to_h
+
+    if outcome[:ok]
+      completed_skus |= [sku]
+      failed_skus.delete(sku)
+    else
+      completed_skus.delete(sku)
+      failed_skus[sku] = {
+        "error_class" => outcome[:error_class].to_s,
+        "message" => outcome[:message].to_s,
+        "failed_at" => Time.current.iso8601
+      }
+    end
+
+    checkpoint["completed_skus"] = completed_skus
+    checkpoint["failed_skus"] = failed_skus
+    checkpoint["products_completed"] = completed_skus.size
+    checkpoint["last_product_sku"] = sku
+    checkpoint["updated_at"] = Time.current.iso8601
+    task.update_payload!(PRODUCT_CHECKPOINT_KEY => checkpoint.deep_dup)
+  end
+
+  def raise_product_stage_incomplete!(task, checkpoint)
+    failed_skus = checkpoint.fetch("failed_skus", {}).to_h
+    listing_errors = Array(checkpoint["listing_errors"])
+    completed_skus = Array(checkpoint["completed_skus"]).map(&:to_s)
+    unprocessed_skus = Array(checkpoint["listing_skus"]).map(&:to_s) - completed_skus - failed_skus.keys
+    unprocessed_skus.each do |sku|
+      failed_skus[sku] = {
+        "error_class" => "ProductNotProcessed",
+        "message" => "product disappeared or worker stopped before enrichment",
+        "failed_at" => Time.current.iso8601
+      }
+    end
+    checkpoint["failed_skus"] = failed_skus
+    return if failed_skus.empty? && listing_errors.empty?
+
+    checkpoint["updated_at"] = Time.current.iso8601
+    task.update_payload!(PRODUCT_CHECKPOINT_KEY => checkpoint.deep_dup)
+
+    if failed_skus.any?
+      first_sku, first_error = failed_skus.first
+      raise ProductStageIncompleteError,
+            "products stage incomplete: #{failed_skus.size} SKU failed; " \
+            "first=#{first_sku}: #{first_error.to_h['message']}"
+    end
+
+    first_error = listing_errors.first.to_h
+    raise ProductStageIncompleteError,
+          "products listing incomplete: #{listing_errors.size} row failed; " \
+          "first=#{first_error['sku']}: #{first_error['message']}"
+  end
+
+  def finalize_product_checkpoint!(task, checkpoint)
+    checkpoint["stage"] = "products_completed"
+    checkpoint["products_completed"] = Array(checkpoint["completed_skus"]).size
+    checkpoint["failed_skus"] = {}
+    checkpoint["updated_at"] = Time.current.iso8601
+    task.update_payload!(PRODUCT_CHECKPOINT_KEY => checkpoint.deep_dup)
   end
 
   def ensure_included_products_bootstrap!(product)
@@ -735,13 +884,21 @@ class RefreshCategoryFromLtJob < ApplicationJob
       res[:sku].presence
     rescue StandardError => e
       Rails.logger.error "RefreshCategoryFromLtJob: product error #{e.message}"
+      listing_sku = Products::ListingSkuResolver.coerce_listing_identifier(product_data)
+      listing_error = {
+        "sku" => listing_sku.to_s.presence || "unknown",
+        "error_class" => e.class.name,
+        "message" => e.message.to_s
+      }
       if mutex
         mutex.synchronize do
           stats[:errors] += 1
+          stats[:listing_errors] << listing_error
           task.increment_errors!
         end
       else
         stats[:errors] += 1
+        stats[:listing_errors] << listing_error
         task.increment_errors!
       end
       nil

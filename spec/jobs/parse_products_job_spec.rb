@@ -20,6 +20,7 @@ RSpec.describe ParseProductsJob, type: :job do
   before do
     allow(Category).to receive_message_chain(:not_deleted, :find_each).and_yield(category)
     allow(IkeaApiService).to receive(:search_products_by_category).and_return(products_data)
+    allow(IkeaApiService).to receive(:check_availability).and_return({})
     allow(TelegramService).to receive(:send_parser_started)
     allow(TelegramService).to receive(:send_parser_completed)
     allow(TelegramService).to receive(:send_parser_error)
@@ -41,6 +42,7 @@ RSpec.describe ParseProductsJob, type: :job do
       expect(product.sku).to eq('403.411.01')
       expect(product.name).to eq('Test Product')
       expect(product.category_id).to eq(category.ikea_id)
+      expect(IkeaApiService).to have_received(:check_availability).with(['40341101'])
     end
 
     it 'updates existing products' do
@@ -49,6 +51,17 @@ RSpec.describe ParseProductsJob, type: :job do
       ParseProductsJob.perform_now(limit: 10)
       
       expect(product.reload.name).to eq('Test Product')
+    end
+
+    it 'preserves the last valid price when IKEA temporarily returns zero' do
+      product = create(:product, sku: '403.411.01', price: 199)
+      allow(IkeaApiService).to receive(:search_products_by_category).and_return(
+        [products_data.first.merge('salesPrice' => { 'numeral' => 0 })]
+      )
+
+      ParseProductsJob.perform_now(limit: 10)
+
+      expect(product.reload.price.to_f).to eq(199.0)
     end
 
     it 'sends telegram notifications' do
@@ -90,4 +103,3 @@ RSpec.describe ParseProductsJob, type: :job do
     end
   end
 end
-

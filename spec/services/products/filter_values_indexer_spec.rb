@@ -27,6 +27,27 @@ RSpec.describe Products::FilterValuesIndexer do
       ).to exist
     end
 
+    it "does not put a zero-priced product into an IKEA price bucket" do
+      category = create(:category, ikea_id: "47388", available_filters: [
+        {
+          "parameter" => "f-price-buckets",
+          "values" => [{ "id" => "PRICE_0_10000", "name" => "0-100 zl" }]
+        }
+      ])
+      product = create(:product, sku: "59502293", price: 0)
+      category.products_through_categories << product
+
+      described_class.new(category).reindex!
+
+      expect(
+        ProductFilterValue.where(
+          product: product,
+          category_id: category.ikea_id,
+          parameter: "f-price-buckets"
+        )
+      ).not_to exist
+    end
+
     it "does not infer IKEA color facets from product text" do
       category = create(:category, ikea_id: "700999", available_filters: [
         {

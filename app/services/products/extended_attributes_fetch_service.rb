@@ -13,6 +13,11 @@
 #
 # Связи наборов / сопутствующие SKU и документы без LT — дополняются с PL, если пусто.
 class Products::ExtendedAttributesFetchService
+  HEADLESS_FETCH_MAX_ATTEMPTS = 3
+  HEADLESS_RETRY_DELAYS = [1, 2].freeze
+
+  class HeadlessRetriesExhaustedError < StandardError; end
+
   # Старые URL фото с польской витрины (часто смесь вариантов цвета); при новом парсе PL их выкидываем и подставляем список под текущий SKU.
   REMOTE_PL_PRODUCT_IMAGE_URL = %r{\Ahttps?://www\.ikea\.com/pl/pl/images/products}i.freeze
   # Любая витрина IKEA (pl, lt/ru, …) — один и тот же каталог фото; при смене scoped-галереи вычищаем все, иначе LT+PL копятся в кашу.
@@ -412,7 +417,7 @@ class Products::ExtendedAttributesFetchService
       attributes[:name_ru] = pl_details[:name] if Product.column_names.include?("name_ru")
     end
 
-    attributes[:price] = pl_details[:price] if pl_details[:price].present?
+    assign_valid_pl_price!(pl_details, attributes)
     update_quantity(product, pl_details, attributes)
 
     %i[weight net_weight package_volume package_dimensions dimensions collection].each do |key|
@@ -447,14 +452,23 @@ class Products::ExtendedAttributesFetchService
 
   def pl_product_url(product)
     sku_token = pip_url_token(product.sku)
-    url_set_token = set_sku_from_pip_url(product.url)
+    url_token = pip_url_token_from_pip_url(product.url)
     item_token = pip_url_token(product.item_no)
+
+    # The source IKEA URL is authoritative: it distinguishes a real set SKU
+    # (`s29545213`) from a component whose local listing alias happens to have
+    # an `s` prefix (`s60489549`).
+    return "https://www.ikea.com/pl/pl/p/-#{url_token}/" if url_token.present?
+
+    # IncludedProductsBootstrapService enriches child articles with this flag.
+    # Those children use their plain item number even when the listing alias
+    # stored in Product#sku starts with `s`.
+    return "https://www.ikea.com/pl/pl/p/-#{item_token}/" if @bundle_component && item_token.present?
 
     # Combo/set SKUs must keep the leading `s` in IKEA PIP URLs.
     # Example: /p/-s29545213/. Article-only URLs like /p/-29545213/
     # may open the wrong page or miss the full included-products modal.
     return "https://www.ikea.com/pl/pl/p/-#{sku_token}/" if set_sku_token?(sku_token)
-    return "https://www.ikea.com/pl/pl/p/-#{url_set_token}/" if set_sku_token?(url_set_token)
     return "https://www.ikea.com/pl/pl/p/-#{item_token}/" if item_token.present?
     return "https://www.ikea.com/pl/pl/p/-#{sku_token}/" if sku_token.present?
 
@@ -471,8 +485,13 @@ class Products::ExtendedAttributesFetchService
     token.to_s.match?(/\As\d{8}\z/)
   end
 
+  def pip_url_token_from_pip_url(url)
+    url.to_s.downcase[/-(s?\d{8})(?:[\/?#]|$)/, 1].presence
+  end
+
   def set_sku_from_pip_url(url)
-    url.to_s.downcase[/-(s\d{8})(?:[\/?#]|$)/, 1].presence
+    token = pip_url_token_from_pip_url(url)
+    token if set_sku_token?(token)
   end
 
   def lt_product_url(product)
@@ -511,7 +530,7 @@ class Products::ExtendedAttributesFetchService
           "incomplete modal"
         end
       Rails.logger.info "ExtendedAttributesFetchService: #{reason} for #{url} -> headless"
-      headless = PlDetailsFetcher.fetch(url, use_headless: true, scope_sku: scope_sku) || {}
+      headless = fetch_headless_details_with_retries(url, scope_sku: scope_sku)
       light = merge_pl_headless_fetch(light, headless) if headless.present?
     end
 
@@ -604,7 +623,7 @@ class Products::ExtendedAttributesFetchService
       attributes[:assembly_documents] = download_documents(pl_details[:assembly_documents], product.sku)
     end
 
-    attributes[:price] = pl_details[:price] if pl_details[:price].present?
+    assign_valid_pl_price!(pl_details, attributes)
 
     update_quantity(product, pl_details, attributes)
   end
@@ -758,6 +777,10 @@ class Products::ExtendedAttributesFetchService
   def pl_included_products_need_headless?(details)
     return false if details.blank?
 
+    from_modal = details[:included_products_from_modal]
+    from_modal = details["included_products_from_modal"] if from_modal.nil?
+    return false if ActiveModel::Type::Boolean.new.cast(from_modal)
+
     flag = details[:included_sheet_needs_headless]
     flag = details["included_sheet_needs_headless"] if flag.nil?
     return false unless ActiveModel::Type::Boolean.new.cast(flag)
@@ -835,6 +858,35 @@ class Products::ExtendedAttributesFetchService
 
   def pl_headless_enabled?
     %w[true 1 yes].include?(ENV.fetch("PL_FETCHER_ENABLE_HEADLESS", "true").to_s.downcase)
+  end
+
+  def fetch_headless_details_with_retries(url, scope_sku: nil)
+    attempt = 0
+
+    begin
+      attempt += 1
+      PlDetailsFetcher.fetch(url, use_headless: true, scope_sku: scope_sku) || {}
+    rescue PlDetailsFetcher::HeadlessFetchError => e
+      if attempt >= HEADLESS_FETCH_MAX_ATTEMPTS
+        raise HeadlessRetriesExhaustedError,
+              "headless retries exhausted after #{attempt} attempts: #{e.message}"
+      end
+
+      delay = HEADLESS_RETRY_DELAYS.fetch(attempt - 1, HEADLESS_RETRY_DELAYS.last)
+      Rails.logger.warn(
+        "ExtendedAttributesFetchService: headless retry #{attempt}/#{HEADLESS_FETCH_MAX_ATTEMPTS} " \
+        "for #{url} in #{delay}s: #{e.message}"
+      )
+      sleep(delay)
+      retry
+    end
+  end
+
+  def assign_valid_pl_price!(pl_details, attributes)
+    price = pl_details[:price]
+    return unless Products::StockAvailability.sale_price?(price)
+
+    attributes[:price] = price
   end
 
   def parse_json_array(val)
