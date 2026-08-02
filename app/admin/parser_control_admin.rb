@@ -43,7 +43,22 @@ Trestle.resource :parser_control, model: ParserControl do
     end
 
     def start_task
-      task_type = params[:task_type]
+      regular_task_type = params[:task_type].to_s.presence
+      new_task_type = params[:new_task_type].to_s.presence
+
+      if regular_task_type.present? && new_task_type.present?
+        flash[:error] = "Выберите задачу только в одном списке"
+        redirect_to admin.instance_path(ParserControl.new(id: 'show'))
+        return
+      end
+
+      if new_task_type.present? && !ParserControl.new_background_task_type?(new_task_type)
+        flash[:error] = "Неизвестная новая фоновая задача: #{new_task_type}"
+        redirect_to admin.instance_path(ParserControl.new(id: 'show'))
+        return
+      end
+
+      task_type = new_task_type || regular_task_type
       limit = params[:limit].present? && params[:limit].to_i > 0 ? params[:limit].to_i : nil
       reset = params[:reset] == '1'
       threads = params[:threads].present? ? params[:threads].to_i : 2
