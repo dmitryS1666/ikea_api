@@ -1,0 +1,19 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /api/
+Disallow: /cart/
+Disallow: /checkout/
+Disallow: /order/
+Disallow: /orders/
+Disallow: /*?*sort=
+Disallow: /*?*order=
+Disallow: /*?*filter=
+Disallow: /*?*min_price=
+Disallow: /*?*max_price=
+Disallow: /*?*price_from=
+Disallow: /*?*price_to=
+Disallow: /*?*view=
+Disallow: /*?*limit=
+
+Clean-param: utm_source&utm_medium&utm_campaign&utm_term&utm_content&yclid&ymclid&gclid&wbraid&gbraid&fbclid&etext&_openstat&srsltid
+Sitemap: https://ikeya.by/sitemap.xml
