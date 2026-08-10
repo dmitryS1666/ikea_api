@@ -104,6 +104,26 @@ RSpec.describe Products::ExtendedAttributesFetchService do
       expect(result[:included_products]).to eq(%w[60489549 00417621 30489490 80498114 10568638])
     end
 
+    it "keeps the static result when headless is disabled for packaging recovery" do
+      light = {
+        materials: nil,
+        care_instructions: nil,
+        measurements_modal: { "packages" => [{ "measurements" => [] }] },
+        included_sheet_needs_headless: true
+      }
+      service.instance_variable_set(:@allow_headless, false)
+
+      expect(PlDetailsFetcher).to receive(:fetch)
+        .with(url, use_headless: false, scope_sku: "00604986")
+        .and_return(light)
+      expect(PlDetailsFetcher).not_to receive(:fetch)
+        .with(url, use_headless: true, scope_sku: "00604986")
+
+      result = service.send(:fetch_details_with_optional_headless, url, scope_sku: "00604986")
+
+      expect(result[:measurements_modal]).to eq(light[:measurements_modal])
+    end
+
     it "copies small_desc_name from pl_details in apply_pl_descriptive" do
       service = described_class.new
       attributes = {}

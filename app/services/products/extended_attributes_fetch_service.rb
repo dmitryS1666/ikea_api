@@ -23,7 +23,7 @@ class Products::ExtendedAttributesFetchService
   # Любая витрина IKEA (pl, lt/ru, …) — один и тот же каталог фото; при смене scoped-галереи вычищаем все, иначе LT+PL копятся в кашу.
   REMOTE_IKEA_PRODUCT_GALLERY_URL = %r{\Ahttps?://www\.ikea\.com/[^/]+/[^/]+/images/products}i.freeze
 
-  def self.fetch_for_product(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false, skip_image_reconciliation: false, bundle_component: false)
+  def self.fetch_for_product(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false, skip_image_reconciliation: false, bundle_component: false, allow_headless: true)
     new.fetch(
       product,
       results_jsonl_row: results_jsonl_row,
@@ -32,14 +32,16 @@ class Products::ExtendedAttributesFetchService
       strip_listing_relations: strip_listing_relations,
       skip_document_download: skip_document_download,
       skip_image_reconciliation: skip_image_reconciliation,
-      bundle_component: bundle_component
+      bundle_component: bundle_component,
+      allow_headless: allow_headless
     )
   end
 
-  def fetch(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false, skip_image_reconciliation: false, bundle_component: false)
+  def fetch(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false, skip_image_reconciliation: false, bundle_component: false, allow_headless: true)
     @skip_document_download = skip_document_download
     @skip_image_reconciliation = skip_image_reconciliation
     @bundle_component = bundle_component
+    @allow_headless = allow_headless
     pl_url = pl_product_url(product)
     return { updated: false } if pl_url.blank?
 
@@ -522,7 +524,7 @@ class Products::ExtendedAttributesFetchService
   def fetch_details_with_optional_headless(url, scope_sku: nil)
     light = PlDetailsFetcher.fetch(url, use_headless: false, scope_sku: scope_sku) || {}
 
-    if pl_headless_enabled? && pl_fetch_needs_headless?(light)
+    if @allow_headless != false && pl_headless_enabled? && pl_fetch_needs_headless?(light)
       reason =
         if pl_included_products_need_headless?(light)
           "included_products sheet"

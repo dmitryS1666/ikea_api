@@ -499,14 +499,7 @@ class PlDetailsFetcher
   
     return true if expected.positive? && packages.size < expected
   
-    packages.any? do |pkg|
-      rows = Array(pkg["measurements"] || pkg[:measurements])
-      names = rows.map { |r| (r["name"] || r[:name]).to_s }
-      !names.include?("Ширина") ||
-        !names.include?("Высота") ||
-        !names.include?("Длина") ||
-        !names.include?("Вес")
-    end
+    packages.any? { |pkg| !Products::PackagingDimensionsStatus.package_measurements_have_box_dims?(pkg) }
   end
   
   private
@@ -2739,7 +2732,9 @@ end
   end
 
   def measurements_modal_snapshot_from_hydration_props(props)
-    pk = props.dig("packaging", "contentProps", "packages")
+    pk = normalize_hydration_measurement_packages(
+      props.dig("packaging", "contentProps", "packages")
+    )
     diagram = measurement_diagram_image_from_props_images(props["images"])
     {
       "title" => normalize_text(props["title"]).presence,
@@ -2769,7 +2764,9 @@ end
     dims = product_dimensions_wdh_from_measurement_rows(Array(props["measurements"]))
     fields[:dimensions] = dims if dims.present?
 
-    pk = props.dig("packaging", "contentProps", "packages")
+    pk = normalize_hydration_measurement_packages(
+      props.dig("packaging", "contentProps", "packages")
+    )
     wsum = total_weight_kg_from_measurement_packages(pk)
     fields[:weight] = wsum if wsum.present? && wsum.positive?
 
@@ -2778,6 +2775,42 @@ end
     fields[:package_volume] = vol if vol.present? && vol.positive?
 
     fields
+  end
+
+  def normalize_hydration_measurement_packages(packages)
+    Array(packages).filter_map do |package|
+      next unless package.is_a?(Hash)
+
+      normalized = package.deep_stringify_keys.deep_dup
+      measurements =
+        Array(normalized["measurementGroups"]).flat_map do |group|
+          next [] unless group.is_a?(Hash)
+
+          Array(group["measurements"]).filter_map do |measurement|
+            next unless measurement.is_a?(Hash)
+
+            row = measurement.deep_stringify_keys
+            name = row["label"].presence || row["type"].presence
+            measure = row["text"].presence || row["value"].presence&.to_s
+            next if name.blank? || measure.blank?
+
+            row.merge("name" => name, "measure" => measure)
+          end
+        end
+
+      quantity = normalized.dig("quantity", "value")
+      if quantity.present?
+        measurements << {
+          "name" => "Упаковка(-и)",
+          "measure" => quantity.to_s,
+          "type" => "package_count",
+          "value" => quantity
+        }
+      end
+
+      normalized["measurements"] = measurements
+      normalized
+    end
   end
 
   def product_dimensions_wdh_from_measurement_rows(rows)
@@ -2824,14 +2857,10 @@ end
       next unless pkg.is_a?(Hash)
 
       w = nil
-      Array(pkg["measurements"]).each do |grp|
-        Array(grp).each do |item|
-          next unless item.is_a?(Hash)
+      hydration_package_measurement_items(pkg).each do |item|
+        next unless item["type"].to_s == "weight" && item["value"].present?
 
-          next unless item["type"].to_s == "weight" && item["value"].present?
-
-          w = item["value"].to_f
-        end
+        w = item["value"].to_f
       end
       next unless w
 
@@ -2850,19 +2879,25 @@ end
     Array(packages).each do |pkg|
       next unless pkg.is_a?(Hash)
 
-      lwh = { w: nil, h: nil, l: nil }
-      Array(pkg["measurements"]).each do |grp|
-        Array(grp).each do |item|
-          next unless item.is_a?(Hash)
-
-          case item["type"].to_s
-          when "width"
-            lwh[:w] = item["value"].presence&.to_f || parse_measurement_cm_scalar(item["text"])
-          when "height"
-            lwh[:h] = item["value"].presence&.to_f || parse_measurement_cm_scalar(item["text"])
-          when "length", "depth"
-            lwh[:l] = item["value"].presence&.to_f || parse_measurement_cm_scalar(item["text"])
-          end
+      lwh = { w: nil, h: nil, l: nil, d: nil }
+      hydration_package_measurement_items(pkg).each do |item|
+        case item["type"].to_s
+        when "width"
+          lwh[:w] = item["value"].presence&.to_f || parse_measurement_cm_scalar(item["text"])
+        when "height"
+          lwh[:h] = item["value"].presence&.to_f || parse_measurement_cm_scalar(item["text"])
+        when "length", "depth"
+          lwh[:l] = item["value"].presence&.to_f || parse_measurement_cm_scalar(item["text"])
+        when "diameter"
+          lwh[:d] = item["value"].presence&.to_f || parse_measurement_cm_scalar(item["text"])
+        end
+      end
+      if lwh[:d]
+        lwh[:w] ||= lwh[:d]
+        if lwh[:l].blank? && lwh[:h].present?
+          lwh[:l] = lwh[:d]
+        elsif lwh[:h].blank?
+          lwh[:h] = lwh[:d]
         end
       end
       if lwh[:w] && lwh[:h] && lwh[:l]
@@ -2874,6 +2909,12 @@ end
     vol_round = vol_sum.round(3)
     vol_final = vol_round.positive? ? vol_round : nil
     [primary_lwh, vol_final]
+  end
+
+  def hydration_package_measurement_items(package)
+    Array(package["measurements"]).flat_map do |entry|
+      entry.is_a?(Array) ? entry : [entry]
+    end.select { |entry| entry.is_a?(Hash) }
   end
 
   def extract_measurements_modal_from_dom(doc)

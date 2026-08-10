@@ -390,6 +390,8 @@ class ProductSerializer
     "waga" => "Вес",
     "weight" => "Вес",
     "диаметр" => "Диаметр",
+    "średnica" => "Диаметр",
+    "srednica" => "Диаметр",
     "diameter" => "Диаметр",
     "упаковка(-и)" => "Упаковка(-и)",
     "paczka(i)" => "Упаковка(-и)",
@@ -578,6 +580,8 @@ class ProductSerializer
       "Нагрузка на полку"
     when /\Amaks\. obciążenie\/półka szklana\b/i, /\Amaks\. obciazenie\/polka szklana\b/i
       "Макс. нагрузка на стеклянную полку"
+    when "średnica", "srednica", "diameter", "диаметр"
+      "Диаметр"
     when "paczka(i)", "paczki", "package(s)", "packages", "упаковка(-и)"
       "Упаковка(-и)"
     when "grubość", "grubosc", "thickness", "толщина"

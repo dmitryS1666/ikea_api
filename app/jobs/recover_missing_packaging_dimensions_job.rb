@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
-# Повторный парсинг карточки PL (+ LT при наличии URL) через ExtendedAttributesFetchService,
+# Повторный HTTP-парсинг карточки PL (+ LT при наличии URL) через ExtendedAttributesFetchService,
 # чтобы в full_attributes попал measurements_modal и в API — packages / packaging с габаритами.
+# Данные measurementGroups уже встроены в hydration HTML, поэтому Chrome для этой задачи не нужен.
 # Галерею с PL не сверяем (skip_image_reconciliation), чтобы задача не меняла images/local_images.
 class RecoverMissingPackagingDimensionsJob < ApplicationJob
   queue_as :parser
@@ -80,7 +81,8 @@ class RecoverMissingPackagingDimensionsJob < ApplicationJob
               product,
               fallback_pl_when_lt_missing: true,
               skip_document_download: true,
-              skip_image_reconciliation: true
+              skip_image_reconciliation: true,
+              allow_headless: false
             )
 
           if result[:skipped_missing_lt]

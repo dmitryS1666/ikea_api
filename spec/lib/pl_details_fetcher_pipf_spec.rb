@@ -158,5 +158,61 @@ RSpec.describe PlDetailsFetcher do
 
       expect(related).to contain_exactly("80598627", "40624384", "90304889")
     end
+
+    it "normalizes inline measurementGroups without opening a browser" do
+      hydration = {
+        "product" => { "itemNo" => "00604986" },
+        "pageProps" => {
+          "productInformationSectionProps" => {
+            "measurementsProps" => {
+              "title" => "Wymiary",
+              "measurements" => [],
+              "packaging" => {
+                "title" => "Opakowanie",
+                "contentProps" => {
+                  "numberOfPackages" => 1,
+                  "packages" => [
+                    {
+                      "name" => "VALVATTNET",
+                      "itemNo" => "00604986",
+                      "quantity" => { "value" => 1 },
+                      "measurementGroups" => [
+                        {
+                          "measurements" => [
+                            { "label" => "Długość", "type" => "length", "text" => "33 cm", "value" => 33 },
+                            { "label" => "Waga", "type" => "weight", "text" => "0.49 kg", "value" => 0.49 },
+                            { "label" => "Średnica", "type" => "diameter", "text" => "8 cm", "value" => 8 }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+      html = <<~HTML
+        <!DOCTYPE html><html><body>
+          <script type="text/hydrate">#{JSON.generate(hydration)}</script>
+        </body></html>
+      HTML
+
+      result = described_class.parse_html(
+        html,
+        "https://www.ikea.com/pl/pl/p/valvattnet-00604986/",
+        use_headless: false,
+        scope_sku: "00604986"
+      )
+      packages = ProductSerializer.extract_packages_from_measurements_modal(result[:measurements_modal])
+
+      expect(result[:weight]).to eq(0.49)
+      expect(result[:package_dimensions]).to eq("8.0 × 8.0 × 33.0 cm")
+      expect(packages.first["measurements"]).to include(
+        { "name" => "Длина", "measure" => "33 см" },
+        { "name" => "Диаметр", "measure" => "8 см" }
+      )
+    end
   end
 end

@@ -31,6 +31,23 @@ RSpec.describe Products::PackagingDimensionsStatus do
       expect(described_class.size_has_full_packaging_dimensions?(size)).to eq(true)
     end
 
+    it "returns true for a rolled package with diameter and length" do
+      size = {
+        "packaging" => { "desc" => nil, "details" => [] },
+        "packages" => [
+          {
+            "measurements" => [
+              { "name" => "Długość", "measure" => "33 cm" },
+              { "name" => "Średnica", "measure" => "8 cm" },
+              { "name" => "Waga", "measure" => "0.49 kg" }
+            ]
+          }
+        ]
+      }
+
+      expect(described_class.size_has_full_packaging_dimensions?(size)).to eq(true)
+    end
+
     it "returns false when details and packages lack a full box" do
       size = {
         "packaging" => { "desc" => "HEMNES, 403.717.63", "details" => [] },

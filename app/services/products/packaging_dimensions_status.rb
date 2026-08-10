@@ -2,7 +2,9 @@
 
 module Products
   # Единые правила с консольными проверками и джобой восполнения:
-  # «полноценные размеры упаковки» = ширина + высота + (глубина или длина)
+  # «полноценные размеры упаковки» = прямоугольный короб
+  # (ширина + высота + глубина/длина) либо цилиндрическая/круглая упаковка
+  # (диаметр + длина/высота).
   # в customer payload size — либо в packaging.details (ключи width/height/length|depth),
   # либо в size.packages[].measurements (русские имена после translate_measurement_label_for_api).
   class PackagingDimensionsStatus
@@ -10,15 +12,21 @@ module Products
       def package_measurements_have_box_dims?(pkg)
         return false unless pkg.is_a?(Hash)
 
-        names = Array(pkg["measurements"]).filter_map do |row|
+        names = Array(pkg["measurements"] || pkg[:measurements]).filter_map do |row|
           next unless row.is_a?(Hash)
 
           ProductSerializer.translate_measurement_label_for_api(row["name"] || row[:name])
         end.compact.map(&:to_s)
 
-        names.include?("Ширина") &&
-          names.include?("Высота") &&
-          (names.include?("Глубина") || names.include?("Длина"))
+        rectangular =
+          names.include?("Ширина") &&
+            names.include?("Высота") &&
+            (names.include?("Глубина") || names.include?("Длина"))
+        cylindrical =
+          names.include?("Диаметр") &&
+            (names.include?("Длина") || names.include?("Высота"))
+
+        rectangular || cylindrical
       end
 
       def packaging_details_have_box_dims?(pack)
@@ -28,9 +36,15 @@ module Products
           next false unless row.is_a?(Hash)
 
           r = row.stringify_keys
-          r["width"].present? &&
-            r["height"].present? &&
-            (r["length"].present? || r["depth"].present?)
+          rectangular =
+            r["width"].present? &&
+              r["height"].present? &&
+              (r["length"].present? || r["depth"].present?)
+          cylindrical =
+            r["diameter"].present? &&
+              (r["length"].present? || r["depth"].present? || r["height"].present?)
+
+          rectangular || cylindrical
         end
       end
 
