@@ -1021,6 +1021,7 @@ end
       opts = {
         headless: false, # Отключаем стандартный флаг --headless, используем --headless=new через browser_options
         timeout: 60,
+        process_timeout: headless_process_timeout_seconds,
         browser_path: browser_executable
       }
 
@@ -4857,5 +4858,10 @@ end
     rescue Errno::ESRCH, Errno::EPERM => kill_error
       Rails.logger.warn "PlDetailsFetcher: cannot terminate Chrome pid=#{pid}: #{kill_error.class} #{kill_error.message}"
     end
+  end
+
+  def headless_process_timeout_seconds
+    configured = ENV.fetch("FERRUM_PROCESS_TIMEOUT", "60").to_i
+    configured.positive? ? configured : 60
   end
 end
