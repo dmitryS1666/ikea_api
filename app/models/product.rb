@@ -366,7 +366,7 @@ class Product < ApplicationRecord
   end
 
   # Полный payload вариантов (карточка товара, откат листинга на полные variants).
-  def normalized_variants_for_api_full
+  def normalized_variants_for_api_full(preloaded_variants_by_sku: nil)
     # Сначала пробуем использовать сохраненный тип из БД
     type = variant_type.presence || variant_group_type
     api_variants_payload = variants_payload_for_api
@@ -393,14 +393,17 @@ class Product < ApplicationRecord
         variant_lookup_skus =
           variant_skus.flat_map { |s| Products::ListingSkuResolver.aliases(s) }.uniq
         
-        variants_by_sku =
-          if variant_lookup_skus.empty?
-            {}
-          else
-            Product.where(sku: variant_lookup_skus).each_with_object({}) do |p, memo|
-              Products::ListingSkuResolver.aliases(p.sku).each { |a| memo[a.to_s] = p }
+        variants_by_sku = (preloaded_variants_by_sku || {}).dup
+        missing_lookup_skus = variant_lookup_skus.reject { |lookup_sku| variants_by_sku.key?(lookup_sku.to_s) }
+
+        if missing_lookup_skus.any?
+          Product
+            .where(sku: missing_lookup_skus)
+            .includes(:category, :product_filter_values)
+            .each do |p|
+              Products::ListingSkuResolver.aliases(p.sku).each { |a| variants_by_sku[a.to_s] = p }
             end
-          end
+        end
         
         processed_payload = data_to_process.map do |variant_group|
           group = variant_group.deep_symbolize_keys
@@ -601,8 +604,10 @@ class Product < ApplicationRecord
 
   # Краткий payload для листингов: тот же контракт { type, data: [{ color|size, item }] },
   # в item только sku, small_desc_name и одно превью.
-  def normalized_variants_teaser_for_api
-    compact_variants_payload_for_teaser(normalized_variants_for_api_full)
+  def normalized_variants_teaser_for_api(preloaded_variants_by_sku: nil)
+    compact_variants_payload_for_teaser(
+      normalized_variants_for_api_full(preloaded_variants_by_sku: preloaded_variants_by_sku)
+    )
   end
 
   private

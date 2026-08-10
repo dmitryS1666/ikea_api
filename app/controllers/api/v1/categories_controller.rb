@@ -56,10 +56,11 @@ module Api
         }
 
         products = products_scope
-                           .includes(:categories, :category_products, :seo_meta)
+                           .includes(:category, :categories, :category_products, :seo_meta)
                            .page(params[:page])
                            .per(per_page)
 
+        variant_products_by_sku = Products::VariantProductsPreloader.call(products)
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a
         
         calculator_settings = {
@@ -75,6 +76,7 @@ module Api
             favorite_skus: current_favorite_skus,
             active_promos: promos,
             promo_applicability: get_promo_applicability(products, promos),
+            variant_products_by_sku: variant_products_by_sku,
             rates: rates,
             calculator_settings: calculator_settings
           },

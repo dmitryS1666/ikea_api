@@ -112,9 +112,11 @@ class ProductTeaserSerializer
     ProductLocalImages.preview_paths(product.local_images)
   end
 
-  attribute :variants do |product|
+  attribute :variants do |product, params|
     # Откат на полный payload: product.normalized_variants_for_api_full
-    product.normalized_variants_teaser_for_api
+    product.normalized_variants_teaser_for_api(
+      preloaded_variants_by_sku: params&.[](:variant_products_by_sku)
+    )
   end
 
   def self.public_sku(sku)

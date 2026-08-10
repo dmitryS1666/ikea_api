@@ -85,7 +85,7 @@ RSpec.describe Categories::LtAvailableFiltersRefreshService do
       service = described_class.new(category, reindex: true, ensure_series: false)
 
       allow(service).to receive(:fetch_lt_filters).and_return([])
-      expect(ReindexCategoryFiltersJob).to receive(:perform_later).with("reindex-policy-1")
+      expect(RefreshCategoryFilterIndexJob).to receive(:perform_later).with("reindex-policy-1")
 
       result = service.call
 

@@ -142,8 +142,11 @@ module Categories
       end
 
       # Переиндексация нужна не только при изменении JSON фильтров: товары/атрибуты могли обновиться,
-      # а набор available_filters остаться прежним.
-      ReindexCategoryFiltersJob.perform_later(@category.ikea_id) if @reindex
+      # а набор available_filters остаться прежним. Обычный FilterValuesIndexer
+      # рассчитывает только локальные параметры и намеренно не трогает фасеты
+      # IKEA, поэтому полный refresh должен сначала заново получить точные
+      # membership-связи SKU (цвет, материал и т. п.).
+      RefreshCategoryFilterIndexJob.perform_later(@category.ikea_id) if @reindex
 
       current_filters = normalize_filters(@category.reload.available_filters)
       Result.new(

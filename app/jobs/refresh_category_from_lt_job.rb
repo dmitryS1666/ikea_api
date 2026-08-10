@@ -195,6 +195,10 @@ class RefreshCategoryFromLtJob < ApplicationJob
       stats[:missing_related_skus] = stats[:missing_related_skus].uniq.sort
       stats[:missing_related_skus_count] = stats[:missing_related_skus].size
       task.update_payload!("created_skus" => stats[:created_skus]) if stats[:created_skus].present?
+      # Standalone category parsing must also refresh exact IKEA facet
+      # memberships. RefreshCategoryCatalogJob passes manage_task: false and
+      # performs the same step synchronously as part of its own pipeline.
+      RefreshCategoryFilterIndexJob.perform_later(category.ikea_id) if manage_task
       task.mark_as_completed!(stats) if manage_task
       notify_completed("refresh_category_lt", stats) if manage_task
       stats

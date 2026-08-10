@@ -409,12 +409,7 @@ class Category < ApplicationRecord
   end
   
   def working_filter_value_count(parameter, value_id)
-    ProductFilterValue
-      .where(category_id: catalog_filter_tree_ikea_ids, parameter: parameter.to_s, value_id: value_id.to_s)
-      .joins(:product)
-      .merge(Product.with_available_stock)
-      .distinct
-      .count(:product_id)
+    working_filter_value_counts.fetch([parameter.to_s, value_id.to_s], 0)
   end
 
   def working_filter_value_count_distinct_products(parameter, value_ids)
@@ -424,6 +419,21 @@ class Category < ApplicationRecord
       .merge(Product.with_available_stock)
       .distinct
       .count(:product_id)
+  end
+
+  # CategorySerializer asks for a count for every value of every visible
+  # filter. Loading them one by one caused dozens of COUNT queries on a cold
+  # category cache. PostgreSQL can calculate the same data in one grouped
+  # query using the category/parameter/value index.
+  def working_filter_value_counts
+    @working_filter_value_counts ||= ProductFilterValue
+      .where(category_id: catalog_filter_tree_ikea_ids)
+      .joins(:product)
+      .merge(Product.with_available_stock)
+      .group(:parameter, :value_id)
+      .distinct
+      .count(:product_id)
+      .transform_keys { |parameter, value_id| [parameter.to_s, value_id.to_s] }
   end
 
   # Товары и product_filter_values для API-фильтров: текущая категория + потомки
