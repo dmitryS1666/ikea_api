@@ -1002,7 +1002,11 @@ class Products::ExtendedAttributesFetchService
       next if source_text.blank?
 
       plain = source_text.is_a?(Array) ? source_text.join("\n") : source_text.to_s
-      needs_translation = force ? !TranslationService.predominantly_russian?(plain) : TranslationService.needs_polish_to_russian_translation?(plain)
+      # force раньше смотрел только predominantly_russian? и пропускал смеси
+      # «Состав:/Уход:» (кириллица) + польское тело — как раз наш хвост.
+      needs_translation =
+        TranslationService.needs_polish_to_russian_translation?(plain) ||
+        (force && !TranslationService.predominantly_russian?(plain))
       next unless needs_translation
 
       translated = TranslationService.translate(plain, context: "product_#{field}")
@@ -1188,7 +1192,9 @@ class Products::ExtendedAttributesFetchService
     s = text.to_s
     return s if s.blank?
 
-    needs = force ? !TranslationService.predominantly_russian?(s) : TranslationService.needs_polish_to_russian_translation?(s)
+    needs =
+      TranslationService.needs_polish_to_russian_translation?(s) ||
+      (force && !TranslationService.predominantly_russian?(s))
     return s unless needs
 
     translated = TranslationService.translate(s, context: context)
