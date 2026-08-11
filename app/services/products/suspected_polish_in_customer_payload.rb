@@ -10,12 +10,32 @@ module Products
       pokrycie obicia nóżki podłokietnik zawiera skład
     ].freeze
 
+    # Поля, которые реально чинит RecoverBrokenProductTranslationsJob (LT/AI описаний).
+    DESCRIPTIVE_PATH_RE =
+      /(?:^|\.)(?:content|materials|features|care(?:_instructions)?|description|detailed_info|product_details(?:_modal)?|small_desc_name|short_desc_name|short_description|safety(?:_info)?|good_to_know)(?:\.|$|\[)/i.freeze
+
     module_function
 
     def suspect?(product)
+      polish_hits(product).any?
+    end
+
+    # Польский в описаниях/материалах/уходе — то, что recovery умеет исправить.
+    def descriptive_suspect?(product)
+      polish_hits(product).any? { |hit| descriptive_path?(hit[:path]) }
+    end
+
+    def polish_hits(product)
       payload = ProductSerializer.customer_full_attributes_payload(product)
-      texts = deep_strings(payload).uniq
-      texts.any? { |text| likely_polish_not_russian?(text) }
+      hits = []
+      walk_strings(payload, "root") do |path, text|
+        hits << { path: path, text: text } if likely_polish_not_russian?(text)
+      end
+      hits
+    end
+
+    def descriptive_path?(path)
+      path.to_s.match?(DESCRIPTIVE_PATH_RE)
     end
 
     def deep_strings(obj, acc = [])
@@ -29,6 +49,18 @@ module Products
         obj.each { |v| deep_strings(v, acc) }
       end
       acc
+    end
+
+    def walk_strings(obj, path, &block)
+      case obj
+      when String
+        stripped = obj.strip
+        yield(path, stripped) if stripped.length >= 12
+      when Hash
+        obj.each { |k, v| walk_strings(v, "#{path}.#{k}", &block) }
+      when Array
+        obj.each_with_index { |v, i| walk_strings(v, "#{path}[#{i}]", &block) }
+      end
     end
 
     def likely_polish_not_russian?(text)

@@ -3,8 +3,9 @@
 # Перезагружает описательные поля товара с приоритетом LT (русский текст), при отсутствии LT —
 # PL + перевод через TranslationService (в т.ч. OpenAI в AiTranslationService).
 #
-# По умолчанию обрабатывает только товары, которые счётчик помечает как «подозрительные»
-# (см. Products::SuspectedPolishInCustomerPayload и CountBrokenProductTranslationsJob).
+# По умолчанию обрабатывает только товары с польским в описательных полях
+# (см. Products::SuspectedPolishInCustomerPayload.descriptive_suspect?).
+# Headless отключён: HTTP/LT достаточно для текстов, а Chrome на проде даёт ProcessTimeout.
 class RecoverBrokenProductTranslationsJob < ApplicationJob
   queue_as :parser
 
@@ -40,6 +41,7 @@ class RecoverBrokenProductTranslationsJob < ApplicationJob
       processed: 0,
       updated: 0,
       skipped: 0,
+      skipped_non_descriptive: 0,
       still_suspect: 0,
       errors: 0
     }
@@ -59,6 +61,8 @@ class RecoverBrokenProductTranslationsJob < ApplicationJob
       task.update_payload!(
         total_to_process: total_count,
         only_suspected: only_suspected,
+        allow_headless: false,
+        descriptive_only: true,
         sku: sku,
         skus: normalize_skus([sku, skus].compact),
         category_ikea_id: category_ikea_id.to_s.strip.presence
@@ -67,7 +71,7 @@ class RecoverBrokenProductTranslationsJob < ApplicationJob
       notify_started("recover_broken_product_translations", limit: total_count)
       Rails.logger.info(
         "RecoverBrokenProductTranslationsJob: #{total_count} products " \
-        "(only_suspected=#{only_suspected})"
+        "(only_suspected=#{only_suspected}, allow_headless=false, descriptive_only=true)"
       )
 
       query.find_in_batches(batch_size: BATCH_SIZE) do |batch|
@@ -76,11 +80,17 @@ class RecoverBrokenProductTranslationsJob < ApplicationJob
         batch.each do |product|
           check_task_not_stopped!(task)
 
-          if only_suspected && !Products::SuspectedPolishInCustomerPayload.suspect?(product)
-            stats[:skipped] += 1
-            stats[:processed] += 1
-            task.increment_processed!
-            next
+          if only_suspected
+            unless Products::SuspectedPolishInCustomerPayload.descriptive_suspect?(product)
+              if Products::SuspectedPolishInCustomerPayload.suspect?(product)
+                stats[:skipped_non_descriptive] += 1
+              else
+                stats[:skipped] += 1
+              end
+              stats[:processed] += 1
+              task.increment_processed!
+              next
+            end
           end
 
           begin
@@ -88,12 +98,13 @@ class RecoverBrokenProductTranslationsJob < ApplicationJob
               product,
               force_ai_translation: true,
               fallback_pl_when_lt_missing: true,
-              skip_document_download: true
+              skip_document_download: true,
+              allow_headless: false
             )
 
             product.reload
 
-            if Products::SuspectedPolishInCustomerPayload.suspect?(product)
+            if Products::SuspectedPolishInCustomerPayload.descriptive_suspect?(product)
               stats[:still_suspect] += 1
             else
               stats[:updated] += 1
@@ -118,6 +129,7 @@ class RecoverBrokenProductTranslationsJob < ApplicationJob
         "fixed_count" => stats[:updated],
         "still_suspect_after" => stats[:still_suspect],
         "skipped_not_suspect" => stats[:skipped],
+        "skipped_non_descriptive" => stats[:skipped_non_descriptive],
         "recover_errors" => stats[:errors],
         "duration_seconds" => stats[:duration].to_f
       )
