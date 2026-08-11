@@ -6,19 +6,24 @@ RSpec.describe PlDetailsFetcher do
   describe "headless resilience" do
     let(:fetcher) { described_class.new(scope_sku: "59502293") }
 
+    after do
+      described_class.reset_reused_headless_browser!
+    end
+
     it "recognizes proxy block pages" do
       expect(fetcher.send(:headless_blocked_page?, "<title>403 Forbidden</title>")).to eq(true)
       expect(fetcher.send(:headless_blocked_page?, "<title>Just a moment...</title>")).to eq(true)
       expect(fetcher.send(:headless_blocked_page?, "<html>produkt IKEA</html>")).to eq(false)
     end
 
-    it "always closes Chrome when a headless request fails" do
+    it "closes Chrome when a headless request fails" do
       headers = double("Ferrum headers", set: nil)
       browser = double(
         "Ferrum browser",
         headers: headers,
         process: nil,
-        quit: nil
+        quit: nil,
+        contexts: []
       )
 
       allow(described_class).to receive(:resolved_chromium_path_for_headless).and_return("/usr/bin/chromium")
@@ -35,13 +40,45 @@ RSpec.describe PlDetailsFetcher do
       expect(browser).to have_received(:quit)
     end
 
+    it "keeps Chrome open after success and reuses it for the next call" do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with("PL_FETCHER_REUSE_BROWSER", "1").and_return("1")
+
+      browser = double("Ferrum browser", quit: nil, contexts: [], process: nil)
+
+      fetcher.send(
+        :finalize_headless_browser_session!,
+        browser,
+        nil,
+        "proxy|1|user",
+        had_error: nil
+      )
+      expect(browser).not_to have_received(:quit)
+
+      session = fetcher.send(:take_any_reused_headless_session!)
+      expect(session[:browser]).to eq(browser)
+      expect(session[:proxy_key]).to eq("proxy|1|user")
+
+      # Second finalize without error keeps the same session
+      fetcher.send(
+        :finalize_headless_browser_session!,
+        browser,
+        nil,
+        "proxy|1|user",
+        had_error: nil
+      )
+      expect(browser).not_to have_received(:quit)
+      expect(fetcher.send(:take_any_reused_headless_session!)[:browser]).to eq(browser)
+    end
+
     it "allows enough time for Chrome to start" do
       headers = double("Ferrum headers", set: nil)
       browser = double(
         "Ferrum browser",
         headers: headers,
         process: nil,
-        quit: nil
+        quit: nil,
+        contexts: []
       )
 
       allow(described_class).to receive(:resolved_chromium_path_for_headless).and_return("/usr/bin/chromium")

@@ -818,11 +818,7 @@ class PlDetailsFetcher
     result = {}
     browser = nil
     extension_dir = nil
-
-    proxy_options = ProxyRotator.get_proxy
-    if proxy_options.blank?
-      Rails.logger.warn "PlDetailsFetcher.fetch_modal_with_headless_browser: PROXY_LIST empty, headless without proxy"
-    end
+    proxy_key = nil
 
     browser_executable = self.class.resolved_chromium_path_for_headless
     unless browser_executable
@@ -830,14 +826,33 @@ class PlDetailsFetcher
       return {}
     end
 
+    reused_session = take_any_reused_headless_session!
+    if reused_session
+      browser = reused_session[:browser]
+      extension_dir = reused_session[:extension_dir]
+      proxy_key = reused_session[:proxy_key]
+    end
+
+    proxy_options =
+      if reused_session
+        nil
+      else
+        ProxyRotator.get_proxy
+      end
+    if !reused_session && proxy_options.blank?
+      Rails.logger.warn "PlDetailsFetcher.fetch_modal_with_headless_browser: PROXY_LIST empty, headless without proxy"
+    end
+
     begin
       Timeout.timeout(headless_timeout_seconds, HeadlessTimeoutError) do
-      Rails.logger.info "PlDetailsFetcher.fetch_modal_with_headless_browser: Starting headless browser for #{url}"
       proxy_host = nil
       proxy_port = nil
       proxy_user = nil
       proxy_pass = nil
 
+      if reused_session
+        Rails.logger.info "PlDetailsFetcher.fetch_modal_with_headless_browser: Reusing headless browser for #{url}"
+      else
       case proxy_options
       when String
         s = proxy_options.strip
@@ -888,10 +903,34 @@ class PlDetailsFetcher
       if proxy_host.present? && proxy_port.to_i > 0
         # Chrome proxy-server должен быть ТОЛЬКО host:port
         proxy_string = "#{proxy_host}:#{proxy_port}"
-
         Rails.logger.debug "PlDetailsFetcher.fetch_modal_with_headless_browser: Using proxy for Chrome: #{proxy_string} (auth=#{proxy_user.present?})"
+      else
+        Rails.logger.warn "PlDetailsFetcher.fetch_modal_with_headless_browser: no proxy, direct connection"
+      end
+
+      ferrum_proxy = nil
+      if proxy_host.present? && proxy_port.present?
+        ferrum_proxy = {
+          host: proxy_host,
+          port: proxy_port.to_i
+        }
 
         if proxy_user.present? && proxy_pass.present?
+          ferrum_proxy[:user] = proxy_user
+          ferrum_proxy[:password] = proxy_pass
+        end
+
+        Rails.logger.debug(
+          "PlDetailsFetcher.fetch_modal_with_headless_browser: " \
+          "Using native Ferrum proxy: #{proxy_host}:#{proxy_port} " \
+          "(auth=#{proxy_user.present?})"
+        )
+      end
+
+      proxy_key = headless_proxy_session_key(proxy_host, proxy_port, proxy_user)
+      Rails.logger.info "PlDetailsFetcher.fetch_modal_with_headless_browser: Starting headless browser for #{url}"
+
+        if proxy_string.present? && proxy_user.present? && proxy_pass.present?
           # создаём extension для прокси-авторизации
           # ИСПОЛЬЗУЕМ PROJECT TMP DIR для совместимости со Snap (используем Rails.root если доступен)
           tmp_base = defined?(Rails) ? Rails.root.join("tmp").to_s : File.join(Dir.pwd, "tmp")
@@ -949,79 +988,58 @@ class PlDetailsFetcher
           File.write(File.join(extension_dir, "manifest.json"), JSON.pretty_generate(manifest))
           File.write(File.join(extension_dir, "background.js"), background)
         end
-      else
-        Rails.logger.warn "PlDetailsFetcher.fetch_modal_with_headless_browser: no proxy, direct connection"
+
+        browser_options = {
+          "no-sandbox" => nil,
+          "disable-dev-shm-usage" => nil,
+          "disable-gpu" => nil,
+          "disable-software-rasterizer" => nil,
+          "disable-extensions" => nil, # <-- ВАЖНО: ЭТУ СТРОКУ НЕЛЬЗЯ оставлять, если мы грузим extension
+          "disable-background-networking" => nil,
+          "disable-background-timer-throttling" => nil,
+          "disable-backgrounding-occluded-windows" => nil,
+          "disable-breakpad" => nil,
+          "disable-client-side-phishing-detection" => nil,
+          "disable-default-apps" => nil,
+          "disable-hang-monitor" => nil,
+          "disable-popup-blocking" => nil,
+          "disable-prompt-on-repost" => nil,
+          "disable-sync" => nil,
+          "disable-translate" => nil,
+          "metrics-recording-only" => nil,
+          "no-first-run" => nil,
+          "safebrowsing-disable-auto-update" => nil,
+          "password-store=basic" => nil,
+          "use-mock-keychain" => nil,
+          "window-size" => "1366,768"
+        }
+
+        # ВАЖНО:
+        # если extension_dir есть — НЕ надо включать "disable-extensions"
+        # иначе Chrome просто не загрузит auth-extension
+        if extension_dir
+          browser_options.delete("disable-extensions")
+        end
+
+        # ИСПОЛЬЗУЕМ headless=new для поддержки расширений в headless режиме
+        if full_browser_mode?
+          Rails.logger.info "PlDetailsFetcher.fetch_modal_with_headless_browser: Running in full browser mode (headless disabled)"
+        else
+          browser_options["headless"] = "new"
+        end
+
+        opts = {
+          headless: false, # Отключаем стандартный флаг --headless, используем --headless=new через browser_options
+          timeout: 60,
+          process_timeout: headless_process_timeout_seconds,
+          browser_path: browser_executable
+        }
+
+        opts[:proxy] = ferrum_proxy if ferrum_proxy.present?
+
+        browser = Ferrum::Browser.new(browser_options: browser_options, **opts)
       end
 
-ferrum_proxy = nil
-if proxy_host.present? && proxy_port.present?
-  ferrum_proxy = {
-    host: proxy_host,
-    port: proxy_port.to_i
-  }
-
-  if proxy_user.present? && proxy_pass.present?
-    ferrum_proxy[:user] = proxy_user
-    ferrum_proxy[:password] = proxy_pass
-  end
-
-  Rails.logger.debug(
-    "PlDetailsFetcher.fetch_modal_with_headless_browser: " \
-    "Using native Ferrum proxy: #{proxy_host}:#{proxy_port} " \
-    "(auth=#{proxy_user.present?})"
-  )
-end
-
-      browser_options = {
-        "no-sandbox" => nil,
-        "disable-dev-shm-usage" => nil,
-        "disable-gpu" => nil,
-        "disable-software-rasterizer" => nil,
-        "disable-extensions" => nil, # <-- ВАЖНО: ЭТУ СТРОКУ НЕЛЬЗЯ оставлять, если мы грузим extension
-        "disable-background-networking" => nil,
-        "disable-background-timer-throttling" => nil,
-        "disable-backgrounding-occluded-windows" => nil,
-        "disable-breakpad" => nil,
-        "disable-client-side-phishing-detection" => nil,
-        "disable-default-apps" => nil,
-        "disable-hang-monitor" => nil,
-        "disable-popup-blocking" => nil,
-        "disable-prompt-on-repost" => nil,
-        "disable-sync" => nil,
-        "disable-translate" => nil,
-        "metrics-recording-only" => nil,
-        "no-first-run" => nil,
-        "safebrowsing-disable-auto-update" => nil,
-        "password-store=basic" => nil,
-        "use-mock-keychain" => nil,
-        "window-size" => "1366,768"
-      }
-
-      # ВАЖНО:
-      # если extension_dir есть — НЕ надо включать "disable-extensions"
-      # иначе Chrome просто не загрузит auth-extension
-      if extension_dir
-        browser_options.delete("disable-extensions")
-      end
-
-      # ИСПОЛЬЗУЕМ headless=new для поддержки расширений в headless режиме
-      if full_browser_mode?
-        Rails.logger.info "PlDetailsFetcher.fetch_modal_with_headless_browser: Running in full browser mode (headless disabled)"
-      else
-        browser_options["headless"] = "new"
-      end
-
-      opts = {
-        headless: false, # Отключаем стандартный флаг --headless, используем --headless=new через browser_options
-        timeout: 60,
-        process_timeout: headless_process_timeout_seconds,
-        browser_path: browser_executable
-      }
-
-      opts[:proxy] = ferrum_proxy if ferrum_proxy.present?
-
-      browser = Ferrum::Browser.new(browser_options: browser_options, **opts)
-      
       # Устанавливаем User-Agent для обхода защиты
       browser.headers.set({
         'User-Agent' => ENV.fetch('USER_AGENT', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'),
@@ -1261,11 +1279,12 @@ measurements_opened =
       Rails.logger.error "PlDetailsFetcher.fetch_modal_with_headless_browser: Error: #{e.class} - #{e.message}\n#{e.backtrace.first(5).join("\n")}"
       raise HeadlessFetchError, "headless browser failed: #{e.class}: #{e.message}"
     ensure
-      shutdown_headless_browser!(browser) if browser
-
-      if extension_dir && Dir.exist?(extension_dir)
-        FileUtils.rm_rf(extension_dir)
-      end
+      finalize_headless_browser_session!(
+        browser,
+        extension_dir,
+        proxy_key,
+        had_error: $!
+      )
     end
   end
   
@@ -4883,6 +4902,100 @@ end
     return true if body.blank?
 
     body.match?(/(?:403\s+Forbidden|Access\s+Denied|Cloudflare|Just\s+a\s+moment)/i)
+  end
+
+  def headless_browser_reuse_enabled?
+    ActiveModel::Type::Boolean.new.cast(ENV.fetch("PL_FETCHER_REUSE_BROWSER", "1"))
+  end
+
+  def headless_proxy_session_key(host, port, user)
+    [host.to_s, port.to_s, user.to_s].join("|")
+  end
+
+  def reused_headless_session
+    Thread.current[:pl_details_fetcher_headless_session]
+  end
+
+  def store_reused_headless_session!(browser:, extension_dir:, proxy_key:)
+    Thread.current[:pl_details_fetcher_headless_session] = {
+      browser: browser,
+      extension_dir: extension_dir,
+      proxy_key: proxy_key.to_s,
+      stored_at: Time.now.to_i
+    }
+  end
+
+  def clear_reused_headless_session!
+    Thread.current[:pl_details_fetcher_headless_session] = nil
+  end
+
+  def discard_reused_headless_session!
+    session = reused_headless_session
+    return unless session
+
+    shutdown_headless_browser!(session[:browser]) if session[:browser]
+    dir = session[:extension_dir]
+    FileUtils.rm_rf(dir) if dir.present? && Dir.exist?(dir)
+    clear_reused_headless_session!
+  end
+
+  def headless_browser_alive?(browser)
+    return false unless browser
+
+    # cheap liveness probe — dead Chrome raises on frames/contexts access
+    browser.contexts
+    true
+  rescue StandardError
+    false
+  end
+
+  def take_reused_headless_session!(proxy_key)
+    return nil unless headless_browser_reuse_enabled?
+
+    session = reused_headless_session
+    return nil unless session
+
+    if session[:proxy_key].to_s != proxy_key.to_s || !headless_browser_alive?(session[:browser])
+      discard_reused_headless_session!
+      return nil
+    end
+
+    session
+  end
+
+  def take_any_reused_headless_session!
+    return nil unless headless_browser_reuse_enabled?
+
+    session = reused_headless_session
+    return nil unless session
+
+    unless headless_browser_alive?(session[:browser])
+      discard_reused_headless_session!
+      return nil
+    end
+
+    session
+  end
+
+  def finalize_headless_browser_session!(browser, extension_dir, proxy_key, had_error:)
+    return unless browser
+
+    if had_error || !headless_browser_reuse_enabled?
+      shutdown_headless_browser!(browser)
+      FileUtils.rm_rf(extension_dir) if extension_dir.present? && Dir.exist?(extension_dir)
+      clear_reused_headless_session!
+      return
+    end
+
+    store_reused_headless_session!(
+      browser: browser,
+      extension_dir: extension_dir,
+      proxy_key: proxy_key
+    )
+  end
+
+  def self.reset_reused_headless_browser!
+    new.send(:discard_reused_headless_session!)
   end
 
   def shutdown_headless_browser!(browser)
