@@ -91,13 +91,19 @@ module Api
       end
       
       def popular
-        categories = Category.popular.includes(:seo_meta).with_attached_icon.with_attached_background_image
-        render json: CategoryPopularSerializer.new(categories)
+        payload = Rails.cache.fetch(Categories::MenuCache::POPULAR_KEY, expires_in: Categories::MenuCache::TTL) do
+          categories = Category.popular.includes(:seo_meta).with_attached_icon.with_attached_background_image
+          CategoryPopularSerializer.new(categories).serializable_hash
+        end
+        render json: payload
       end
 
       def top
-        categories = Category.top.includes(:seo_meta).with_attached_icon.with_attached_background_image
-        render json: CategoryTopSerializer.new(categories)
+        payload = Rails.cache.fetch(Categories::MenuCache::TOP_KEY, expires_in: Categories::MenuCache::TTL) do
+          categories = Category.top.includes(:seo_meta).with_attached_icon.with_attached_background_image
+          CategoryTopSerializer.new(categories).serializable_hash
+        end
+        render json: payload
       end
 
       def custom
@@ -107,7 +113,7 @@ module Api
       
       def tree
         cache_key = "categories_tree_v4_#{current_city}"
-        tree = Rails.cache.fetch(cache_key, expires_in: 12.hours) do
+        tree = Rails.cache.fetch(cache_key, expires_in: Categories::MenuCache::TREE_TTL) do
           categories = Category
             .where(is_deleted: false)
             .select(:id, :ikea_id, :translated_name, :cached_slug, :parent_ids, :top_position, :root_position, :name)

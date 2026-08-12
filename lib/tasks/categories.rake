@@ -573,6 +573,7 @@ namespace :categories do
       Rails.cache.delete("categories_product_counts")
       Rails.cache.delete("categories_children_counts")
       Rails.cache.delete("categories_max_updated_at")
+      Categories::MenuCache.bust!
       Categories::ShowCache.bust_all!
       
       puts "\n✅ Кэш категорий очищен"

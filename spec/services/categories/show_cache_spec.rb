@@ -40,6 +40,38 @@ RSpec.describe Categories::ShowCache do
     end
   end
 
+  describe ".warm!" do
+    it "writes payload so the next fetch does not re-serialize" do
+      category
+
+      expect(CategorySerializer).to receive(:new).once.and_call_original
+      warmed = described_class.warm!(ikea_id: category.ikea_id, city: city, site_url: site_url)
+
+      expect(warmed.dig(:data, :id)).to eq(category.ikea_id)
+      expect(described_class.fetch(ikea_id: category.ikea_id, city: city, site_url: site_url)).to eq(warmed)
+    end
+
+    it "returns nil for missing category" do
+      expect(described_class.warm!(ikea_id: "missing", city: city, site_url: site_url)).to be_nil
+    end
+  end
+
+  describe ".warm_many!" do
+    it "warms multiple categories and skips blanks" do
+      other = create(:category, ikea_id: "700404", name: "Other", translated_name: "Другое")
+
+      payloads = described_class.warm_many!(
+        ikea_ids: [category.ikea_id, "", other.ikea_id, category.ikea_id],
+        city: city,
+        site_url: site_url
+      )
+
+      expect(payloads.size).to eq(2)
+      expect(described_class.fetch(ikea_id: other.ikea_id, city: city, site_url: site_url).dig(:data, :id))
+        .to eq(other.ikea_id)
+    end
+  end
+
   describe ".bust!" do
     it "removes cached payload for the category" do
       category

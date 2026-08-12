@@ -129,6 +129,8 @@ class RefreshCategoryCatalogJob < ApplicationJob
                     "completed"
                   end
     persist_checkpoint!(task, stats, stage: final_stage)
+    warm_show_caches!(stats)
+    persist_checkpoint!(task, stats, stage: final_stage)
     finish_task(task, stats)
   rescue StandardError => e
     return if e.message == "Task was stopped manually"
@@ -352,6 +354,29 @@ class RefreshCategoryCatalogJob < ApplicationJob
   def bust_catalog_tree_cache!(category)
     ids = [category.ikea_id, *Category.normalize_parent_ids(category.parent_ids)]
     ids.map(&:to_s).reject(&:blank?).uniq.each { |id| Categories::ShowCache.bust!(id) }
+  end
+
+  # После bust mid-run прогреваем completed + parents, чтобы утренний traffic
+  # не собирал available_filters/price range на холодном ShowCache.
+  def warm_show_caches!(stats)
+    ids = Array(stats[:completed_category_ids]).flat_map do |id|
+      category = Category.find_by(ikea_id: id.to_s)
+      next [id.to_s] unless category
+
+      [category.ikea_id.to_s, *Category.normalize_parent_ids(category.parent_ids)]
+    end.map(&:to_s).reject(&:blank?).uniq
+
+    return if ids.empty?
+
+    Categories::ShowCache.warm_many!(
+      ikea_ids: ids,
+      city: Seo::CityMapper::DEFAULT_CITY,
+      site_url: Seo::PublicSiteUrl.resolve
+    )
+  rescue StandardError => e
+    Rails.logger.warn(
+      "[RefreshCategoryCatalogJob] show cache warm failed: #{e.class} #{e.message}"
+    )
   end
 
   def sync_facet_memberships(category, task, stats)

@@ -38,9 +38,17 @@ RSpec.describe RefreshCategoryCatalogJob, type: :job do
     allow(Products::FilterValuesIndexer).to receive(:new)
       .and_return(local_filters_indexer)
     allow(Categories::ShowCache).to receive(:bust!)
+    allow(Categories::ShowCache).to receive(:warm_many!).and_return([])
 
     described_class.perform_now(ikea_id: category.ikea_id, task_id: task.id, threads: 3)
 
+    expect(Categories::ShowCache).to have_received(:warm_many!).with(
+      hash_including(
+        ikea_ids: array_including(category.ikea_id),
+        city: Seo::CityMapper::DEFAULT_CITY,
+        site_url: Seo::PublicSiteUrl.resolve
+      )
+    )
     expect(task.reload.status).to eq("completed")
     expect(task.processed).to eq(1)
     expect(task.error_count).to eq(0)
@@ -75,6 +83,7 @@ RSpec.describe RefreshCategoryCatalogJob, type: :job do
       .and_return(instance_double(Categories::IkeaFacetMembershipSyncService, call: facet_result))
     allow(Products::FilterValuesIndexer).to receive(:new).and_return(local_filters_indexer)
     allow(Categories::ShowCache).to receive(:bust!)
+    allow(Categories::ShowCache).to receive(:warm_many!).and_return([])
     allow(Product).to receive(:catalog_category_scope).and_return(Product.none)
 
     described_class.perform_now(ikea_id: category.ikea_id, task_id: task.id)
@@ -152,6 +161,7 @@ RSpec.describe RefreshCategoryCatalogJob, type: :job do
       .with(an_object_having_attributes(ikea_id: parent.ikea_id))
       .and_return(merge_service)
     allow(Categories::ShowCache).to receive(:bust!)
+    allow(Categories::ShowCache).to receive(:warm_many!).and_return([])
     allow(Product).to receive(:catalog_category_scope).and_return(Product.none)
 
     described_class.perform_now(ikea_id: parent.ikea_id, task_id: task.id)
@@ -184,6 +194,7 @@ RSpec.describe RefreshCategoryCatalogJob, type: :job do
         .and_return(instance_double(Categories::IkeaFacetMembershipSyncService, call: facet_result))
       allow(Products::FilterValuesIndexer).to receive(:new).and_return(local_filters_indexer)
       allow(Categories::ShowCache).to receive(:bust!)
+      allow(Categories::ShowCache).to receive(:warm_many!).and_return([])
       allow(Product).to receive(:catalog_category_scope).and_return(Product.none)
     end
 
@@ -348,6 +359,7 @@ RSpec.describe RefreshCategoryCatalogJob, type: :job do
       allow(Categories::IkeaFacetMembershipSyncService).to receive(:new).and_return(facet_service)
       allow(Products::FilterValuesIndexer).to receive(:new).and_return(local_filters_indexer)
       allow(Categories::ShowCache).to receive(:bust!)
+      allow(Categories::ShowCache).to receive(:warm_many!).and_return([])
       allow(Product).to receive(:catalog_category_scope).and_return(Product.none)
 
       described_class.perform_now(ikea_id: category.ikea_id, task_id: task.id)

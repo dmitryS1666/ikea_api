@@ -135,4 +135,42 @@ RSpec.describe Category, type: :model do
     end
   end
 
+  describe "#direct_children and #descendant_ikea_ids" do
+    let!(:root) { create(:category, ikea_id: "hier-root", name: "Root", translated_name: "Якорь", parent_ids: []) }
+    let!(:child_b) { create(:category, ikea_id: "hier-child-b", name: "B", translated_name: "Бета", parent_ids: ["hier-root"]) }
+    let!(:child_a) { create(:category, ikea_id: "hier-child-a", name: "A", translated_name: "Альфа", parent_ids: ["hier-root"]) }
+    let!(:grandchild) { create(:category, ikea_id: "hier-grand", name: "G", translated_name: "Гамма", parent_ids: ["hier-root", "hier-child-a"]) }
+    let!(:unrelated) { create(:category, ikea_id: "hier-other", name: "Other", translated_name: "Другое", parent_ids: []) }
+
+    it "returns only direct children sorted by translated_name" do
+      expect(root.direct_children.map(&:ikea_id)).to eq([child_a.ikea_id, child_b.ikea_id])
+    end
+
+    it "does not treat grandchildren as direct children" do
+      expect(root.direct_children.map(&:ikea_id)).not_to include(grandchild.ikea_id)
+      expect(child_a.direct_children.map(&:ikea_id)).to eq([grandchild.ikea_id])
+    end
+
+    it "returns all descendant ikea_ids without unrelated categories" do
+      expect(root.descendant_ikea_ids).to match_array([child_a.ikea_id, child_b.ikea_id, grandchild.ikea_id])
+      expect(root.self_and_descendant_ikea_ids).to match_array(
+        [root.ikea_id, child_a.ikea_id, child_b.ikea_id, grandchild.ikea_id]
+      )
+      expect(child_a.descendant_ikea_ids).to eq([grandchild.ikea_id])
+      expect(unrelated.descendant_ikea_ids).to eq([])
+    end
+
+    it "handles parent_ids that include the category itself" do
+      nested = create(
+        :category,
+        ikea_id: "hier-self-child",
+        name: "Self",
+        translated_name: "Селф",
+        parent_ids: ["hier-root", "hier-self-child"]
+      )
+
+      expect(root.direct_children.map(&:ikea_id)).to include(nested.ikea_id)
+      expect(Category.direct_parent_id_for(nested)).to eq("hier-root")
+    end
+  end
 end

@@ -175,16 +175,12 @@ class Category < ApplicationRecord
   def descendant_ikea_ids
     return [] if ikea_id.blank?
 
-    Category.where("parent_ids::text LIKE ?", "%#{ikea_id}%")
-            .where.not(ikea_id: ikea_id.to_s)
-            .pluck(:ikea_id)
-            .map(&:to_s)
-            .select do |candidate_id|
-              category = Category.find_by(ikea_id: candidate_id)
-              next false unless category
-
-              self.class.normalize_parent_ids(category.parent_ids).include?(ikea_id.to_s)
-            end
+    parent_key = ikea_id.to_s
+    self.class
+        .with_parent_ids_mentioning(parent_key)
+        .where.not(ikea_id: parent_key)
+        .select { |category| self.class.normalize_parent_ids(category.parent_ids).include?(parent_key) }
+        .map { |category| category.ikea_id.to_s }
   end
 
   # Текущая категория + все вложенные (для каталога API у родителя показываются товары потомков)
@@ -195,17 +191,20 @@ class Category < ApplicationRecord
   end
 
   def children_count
-    direct_children.count
+    direct_children.size
   end
 
   # прямые дочерние категории
   def direct_children
-    return [] unless ikea_id.present?
-  
-    Category.not_deleted
-            .to_a
-            .select { |category| self.class.direct_parent_id_for(category) == ikea_id.to_s }
-            .sort_by { |category| category.translated_name.presence || category.name.to_s }
+    return [] if ikea_id.blank?
+
+    parent_key = ikea_id.to_s
+    self.class
+        .not_deleted
+        .with_parent_ids_mentioning(parent_key)
+        .where.not(ikea_id: parent_key)
+        .select { |category| self.class.direct_parent_id_for(category) == parent_key }
+        .sort_by { |category| (category.translated_name.presence || category.name).to_s }
   end
 
   # если где-то в проекте уже используется children — можно оставить алиасом
@@ -234,6 +233,17 @@ class Category < ApplicationRecord
   end
 
   class << self
+    # parent_ids хранится как text JSON (`["parent","child"]`). Узкий LIKE
+    # отсекает большинство строк до Ruby-фильтра direct_parent_id_for /
+    # normalize_parent_ids — без загрузки всех Category в память.
+    def with_parent_ids_mentioning(ikea_id)
+      key = ikea_id.to_s
+      return none if key.blank?
+
+      quoted = "%\"#{sanitize_sql_like(key)}\"%"
+      where("parent_ids::text LIKE ?", quoted)
+    end
+
     def build_tree(categories, sort_roots_by_position: false)
       categories = Array(categories)
     
