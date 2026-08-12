@@ -208,17 +208,42 @@ RSpec.describe Products::ExtendedAttributesFetchService do
       allow(PlDetailsFetcher).to receive(:fetch)
         .with(url, use_headless: true, scope_sku: nil) do
           attempts += 1
-          raise PlDetailsFetcher::HeadlessFetchError, "HTTP 403" if attempts < 3
+          raise PlDetailsFetcher::HeadlessFetchError, "HTTP 403" if attempts < 2
 
           complete
         end
 
       result = service.send(:fetch_details_with_optional_headless, url)
 
-      expect(attempts).to eq(3)
+      expect(attempts).to eq(2)
       expect(service).to have_received(:sleep).with(1).once
-      expect(service).to have_received(:sleep).with(2).once
       expect(result[:materials]).to eq("Rama")
+    end
+
+    it "continues with the light fetch when headless retries are exhausted" do
+      light = {
+        materials: nil,
+        care_instructions: "Odkurzać",
+        images: ["https://www.ikea.com/pl/pl/images/products/x.jpg"]
+      }
+      attempts = 0
+
+      allow(service).to receive(:sleep)
+      allow(PlDetailsFetcher).to receive(:fetch)
+        .with(url, use_headless: false, scope_sku: nil)
+        .and_return(light)
+      allow(PlDetailsFetcher).to receive(:fetch)
+        .with(url, use_headless: true, scope_sku: nil) do
+          attempts += 1
+          raise PlDetailsFetcher::HeadlessTimeoutError, "execution expired"
+        end
+
+      result = service.send(:fetch_details_with_optional_headless, url)
+
+      expect(attempts).to eq(2)
+      expect(result[:care_instructions]).to eq("Odkurzać")
+      expect(result[:images]).to eq(["https://www.ikea.com/pl/pl/images/products/x.jpg"])
+      expect(result[:materials]).to be_nil
     end
   end
 

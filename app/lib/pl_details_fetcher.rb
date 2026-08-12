@@ -4894,7 +4894,8 @@ end
   end
 
   def headless_timeout_seconds
-    ENV.fetch("PL_FETCHER_HEADLESS_TIMEOUT_SECONDS", "120").to_i.clamp(30, 300)
+    # Fail fast on hung Chrome/proxy sessions; callers fail-open to light HTML.
+    ENV.fetch("PL_FETCHER_HEADLESS_TIMEOUT_SECONDS", "60").to_i.clamp(30, 300)
   end
 
   def headless_blocked_page?(html)

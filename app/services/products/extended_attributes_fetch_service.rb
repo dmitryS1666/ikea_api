@@ -13,8 +13,10 @@
 #
 # Связи наборов / сопутствующие SKU и документы без LT — дополняются с PL, если пусто.
 class Products::ExtendedAttributesFetchService
-  HEADLESS_FETCH_MAX_ATTEMPTS = 3
-  HEADLESS_RETRY_DELAYS = [1, 2].freeze
+  # Keep headless retries short: on low-RAM hosts Chrome often hangs for the full
+  # outer timeout, and catalog jobs burn minutes per SKU without recovering data.
+  HEADLESS_FETCH_MAX_ATTEMPTS = 2
+  HEADLESS_RETRY_DELAYS = [1].freeze
 
   class HeadlessRetriesExhaustedError < StandardError; end
 
@@ -532,8 +534,17 @@ class Products::ExtendedAttributesFetchService
           "incomplete modal"
         end
       Rails.logger.info "ExtendedAttributesFetchService: #{reason} for #{url} -> headless"
-      headless = fetch_headless_details_with_retries(url, scope_sku: scope_sku)
-      light = merge_pl_headless_fetch(light, headless) if headless.present?
+      begin
+        headless = fetch_headless_details_with_retries(url, scope_sku: scope_sku)
+        light = merge_pl_headless_fetch(light, headless) if headless.present?
+      rescue HeadlessRetriesExhaustedError, PlDetailsFetcher::HeadlessFetchError => e
+        # Catalog enrichment must not abort the whole SKU when Chrome hangs/times out.
+        # Keep the static/light payload and let quality checks flag missing materials later.
+        Rails.logger.warn(
+          "ExtendedAttributesFetchService: headless failed for #{url}, " \
+          "continuing with light fetch: #{e.class} #{e.message}"
+        )
+      end
     end
 
     strip_pl_fetch_metadata!(light)
