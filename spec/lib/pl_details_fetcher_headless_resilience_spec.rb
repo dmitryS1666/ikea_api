@@ -96,23 +96,23 @@ RSpec.describe PlDetailsFetcher do
         browser_options: kind_of(Hash),
         headless: false,
         timeout: 60,
-        process_timeout: 60,
+        process_timeout: 120,
         browser_path: "/usr/bin/chromium"
       )
     end
 
     it "honors a custom Chrome startup timeout" do
       allow(ENV).to receive(:fetch).and_call_original
-      allow(ENV).to receive(:fetch).with("FERRUM_PROCESS_TIMEOUT", "60").and_return("90")
+      allow(ENV).to receive(:fetch).with("FERRUM_PROCESS_TIMEOUT", "120").and_return("90")
 
       expect(fetcher.send(:headless_process_timeout_seconds)).to eq(90)
     end
 
-    it "falls back to 60 seconds for an invalid Chrome startup timeout" do
+    it "falls back to 120 seconds for an invalid Chrome startup timeout" do
       allow(ENV).to receive(:fetch).and_call_original
-      allow(ENV).to receive(:fetch).with("FERRUM_PROCESS_TIMEOUT", "60").and_return("0")
+      allow(ENV).to receive(:fetch).with("FERRUM_PROCESS_TIMEOUT", "120").and_return("0")
 
-      expect(fetcher.send(:headless_process_timeout_seconds)).to eq(60)
+      expect(fetcher.send(:headless_process_timeout_seconds)).to eq(120)
     end
   end
 end

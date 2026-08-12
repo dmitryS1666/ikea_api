@@ -10,7 +10,8 @@ class RefreshCategoryCatalogJob < ApplicationJob
   STAGE_RETRY_DELAYS = [1, 3].freeze
   TRANSIENT_ERROR_PATTERN = /(?:timeout|timed out|connection|socket|proxy|temporar|rate.?limit|HTTP\s+(?:429|5\d\d)|ECONN|EHOST|ENET|SSL)/i
 
-  def perform(ikea_id: nil, task_id: nil, threads: 2, resume: false, retry_failed: false)
+  # Default threads: 1 — two concurrent Chromes OOM/timeout on ~4GB hosts.
+  def perform(ikea_id: nil, task_id: nil, threads: 1, resume: false, retry_failed: false)
     task = task_id.present? ? ParserTask.find(task_id) : create_parser_task(TASK_TYPE)
     task.mark_as_running!
 
@@ -46,9 +47,11 @@ class RefreshCategoryCatalogJob < ApplicationJob
           manage_task: false
         )
       end
+      product_stats_hash = product_stats.to_h.with_indifferent_access
       stats[:products_processed_by_category][category.ikea_id.to_s] =
-        product_stats.to_h.with_indifferent_access[:products_completed].presence&.to_i ||
-        product_stats.to_h.with_indifferent_access[:processed].to_i
+        product_stats_hash[:products_completed].presence&.to_i ||
+        product_stats_hash[:processed].to_i
+      failed_enrichment_skus = Array(product_stats_hash[:failed_enrichment_skus]).map(&:to_s)
       persist_checkpoint!(task, stats, current_category: category, stage: "products_completed")
 
       check_task_not_stopped!(task)
@@ -78,6 +81,10 @@ class RefreshCategoryCatalogJob < ApplicationJob
       bust_catalog_tree_cache!(category)
 
       quality_issues = product_quality_issues(category)
+      if failed_enrichment_skus.any?
+        quality_issues["failed_enrichment"] =
+          (Array(quality_issues["failed_enrichment"]) + failed_enrichment_skus).uniq.first(200)
+      end
       missing_delivery_metrics = Array(quality_issues["missing_delivery_metrics"])
       if missing_delivery_metrics.any?
         stats[:missing_delivery_metrics][category.ikea_id] = missing_delivery_metrics.first(200)
@@ -435,7 +442,8 @@ class RefreshCategoryCatalogJob < ApplicationJob
     issues = {
       "missing_delivery_metrics" => [],
       "invalid_sale_price" => [],
-      "untranslated_polish_text" => []
+      "untranslated_polish_text" => [],
+      "failed_enrichment" => []
     }
 
     Product.catalog_category_scope(category.ikea_id).find_each do |product|

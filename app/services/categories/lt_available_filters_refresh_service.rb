@@ -128,6 +128,17 @@ module Categories
       raise ArgumentError, "category is required" unless @category
 
       lt_filters = fetch_lt_filters
+      if lt_filters.nil?
+        current_filters = normalize_filters(@category.reload.available_filters)
+        return Result.new(
+          changed: false,
+          filters_count: current_filters.size,
+          values_count: current_filters.sum { |f| Array(f["values"]).size },
+          missing_parameters: missing_required_parameters(current_filters),
+          source: "lt_missing"
+        )
+      end
+
       merged_filters = merge_with_local_filters(lt_filters)
       changed = !filters_equal?(@category.available_filters, merged_filters)
 
@@ -172,6 +183,16 @@ module Categories
       end
 
       unless response.respond_to?(:success?) && response.success?
+        code = response&.code.to_i
+        # Some published tree nodes no longer exist in LT search; keep local filters.
+        if code == 404
+          Rails.logger.warn(
+            "LtAvailableFiltersRefreshService: LT filters HTTP 404 for category " \
+            "#{@category.ikea_id}; keeping existing available_filters"
+          )
+          return nil
+        end
+
         raise "LT filters request failed for category #{@category.ikea_id}: HTTP #{response&.code} #{response&.message}"
       end
 

@@ -26,7 +26,11 @@ class RefreshCategoryFromLtJob < ApplicationJob
 
   class ProductStageIncompleteError < StandardError; end
 
-  def perform(ikea_id:, task_id: nil, max_created: nil, threads: 2, manage_task: true)
+  def perform(ikea_id:, task_id: nil, max_created: nil, threads: 2, manage_task: true, strict_product_stage: nil)
+    # Catalog orchestration (manage_task: false) keeps going when some SKUs fail headless;
+    # standalone LT refresh still fails the whole task on incomplete products.
+    @strict_product_stage = strict_product_stage.nil? ? manage_task : !!strict_product_stage
+
     task =
       if task_id.present?
         ParserTask.find(task_id)
@@ -105,7 +109,8 @@ class RefreshCategoryFromLtJob < ApplicationJob
       listing_errors: [],
       products_total: 0,
       products_resumed: 0,
-      products_completed: 0
+      products_completed: 0,
+      failed_enrichment_skus: []
     }
     parser = ParseProductsJob.new
     canonical_listing_skus = []
@@ -178,6 +183,7 @@ class RefreshCategoryFromLtJob < ApplicationJob
 
       product_checkpoint = task.reload.payload.to_h[PRODUCT_CHECKPOINT_KEY].to_h
       stats[:products_completed] = Array(product_checkpoint["completed_skus"]).size
+      stats[:failed_enrichment_skus] = product_checkpoint.fetch("failed_skus", {}).to_h.keys.map(&:to_s)
 
       touched_canonical_skus.compact!
       touched_canonical_skus.uniq!
@@ -435,7 +441,11 @@ class RefreshCategoryFromLtJob < ApplicationJob
     task.update_payload!(PRODUCT_CHECKPOINT_KEY => checkpoint.deep_dup)
   end
 
-  def raise_product_stage_incomplete!(task, checkpoint)
+  def raise_product_stage_incomplete!(task, checkpoint, strict: nil)
+    strict = @strict_product_stage if strict.nil?
+    # Standalone / unspecified callers keep abort-on-incomplete behavior.
+    strict = true if strict.nil?
+
     failed_skus = checkpoint.fetch("failed_skus", {}).to_h
     listing_errors = Array(checkpoint["listing_errors"])
     completed_skus = Array(checkpoint["completed_skus"]).map(&:to_s)
@@ -453,6 +463,15 @@ class RefreshCategoryFromLtJob < ApplicationJob
     checkpoint["updated_at"] = Time.current.iso8601
     task.update_payload!(PRODUCT_CHECKPOINT_KEY => checkpoint.deep_dup)
 
+    unless strict
+      Rails.logger.warn(
+        "RefreshCategoryFromLtJob: products stage incomplete (soft): " \
+        "#{failed_skus.size} SKU failed, #{listing_errors.size} listing errors; " \
+        "continuing without aborting the category"
+      )
+      return
+    end
+
     if failed_skus.any?
       first_sku, first_error = failed_skus.first
       raise ProductStageIncompleteError,
@@ -469,7 +488,8 @@ class RefreshCategoryFromLtJob < ApplicationJob
   def finalize_product_checkpoint!(task, checkpoint)
     checkpoint["stage"] = "products_completed"
     checkpoint["products_completed"] = Array(checkpoint["completed_skus"]).size
-    checkpoint["failed_skus"] = {}
+    # Keep failed_skus for catalog quality reporting / resume; empty on full success.
+    checkpoint["failed_skus"] = checkpoint.fetch("failed_skus", {}).to_h
     checkpoint["updated_at"] = Time.current.iso8601
     task.update_payload!(PRODUCT_CHECKPOINT_KEY => checkpoint.deep_dup)
   end

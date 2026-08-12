@@ -5015,7 +5015,8 @@ end
   end
 
   def headless_process_timeout_seconds
-    configured = ENV.fetch("FERRUM_PROCESS_TIMEOUT", "60").to_i
-    configured.positive? ? configured : 60
+    # Low-RAM hosts often need >60s for Chromium cold start under Sidekiq load.
+    configured = ENV.fetch("FERRUM_PROCESS_TIMEOUT", "120").to_i
+    configured.positive? ? configured : 120
   end
 end

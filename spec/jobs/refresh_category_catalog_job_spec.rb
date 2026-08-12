@@ -326,5 +326,38 @@ RSpec.describe RefreshCategoryCatalogJob, type: :job do
       expect(task.payload["completed_category_ids"]).to eq([failed_category.ikea_id])
       expect(task.payload["failed_category_ids"]).to be_empty
     end
+
+    it "continues filters/facets after soft product failures and records failed enrichment" do
+      category = create(:category, ikea_id: "40001")
+      task = create(:parser_task, task_type: "refresh_category_catalog")
+      filters_service = instance_double(Categories::LtAvailableFiltersRefreshService, call: nil)
+      facet_service = instance_double(
+        Categories::IkeaFacetMembershipSyncService,
+        call: double(memberships_count: 1, unmatched_skus: [], errors: [])
+      )
+      local_filters_indexer = instance_double(Products::FilterValuesIndexer, reindex!: nil)
+
+      allow(product_job).to receive(:perform) do
+        {
+          processed: 1,
+          products_completed: 1,
+          failed_enrichment_skus: ["22222222"]
+        }
+      end
+      allow(Categories::LtAvailableFiltersRefreshService).to receive(:new).and_return(filters_service)
+      allow(Categories::IkeaFacetMembershipSyncService).to receive(:new).and_return(facet_service)
+      allow(Products::FilterValuesIndexer).to receive(:new).and_return(local_filters_indexer)
+      allow(Categories::ShowCache).to receive(:bust!)
+      allow(Product).to receive(:catalog_category_scope).and_return(Product.none)
+
+      described_class.perform_now(ikea_id: category.ikea_id, task_id: task.id)
+
+      expect(filters_service).to have_received(:call)
+      expect(facet_service).to have_received(:call)
+      expect(task.reload.status).to eq("completed")
+      expect(task.payload.dig("product_quality_issues", category.ikea_id, "failed_enrichment"))
+        .to include("22222222")
+      expect(task.payload["category_errors"]).to be_blank
+    end
   end
 end

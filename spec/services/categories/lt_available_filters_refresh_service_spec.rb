@@ -91,5 +91,27 @@ RSpec.describe Categories::LtAvailableFiltersRefreshService do
 
       expect(result.changed).to eq(false)
     end
+
+    it "keeps existing filters when LT search returns HTTP 404" do
+      category = Category.create!(
+        ikea_id: "lt-missing-1",
+        name: "Устаревший узел",
+        available_filters: [
+          { "parameter" => "f-colors", "name" => "Цвет", "values" => [{ "id" => "10028", "name" => "Белый" }] },
+          { "parameter" => "f-price-buckets", "name" => "Цена", "values" => [{ "id" => "PRICE_RANGE", "name" => "Цена" }] }
+        ]
+      )
+      service = described_class.new(category, reindex: false, ensure_series: false)
+      response = double(success?: false, code: 404, message: "Not Found")
+
+      allow(ProxyRotator).to receive(:with_proxy_retry).and_yield(nil)
+      allow(HTTParty).to receive(:post).and_return(response)
+
+      result = service.call
+
+      expect(result.source).to eq("lt_missing")
+      expect(result.changed).to eq(false)
+      expect(category.reload.available_filters.map { |f| f["parameter"] }).to include("f-colors")
+    end
   end
 end
