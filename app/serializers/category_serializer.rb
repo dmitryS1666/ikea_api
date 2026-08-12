@@ -29,33 +29,15 @@ class CategorySerializer
              :available_filters
 
   attribute :icon_url do |category|
-    if category.icon.attached?
-      begin
-        Rails.application.routes.url_helpers.rails_blob_url(category.icon, only_path: true)
-      rescue
-        nil
-      end
-    end
+    ActiveStorageStaticPublisher.url_for(category.icon)
   end
 
   attribute :pictogram_url do |category|
-    if category.pictogram.attached?
-      begin
-        Rails.application.routes.url_helpers.rails_blob_url(category.pictogram, only_path: true)
-      rescue
-        nil
-      end
-    end
+    ActiveStorageStaticPublisher.url_for(category.pictogram)
   end
 
   attribute :background_image_url do |category|
-    if category.background_image.attached?
-      begin
-        Rails.application.routes.url_helpers.rails_blob_url(category.background_image, only_path: true)
-      rescue
-        nil
-      end
-    end
+    ActiveStorageStaticPublisher.url_for(category.background_image)
   end
 
   attribute :parent_ids do |category|
@@ -95,12 +77,7 @@ class CategorySerializer
     end
 
     def attachment_url(record, attachment_name)
-      attachment = record.public_send(attachment_name)
-      return nil unless attachment.attached?
-
-      Rails.application.routes.url_helpers.rails_blob_url(attachment, only_path: true)
-    rescue
-      nil
+      ActiveStorageStaticPublisher.url_for(record.public_send(attachment_name))
     end
   end
 end

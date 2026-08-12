@@ -10,11 +10,7 @@ class HomeBannerSerializer
              :updated_at
 
   attribute :image_url do |banner|
-    if banner.image.attached?
-      Rails.application.routes.url_helpers.rails_blob_path(banner.image, only_path: true)
-    end
-  rescue
-    nil
+    ActiveStorageStaticPublisher.url_for(banner.image)
   end
 
   attribute :link_url do |banner|

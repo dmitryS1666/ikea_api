@@ -87,6 +87,7 @@ class HomeBanner < ApplicationRecord
   before_validation :ensure_slot_key
   before_validation :sync_slot_position
   before_validation :optimize_uploaded_image
+  after_commit :publish_static_image
   after_commit :invalidate_homepage_banner_cache
 
   # Validations
@@ -109,9 +110,7 @@ class HomeBanner < ApplicationRecord
 
   # Instance methods
   def image_url
-    return nil unless image.attached?
-
-    Rails.application.routes.url_helpers.rails_blob_path(image, only_path: true)
+    ActiveStorageStaticPublisher.url_for(image)
   end
 
   def expected_dimensions
@@ -214,6 +213,14 @@ class HomeBanner < ApplicationRecord
 
     blob = Images::WebpOptimizer.optimize_attachable_as_blob(change.attachable)
     image.attach(blob) if blob
+  end
+
+  def publish_static_image
+    return unless image.attached?
+
+    ActiveStorageStaticPublisher.publish!(image.blob)
+  rescue StandardError => e
+    Rails.logger.warn("[HomeBanner] static publish failed for #{id}: #{e.class} #{e.message}")
   end
 
   def invalidate_homepage_banner_cache

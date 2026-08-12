@@ -105,11 +105,7 @@ module Categories
     end
 
     def blob_path(attachment)
-      return nil unless attachment.attached?
-
-      @url_helpers.rails_blob_url(attachment, only_path: true)
-    rescue StandardError
-      nil
+      ActiveStorageStaticPublisher.url_for(attachment)
     end
   end
 end

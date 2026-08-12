@@ -38,6 +38,7 @@ class Category < ApplicationRecord
   before_validation :assign_parent_ikea_id_from_parent_ids
   before_validation :optimize_uploaded_images
   after_commit :bust_category_show_cache
+  after_commit :publish_static_attachments
 
   validate :parent_cannot_be_self
   validate :parent_cannot_be_descendant
@@ -513,6 +514,17 @@ class Category < ApplicationRecord
     self.class.normalize_parent_ids(parent_ids).each { |id| Categories::ShowCache.bust!(id) }
   rescue StandardError => e
     Rails.logger.warn("[Category] show cache bust failed for #{ikea_id}: #{e.class} #{e.message}")
+  end
+
+  def publish_static_attachments
+    %i[icon pictogram background_image].each do |name|
+      attachment = public_send(name)
+      next unless attachment.attached?
+
+      ActiveStorageStaticPublisher.publish!(attachment.blob)
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[Category] static publish failed for #{ikea_id}: #{e.class} #{e.message}")
   end
 
   def generate_slug
