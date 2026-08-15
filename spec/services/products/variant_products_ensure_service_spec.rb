@@ -79,6 +79,32 @@ RSpec.describe Products::VariantProductsEnsureService do
       expect(JSON.parse(variant_b.variants_payload)).to eq(JSON.parse(parent.variants_payload))
     end
 
+    it "does not enqueue nested variant jobs when enqueue_jobs is false" do
+      existing_variant = create(
+        :product,
+        sku: "s87654321",
+        name: "Variant sofa",
+        category_id: category.ikea_id,
+        price: 10,
+        weight: 1.0,
+        materials: "fabric",
+        content: "ready"
+      )
+      parent.update!(variants: [])
+
+      expect(EnrichVariantProductJob).not_to receive(:enqueue_once)
+
+      described_class.ensure!(
+        parent,
+        category: category,
+        extra_skus: [existing_variant.sku],
+        enqueue_jobs: false,
+        include_column_skus: false
+      )
+
+      expect(existing_variant.category_products.pluck(:category_id)).to include(category.ikea_id)
+    end
+
     it "does not copy a multi-axis payload to sibling cards" do
       payload = [
         {

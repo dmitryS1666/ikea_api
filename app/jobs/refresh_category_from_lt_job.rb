@@ -13,7 +13,8 @@
 #      догружаются IncludedProductsBootstrapService (без variants/related, без привязки к категории).
 #      related_products в API — см. CategoryRelatedProductList (сбор с 1-го и последнего SKU листинга);
 #      per-product related_products в БД — см. RelatedProductsCollection::ENABLED и process_related.
-#      Затем IkeaLvProductVariantsService (force: true) — варианты с PIP PL.
+#      Затем IkeaLvProductVariantsService (force: true) — цвет/размер с PIP.
+#      Плюс depth-1 SKU из listing gprDescription.variants (макс. 8, без вложенных джоб).
 #      Затем ImageDownloader.sync_product_images (после вариантов и ensure) — локальные WebP + зеркало в public/images.
 #   5) Опционально: lt_jsonl_path в payload — строки JSONL по SKU (и алиасам) для приоритета LT;
 #      process_related: true в payload — ReferencedProductsEnsureService (связанные в БД + категория).
@@ -132,6 +133,11 @@ class RefreshCategoryFromLtJob < ApplicationJob
         break if products_data.length < page_size
       end
 
+      @category_listing_skus = all_pl_products.filter_map do |row|
+        Products::ListingSkuResolver.coerce_listing_identifier(row)
+      end.uniq
+      @listing_variant_skus_by_sku = {}
+
       begin
         Products::CategoryRelatedProductsHarvestService.call(category: category, listing_rows: all_pl_products)
       rescue StandardError => e
@@ -188,11 +194,12 @@ class RefreshCategoryFromLtJob < ApplicationJob
       touched_canonical_skus.compact!
       touched_canonical_skus.uniq!
       canonical_listing_skus.replace(touched_canonical_skus)
+      keep_skus = (canonical_listing_skus + remembered_listing_variant_skus).uniq
 
-      stats[:linked] = ensure_category_links_for_listing!(category, canonical_listing_skus)
+      stats[:linked] = ensure_category_links_for_listing!(category, keep_skus)
 
       if detach_orphans && canonical_listing_skus.any?
-        stats[:detached] = detach_category_products_not_in_listing(category, canonical_listing_skus)
+        stats[:detached] = detach_category_products_not_in_listing(category, keep_skus)
       end
 
       stats[:duration] = Time.current - started
@@ -327,9 +334,16 @@ class RefreshCategoryFromLtJob < ApplicationJob
 
       product.reload
 
-      if product.variants_payload.present?
-        # Это создаст новые Product для вариантов и вызовет ExtendedAttributesFetchService для них
-        Products::VariantProductsEnsureService.ensure!(product, category: category)
+      extras = listing_variant_skus_for(product)
+      if product.variants_payload.present? || extras.any?
+        # Depth 1 only: PIP color/size + capped listing extras. No nested jobs.
+        Products::VariantProductsEnsureService.ensure!(
+          product,
+          category: category,
+          extra_skus: extras,
+          enqueue_jobs: false,
+          include_column_skus: false
+        )
       end
 
       # В одном проходе контролируем качество вариантов: описания/материалы/картинки.
@@ -827,11 +841,11 @@ class RefreshCategoryFromLtJob < ApplicationJob
     from_payload =
       Products::VariantProductsEnsureService
         .variant_skus_from_variants_payload(parent.variants_payload)
-  
+
     parent_aliases =
       Products::ListingSkuResolver.aliases(parent.sku).map(&:to_s)
-  
-    from_payload
+
+    (from_payload + listing_variant_skus_for(parent))
       .map(&:to_s)
       .map(&:strip)
       .reject(&:blank?)
@@ -906,7 +920,9 @@ class RefreshCategoryFromLtJob < ApplicationJob
       if res[:created] || res[:updated]
         apply_listing_stats(res, task, stats, mutex)
       end
-      res[:sku].presence
+      sku = res[:sku].presence
+      remember_listing_variant_skus!(sku, product_data) if sku.present?
+      sku
     rescue StandardError => e
       Rails.logger.error "RefreshCategoryFromLtJob: product error #{e.message}"
       listing_sku = Products::ListingSkuResolver.coerce_listing_identifier(product_data)
@@ -1011,5 +1027,30 @@ class RefreshCategoryFromLtJob < ApplicationJob
   # Листинг и БД расходятся по виду SKU (s12345678 vs 12345678). Для where(sku: …) и отвязки нужны все алиасы.
   def expanded_listing_skus_for_category_job(canonical_skus)
     Array(canonical_skus).flat_map { |s| Products::ListingSkuResolver.aliases(s) }.map(&:to_s).map(&:strip).reject(&:blank?).uniq
+  end
+
+  def remember_listing_variant_skus!(parent_sku, product_data)
+    extras = Products::ListingVariantSkus.from_listing_row(
+      product_data,
+      parent_sku: parent_sku,
+      exclude: @category_listing_skus
+    )
+    @listing_variant_skus_by_sku ||= {}
+    Products::ListingSkuResolver.aliases(parent_sku).each do |key|
+      @listing_variant_skus_by_sku[key.to_s] = extras
+    end
+  end
+
+  def listing_variant_skus_for(product)
+    @listing_variant_skus_by_sku ||= {}
+    Products::ListingSkuResolver.aliases(product.sku).each do |key|
+      found = @listing_variant_skus_by_sku[key.to_s]
+      return found if found
+    end
+    []
+  end
+
+  def remembered_listing_variant_skus
+    Array(@listing_variant_skus_by_sku&.values).flatten.map(&:to_s).uniq
   end
 end

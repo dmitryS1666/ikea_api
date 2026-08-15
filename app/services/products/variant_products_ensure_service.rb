@@ -2,24 +2,34 @@
 
 module Products
   # SKU из variants_payload (цвет/размер) — отдельные Product в БД с полной карточкой.
-  # Нет строки → создаём заглушку, линкуем в категорию, ставим EnrichVariantProductJob.
-  # Есть → при неполной карточке ставим не более одной джобы догрузки на SKU/категорию.
+  # extra_skus: depth-1 listing комплектации (gprDescription.variants), без рекурсии.
+  # enqueue_jobs: false на актуализации категории — иначе каждый вариант снова
+  # тянет PIP-варианты через EnrichVariantProductJob.
   class VariantProductsEnsureService
     PL_STUB_URL = "https://www.ikea.com/pl/pl/p/-%{sku}/"
 
-    def self.ensure!(product, category:)
-      new(product: product, category: category).ensure!
+    def self.ensure!(product, category:, extra_skus: [], enqueue_jobs: true, include_column_skus: true)
+      new(
+        product: product,
+        category: category,
+        extra_skus: extra_skus,
+        enqueue_jobs: enqueue_jobs,
+        include_column_skus: include_column_skus
+      ).ensure!
     end
 
-    def initialize(product:, category:)
+    def initialize(product:, category:, extra_skus: [], enqueue_jobs: true, include_column_skus: true)
       @product = product
       @category = category
+      @extra_skus = Array(extra_skus)
+      @enqueue_jobs = enqueue_jobs
+      @include_column_skus = include_column_skus
     end
 
     def ensure!
       return unless @category
       # Убираем жесткую привязку только к variants_payload, так как варианты могут быть и в обычном поле variants
-      return if @product.variants_payload.blank? && @product.normalized_variant_skus.blank?
+      return if @product.variants_payload.blank? && @product.normalized_variant_skus.blank? && extra_skus.blank?
 
       variants = collect_skus.filter_map { |sku| process_variant_sku(sku) }
       sync_variant_group_links!(([product] + variants).uniq(&:id))
@@ -27,12 +37,20 @@ module Products
 
     private
 
-    attr_reader :product, :category
+    attr_reader :product, :category, :extra_skus
 
     def collect_skus
       from_payload = self.class.variant_skus_from_variants_payload(product.variants_payload)
-      from_column = product.normalized_variant_skus.map(&:to_s)
-      (from_payload + from_column).uniq.map(&:strip).reject(&:blank?) - [product.sku.to_s]
+      from_column = @include_column_skus ? product.normalized_variant_skus.map(&:to_s) : []
+      extra = extra_skus.map(&:to_s)
+      parent_aliases = ListingSkuResolver.aliases(product.sku).map(&:to_s)
+
+      (from_payload + from_column + extra)
+        .map(&:to_s)
+        .map(&:strip)
+        .reject(&:blank?)
+        .uniq
+        .reject { |sku| parent_aliases.include?(sku) }
     end
 
     def process_variant_sku(listing_sku)
@@ -40,7 +58,7 @@ module Products
       if existing
         sync_variant_categories!(existing)
         if incomplete_product?(existing)
-          EnrichVariantProductJob.enqueue_once(sku: existing.sku, category_ikea_id: category.ikea_id)
+          enqueue_variant_job(existing.sku)
         end
         return existing
       end
@@ -49,7 +67,7 @@ module Products
       return if stub.blank?
 
       sync_variant_categories!(stub)
-      EnrichVariantProductJob.enqueue_once(sku: stub.sku, category_ikea_id: category.ikea_id)
+      enqueue_variant_job(stub.sku)
       stub
     rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid => e
       Rails.logger.warn "VariantProductsEnsureService sku=#{listing_sku}: #{e.class} #{e.message}"
@@ -220,6 +238,12 @@ module Products
       Array(payload_skus).any? do |payload_sku|
         (record_aliases & ListingSkuResolver.aliases(payload_sku).map(&:to_s)).any?
       end
+    end
+
+    def enqueue_variant_job(sku)
+      return unless @enqueue_jobs
+
+      EnrichVariantProductJob.enqueue_once(sku: sku, category_ikea_id: category.ikea_id)
     end
 
     def sync_variant_categories!(variant)

@@ -148,4 +148,35 @@ RSpec.describe RefreshCategoryFromLtJob do
       "message" => "temporary listing error"
     ))
   end
+
+  it "keeps depth-1 listing extras when detaching orphans" do
+    listing = create(:product, sku: "s99614849")
+    extra = create(:product, sku: "s69614742")
+    CategoryProduct.create!(product: listing, category_id: category.ikea_id)
+    CategoryProduct.create!(product: extra, category_id: category.ikea_id)
+    stray = create(:product, sku: "s11111111")
+    CategoryProduct.create!(product: stray, category_id: category.ikea_id)
+
+    job.instance_variable_set(:@listing_variant_skus_by_sku, { listing.sku => [extra.sku] })
+    keep = [listing.sku] + job.send(:remembered_listing_variant_skus)
+
+    expect { job.send(:detach_category_products_not_in_listing, category, keep) }
+      .to change { CategoryProduct.where(product: stray, category_id: category.ikea_id).count }.from(1).to(0)
+
+    expect(CategoryProduct.where(product: extra, category_id: category.ikea_id)).to exist
+    expect(CategoryProduct.where(product: listing, category_id: category.ikea_id)).to exist
+  end
+
+  it "unions capped listing extras with PIP payload SKUs" do
+    parent = create(
+      :product,
+      sku: "s99614849",
+      variants_payload: [
+        { "type" => "color", "data" => [{ "item" => { "sku" => "s39614753" } }] }
+      ].to_json
+    )
+    job.instance_variable_set(:@listing_variant_skus_by_sku, { parent.sku => %w[s69614742] })
+
+    expect(job.send(:variant_skus_for, parent)).to contain_exactly("s39614753", "s69614742")
+  end
 end
