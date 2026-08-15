@@ -747,10 +747,11 @@ class RefreshCategoryFromLtJob < ApplicationJob
         .reject(&:blank?)
         .uniq
   
+    needs_images = current_images.size <= 1
     candidates.each do |candidate_sku|
       details = PlDetailsFetcher.fetch(
         "https://www.ikea.com/pl/pl/p/-#{candidate_sku}/",
-        use_headless: true,
+        use_headless: needs_images,
         scope_sku: candidate_sku
       )
   

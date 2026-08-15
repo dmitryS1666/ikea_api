@@ -23,7 +23,7 @@ RSpec.describe RefreshCategoryCatalogJob, type: :job do
     allow(product_job).to receive(:perform).with(
       ikea_id: category.ikea_id,
       task_id: task.id,
-      threads: 3,
+      threads: 1,
       manage_task: false
     ).and_return(processed: 5)
     allow(Categories::LtAvailableFiltersRefreshService).to receive(:new)
@@ -41,6 +41,8 @@ RSpec.describe RefreshCategoryCatalogJob, type: :job do
     allow(Categories::ShowCache).to receive(:warm_many!).and_return([])
 
     described_class.perform_now(ikea_id: category.ikea_id, task_id: task.id, threads: 3)
+
+    expect(task.reload.payload["threads"]).to eq(1)
 
     expect(Categories::ShowCache).to have_received(:warm_many!).with(
       hash_including(

@@ -48,6 +48,8 @@ RSpec.describe Products::ExtendedAttributesFetchService do
 
     before do
       allow(service).to receive(:pl_headless_enabled?).and_return(true)
+      allow(PlDetailsFetcher).to receive(:headless_browser_executable_available?).and_return(true)
+      allow(PlDetailsFetcher).to receive(:headless_circuit_open?).and_return(false)
     end
 
     it "retries with headless when included sheet is clickable but included_products is empty" do
@@ -244,6 +246,17 @@ RSpec.describe Products::ExtendedAttributesFetchService do
       expect(result[:care_instructions]).to eq("Odkurzać")
       expect(result[:images]).to eq(["https://www.ikea.com/pl/pl/images/products/x.jpg"])
       expect(result[:materials]).to be_nil
+    end
+
+    it "does not retry headless when Chrome is unavailable" do
+      light = { materials: nil, care_instructions: "Odkurzać" }
+      allow(PlDetailsFetcher).to receive(:headless_browser_executable_available?).and_return(false)
+      expect(PlDetailsFetcher).to receive(:fetch).with(url, use_headless: false, scope_sku: nil).and_return(light)
+      expect(PlDetailsFetcher).not_to receive(:fetch).with(url, use_headless: true, scope_sku: nil)
+
+      result = service.send(:fetch_details_with_optional_headless, url)
+
+      expect(result[:care_instructions]).to eq("Odkurzać")
     end
   end
 

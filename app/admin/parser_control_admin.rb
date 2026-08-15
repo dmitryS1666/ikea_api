@@ -65,6 +65,11 @@ Trestle.resource :parser_control, model: ParserControl do
       extra_data = params[:extra_data]
       extra_file = params[:extra_file]
       sku_file_path = params[:sku_file_path]
+
+      if task_type == "refresh_category_catalog"
+        threads = 1 if threads <= 0
+        threads = [threads, RefreshCategoryCatalogJob.max_threads].min
+      end
       
       Rails.logger.info "ParserControlAdmin#start_task called with task_type=#{task_type}, limit=#{limit}, reset=#{reset}, threads=#{threads}"
       
@@ -445,7 +450,8 @@ Trestle.resource :parser_control, model: ParserControl do
         end
 
         ikea_id = checkpoint["ikea_id"].presence
-        threads = checkpoint["threads"].to_i.positive? ? checkpoint["threads"].to_i : 2
+        threads = checkpoint["threads"].to_i.positive? ? checkpoint["threads"].to_i : 1
+        threads = [threads, RefreshCategoryCatalogJob.max_threads].min
 
         if resume_mode == "restart"
           task = ParserTask.create!(

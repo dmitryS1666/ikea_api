@@ -15,14 +15,16 @@ class PlDetailsFetcher
   class HeadlessTimeoutError < HeadlessFetchError; end
 
   # Пути по умолчанию (Linux/macOS); на проде без браузера Ferrum падает с BinaryNotFoundError.
+  # Snap-лаунчеры (/snap/bin/chromium, Debian /usr/bin/chromium-browser) на ~4GB хостах
+  # зависают в Ferrum и оставляют зомби snap-confine — их не берём автоматически.
   BROWSER_PATH_CANDIDATES = %w[
     /usr/bin/google-chrome-stable
     /usr/bin/google-chrome
     /usr/bin/chromium
-    /usr/bin/chromium-browser
-    /snap/bin/chromium
+    /opt/google/chrome/chrome
     /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
   ].freeze
+  HEADLESS_CIRCUIT_MUTEX = Mutex.new
 
   def self.resolved_chromium_path_for_headless
     %w[CHROME_PATH BROWSER_PATH].each do |key|
@@ -30,12 +32,53 @@ class PlDetailsFetcher
       return p if p.present? && File.executable?(p)
     end
 
-    BROWSER_PATH_CANDIDATES.find { |path| File.executable?(path) }
+    BROWSER_PATH_CANDIDATES.find { |path| usable_chromium_executable?(path) }
   end
 
   def self.headless_browser_executable_available?
     resolved_chromium_path_for_headless.present?
   end
+
+  def self.usable_chromium_executable?(path)
+    path.present? && File.executable?(path) && !snap_chromium_launcher?(path)
+  end
+
+  def self.snap_chromium_launcher?(path)
+    return true if path.to_s.start_with?("/snap/bin/")
+
+    basename = File.basename(path.to_s)
+    return false unless basename == "chromium-browser"
+    return true unless File.file?(path)
+
+    File.size(path) < 16_384
+  end
+
+  def self.headless_circuit_threshold
+    ENV.fetch("PL_FETCHER_HEADLESS_CIRCUIT_THRESHOLD", "3").to_i.clamp(1, 50)
+  end
+
+  def self.headless_circuit_open?
+    HEADLESS_CIRCUIT_MUTEX.synchronize { headless_consecutive_failures >= headless_circuit_threshold }
+  end
+
+  def self.record_headless_failure!
+    HEADLESS_CIRCUIT_MUTEX.synchronize do
+      @headless_consecutive_failures = headless_consecutive_failures + 1
+    end
+  end
+
+  def self.record_headless_success!
+    HEADLESS_CIRCUIT_MUTEX.synchronize { @headless_consecutive_failures = 0 }
+  end
+
+  def self.reset_headless_circuit!
+    record_headless_success!
+  end
+
+  def self.headless_consecutive_failures
+    @headless_consecutive_failures.to_i
+  end
+  private_class_method :headless_consecutive_failures
 
   # Схлопываем дубли одного и того же документа (http/https, слэш в конце, регистр).
   def self.canonical_document_url_for_dedupe(url)
@@ -437,14 +480,18 @@ class PlDetailsFetcher
     
     modal_incomplete =
       modal_data[:materials].blank? || modal_data[:care_instructions].blank? || modal_data[:safety_info].blank?
-    if use_headless &&
-      (modal_incomplete || included_sheet_needs_headless || measurements_incomplete || related_needs_headless) &&
-      self.class.headless_browser_executable_available?
+    needs_headless = modal_incomplete || included_sheet_needs_headless || related_needs_headless
+    if use_headless && needs_headless && self.class.headless_browser_executable_available? &&
+        !self.class.headless_circuit_open?
       Rails.logger.info "PlDetailsFetcher: headless browser (modal_incomplete=#{modal_incomplete}, included_sheet=#{included_sheet_needs_headless})"
       headless_modal_data = fetch_modal_with_headless_browser(full_url)
       modal_data.merge!(headless_modal_data) if headless_modal_data.present?
-    elsif use_headless && (modal_incomplete || included_sheet_needs_headless)
+    elsif use_headless && needs_headless && self.class.headless_circuit_open?
+      Rails.logger.warn "PlDetailsFetcher: headless circuit open, continuing with light HTML"
+    elsif use_headless && needs_headless
       Rails.logger.warn "PlDetailsFetcher: headless нужен, но нет Chrome/Chromium (CHROME_PATH / BROWSER_PATH)"
+    elsif use_headless && measurements_incomplete
+      Rails.logger.info "PlDetailsFetcher: skip headless (measurements-only; hydration HTML is enough)"
     end
 
     prev_included = Products::ArticleNumber.normalize_list(result[:included_products])
@@ -819,6 +866,11 @@ class PlDetailsFetcher
     browser = nil
     extension_dir = nil
     proxy_key = nil
+
+    if self.class.headless_circuit_open?
+      Rails.logger.warn "PlDetailsFetcher.fetch_modal_with_headless_browser: circuit open, skipping #{url}"
+      return {}
+    end
 
     browser_executable = self.class.resolved_chromium_path_for_headless
     unless browser_executable
@@ -1263,6 +1315,7 @@ measurements_opened =
 
       Rails.logger.info "PlDetailsFetcher.fetch_modal_with_headless_browser: Extracted - materials: #{result[:materials].present?}, care: #{result[:care_instructions].present?}, safety: #{result[:safety_info].present?}, good_to_know: #{result[:good_to_know].present?}, included_products: #{included_skus&.length || 0}, related_products: #{Array(result[:related_products]).length}"
       
+      self.class.record_headless_success!
       result
       end
       
@@ -1270,6 +1323,7 @@ measurements_opened =
       Rails.logger.warn "PlDetailsFetcher.fetch_modal_with_headless_browser: #{e.class} — #{e.message.strip} (CHROME_PATH / BROWSER_PATH)"
       {}
     rescue HeadlessFetchError => e
+      self.class.record_headless_failure!
       Rails.logger.error "PlDetailsFetcher.fetch_modal_with_headless_browser: #{e.class} - #{e.message}"
       raise
     rescue Ferrum::StatusError => e

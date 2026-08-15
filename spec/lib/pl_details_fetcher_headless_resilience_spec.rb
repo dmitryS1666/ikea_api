@@ -8,6 +8,7 @@ RSpec.describe PlDetailsFetcher do
 
     after do
       described_class.reset_reused_headless_browser!
+      described_class.reset_headless_circuit!
     end
 
     it "recognizes proxy block pages" do
@@ -113,6 +114,31 @@ RSpec.describe PlDetailsFetcher do
       allow(ENV).to receive(:fetch).with("FERRUM_PROCESS_TIMEOUT", "120").and_return("0")
 
       expect(fetcher.send(:headless_process_timeout_seconds)).to eq(120)
+    end
+
+    it "does not auto-detect snap Chromium launchers" do
+      allow(File).to receive(:executable?).and_call_original
+      allow(File).to receive(:executable?).with("/snap/bin/chromium").and_return(true)
+
+      expect(described_class.snap_chromium_launcher?("/snap/bin/chromium")).to eq(true)
+      expect(described_class.usable_chromium_executable?("/snap/bin/chromium")).to eq(false)
+
+      allow(File).to receive(:file?).with("/usr/bin/chromium-browser").and_return(true)
+      allow(File).to receive(:size).with("/usr/bin/chromium-browser").and_return(2408)
+      expect(described_class.snap_chromium_launcher?("/usr/bin/chromium-browser")).to eq(true)
+    end
+
+    it "opens the headless circuit after consecutive timeouts" do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with("PL_FETCHER_HEADLESS_CIRCUIT_THRESHOLD", "3").and_return("2")
+
+      described_class.record_headless_failure!
+      expect(described_class.headless_circuit_open?).to eq(false)
+      described_class.record_headless_failure!
+      expect(described_class.headless_circuit_open?).to eq(true)
+
+      expect(fetcher.send(:fetch_modal_with_headless_browser, "https://www.ikea.com/pl/pl/p/-59502293/"))
+        .to eq({})
     end
   end
 end

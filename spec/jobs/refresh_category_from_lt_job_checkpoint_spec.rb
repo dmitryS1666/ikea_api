@@ -89,6 +89,23 @@ RSpec.describe RefreshCategoryFromLtJob do
       )
   end
 
+  it "uses light HTML for variant PL fallback when images already exist" do
+    product = create(
+      :product,
+      sku: "20404806",
+      images: ["https://ikea.example/a.jpg", "https://ikea.example/b.jpg"],
+      local_images: ["a.webp", "b.webp"]
+    )
+
+    expect(PlDetailsFetcher).to receive(:fetch).with(
+      "https://www.ikea.com/pl/pl/p/-20404806/",
+      use_headless: false,
+      scope_sku: "20404806"
+    ).and_return({})
+
+    job.send(:ensure_variant_critical_pl_data_from_payload_sku!, product, "20404806")
+  end
+
   it "soft-continues when product stage is incomplete and strict mode is off" do
     checkpoint = job.send(
       :prepare_product_checkpoint!,

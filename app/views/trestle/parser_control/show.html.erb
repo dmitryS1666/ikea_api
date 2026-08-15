@@ -160,8 +160,8 @@
 
             <div class="form-group" id="threads_field">
               <%= label_tag :threads, "Количество потоков", class: "form-label" %>
-              <%= number_field_tag :threads, 2, class: "form-control", min: 1, max: 10, placeholder: "Рекомендуется 2-5" %>
-              <small class="form-text text-muted">Увеличение потоков ускоряет работу, но повышает нагрузку на сервер и риск блокировки по IP.</small>
+              <%= number_field_tag :threads, 1, class: "form-control", min: 1, max: 10, placeholder: "Для актуализации категории — 1" %>
+              <small class="form-text text-muted">Для полной актуализации категории оставляйте 1 поток: два Chrome на этом сервере зависают. Для остальных задач можно 2–5.</small>
             </div>
 
             <div class="form-group d-none" id="pl_prices_stock_sku_field">
@@ -872,6 +872,10 @@
       }
 
       if (task === 'refresh_category_catalog') {
+        const threadsInput = document.getElementById('threads');
+        if (threadsInput && (!threadsInput.value || Number(threadsInput.value) > 1)) {
+          threadsInput.value = '1';
+        }
         limitField.classList.add('d-none');
         if (refreshCategoryCatalogHint) refreshCategoryCatalogHint.classList.remove('d-none');
         if (extraDataSkuFileBlock) extraDataSkuFileBlock.classList.add('d-none');

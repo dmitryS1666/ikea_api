@@ -527,27 +527,42 @@ class Products::ExtendedAttributesFetchService
     light = PlDetailsFetcher.fetch(url, use_headless: false, scope_sku: scope_sku) || {}
 
     if @allow_headless != false && pl_headless_enabled? && pl_fetch_needs_headless?(light)
-      reason =
-        if pl_included_products_need_headless?(light)
-          "included_products sheet"
-        else
-          "incomplete modal"
-        end
-      Rails.logger.info "ExtendedAttributesFetchService: #{reason} for #{url} -> headless"
-      begin
-        headless = fetch_headless_details_with_retries(url, scope_sku: scope_sku)
-        light = merge_pl_headless_fetch(light, headless) if headless.present?
-      rescue HeadlessRetriesExhaustedError, PlDetailsFetcher::HeadlessFetchError => e
-        # Catalog enrichment must not abort the whole SKU when Chrome hangs/times out.
-        # Keep the static/light payload and let quality checks flag missing materials later.
-        Rails.logger.warn(
-          "ExtendedAttributesFetchService: headless failed for #{url}, " \
-          "continuing with light fetch: #{e.class} #{e.message}"
-        )
-      end
+      light = enrich_light_details_with_headless(url, light, scope_sku: scope_sku)
     end
 
     strip_pl_fetch_metadata!(light)
+  end
+
+  def enrich_light_details_with_headless(url, light, scope_sku: nil)
+    if !PlDetailsFetcher.headless_browser_executable_available? || PlDetailsFetcher.headless_circuit_open?
+      Rails.logger.info(
+        "ExtendedAttributesFetchService: skip headless for #{url} " \
+        "(#{PlDetailsFetcher.headless_circuit_open? ? "circuit open" : "no Chrome"})"
+      )
+      return light
+    end
+
+    reason =
+      if pl_included_products_need_headless?(light)
+        "included_products sheet"
+      else
+        "incomplete modal"
+      end
+    Rails.logger.info "ExtendedAttributesFetchService: #{reason} for #{url} -> headless"
+
+    begin
+      headless = fetch_headless_details_with_retries(url, scope_sku: scope_sku)
+      return merge_pl_headless_fetch(light, headless) if headless.present?
+    rescue HeadlessRetriesExhaustedError, PlDetailsFetcher::HeadlessFetchError => e
+      # Catalog enrichment must not abort the whole SKU when Chrome hangs/times out.
+      # Keep the static/light payload and let quality checks flag missing materials later.
+      Rails.logger.warn(
+        "ExtendedAttributesFetchService: headless failed for #{url}, " \
+        "continuing with light fetch: #{e.class} #{e.message}"
+      )
+    end
+
+    light
   end
 
   def apply_lt_descriptive(lt_details, attributes)

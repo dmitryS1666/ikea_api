@@ -21,6 +21,7 @@ class RefreshCategoryCatalogJob < ApplicationJob
       saved_threads = task.payload.to_h["threads"].to_i
       threads = saved_threads if saved_threads.positive?
     end
+    threads = clamp_threads(threads)
     all_categories = checkpoint_run ? checkpoint_categories(task) : sorted_categories(categories_scope(ikea_id))
     stats = build_stats(task, all_categories, checkpoint_run: checkpoint_run)
     categories = categories_for_run(all_categories, stats, retry_failed: retry_failed)
@@ -461,6 +462,16 @@ class RefreshCategoryCatalogJob < ApplicationJob
     raise ActiveRecord::RecordNotFound, "Категория не найдена или удалена: #{ikea_id}" unless category
 
     Category.not_deleted.where(ikea_id: category.self_and_descendant_ikea_ids)
+  end
+
+  def clamp_threads(value)
+    requested = value.to_i
+    requested = 1 if requested <= 0
+    [requested, self.class.max_threads].min
+  end
+
+  def self.max_threads
+    ENV.fetch("REFRESH_CATEGORY_CATALOG_MAX_THREADS", "1").to_i.clamp(1, 10)
   end
 
   def product_quality_issues(category)
