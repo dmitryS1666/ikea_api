@@ -26,10 +26,22 @@ class PlDetailsFetcher
   ].freeze
   HEADLESS_CIRCUIT_MUTEX = Mutex.new
 
+  def self.allow_snap_chromium?
+    ENV["PL_FETCHER_ALLOW_SNAP_CHROME"].to_s == "1"
+  end
+
   def self.resolved_chromium_path_for_headless
     %w[CHROME_PATH BROWSER_PATH].each do |key|
       p = ENV[key].to_s.strip
-      return p if p.present? && File.executable?(p)
+      next unless p.present? && File.executable?(p)
+      if snap_chromium_launcher?(p) && !allow_snap_chromium?
+        Rails.logger.warn(
+          "PlDetailsFetcher: ignoring #{key}=#{p} (snap Chromium hangs on ~4GB hosts; " \
+          "set PL_FETCHER_ALLOW_SNAP_CHROME=1 to force)"
+        )
+        next
+      end
+      return p
     end
 
     BROWSER_PATH_CANDIDATES.find { |path| usable_chromium_executable?(path) }

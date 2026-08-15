@@ -128,6 +128,35 @@ RSpec.describe PlDetailsFetcher do
       expect(described_class.snap_chromium_launcher?("/usr/bin/chromium-browser")).to eq(true)
     end
 
+    it "ignores snap CHROME_PATH unless explicitly allowed" do
+      original_chrome = ENV["CHROME_PATH"]
+      original_browser = ENV["BROWSER_PATH"]
+      original_allow = ENV["PL_FETCHER_ALLOW_SNAP_CHROME"]
+      begin
+        ENV["CHROME_PATH"] = "/usr/bin/chromium-browser"
+        ENV.delete("BROWSER_PATH")
+        ENV.delete("PL_FETCHER_ALLOW_SNAP_CHROME")
+
+        allow(File).to receive(:executable?).and_call_original
+        allow(File).to receive(:executable?).with("/usr/bin/chromium-browser").and_return(true)
+        allow(File).to receive(:file?).with("/usr/bin/chromium-browser").and_return(true)
+        allow(File).to receive(:size).with("/usr/bin/chromium-browser").and_return(2408)
+        described_class::BROWSER_PATH_CANDIDATES.each do |path|
+          allow(File).to receive(:executable?).with(path).and_return(false)
+        end
+
+        expect(described_class.resolved_chromium_path_for_headless).to eq(nil)
+        expect(described_class.headless_browser_executable_available?).to eq(false)
+
+        ENV["PL_FETCHER_ALLOW_SNAP_CHROME"] = "1"
+        expect(described_class.resolved_chromium_path_for_headless).to eq("/usr/bin/chromium-browser")
+      ensure
+        original_chrome.nil? ? ENV.delete("CHROME_PATH") : ENV["CHROME_PATH"] = original_chrome
+        original_browser.nil? ? ENV.delete("BROWSER_PATH") : ENV["BROWSER_PATH"] = original_browser
+        original_allow.nil? ? ENV.delete("PL_FETCHER_ALLOW_SNAP_CHROME") : ENV["PL_FETCHER_ALLOW_SNAP_CHROME"] = original_allow
+      end
+    end
+
     it "opens the headless circuit after consecutive timeouts" do
       allow(ENV).to receive(:fetch).and_call_original
       allow(ENV).to receive(:fetch).with("PL_FETCHER_HEADLESS_CIRCUIT_THRESHOLD", "3").and_return("2")
