@@ -3149,51 +3149,12 @@ end
   def translate_measurement_label(label)
     s = label.to_s.gsub(/\u00A0/, " ").gsub(/\s+/, " ").strip
     s = s.gsub(":", "").strip
-  
-    case s.downcase
-    when /\aten produkt składa się z \d+ paczek\.?\z/
-      "Этот товар состоит из упаковок."
-    when "wysokość z poduchami oparcia"
-      "Высота с подушками спинки"
-    when "wysokość łóżka", "wysokosc lozka"
-      "Высота кровати"
-    when "wysokość oparcia", "wysokosc oparcia"
-      "Высота спинки"
-    when "wysokość podłokietnika", "wysokosc podlokietnika"
-      "Высота подлокотника"
-    when "głębokość całkowita po rozłożeniu", "glebokosc calkowita po rozlozeniu"
-      "Общая глубина в разложенном виде"
-    when "głębokość siedziska, szezlong", "glebokosc siedziska, szezlong"
-      "Глубина сиденья, козетка"
-    when "grubość materaca", "grubosc materaca"
-      "Толщина матраса"
-    when "maksymalna grubość materaca", "maksymalna grubosc materaca"
-      "Максимальная толщина матраса"
-    when "gęstość nici", "gestosc nici"
-      "Плотность нитей"
-    when "szerokość siedziska strona lewa"
-      "Ширина сиденья, левая сторона"
-    when "szerokość", "szerokosc", "width"
-      "Ширина"
-    when "wysokość", "wysokosc", "height"
-      "Высота"
-    when "długość", "dlugosc", "length"
-      "Длина"
-    when "głębokość", "glebokosc", "depth"
-      "Глубина"
-    when "waga", "weight"
-      "Вес"
-    when /\Aobciążenie półki\b/i, /\Aobciazenie polki\b/i
-      "Нагрузка на полку"
-    when /\Amaks\. obciążenie\/półka szklana\b/i, /\Amaks\. obciazenie\/polka szklana\b/i
-      "Макс. нагрузка на стеклянную полку"
-    when "paczka(i)", "paczki", "package(s)", "packages"
-      "Упаковка(-и)"
-    when "numer artykułu", "article number"
-      "Номер товара"
-    else
-      s
+
+    if s.downcase.match?(/\aten produkt składa się z \d+ paczek\.?\z/)
+      return "Этот товар состоит из упаковок."
     end
+
+    ProductSerializer.translate_measurement_label_for_api(s)
   end
   
   def normalize_measurement_value(value)
@@ -3201,6 +3162,7 @@ end
   
     s = s.gsub(/\bcm\b/i, "см")
     s = s.gsub(/\bkg\b/i, "кг")
+    s = s.gsub(/\bl\b/i, "л")
     s = s.gsub(%r{/\s*inch\s*[²2]\b?}i, "/дюйм²")
     s = s.gsub(/\binch\s*[²2]\b?/i, "дюйм²")
   

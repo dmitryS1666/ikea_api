@@ -396,6 +396,9 @@ class ProductSerializer
     "упаковка(-и)" => "Упаковка(-и)",
     "paczka(i)" => "Упаковка(-и)",
     "packages" => "Упаковка(-и)",
+    "numer artykułu" => "Номер товара",
+    "numer artykulu" => "Номер товара",
+    "article number" => "Номер товара",
     "grubość" => "Толщина",
     "grubosc" => "Толщина",
     "thickness" => "Толщина",
@@ -422,8 +425,53 @@ class ProductSerializer
     "glebokosc siedziska, szezlong" => "Глубина сиденья, козетка",
     "grubość materaca" => "Толщина матраса",
     "grubosc materaca" => "Толщина матраса",
+    "dł. materaca" => "Длина матраса",
+    "dl. materaca" => "Длина матраса",
+    "długość materaca" => "Длина матраса",
+    "dlugosc materaca" => "Длина матраса",
+    "szer. materaca" => "Ширина матраса",
+    "szerokość materaca" => "Ширина матраса",
+    "szerokosc materaca" => "Ширина матраса",
     "maksymalna grubość materaca" => "Максимальная толщина матраса",
     "maksymalna grubosc materaca" => "Максимальная толщина матраса",
+    "długość łóżka" => "Длина кровати",
+    "dlugosc lozka" => "Длина кровати",
+    "szerokość łóżka" => "Ширина кровати",
+    "szerokosc lozka" => "Ширина кровати",
+    "wysokość szczytu" => "Высота изножья",
+    "wysokosc szczytu" => "Высота изножья",
+    "wysokość wezgłowia" => "Высота изголовья",
+    "wysokosc wezglowia" => "Высота изголовья",
+    "wysokość siedziska" => "Высота сиденья",
+    "wysokosc siedziska" => "Высота сиденья",
+    "głębokość siedziska" => "Глубина сиденья",
+    "glebokosc siedziska" => "Глубина сиденья",
+    "szerokość siedziska" => "Ширина сиденья",
+    "szerokosc siedziska" => "Ширина сиденья",
+    "szerokość siedziska strona lewa" => "Ширина сиденья, левая сторона",
+    "szerokosc siedziska strona lewa" => "Ширина сиденья, левая сторона",
+    "głębokość szezlonga" => "Глубина козетки",
+    "glebokosc szezlonga" => "Глубина козетки",
+    "głębokość szuflady" => "Глубина ящика",
+    "glebokosc szuflady" => "Глубина ящика",
+    "głębokość szuflady (wewnętrzna)" => "Глубина ящика (внутренняя)",
+    "glebokosc szuflady (wewnetrzna)" => "Глубина ящика (внутренняя)",
+    "głębokość szuflady (wewnątrz)" => "Глубина ящика (внутренняя)",
+    "glebokosc szuflady (wewnatrz)" => "Глубина ящика (внутренняя)",
+    "wysokość szuflady" => "Высота ящика",
+    "wysokosc szuflady" => "Высота ящика",
+    "wysokość szuflady (wewnątrz)" => "Высота ящика (внутри)",
+    "wysokosc szuflady (wewnatrz)" => "Высота ящика (внутри)",
+    "wysokość szuflady (wewnętrzna)" => "Высота ящика (внутри)",
+    "wysokosc szuflady (wewnetrzna)" => "Высота ящика (внутри)",
+    "szerokość szuflady" => "Ширина ящика",
+    "szerokosc szuflady" => "Ширина ящика",
+    "szerokość szuflady (wewnętrzna)" => "Ширина ящика (внутренняя)",
+    "szerokosc szuflady (wewnetrzna)" => "Ширина ящика (внутренняя)",
+    "szerokość szuflady (wewnątrz)" => "Ширина ящика (внутренняя)",
+    "szerokosc szuflady (wewnatrz)" => "Ширина ящика (внутренняя)",
+    "pojemność przechowywania" => "Объем хранения",
+    "pojemnosc przechowywania" => "Объем хранения",
     "gęstość nici" => "Плотность нитей",
     "gestosc nici" => "Плотность нитей",
     "wysokość podłokietnika" => "Высота подлокотника",
@@ -540,7 +588,9 @@ class ProductSerializer
 
   def self.translate_measurement_label_for_api(label)
     s = label.to_s.gsub(/\u00A0/, " ").gsub(/\s+/, " ").strip.gsub(":", "")
-  
+    mapped = DIMENSION_LABELS_RU[s.downcase]
+    return mapped if mapped.present?
+
     case s.downcase
     when "szerokość", "szerokosc", "width", "ширина"
       "Ширина"
@@ -605,6 +655,7 @@ class ProductSerializer
   
     s = s.gsub(/\bcm\b/i, "см")
     s = s.gsub(/\bkg\b/i, "кг")
+    s = s.gsub(/\bl\b/i, "л")
     s = s.gsub(/\bg\b/i, "гр")
     s = s.gsub(%r{/\s*inch\s*[²2]\b?}i, "/дюйм²")
     s = s.gsub(/\binch\s*[²2]\b?/i, "дюйм²")
@@ -888,7 +939,7 @@ class ProductSerializer
   end
 
   def self.normalize_measurement_label_ru(label)
-    base = label.to_s.gsub(":", "").strip
+    base = label.to_s.gsub(/\u00A0/, " ").gsub(/\s+/, " ").gsub(":", "").strip
     return nil if base.blank?
 
     key = base.downcase

@@ -161,6 +161,56 @@ RSpec.describe ProductSerializer do
     end
   end
 
+  describe "assembled-size measurement labels" do
+    {
+      "Dł. materaca:" => "Длина матраса",
+      "Szer. materaca:" => "Ширина матраса",
+      "Głębokość szuflady (wewnętrzna):" => "Глубина ящика (внутренняя)",
+      "Wysokość szczytu:" => "Высота изножья",
+      "Wysokość szuflady (wewnątrz):" => "Высота ящика (внутри)",
+      "Szerokość szuflady (wewnętrzna):" => "Ширина ящика (внутренняя)",
+      "Pojemność przechowywania:" => "Объем хранения",
+      "Wysokość wezgłowia:" => "Высота изголовья"
+    }.each do |polish, russian|
+      it "translates #{polish} to #{russian}" do
+        expect(described_class.translate_measurement_label_for_api(polish)).to eq(russian)
+        expect(described_class.normalize_measurement_label_ru(polish)).to eq(russian)
+      end
+    end
+
+    it "keeps already-Russian assembled-size keys" do
+      expect(described_class.normalize_measurement_label_ru("Высота:")).to eq("Высота")
+      expect(described_class.normalize_measurement_label_ru("Длина")).to eq("Длина")
+    end
+
+    it "maps Polish product measurements into Russian size keys" do
+      map = described_class.dimensions_map_from_measurements_modal(
+        "product_measurements" => [
+          { "name" => "Dł. materaca:", "measure" => "200 cm" },
+          { "name" => "Szer. materaca:", "measure" => "140 cm" },
+          { "name" => "Głębokość szuflady (wewnętrzna):", "measure" => "60 cm" },
+          { "name" => "Wysokość szczytu:", "measure" => "41 cm" },
+          { "name" => "Wysokość szuflady (wewnątrz):", "measure" => "13 cm" },
+          { "name" => "Szerokość szuflady (wewnętrzna):", "measure" => "95 cm" },
+          { "name" => "Pojemność przechowywania:", "measure" => "296 l" },
+          { "name" => "Высота:", "measure" => "113 cm" }
+        ]
+      )
+
+      expect(map).to include(
+        "Длина матраса" => "200 см",
+        "Ширина матраса" => "140 см",
+        "Глубина ящика (внутренняя)" => "60 см",
+        "Высота изножья" => "41 см",
+        "Высота ящика (внутри)" => "13 см",
+        "Ширина ящика (внутренняя)" => "95 см",
+        "Объем хранения" => "296 л",
+        "Высота" => "113 см"
+      )
+      expect(map.keys).not_to include("Dł. materaca:")
+    end
+  end
+
   describe ".dedupe_instruction_files / customer_full_attributes_payload instructions" do
     it "removes duplicate document links (same URL, http vs https, trailing slash)" do
       raw = [
