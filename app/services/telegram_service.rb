@@ -46,6 +46,26 @@ class TelegramService
       send_message(message)
     end
 
+    def send_product_video_stats(payload)
+      data = (payload || {}).to_h
+      message = "📊 <b>Видео товаров IKEA — оценка хранения</b>\n\n"
+      message += "Товаров проверено: #{data['products_checked'] || 0}\n"
+      message += "С видео: #{data['products_with_videos'] || 0}\n"
+      message += "С файлами (mp4/pvid): #{data['products_with_downloadable_videos'] || 0}\n"
+      message += "Только embed (YouTube/Vimeo): #{data['products_with_embeds'] || 0}\n"
+      message += "Уникальных файлов с размером: #{data['unique_sized_videos'] || 0}\n"
+      message += "Размер неизвестен: #{data['size_unknown'] || 0}\n"
+      message += "Страниц IKEA запрошено: #{data['live_fetched'] || 0}\n\n"
+      message += "<b>Уникальные файлы (реальный объём на диск): #{data['unique_total_human'] || '0 B'}</b>\n"
+      message += "Если копировать файл на каждый товар: #{data['product_total_human'] || '0 B'}\n"
+      message += "Мин / ср / макс: #{human_bytes_line(data)}\n"
+      if data["report_path"].present?
+        message += "\nОтчёт: #{data['report_path']}"
+      end
+
+      send_message(message)
+    end
+
     def send_parser_error(task_type, error)
       message = "❌ <b>Ошибка парсинга</b>\n\n"
       message += "Тип: #{task_type_name(task_type)}\n"
@@ -87,8 +107,16 @@ class TelegramService
         'count_broken_packaging_dimensions' => 'Подсчёт: битая ВГХ упаковки',
         'count_broken_product_images' => 'Подсчёт: битые картинки товара',
         'count_broken_product_translations' => 'Подсчёт: польский текст в API',
-        'recover_broken_product_translations' => 'Восстановление переводов (LT / AI)'
+        'recover_broken_product_translations' => 'Восстановление переводов (LT / AI)',
+        'collect_product_video_stats' => 'Статистика размера видео товаров'
       }[task_type.to_s] || task_type.to_s
+    end
+
+    def human_bytes_line(data)
+      min = CollectProductVideoStatsJob::Collector.human_bytes(data["min_bytes"])
+      avg = CollectProductVideoStatsJob::Collector.human_bytes(data["avg_bytes"])
+      max = CollectProductVideoStatsJob::Collector.human_bytes(data["max_bytes"])
+      "#{min} / #{avg} / #{max}"
     end
 
     def format_duration(seconds)

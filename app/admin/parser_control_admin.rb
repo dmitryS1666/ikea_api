@@ -191,6 +191,10 @@ Trestle.resource :parser_control, model: ParserControl do
             payload[:sku] = one if one
           end
 
+          if task_type == "collect_product_video_stats"
+            payload[:live] = params[:video_stats_live].to_s != "0"
+          end
+
           # Обработка дополнительных данных (SKUs и т.д.)
           if task_type == "extended_attributes_by_skus" || task_type == "import_products_by_skus" || task_type == "recover_broken_product_images" || task_type == "update_all_product_images" || task_type == "update_product_variants" || task_type == "generate_product_image_previews"
             payload[:skus] = extra_data
@@ -300,6 +304,8 @@ Trestle.resource :parser_control, model: ParserControl do
                   )
                 elsif task_type == "optimize_home_banner_images"
                   job_class.perform_later(task_id: task.id, limit: limit)
+                elsif task_type == "collect_product_video_stats"
+                  job_class.perform_later(limit: limit, task_id: task.id, live: payload.fetch(:live, true))
                 elsif %w[extended_attrs_import extended_attributes_by_skus import_products_by_skus fix_missing_images update_all_product_images update_product_variants generate_product_image_previews].include?(task_type)
                   # Для полного обновления картинок передаем cleanup: true по умолчанию
                   cleanup = params[:cleanup] == '1' || params[:cleanup].nil?
@@ -805,6 +811,8 @@ Trestle.resource :parser_control, model: ParserControl do
         CountBrokenProductTranslationsJob
       when 'recover_broken_product_translations'
         RecoverBrokenProductTranslationsJob
+      when 'collect_product_video_stats'
+        CollectProductVideoStatsJob
       end
     end
 
@@ -854,7 +862,8 @@ Trestle.resource :parser_control, model: ParserControl do
         'count_broken_packaging_dimensions' => 'Подсчёт товаров с битой ВГХ упаковки',
         'count_broken_product_images' => 'Подсчёт товаров с битыми картинками',
         'count_broken_product_translations' => 'Подсчёт товаров с подозрительным польским текстом',
-        'recover_broken_product_translations' => 'Восстановление переводов (LT → AI fallback)'
+        'recover_broken_product_translations' => 'Восстановление переводов (LT → AI fallback)',
+        'collect_product_video_stats' => 'Статистика размера видео товаров (IKEA)'
       }[type] || type
     end
   end
