@@ -94,6 +94,25 @@ RSpec.describe TelegramService do
       )
     end
   end
+
+  describe '.send_product_document_stats' do
+    it 'sends document storage estimate' do
+      allow(TelegramService).to receive(:send_message)
+
+      TelegramService.send_product_document_stats(
+        "products_checked" => 10,
+        "unique_total_human" => "800.00 MB",
+        "product_total_human" => "1.20 GB",
+        "min_bytes" => 1024,
+        "avg_bytes" => 2048,
+        "max_bytes" => 4096
+      )
+
+      expect(TelegramService).to have_received(:send_message).with(
+        a_string_including("800.00 MB")
+      )
+    end
+  end
 end
 
 

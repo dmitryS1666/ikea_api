@@ -66,6 +66,24 @@ class TelegramService
       send_message(message)
     end
 
+    def send_product_document_stats(payload)
+      data = (payload || {}).to_h
+      message = "📊 <b>Инструкции товаров IKEA — оценка хранения</b>\n\n"
+      message += "Товаров проверено: #{data['products_checked'] || 0}\n"
+      message += "С инструкциями: #{data['products_with_documents'] || 0}\n"
+      message += "Уникальных файлов с размером: #{data['unique_sized_documents'] || 0}\n"
+      message += "Размер неизвестен: #{data['size_unknown'] || 0}\n"
+      message += "Страниц IKEA запрошено: #{data['live_fetched'] || 0}\n\n"
+      message += "<b>Уникальные файлы (реальный объём на диск): #{data['unique_total_human'] || '0 B'}</b>\n"
+      message += "Если копировать файл на каждый товар: #{data['product_total_human'] || '0 B'}\n"
+      message += "Мин / ср / макс: #{human_bytes_line(data)}\n"
+      if data["report_path"].present?
+        message += "\nОтчёт: #{data['report_path']}"
+      end
+
+      send_message(message)
+    end
+
     def send_parser_error(task_type, error)
       message = "❌ <b>Ошибка парсинга</b>\n\n"
       message += "Тип: #{task_type_name(task_type)}\n"
@@ -108,7 +126,8 @@ class TelegramService
         'count_broken_product_images' => 'Подсчёт: битые картинки товара',
         'count_broken_product_translations' => 'Подсчёт: польский текст в API',
         'recover_broken_product_translations' => 'Восстановление переводов (LT / AI)',
-        'collect_product_video_stats' => 'Статистика размера видео товаров'
+        'collect_product_video_stats' => 'Статистика размера видео товаров',
+        'collect_product_document_stats' => 'Статистика размера инструкций товаров'
       }[task_type.to_s] || task_type.to_s
     end
 

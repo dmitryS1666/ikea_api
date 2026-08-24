@@ -24,6 +24,16 @@ namespace :parser do
     puts "Задача поставлена в очередь."
   end
 
+  desc "Статистика размера инструкций товаров IKEA. Примеры: rake parser:collect_product_document_stats  /  rake \"parser:collect_product_document_stats[50]\"  /  rake \"parser:collect_product_document_stats[50,false]\""
+  task :collect_product_document_stats, [:limit, :live] => :environment do |_t, args|
+    limit = args[:limit].to_i
+    limit = nil unless limit.positive?
+    live = args[:live].nil? || !%w[0 false no].include?(args[:live].to_s.downcase)
+    puts "Очередь CollectProductDocumentStatsJob (лимит: #{limit || 'все'}, live: #{live})…"
+    CollectProductDocumentStatsJob.perform_later(limit: limit, live: live)
+    puts "Задача поставлена в очередь."
+  end
+
   desc "Цены и остатки IKEA (PL): все SKU или один. Примеры: rake parser:pl_prices_stock  /  rake \"parser:pl_prices_stock[19485139]\""
   task :pl_prices_stock, [:sku] => :environment do |_t, args|
     sku = args[:sku].to_s.strip.presence

@@ -17,7 +17,7 @@ set :keep_releases, 5
 append :linked_files, "config/master.key", ".env", "config/google_translate_key.json"
 
 # Linked directories (shared between deployments)
-append :linked_dirs, "log", "tmp/pids", "tmp/cache", "tmp/sockets", "tmp/trestle_exports", "tmp/product_video_stats", 'public/system', 'storage', 'public/images', 'public/documents'
+append :linked_dirs, "log", "tmp/pids", "tmp/cache", "tmp/sockets", "tmp/trestle_exports", "tmp/product_video_stats", "tmp/product_document_stats", 'public/system', 'storage', 'public/images', 'public/documents'
 # НЕ линкуем public/assets - они должны компилироваться в каждом release
 # append :linked_dirs, "public/assets"
 

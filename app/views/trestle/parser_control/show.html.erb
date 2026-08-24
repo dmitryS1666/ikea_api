@@ -61,7 +61,8 @@
                     ['Подсчёт: битые картинки товара', 'count_broken_product_images'],
                     ['Подсчёт: подозрительный польский текст', 'count_broken_product_translations'],
                     ['Восстановление переводов (LT / AI)', 'recover_broken_product_translations'],
-                    ['Статистика размера видео товаров (IKEA)', 'collect_product_video_stats']
+                    ['Статистика размера видео товаров (IKEA)', 'collect_product_video_stats'],
+                    ['Статистика размера инструкций товаров (IKEA)', 'collect_product_document_stats']
                   ]),
                   { prompt: 'Выберите тип задачи', class: "form-control", id: "task_type_select" } %>
             </div>
@@ -167,6 +168,18 @@
               </div>
               <small class="form-text text-muted">
                 Считает Content-Length уникальных mp4/pvid без скачивания. Embed YouTube/Vimeo в объём диска не входят.
+                Для пробы укажите лимит (например 50). Полный каталог с галочкой может занять много времени.
+              </small>
+            </div>
+
+            <div class="form-group d-none" id="collect_product_document_stats_field">
+              <%= hidden_field_tag :document_stats_live, "0" %>
+              <div class="custom-control custom-checkbox">
+                <%= check_box_tag :document_stats_live, "1", true, class: "custom-control-input", id: "document_stats_live_checkbox" %>
+                <%= label_tag :document_stats_live_checkbox, "Проверять страницу IKEA, если в БД нет ссылки на инструкцию", class: "custom-control-label" %>
+              </div>
+              <small class="form-text text-muted">
+                Считает Content-Length уникальных PDF (manuals + assembly_instructions) без скачивания.
                 Для пробы укажите лимит (например 50). Полный каталог с галочкой может занять много времени.
               </small>
             </div>
@@ -351,7 +364,8 @@
                         'count_broken_product_images' => 'Подсчёт: битые картинки',
                         'count_broken_product_translations' => 'Подсчёт: польский текст',
                         'recover_broken_product_translations' => 'Восстановление переводов',
-                        'collect_product_video_stats' => 'Статистика размера видео'
+                        'collect_product_video_stats' => 'Статистика размера видео',
+                        'collect_product_document_stats' => 'Статистика размера инструкций'
                       }[task.task_type] || task.task_type %>
                       <% if task.status == 'pending' %>
                         <span class="badge badge-secondary ml-2">Ожидание</span>
@@ -481,10 +495,11 @@
                       'count_broken_product_images' => 'Подсчёт: битые картинки',
                       'count_broken_product_translations' => 'Подсчёт: польский текст',
                       'recover_broken_product_translations' => 'Восстановление переводов',
-                      'collect_product_video_stats' => 'Статистика размера видео'
+                      'collect_product_video_stats' => 'Статистика размера видео',
+                      'collect_product_document_stats' => 'Статистика размера инструкций'
                     }[task.task_type] || task.task_type %>
-                    <% if task.task_type == 'collect_product_video_stats' && task.payload.to_h['unique_total_human'].present? %>
-                      <br><small class="text-muted">Диск: <%= task.payload['unique_total_human'] %> (<%= task.payload['unique_sized_videos'] || 0 %> файлов)</small>
+                    <% if %w[collect_product_video_stats collect_product_document_stats].include?(task.task_type) && task.payload.to_h['unique_total_human'].present? %>
+                      <br><small class="text-muted">Диск: <%= task.payload['unique_total_human'] %> (<%= task.payload['unique_sized_videos'] || task.payload['unique_sized_documents'] || 0 %> файлов)</small>
                     <% end %>
                   </td>
                   <td>
@@ -678,7 +693,8 @@
             'count_broken_product_images': 'Подсчёт: битые картинки',
             'count_broken_product_translations': 'Подсчёт: польский текст',
             'recover_broken_product_translations': 'Восстановление переводов',
-            'collect_product_video_stats': 'Статистика размера видео'
+            'collect_product_video_stats': 'Статистика размера видео',
+            'collect_product_document_stats': 'Статистика размера инструкций'
           }[task.task_type] || task.task_type;
           
           const limitText = task.limit ? task.limit : '∞';
@@ -816,6 +832,7 @@
     const recoverMissingPackagingDimsField = document.getElementById('recover_missing_packaging_dimensions_field');
     const recoverBrokenTranslationsField = document.getElementById('recover_broken_product_translations_field');
     const collectProductVideoStatsField = document.getElementById('collect_product_video_stats_field');
+    const collectProductDocumentStatsField = document.getElementById('collect_product_document_stats_field');
     const plPricesStockSkuField = document.getElementById('pl_prices_stock_sku_field');
     const extraDataMainLabel = document.getElementById('extra_data_main_label');
     const extraDataTextarea = document.getElementById('extra_data_textarea');
@@ -849,6 +866,7 @@
       if (recoverMissingPackagingDimsField) recoverMissingPackagingDimsField.classList.add('d-none');
       if (recoverBrokenTranslationsField) recoverBrokenTranslationsField.classList.add('d-none');
       if (collectProductVideoStatsField) collectProductVideoStatsField.classList.add('d-none');
+      if (collectProductDocumentStatsField) collectProductDocumentStatsField.classList.add('d-none');
       if (plPricesStockSkuField) plPricesStockSkuField.classList.add('d-none');
       if (categoryFiltersOneHint) categoryFiltersOneHint.classList.add('d-none');
       if (mergeParentCategoryFiltersHint) mergeParentCategoryFiltersHint.classList.add('d-none');
@@ -888,6 +906,8 @@
         if (recoverBrokenTranslationsField) recoverBrokenTranslationsField.classList.remove('d-none');
       } else if (task === 'collect_product_video_stats') {
         if (collectProductVideoStatsField) collectProductVideoStatsField.classList.remove('d-none');
+      } else if (task === 'collect_product_document_stats') {
+        if (collectProductDocumentStatsField) collectProductDocumentStatsField.classList.remove('d-none');
       }
 
       if (task === 'refresh_category_catalog' || task === 'refresh_category_lt') {
