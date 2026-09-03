@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_21_163000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_22_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -1102,6 +1102,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_21_163000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["phone"], name: "index_verification_codes_on_phone"
+  end
+
+  create_table "webpay_settings", force: :cascade do |t|
+    t.boolean "test_mode", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"

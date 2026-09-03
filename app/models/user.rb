@@ -75,6 +75,7 @@ class User < ApplicationRecord
     "exchange_rates" => { read: :finance_view, write: :finance_manage },
     "price_calculator" => { read: :finance_view, write: :finance_manage },
     "finance_entries" => { read: :finance_view, write: :finance_manage },
+    "webpay_setting" => { read: :finance_view, write: :finance_manage },
     "admin_audit_logs" => { read: :audit_view, write: :audit_view },
     "parser_control" => { read: :technical_read, write: :technical_manage },
     "cron_schedules" => { read: :technical_read, write: :technical_manage },

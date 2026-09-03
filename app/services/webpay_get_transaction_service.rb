@@ -10,7 +10,7 @@ class WebpayGetTransactionService
     end
 
     def billing_configured?
-      cfg = Rails.application.config.x.webpay
+      cfg = WebpayConfig.current
       cfg.billing_username.present? && cfg.billing_password.present?
     end
   end
@@ -52,11 +52,11 @@ class WebpayGetTransactionService
   private
 
   def billing_url
-    Rails.application.config.x.webpay.billing_api_url.to_s.chomp('/')
+    WebpayConfig.current.billing_api_url.to_s.chomp('/')
   end
 
   def build_request_xml(transaction_id)
-    cfg = Rails.application.config.x.webpay
+    cfg = WebpayConfig.current
     password_md5 = Digest::MD5.hexdigest(cfg.billing_password)
     <<~XML
       <?xml version="1.0" encoding="UTF-8"?>

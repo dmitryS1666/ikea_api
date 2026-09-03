@@ -153,7 +153,7 @@ class WebpayPaymentLinkService
     end
 
     def webpay_config
-      Rails.application.config.x.webpay
+      WebpayConfig.current
     end
   end
 end

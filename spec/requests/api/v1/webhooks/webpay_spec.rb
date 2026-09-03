@@ -1,7 +1,7 @@
 require 'rails_helper'
 
 RSpec.describe 'POST /api/v1/webhooks/webpay', type: :request do
-  let(:secret) { Rails.application.config.x.webpay.secret_key }
+  let(:secret) { WebpayConfig.current.secret_key }
 
   before do
     allow(WebpayGetTransactionService).to receive(:billing_configured?).and_return(false)

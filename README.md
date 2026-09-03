@@ -218,14 +218,19 @@ rails server
 
 Набор переменных окружения:
 
-- `WEBPAY_STORE_ID` — идентификатор магазина в Webpay (по умолчанию `11111111`).
-- `WEBPAY_SECRET_KEY` — ваш секретный ключ (в тестовой среде можно использовать `xxxaL8v9AjMPTB7w4bmXDaEcbjMCNqyw`, как предоставлено выше).
+- `WEBPAY_STORE_ID` / `WEBPAY_LIVE_STORE_ID` — идентификатор магазина для **боевого** режима (если задан только `WEBPAY_STORE_ID`, он используется в бою).
+- `WEBPAY_SECRET_KEY` / `WEBPAY_LIVE_SECRET_KEY` — секретный ключ боевого магазина.
+- `WEBPAY_TEST_STORE_ID`, `WEBPAY_TEST_SECRET_KEY` — учётные данные sandbox (по умолчанию `11111111` / `xxxaL8v9AjMPTB7w4bmXDaEcbjMCNqyw`).
 - `WEBPAY_STORE_NAME` — название магазина, показывается на форме (`IKEA by Shop`).
 - `WEBPAY_RETURN_URL`, `WEBPAY_CANCEL_URL`, `WEBPAY_NOTIFY_URL` — внешние адреса, на которые Webpay вернёт покупателя или отправит уведомление. Если `WEBPAY_RETURN_URL` **не задан**, в форму подставляется `{WEBPAY_LINK_BASE_URL}/api/v1/payment/success` (обработчик на API, затем редирект на витрину). Устаревшее значение `https://…/payment/success` без `/api` автоматически заменяется на API-URL. Если `WEBPAY_NOTIFY_URL` **не задан**, в форму подставляется `{WEBPAY_LINK_BASE_URL}/api/v1/webhooks/webpay`. Пустая строка `WEBPAY_NOTIFY_URL=` отключает notify в форме.
 - `WEBPAY_SUCCESS_REDIRECT_URL` — куда API перенаправляет пользователя после обработки return URL (по умолчанию `{PUBLIC_SITE_URL}/account/orders`).
-- `WEBPAY_BILLING_API_URL` — Billing API для `get_transaction` (тест: `https://sandbox.webpay.by`, прод: `https://billing.webpay.by`).
+- `WEBPAY_BILLING_API_URL` / `WEBPAY_LIVE_BILLING_API_URL` — Billing API для боевого режима (`https://billing.webpay.by`). Тестовый хост — `WEBPAY_TEST_BILLING_API_URL` или `https://sandbox.webpay.by`.
 - `WEBPAY_BILLING_USERNAME`, `WEBPAY_BILLING_PASSWORD` — логин и **обычный** пароль личного кабинета WebPay; для запроса пароль передаётся как MD5, см. [payment verification](https://docs.webpay.by/en/paymentIntegration/cardIntegration/paymentVerification/). Если заданы, после серверного уведомления выполняется дополнительная проверка `get_transaction`.
-- `WEBPAY_NOTIFY_TRUSTED_IPS` — через запятую доверенные IP (для продакшена укажите `178.163.225.84`). Если пусто, IP нотификатора не проверяется (удобно для sandbox и локальных тестов).
+- `WEBPAY_NOTIFY_TRUSTED_IPS` — через запятую доверенные IP (для продакшена укажите `178.163.225.84`). Проверяется только в боевом режиме; в тестовом IP не фильтруются.
+
+**Режим шлюза (админка)**
+
+Переключатель «WebPay шлюз» в разделе Финансы (`WebpaySetting`) выбирает тестовый или боевой шлюз без рестарта. Тестовый режим: `wsb_test=1`, `https://securesandbox.webpay.by/`. Боевой: `wsb_test=0`, `https://payment.webpay.by/`. `WEBPAY_TEST_FLAG` / `WEBPAY_PAYMENT_PAGE_URL` остаются только как fallback до миграции таблицы настроек.
 
 **Подтверждение оплаты**
 
@@ -234,11 +239,9 @@ rails server
 - `WEBPAY_CURRENCY_ID` — валюта (`BYN` по умолчанию).
 - `WEBPAY_LANGUAGE_ID` — локаль формы (`russian`).
 - `WEBPAY_VERSION` — версия протокола (`2`).
-- `WEBPAY_TEST_FLAG` — `1` для тестовой среды, `0` для продакшна.
-- `WEBPAY_PAYMENT_PAGE_URL` — куда отправляются POST-запросы (`https://securesandbox.webpay.by/` для теста).
 - `WEBPAY_LINK_BASE_URL` — базовый URL API, используемый в поле `payment_url` (по умолчанию берётся из `API_BASE_URL` или `http://localhost:3000`).
 
-При переходе в продакшен достаточно поменять `WEBPAY_TEST_FLAG`, `WEBPAY_PAYMENT_PAGE_URL`, `WEBPAY_STORE_ID` и `WEBPAY_SECRET_KEY`.
+На проде задайте боевые `WEBPAY_STORE_ID` / `WEBPAY_SECRET_KEY` (или `WEBPAY_LIVE_*`) и при необходимости тестовые `WEBPAY_TEST_*`, затем переключайте режим в админке.
 
 ## 📚 API Документация
 

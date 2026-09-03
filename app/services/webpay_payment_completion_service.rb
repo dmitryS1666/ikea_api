@@ -113,7 +113,7 @@ class WebpayPaymentCompletionService
   end
 
   def webpay_config
-    Rails.application.config.x.webpay
+    WebpayConfig.current
   end
 
   def trusted_notify_ip?

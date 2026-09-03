@@ -51,5 +51,27 @@ RSpec.describe WebpayPaymentLinkService do
         expect(form.fields['wsb_return_url']).to eq('https://ikeya.by/api/v1/payment/success')
       end
     end
+
+    context 'when WebpaySetting is in test mode' do
+      let(:return_url_env) { '' }
+
+      it 'posts to the sandbox payment page with wsb_test=1' do
+        WebpaySetting.instance.update!(test_mode: true)
+        form = described_class.build_form(order: order)
+        expect(form.action).to eq('https://securesandbox.webpay.by/')
+        expect(form.fields['wsb_test']).to eq('1')
+      end
+    end
+
+    context 'when WebpaySetting is in live mode' do
+      let(:return_url_env) { '' }
+
+      it 'posts to the production payment page with wsb_test=0' do
+        WebpaySetting.instance.update!(test_mode: false)
+        form = described_class.build_form(order: order)
+        expect(form.action).to eq('https://payment.webpay.by/')
+        expect(form.fields['wsb_test']).to eq('0')
+      end
+    end
   end
 end

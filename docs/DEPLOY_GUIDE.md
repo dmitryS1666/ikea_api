@@ -50,7 +50,15 @@ cd ~/apps/ikea_front
 WEBPAY_LINK_BASE_URL=https://ikeya.by
 WEBPAY_RETURN_URL=https://ikeya.by/api/v1/payment/success
 WEBPAY_SUCCESS_REDIRECT_URL=https://ikeya.by/profile/orders
+WEBPAY_STORE_ID=<боевой store id>
+WEBPAY_SECRET_KEY=<боевой secret>
+# опционально для тестов без смены ENV:
+# WEBPAY_TEST_STORE_ID=11111111
+# WEBPAY_TEST_SECRET_KEY=xxxaL8v9AjMPTB7w4bmXDaEcbjMCNqyw
+WEBPAY_NOTIFY_TRUSTED_IPS=178.163.225.84
 ```
+
+Режим тестовый/боевой переключается в Trestle: **Финансы → WebPay шлюз** (без рестарта). По умолчанию включён тестовый sandbox.
 
 Значение `WEBPAY_RETURN_URL=https://ikeya.by/payment/success` при старте приложения автоматически заменяется на API-URL. Если в личном кабинете WebPay зашит старый return URL без `/api`, добавьте NPM location `/payment/success` → Rails (см. таблицу выше). Страницы `/payment/success` на Next.js нет — финальный редирект идёт на `/profile/orders`.
 
