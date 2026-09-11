@@ -60,6 +60,8 @@ class CurrencyRateService
       end
     end
     
+    byn_rates = byn_rates_for(rates[:effective_date])
+
     message = "💱 <b>Актуальные курсы валют (NBP)</b>\n\n"
     message += "Дата: #{rates[:effective_date]}\n"
     
@@ -75,10 +77,11 @@ class CurrencyRateService
         message += "#{emoji} <b>#{rate[:currency]}</b>\n"
         message += "   Код: #{rate[:code]}\n"
         if rate[:code] == 'PLN'
-          message += "   Курс: 1.0 PLN (базовая валюта)\n\n"
+          message += "   Курс: 1.0 PLN (базовая валюта)\n"
         else
-          message += "   Курс: #{rate[:mid]} PLN\n\n"
+          message += "   Курс: #{rate[:mid]} PLN\n"
         end
+        message += "   Курс: #{format_byn_rate(byn_rates[rate[:code]])}\n\n"
       end
     else
       message += "Курсы валют не найдены"
@@ -109,6 +112,31 @@ class CurrencyRateService
       table: table_data['table'],
       no: table_data['no']
     }
+  end
+
+  def self.byn_rates_for(effective_date)
+    date = parse_rate_date(effective_date)
+
+    %w[PLN USD EUR].each_with_object({}) do |code, result|
+      result[code] = ExchangeRate.fetch_or_create(code, date)&.rate_per_unit
+    end
+  rescue StandardError => e
+    Rails.logger.warn("CurrencyRateService: failed to fetch BYN rates: #{e.message}")
+    {}
+  end
+
+  def self.parse_rate_date(effective_date)
+    return Date.current if effective_date.blank?
+
+    Date.parse(effective_date.to_s)
+  rescue Date::Error, ArgumentError
+    Date.current
+  end
+
+  def self.format_byn_rate(rate)
+    return "н/д" if rate.nil?
+
+    "#{rate.round(4)} BYN"
   end
 end
 
