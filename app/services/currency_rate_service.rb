@@ -1,82 +1,76 @@
-# Сервис для получения курсов валют из API Национального банка Польши (NBP)
-require 'net/http'
-require 'json'
-require 'uri'
+# Сервис для получения курсов валют из ExchangeRate-API (база PLN)
+require "net/http"
+require "json"
+require "uri"
 
 class CurrencyRateService
-  NBP_API_BASE_URL = 'http://api.nbp.pl/api/exchangerates/tables/A/'
-  
-  # Получить актуальные курсы валют
+  ER_API_URL = "https://open.er-api.com/v6/latest/PLN"
+  TARGET_CODES = %w[USD EUR].freeze
+  CURRENCY_NAMES = {
+    "PLN" => "złoty polski",
+    "USD" => "dolar amerykański",
+    "EUR" => "euro"
+  }.freeze
+
   def self.fetch_rates
-    uri = URI(NBP_API_BASE_URL)
+    uri = URI(ER_API_URL)
     http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = true
     http.read_timeout = 10
     http.open_timeout = 10
-    
-    request = Net::HTTP::Get.new(uri.path)
-    request['Accept'] = 'application/json'
-    
+
+    request = Net::HTTP::Get.new(uri.request_uri)
+    request["Accept"] = "application/json"
+
     response = http.request(request)
-    
-    if response.is_a?(Net::HTTPSuccess)
-      data = JSON.parse(response.body)
-      parse_rates(data)
-    else
-      raise StandardError, "NBP API error: #{response.code} #{response.message}"
+
+    unless response.is_a?(Net::HTTPSuccess)
+      raise StandardError, "ExchangeRate-API error: #{response.code} #{response.message}"
     end
+
+    parse_rates(JSON.parse(response.body))
   rescue JSON::ParserError => e
-    raise StandardError, "Failed to parse NBP API response: #{e.message}"
-  rescue Net::TimeoutError => e
-    raise StandardError, "NBP API timeout: #{e.message}"
-  rescue => e
-    raise StandardError, "Failed to fetch currency rates: #{e.message}"
+    raise StandardError, "Failed to parse ExchangeRate-API response: #{e.message}"
+  rescue Net::OpenTimeout, Net::ReadTimeout, Timeout::Error => e
+    raise StandardError, "ExchangeRate-API timeout: #{e.message}"
   end
-  
-  # Форматировать курсы для Telegram сообщения
-  # Фильтрует только нужные валюты: PLN, USD, EUR
+
   def self.format_rates_for_telegram(rates)
     return "Курсы валют не найдены" if rates.empty?
-    
-    # Список нужных валют
-    target_codes = %w[USD EUR]
-    
-    # Фильтруем только нужные валюты
-    filtered_rates = rates[:rates].select { |rate| target_codes.include?(rate[:code]) }
-    
-    # Добавляем PLN как базовую валюту (1.0 PLN)
+
+    filtered_rates = Array(rates[:rates]).select { |rate| TARGET_CODES.include?(rate[:code]) }
     filtered_rates << {
-      currency: 'złoty polski',
-      code: 'PLN',
+      currency: CURRENCY_NAMES["PLN"],
+      code: "PLN",
       mid: 1.0
     }
-    
-    # Сортируем: PLN, USD, EUR
+
     sorted_rates = filtered_rates.sort_by do |rate|
       case rate[:code]
-      when 'PLN' then 0
-      when 'USD' then 1
-      when 'EUR' then 2
+      when "PLN" then 0
+      when "USD" then 1
+      when "EUR" then 2
       else 3
       end
     end
-    
-    byn_rates = byn_rates_for(rates[:effective_date])
 
-    message = "💱 <b>Актуальные курсы валют (NBP)</b>\n\n"
+    byn_rates = rates[:byn_rates] || {}
+
+    message = "💱 <b>Актуальные курсы валют (ExchangeRate-API)</b>\n\n"
     message += "Дата: #{rates[:effective_date]}\n"
-    
+
     if sorted_rates.any?
       sorted_rates.each do |rate|
         emoji = case rate[:code]
-                when 'PLN' then '🇵🇱'
-                when 'USD' then '🇺🇸'
-                when 'EUR' then '🇪🇺'
-                else '💱'
+                when "PLN" then "🇵🇱"
+                when "USD" then "🇺🇸"
+                when "EUR" then "🇪🇺"
+                else "💱"
                 end
-        
+
         message += "#{emoji} <b>#{rate[:currency]}</b>\n"
         message += "   Код: #{rate[:code]}\n"
-        if rate[:code] == 'PLN'
+        if rate[:code] == "PLN"
           message += "   Курс: 1.0 PLN (базовая валюта)\n"
         else
           message += "   Курс: #{rate[:mid]} PLN\n"
@@ -86,51 +80,57 @@ class CurrencyRateService
     else
       message += "Курсы валют не найдены"
     end
-    
+
     message
   end
-  
+
   private
-  
+
   def self.parse_rates(data)
-    return { rates: [], effective_date: nil, table: nil } if data.empty?
-    
-    # NBP API возвращает массив таблиц, берем первую
-    table_data = data.first
-    
-    rates = (table_data['rates'] || []).map do |rate|
-      {
-        currency: rate['currency'],
-        code: rate['code'],
-        mid: rate['mid']
-      }
-    end
-    
+    raise StandardError, "ExchangeRate-API unsuccessful response" unless data["result"] == "success"
+
+    raw = data["rates"] || {}
+    missing = (%w[USD EUR BYN] - raw.keys)
+    raise StandardError, "ExchangeRate-API missing rates: #{missing.join(', ')}" if missing.any?
+
     {
-      rates: rates,
-      effective_date: table_data['effectiveDate'],
-      table: table_data['table'],
-      no: table_data['no']
+      rates: TARGET_CODES.map do |code|
+        {
+          currency: CURRENCY_NAMES[code],
+          code: code,
+          mid: invert_rate(raw[code])
+        }
+      end,
+      effective_date: parse_update_date(data["time_last_update_utc"]),
+      byn_rates: {
+        "PLN" => raw["BYN"].to_f,
+        "USD" => byn_per_unit(raw["BYN"], raw["USD"]),
+        "EUR" => byn_per_unit(raw["BYN"], raw["EUR"])
+      },
+      source: "ExchangeRate-API"
     }
   end
 
-  def self.byn_rates_for(effective_date)
-    date = parse_rate_date(effective_date)
+  def self.invert_rate(units_per_pln)
+    value = units_per_pln.to_f
+    raise StandardError, "ExchangeRate-API returned a zero rate" if value.zero?
 
-    %w[PLN USD EUR].each_with_object({}) do |code, result|
-      result[code] = ExchangeRate.fetch_or_create(code, date)&.rate_per_unit
-    end
-  rescue StandardError => e
-    Rails.logger.warn("CurrencyRateService: failed to fetch BYN rates: #{e.message}")
-    {}
+    (1.0 / value).round(4)
   end
 
-  def self.parse_rate_date(effective_date)
-    return Date.current if effective_date.blank?
+  def self.byn_per_unit(byn_per_pln, units_per_pln)
+    unit_rate = units_per_pln.to_f
+    raise StandardError, "ExchangeRate-API returned a zero rate" if unit_rate.zero?
 
-    Date.parse(effective_date.to_s)
-  rescue Date::Error, ArgumentError
-    Date.current
+    byn_per_pln.to_f / unit_rate
+  end
+
+  def self.parse_update_date(value)
+    return Date.current if value.blank?
+
+    Time.parse(value.to_s).to_date.iso8601
+  rescue ArgumentError
+    Date.current.iso8601
   end
 
   def self.format_byn_rate(rate)
@@ -139,4 +139,3 @@ class CurrencyRateService
     "#{rate.round(4)} BYN"
   end
 end
-

@@ -1,4 +1,4 @@
-# Задача для получения курсов валют из API NBP и отправки уведомления в Telegram
+# Задача для получения курсов валют из ExchangeRate-API и отправки уведомления в Telegram
 class FetchCurrencyRatesJob < ApplicationJob
   queue_as :default
   
@@ -23,7 +23,7 @@ class FetchCurrencyRatesJob < ApplicationJob
       error_message = "❌ <b>Ошибка получения курсов валют</b>\n\n"
       error_message += "Время: #{Time.current.strftime('%d.%m.%Y %H:%M:%S')}\n"
       error_message += "Ошибка: #{e.message}\n"
-      error_message += "Источник: NBP API"
+      error_message += "Источник: ExchangeRate-API"
       
       TelegramService.send_message(error_message, parse_mode: 'HTML')
       
