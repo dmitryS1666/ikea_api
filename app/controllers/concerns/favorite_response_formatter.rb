@@ -32,13 +32,9 @@ module FavoriteResponseFormatter
       sku: public_sku(product.sku),
       name: product.name,
       name_ru: product.name.to_s.presence,
-      price_byn: format_byn(
-        PriceCalculationService.product_storefront_price_byn(
-          product.price,
-          weight_kg: product.packaging_weight_kg.to_f,
-          delivery_pln: product.delivery_cost.to_f
-        )
-      ),
+      payload = PriceCalculationService.public_payload(PriceCalculationService.for_product(product))
+      price_byn: payload[:display_price_byn] ? format_byn(payload[:display_price_byn]) : nil,
+      pricing_available: payload[:pricing_available],
       quantity: product.quantity,
       is_favorite: true, # Since it's in favorite list
       category_id: product.category_id,

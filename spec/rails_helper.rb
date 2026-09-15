@@ -72,6 +72,17 @@ RSpec.configure do |config|
         body: { _embedded: { contacts: [{ id: 123 }] } }.to_json,
         headers: { 'Content-Type' => 'application/json' }
       )
+
+    stub_request(:get, %r{\Ahttps://www.nbrb.by/api/exrates/rates/})
+      .to_return(
+        status: 200,
+        body: {
+          "Date" => Date.current.iso8601,
+          "Cur_OfficialRate" => 1.0,
+          "Cur_Scale" => 1
+        }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
   end
 
   # Remove this line if you're not using ActiveRecord or ActiveRecord fixtures

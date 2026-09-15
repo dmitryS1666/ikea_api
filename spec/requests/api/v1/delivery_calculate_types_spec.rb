@@ -56,14 +56,12 @@ RSpec.describe "Delivery calculate types", type: :request do
     expect(body["delivery"]["pricing"]["source"]).to be_present
     expect(body["delivery"]["pricing"]["internal"]).to be_a(Hash)
 
-    expect(body.dig("totals", "delivery_to_belarus_byn").to_f + body.dig("totals", "delivery_method_byn").to_f)
-      .to be_within(0.02).of(body.dig("totals", "delivery_total_byn").to_f)
-    expect(body.dig("delivery", "delivery_price_byn").to_f + body.dig("delivery", "delivery_to_belarus_price_byn").to_f)
-      .to be_within(0.02).of(body.dig("delivery", "total_delivery_price_byn").to_f)
+    expect_checkout_delivery_totals_contract!(body["totals"], delivery: body["delivery"])
 
     expected_total = (
       body.dig("totals", "subtotal_new_byn").to_f -
       body.dig("totals", "discount_total_byn").to_f +
+      body.dig("totals", "customs_total_byn").to_f +
       body.dig("totals", "delivery_total_byn").to_f
     ).round(2)
     expect(body.dig("totals", "total_byn").to_f).to be_within(0.01).of(expected_total)
@@ -157,7 +155,7 @@ RSpec.describe "Delivery calculate types", type: :request do
     body = JSON.parse(response.body)
     expect(body["delivery"]["normalized_delivery_type"]).to eq("ikeya_delivery")
     expect(body["delivery"]["delivery_price_byn"]).to eq("0.00")
-    expect(body["delivery"]["total_delivery_price_byn"].to_f).to eq(body["delivery"]["delivery_to_belarus_price_byn"].to_f)
+    expect(body["delivery"]["total_delivery_price_byn"].to_f).to eq(0.0)
   end
 
   it "returns 422 for unsupported delivery type" do

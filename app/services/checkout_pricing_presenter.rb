@@ -61,10 +61,9 @@ class CheckoutPricingPresenter
       )
       total_delivery_byn = format_byn(delivery_total)
 
-      # The cart pricing is the source of truth for the public "delivery to
-      # Belarus" row. Checkout adds the selected method component on top of it:
-      #   delivery_to_belarus_byn + delivery_method_byn = delivery_total_byn
-      #   total_byn = subtotal_new_byn - discount_total_byn + delivery_total_byn
+      # Cart pricing already includes D_IKEA and WC in items. Checkout adds only
+      # the selected last-mile method (Europost/courier/IKEYA) plus cart customs:
+      #   total_byn = items_total_byn - discount + customs + delivery_method_byn
       payable_total_byn = checkout_payable_total(summary: summary, delivery_total_byn: delivery_total)
       display_total_byn = order.checkout_draft? ? payable_total_byn : order.total_amount.to_f
 
@@ -95,33 +94,33 @@ class CheckoutPricingPresenter
     end
 
     def checkout_payable_total(summary:, delivery_total_byn:)
-      subtotal = summary.dig(:totals, :subtotal_new_byn).to_f
+      items = summary.dig(:totals, :items_total_byn).to_f
+      items = summary.dig(:totals, :subtotal_new_byn).to_f if items <= 0
       discount = summary.dig(:totals, :discount_total_byn).to_f
+      customs = summary.dig(:totals, :customs_total_byn).to_f
 
-      [(subtotal - discount + delivery_total_byn.to_f), 0.0].max.round(2)
+      [(items - discount + customs + delivery_total_byn.to_f), 0.0].max.round(2)
     end
 
     def resolve_checkout_delivery_total(cart_delivery_to_belarus_byn:, snapshot_prices:, order_delivery_price:)
       belarus = cart_delivery_to_belarus_byn.to_f.round(2)
       snap = (snapshot_prices || {}).with_indifferent_access
       method = snap[:delivery_price_byn].to_f.round(2)
-
-      return (belarus + method).round(2) if method.positive?
+      return method if method.positive?
 
       snap_total = snap[:total_delivery_price_byn].to_f.round(2)
       if snap_total.positive?
-        return belarus if (snap_total - belarus).abs < 0.02
-        return snap_total if full_delivery_total?(snap_total, belarus)
+        return [(snap_total - belarus), 0.0].max.round(2) if full_delivery_total?(snap_total, belarus)
 
-        return (belarus + snap_total).round(2)
+        return snap_total
       end
 
       stored = order_delivery_price.to_f.round(2)
       return 0.0 if stored <= 0.0
-      return belarus if (stored - belarus).abs < 0.02
-      return stored if full_delivery_total?(stored, belarus)
+      return 0.0 if (stored - belarus).abs < 0.02
+      return [(stored - belarus), 0.0].max.round(2) if full_delivery_total?(stored, belarus)
 
-      (belarus + stored).round(2)
+      stored
     end
 
     # Full persisted totals already include cart Belarus delivery. Legacy snapshots

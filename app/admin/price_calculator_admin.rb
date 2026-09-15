@@ -20,14 +20,29 @@ Trestle.resource(:price_calculator, model: PriceCalculator) do
 
       today = Date.today
 
-      @params_info = {
-        cheap_threshold_pln: PriceCalculationService.cheap_threshold_pln,
-        cheap_multiplier: PriceCalculationService::CHEAP_MULTIPLIER,
-        min_markup: PriceCalculationService::MIN_MARKUP,
-        target_profit: PriceCalculationService::TARGET_PROFIT_PLN,
-        markup_subtrahend: PriceCalculationService::MARKUP_SUBTRAHEND,
-        buffer: CalculatorSetting.get("exchange_rate_buffer") || 1.05
-      }
+      @params_info = begin
+        snapshot = Pricing::Settings.snapshot
+        {
+          cheap_threshold_pln: snapshot[:cheap_threshold_pln].to_f,
+          cheap_multiplier: snapshot[:cheap_multiplier].to_f,
+          min_markup: snapshot[:min_markup].to_f,
+          target_profit: snapshot[:target_profit_pln].to_f,
+          markup_subtrahend: snapshot[:markup_subtrahend].to_f,
+          buffer: snapshot[:exchange_rate_buffer].to_f,
+          vat_multiplier: snapshot[:vat_multiplier].to_f
+        }
+      rescue Pricing::ConfigurationError => e
+        @error = e.message
+        {
+          cheap_threshold_pln: nil,
+          cheap_multiplier: nil,
+          min_markup: nil,
+          target_profit: nil,
+          markup_subtrahend: nil,
+          buffer: 1.05,
+          vat_multiplier: nil
+        }
+      end
 
       @current_rates = load_current_rates(today)
 
@@ -76,6 +91,7 @@ Trestle.resource(:price_calculator, model: PriceCalculator) do
       product_price = params[:product_price]&.to_f
       weight = params[:weight]&.to_f
       use_gls = params[:use_gls] == "1"
+      price_addon = params[:price_addon_pln].presence&.to_f || 0
 
       unless product_price&.positive? && weight&.positive?
         @error = "Укажите цену товара (в злотых) и вес (в кг)"
@@ -88,7 +104,8 @@ Trestle.resource(:price_calculator, model: PriceCalculator) do
         weight,
         use_gls_pickup: use_gls,
         delivery_pln: delivery_pln,
-        date: date
+        date: date,
+        price_addon_pln: price_addon
       )
 
       if @calculation[:error]

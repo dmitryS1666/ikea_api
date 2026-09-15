@@ -678,22 +678,15 @@ class CheckoutService
   def self.checkout_delivery_prices(pricing:, raw_prices:)
     raw = (raw_prices || {}).with_indifferent_access
 
-    # CartPricingService is the source of truth for the public "delivery to
-    # Belarus" amount shown in cart. Checkout must not replace it with the
-    # value returned by the selected pickup/courier calculation, otherwise the
-    # same order shows different Belarus delivery on cart and checkout screens.
-    #
-    # The selected delivery calculation contributes only the method component
-    # (Europost pickup/courier/IKEYA). The additive checkout contract is:
-    #   delivery_to_belarus_price_byn + delivery_price_byn = total_delivery_price_byn
+    # Cart pricing already includes D_IKEA and WC in items_total_byn. Checkout
+    # last-mile (Europost/courier/IKEYA) is the only extra delivery component.
     cart_delivery_to_belarus = cart_delivery_to_belarus_from_pricing(pricing)
     method_delivery = raw[:delivery_price_byn].to_f.round(2)
-    normalized_total = (cart_delivery_to_belarus + method_delivery).round(2)
 
     {
       delivery_price_byn: method_delivery,
       delivery_to_belarus_price_byn: cart_delivery_to_belarus,
-      total_delivery_price_byn: normalized_total,
+      total_delivery_price_byn: method_delivery,
       provider_delivery_price_byn: method_delivery,
       provider_delivery_to_belarus_price_byn: raw[:delivery_to_belarus_price_byn].to_f.round(2),
       provider_total_delivery_price_byn: raw[:total_delivery_price_byn].to_f.round(2)
@@ -703,11 +696,12 @@ class CheckoutService
 
   def self.checkout_total_amount(pricing:, prices:)
     totals = CartDisplayTotalsService.for_summary(pricing[:totals])
-    subtotal = totals[:subtotal_new_byn].to_f
+    items = totals[:items_total_byn].to_f
     discount = totals[:discount_total_byn].to_f
+    customs = totals[:customs_total_byn].to_f
     delivery_total = prices[:total_delivery_price_byn].to_f
 
-    [(subtotal - discount + delivery_total), 0.0].max.round(2)
+    [(items - discount + customs + delivery_total), 0.0].max.round(2)
   end
   private_class_method :checkout_total_amount
 
@@ -1018,7 +1012,7 @@ class CheckoutService
   def self.refresh_draft_order!(order:, cart:, checkout_cart:, pricing:, params:)
     display_totals = CartDisplayTotalsService.for_summary(pricing[:totals])
     total_amount = display_totals[:total_byn].to_f
-    delivery_price = display_totals[:delivery_to_belarus_byn].to_f
+    delivery_price = display_totals[:delivery_total_byn].to_f
 
     Order.transaction do
       sync_draft_order_items!(order: order, checkout_cart: checkout_cart, pricing: pricing)
@@ -1084,7 +1078,7 @@ class CheckoutService
   def self.build_draft_order(user:, cart:, checkout_cart:, pricing:, params:)
     display_totals = CartDisplayTotalsService.for_summary(pricing[:totals])
     total_amount = display_totals[:total_byn].to_f
-    delivery_price = display_totals[:delivery_to_belarus_byn].to_f
+    delivery_price = display_totals[:delivery_total_byn].to_f
     passport_input = params[:passport].is_a?(Hash) ? params[:passport] : (params[:passport].to_unsafe_h rescue nil)
 
     address_snapshot = (params[:address] || {}).merge(

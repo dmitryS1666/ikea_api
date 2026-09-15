@@ -35,6 +35,7 @@ module Feeds
         presenters = []
         pricing = {
           pln_rate: ExchangeRate.fetch_or_create("PLN")&.rate_per_unit.to_f,
+          eur_rate: ExchangeRate.fetch_or_create("EUR")&.rate_per_unit.to_f,
           buffer: PriceCalculationService.exchange_rate_buffer
         }
         promos = PromoCode.active_now.includes(:promo_code_products, :promo_code_categories).to_a

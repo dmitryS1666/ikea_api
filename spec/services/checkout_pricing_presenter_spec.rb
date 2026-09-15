@@ -7,25 +7,11 @@ RSpec.describe CheckoutPricingPresenter do
 
   before do
     CalculatorSetting.initialize_defaults
-    ExchangeRate.create!(
-      date: date,
-      currency_code: "PLN",
-      rate: 0.85,
-      official_rate: 0.85,
-      scale: 1
-    )
-    ExchangeRate.create!(
-      date: date,
-      currency_code: "EUR",
-      rate: 3.5,
-      official_rate: 3.5,
-      scale: 1
-    )
-    allow(ENV).to receive(:fetch).and_call_original
-    allow(ENV).to receive(:fetch).with("PRICE_CHEAP_THRESHOLD_PLN", anything).and_return("150")
+    ExchangeRate.create!(date: date, currency_code: "PLN", rate: 0.85, official_rate: 0.85, scale: 1)
+    ExchangeRate.create!(date: date, currency_code: "EUR", rate: 3.5, official_rate: 3.5, scale: 1)
   end
 
-  it "exposes storefront line prices without Belarus delivery in totals breakdown" do
+  it "keeps WC inside items and exposes last-mile separately" do
     user = create(:user)
     product = create(
       :product,
@@ -44,8 +30,6 @@ RSpec.describe CheckoutPricingPresenter do
         }
       }
     )
-    allow(Products::WeightExtractor).to receive(:packaging_weight_kg_for_product).and_return(15.0)
-
     cart = create(:cart, user: user)
     create(:cart_item, cart: cart, product_sku: product.sku, quantity: 1)
 
@@ -53,25 +37,29 @@ RSpec.describe CheckoutPricingPresenter do
     summary = described_class.for_pricing(pricing)
     item = summary[:items].first
 
-    expect(pricing[:items].first[:line_total_byn_checkout]).to be > pricing[:items].first[:line_total_byn]
-    expect(summary[:totals][:subtotal_new_byn].to_f + summary[:totals][:delivery_to_belarus_byn].to_f).to be_within(0.02).of(
-      summary[:totals][:total_byn].to_f + summary[:totals][:discount_total_byn].to_f
+    expect(pricing[:items].first[:line_total_byn_checkout]).to eq(pricing[:items].first[:line_total_byn])
+    expect(summary[:totals][:total_byn].to_f).to be_within(0.02).of(
+      summary[:totals][:subtotal_new_byn].to_f -
+        summary[:totals][:discount_total_byn].to_f +
+        summary[:totals][:customs_total_byn].to_f
     )
     expect(summary.dig(:totals, :delivery_method_byn)).to eq("0.00")
+    expect(item[:pricing][:line_total_new_byn]).to be_present
   end
-  it "shows selected delivery method in draft payable total even if saved draft total is stale" do
+
+  it "adds only last-mile to draft payable total" do
     order = build_stubbed(
       :order,
       checkout_draft: true,
       delivery_type: "courier",
-      total_amount: 775.70,
-      delivery_price: 133.82,
+      total_amount: 749.62,
+      delivery_price: 53.87,
       address_json: {
         "delivery" => {
           "prices" => {
             "delivery_price_byn" => "53.87",
             "delivery_to_belarus_price_byn" => "79.95",
-            "total_delivery_price_byn" => "133.82"
+            "total_delivery_price_byn" => "53.87"
           }
         }
       }
@@ -79,12 +67,11 @@ RSpec.describe CheckoutPricingPresenter do
     pricing = {
       items: [],
       totals: {
+        items_total_byn: 695.75,
         subtotal_new_byn: 695.75,
         discount_total_byn: 0.0,
         delivery_to_belarus_byn: 79.95,
-        delivery_total_byn: 79.95,
-        total_byn: 775.70,
-        final_total_byn: 775.70,
+        customs_total_byn: 0.0,
         total_weight_kg: 66.3
       },
       promo: {},
@@ -95,12 +82,11 @@ RSpec.describe CheckoutPricingPresenter do
 
     expect(summary.dig(:totals, :delivery_to_belarus_byn)).to eq("79.95")
     expect(summary.dig(:totals, :delivery_method_byn)).to eq("53.87")
-    expect(summary.dig(:totals, :delivery_total_byn)).to eq("133.82")
-    expect(summary.dig(:totals, :total_byn)).to eq("829.57")
-    expect(summary.dig(:totals, :final_total_byn)).to eq("829.57")
+    expect(summary.dig(:totals, :delivery_total_byn)).to eq("53.87")
+    expect(summary.dig(:totals, :total_byn)).to eq("749.62")
   end
 
-  it "adds Belarus delivery to payable total when saved delivery_price contains only method component" do
+  it "does not add WC again when snapshot stores method-only delivery" do
     order = build_stubbed(
       :order,
       checkout_draft: true,
@@ -120,12 +106,11 @@ RSpec.describe CheckoutPricingPresenter do
     pricing = {
       items: [],
       totals: {
+        items_total_byn: 196.32,
         subtotal_new_byn: 196.32,
         discount_total_byn: 0.0,
         delivery_to_belarus_byn: 40.96,
-        delivery_total_byn: 40.96,
-        total_byn: 237.28,
-        final_total_byn: 237.28,
+        customs_total_byn: 0.0,
         total_weight_kg: 17.3
       },
       promo: {},
@@ -134,52 +119,9 @@ RSpec.describe CheckoutPricingPresenter do
 
     summary = described_class.for_order(order, pricing: pricing)
 
-    expect(summary.dig(:totals, :delivery_to_belarus_byn)).to eq("40.96")
     expect(summary.dig(:totals, :delivery_method_byn)).to eq("63.04")
-    expect(summary.dig(:totals, :delivery_total_byn)).to eq("104.00")
-    expect(summary.dig(:totals, :total_byn)).to eq("300.32")
-    expect(
-      summary.dig(:totals, :subtotal_new_byn).to_f +
-        summary.dig(:totals, :delivery_to_belarus_byn).to_f +
-        summary.dig(:totals, :delivery_method_byn).to_f
-    ).to be_within(0.02).of(summary.dig(:totals, :total_byn).to_f)
-  end
-
-  it "adds Belarus delivery when snapshot stores only method total without delivery_price_byn" do
-    order = build_stubbed(
-      :order,
-      checkout_draft: true,
-      delivery_type: "europost_pickup",
-      total_amount: 184.66,
-      delivery_price: 14.41,
-      address_json: {
-        "delivery" => {
-          "prices" => {
-            "total_delivery_price_byn" => "14.41"
-          }
-        }
-      }
-    )
-    pricing = {
-      items: [],
-      totals: {
-        subtotal_new_byn: 170.25,
-        discount_total_byn: 0.0,
-        delivery_to_belarus_byn: 6.90,
-        delivery_total_byn: 6.90,
-        total_byn: 177.15,
-        final_total_byn: 177.15,
-        total_weight_kg: 2.23
-      },
-      promo: {},
-      meta: {}
-    }
-
-    summary = described_class.for_order(order, pricing: pricing)
-
-    expect(summary.dig(:totals, :delivery_method_byn)).to eq("14.41")
-    expect(summary.dig(:totals, :delivery_total_byn)).to eq("21.31")
-    expect(summary.dig(:totals, :total_byn)).to eq("191.56")
+    expect(summary.dig(:totals, :delivery_total_byn)).to eq("63.04")
+    expect(summary.dig(:totals, :total_byn)).to eq("259.36")
   end
 
   it "uses persisted order total for finalized orders" do
@@ -188,13 +130,13 @@ RSpec.describe CheckoutPricingPresenter do
       checkout_draft: false,
       delivery_type: "courier",
       total_amount: 500.0,
-      delivery_price: 80.0,
+      delivery_price: 20.0,
       address_json: {
         "delivery" => {
           "prices" => {
             "delivery_price_byn" => "20.00",
             "delivery_to_belarus_price_byn" => "60.00",
-            "total_delivery_price_byn" => "80.00"
+            "total_delivery_price_byn" => "20.00"
           }
         }
       }
@@ -202,12 +144,11 @@ RSpec.describe CheckoutPricingPresenter do
     pricing = {
       items: [],
       totals: {
+        items_total_byn: 400.0,
         subtotal_new_byn: 400.0,
         discount_total_byn: 0.0,
         delivery_to_belarus_byn: 60.0,
-        delivery_total_byn: 80.0,
-        total_byn: 999.0,
-        final_total_byn: 999.0,
+        customs_total_byn: 0.0,
         total_weight_kg: 10.0
       },
       promo: {},
@@ -219,44 +160,4 @@ RSpec.describe CheckoutPricingPresenter do
     expect(summary.dig(:totals, :total_byn)).to eq("500.00")
     expect(summary.dig(:totals, :final_total_byn)).to eq("500.00")
   end
-
-  it "resolves legacy snapshots where total_delivery_price_byn stored method-only value" do
-    order = build_stubbed(
-      :order,
-      checkout_draft: true,
-      delivery_type: "europost_pickup",
-      total_amount: 198.15,
-      delivery_price: 12.43,
-      address_json: {
-        "delivery" => {
-          "prices" => {
-            "delivery_price_byn" => "12.43",
-            "delivery_to_belarus_price_byn" => "6.01",
-            "total_delivery_price_byn" => "12.43"
-          }
-        }
-      }
-    )
-    pricing = {
-      items: [],
-      totals: {
-        subtotal_new_byn: 185.72,
-        discount_total_byn: 0.0,
-        delivery_to_belarus_byn: 6.01,
-        delivery_total_byn: 6.01,
-        total_byn: 191.73,
-        final_total_byn: 191.73,
-        total_weight_kg: 1.94
-      },
-      promo: {},
-      meta: {}
-    }
-
-    summary = described_class.for_order(order, pricing: pricing)
-
-    expect(summary.dig(:totals, :delivery_method_byn)).to eq("12.43")
-    expect(summary.dig(:totals, :delivery_total_byn)).to eq("18.44")
-    expect(summary.dig(:totals, :total_byn)).to eq("204.16")
-  end
-
 end

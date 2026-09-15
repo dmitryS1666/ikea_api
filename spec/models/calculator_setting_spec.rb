@@ -84,6 +84,15 @@ RSpec.describe CalculatorSetting, type: :model do
       expect(CalculatorSetting.get('belarus_delivery_rates')).to be_a(Hash)
       expect(CalculatorSetting.get('customs_free_cost_limit')).to eq(200.0)
       expect(CalculatorSetting.get('customs_free_weight_limit')).to eq(31.0)
+      expect(CalculatorSetting.get('pricing_cheap_multiplier')).to eq(1.3)
+      expect(CalculatorSetting.get('poland_vat_multiplier')).to eq(1.23)
+    end
+
+    it 'не перезаписывает значения, изменённые администратором' do
+      CalculatorSetting.initialize_defaults
+      CalculatorSetting.set('pricing_cheap_multiplier', 1.77)
+      CalculatorSetting.initialize_defaults
+      expect(CalculatorSetting.get('pricing_cheap_multiplier')).to eq(1.77)
     end
   end
   
@@ -108,6 +117,12 @@ RSpec.describe CalculatorSetting, type: :model do
     it 'возвращает nil для невалидного JSON' do
       setting = CalculatorSetting.new(key: 'test', value: 'invalid json', setting_type: 'json')
       expect(setting.json_value).to be_nil
+    end
+
+    it 'не сохраняет некорректный JSON' do
+      setting = CalculatorSetting.new(key: 'ikea_delivery_config', value: '{not json', setting_type: 'json')
+      expect(setting).not_to be_valid
+      expect(setting.errors[:value]).to be_present
     end
   end
 end

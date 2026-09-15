@@ -76,8 +76,12 @@ module Api
         )
 
         method_delivery_byn = finance[:delivery_price_byn].to_f.round(2)
-        delivery_total_byn = (cart_delivery_to_belarus_byn + method_delivery_byn).round(2)
-        order_total_byn = [(subtotal_byn - discount_total_byn + delivery_total_byn), 0.0].max.round(2)
+        delivery_total_byn = method_delivery_byn
+        customs_total_byn = display_totals[:customs_total_byn].to_f.round(2)
+        order_total_byn = [
+          (subtotal_byn - discount_total_byn + customs_total_byn + delivery_total_byn),
+          0.0
+        ].max.round(2)
 
         rules = CartRulesService.call(subtotal_new_byn: subtotal_byn)
         pp_eval = pickup_point_evaluation(params[:pickup_point_id], options[:parcels], weight_kg)
@@ -95,6 +99,9 @@ module Api
             delivery_to_belarus_byn: sprintf("%.2f", cart_delivery_to_belarus_byn),
             delivery_method_byn: sprintf("%.2f", method_delivery_byn),
             delivery_total_byn: sprintf("%.2f", delivery_total_byn),
+            customs_total_byn: sprintf("%.2f", customs_total_byn),
+            customs_duty_byn: sprintf("%.2f", display_totals[:customs_duty_byn].to_f),
+            customs_fee_byn: sprintf("%.2f", display_totals[:customs_fee_byn].to_f),
             total_byn: sprintf("%.2f", order_total_byn),
             final_total_byn: sprintf("%.2f", order_total_byn)
           },
@@ -255,7 +262,7 @@ module Api
             storage_until: eta[:storage_until],
             delivery_price_byn: sprintf("%.2f", finance[:delivery_price_byn]),
             delivery_to_belarus_price_byn: sprintf("%.2f", finance[:delivery_to_belarus_price_byn]),
-            total_delivery_price_byn: sprintf("%.2f", finance[:total_delivery_price_byn])
+            total_delivery_price_byn: sprintf("%.2f", finance[:delivery_price_byn])
           )
         end
 

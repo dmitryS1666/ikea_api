@@ -255,21 +255,15 @@ module Feeds
     end
 
     def storefront_price_byn
-      pln = product.price.to_f
-      return nil unless pln.positive?
+      breakdown = PriceCalculationService.for_product(
+        product,
+        pln_rate: pricing_context[:pln_rate],
+        eur_rate: pricing_context[:eur_rate],
+        buffer: pricing_context[:buffer]
+      )
+      return nil unless breakdown[:pricing_available]
 
-      pln_rate = pricing_context[:pln_rate] || ExchangeRate.fetch_or_create("PLN")&.rate_per_unit.to_f
-      return nil unless pln_rate.positive?
-
-      buffer = pricing_context[:buffer] || PriceCalculationService.exchange_rate_buffer
-
-      PriceCalculationService.product_storefront_price_byn(
-        pln,
-        weight_kg: product.packaging_weight_kg.to_f,
-        delivery_pln: product.delivery_cost.to_f,
-        pln_rate: pln_rate,
-        buffer: buffer
-      )&.to_d
+      Pricing::Money.to_f_round2(breakdown[:card_price_byn])&.to_d
     end
 
     def best_promo

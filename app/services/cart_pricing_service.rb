@@ -3,7 +3,6 @@ class CartPricingService
     cart = Cart.new(user: order.user, promo_code: order.promo_code)
     order.order_items.each do |oi|
       ci = cart.cart_items.build(product_sku: oi.product_sku, quantity: oi.quantity)
-      # Unpersisted cart_items do not get products via includes(); pricing would see zero PLN.
       ci.product = Product.includes(:category_products).find_by(sku: oi.product_sku)
     end
     cart
@@ -17,24 +16,24 @@ class CartPricingService
     promo = cart.promo_code
     promo_valid = promo&.active_now?
 
-    # Получаем базовые данные для расчета (курс и буфер)
-    pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 0
-    eur_rate = ExchangeRate.fetch_or_create('EUR')&.rate_per_unit || 0
+    pln_rate = ExchangeRate.fetch_or_create("PLN")&.rate_per_unit
+    eur_rate = ExchangeRate.fetch_or_create("EUR")&.rate_per_unit
     buffer = PriceCalculationService.exchange_rate_buffer
-    pln_rate_with_buffer = pln_rate * buffer
+    pln_rate_with_buffer = (Pricing::Money.bd(pln_rate) || BigDecimal("0")) * Pricing::Money.bd(buffer)
 
     discount_total_pln = 0.0
     discount_total_byn = 0.0
-    total_items_cost_eur = 0.0
+    cart_ikea_pln = BigDecimal("0")
+    cart_weight_kg = BigDecimal("0")
     delivery_poland_byn = 0.0
     delivery_to_belarus_byn = 0.0
+    pricing_blocked = false
+    pricing_block_skus = []
 
-    # Pre-calculate promo applicability for all items at once
     promos = promo_valid ? [promo] : []
     cart_products = cart.cart_items.map(&:product).compact
     promo_applicability = get_promo_applicability(cart_products, promos)
 
-    # includes() breaks product association for unpersisted cart_items (e.g. CartPricingService.order_as_cart).
     items_relation =
       if cart.cart_items.all?(&:persisted?)
         cart.cart_items.includes(product: :category_products)
@@ -46,134 +45,118 @@ class CartPricingService
       end
 
     parcel_result = Delivery::ParcelPackingService.call(cart)
-    line_weight_by_sku = parcel_line_weights(parcel_result[:parcels])
-    total_weight = parcel_result[:total_weight_kg].to_f
 
     items = items_relation.map do |item|
-      product_pln = item.product&.price.to_f || 0
-      weight = item.product&.packaging_weight_kg.to_f
-      quantity = item.quantity
-      delivery_unit_pln = item.product&.delivery_cost.to_f
-      line_weight = line_weight_for_item(
-        sku: item.product_sku,
-        quantity: quantity,
-        packaging_weight_kg: weight,
-        line_weight_by_sku: line_weight_by_sku
-      )
+      product = item.product
+      quantity = item.quantity.to_i
+      unit = PriceCalculationService.for_product(product, pln_rate: pln_rate, eur_rate: eur_rate, buffer: buffer)
 
-      line_breakdown = PriceCalculationService.line_breakdown_pln(
-        unit_price_zl: product_pln,
-        quantity: quantity,
-        weight_kg: line_weight,
-        delivery_unit_pln: delivery_unit_pln
-      )
-      line_byn = PriceCalculationService.line_byn_components(
-        unit_price_zl: product_pln,
-        quantity: quantity,
-        weight_kg: line_weight,
-        delivery_unit_pln: delivery_unit_pln,
-        pln_rate: pln_rate,
-        buffer: buffer
-      )
+      unless unit[:pricing_available]
+        pricing_blocked = true
+        pricing_block_skus << item.product_sku
+        next unavailable_item(item, unit, quantity)
+      end
 
-      storefront_line_byn_before_discount = (line_byn[:goods_byn] + line_byn[:delivery_poland_byn]).round(2)
-      reconciled_storefront = reconcile_unit_line(storefront_line_byn_before_discount, quantity)
-      unit_price_byn_before_discount = reconciled_storefront[:unit]
-      storefront_line_byn_before_discount = reconciled_storefront[:line]
-      # Keep the checkout total consistent with the public cart rows.  The
-      # rounded full total from PriceCalculationService may differ by 0.01 from
-      # the sum of already displayed rounded components (goods + PL delivery +
-      # BY delivery).  The UI shows these components separately, so the payable
-      # total must be built from the same rounded components.
-      full_line_byn_before_discount = (storefront_line_byn_before_discount + line_byn[:delivery_belarus_byn]).round(2)
+      ikea_unit = Pricing::Money.bd(product.price)
+      weight_unit = unit[:weight_kg]
+      cart_ikea_pln += ikea_unit * quantity
+      cart_weight_kg += weight_unit * quantity
 
-      # Промо применяется к витринной цене позиции (без доставки в Беларусь).
+      base_unit_byn = Pricing::Money.to_f_round2(unit[:base_price_byn])
+      goods_line_byn = Pricing::Money.to_f_round2(unit[:goods_pln] * quantity * unit[:pln_byn_raw] * unit[:exchange_rate_buffer])
+      delivery_poland_line = Pricing::Money.to_f_round2(unit[:d_ikea_pln] * quantity * unit[:pln_byn_raw] * unit[:exchange_rate_buffer])
+      delivery_belarus_line = Pricing::Money.to_f_round2(unit[:wc_pln] * quantity * unit[:pln_byn_raw] * unit[:exchange_rate_buffer])
+      base_line_byn = (base_unit_byn * quantity).round(2)
+
       promo_applied = promo_valid && promo_applicability[item.product_sku]&.any?
-      unit_discount_byn = promo_applied ? calculate_unit_discount_byn(promo, unit_price_byn_before_discount, pln_rate, buffer) : 0.0
-      unit_discount_byn = [unit_discount_byn, unit_price_byn_before_discount].min.round(2)
+      unit_discount_byn = promo_applied ? calculate_unit_discount_byn(promo, base_unit_byn, pln_rate, buffer) : 0.0
+      unit_discount_byn = [unit_discount_byn, base_unit_byn].min.round(2)
       line_discount_byn = (unit_discount_byn * quantity).round(2)
       line_discount_pln = if pln_rate_with_buffer.positive?
                             (line_discount_byn / pln_rate_with_buffer).round(2)
                           else
                             0.0
                           end
-
       unit_discount_pln = quantity.positive? ? (line_discount_pln / quantity).round(2) : 0.0
-      discount_total_pln += unit_discount_pln * quantity
+      discount_total_pln += line_discount_pln
       discount_total_byn += line_discount_byn
 
-      line_total_byn = [storefront_line_byn_before_discount - line_discount_byn, 0.0].max.round(2)
-      line_total_byn_checkout = [full_line_byn_before_discount - line_discount_byn, 0.0].max.round(2)
-      reconciled_line = reconcile_unit_line(line_total_byn, quantity)
-      unit_price_byn = reconciled_line[:unit]
-      line_total_byn = reconciled_line[:line]
-      reconciled_checkout = reconcile_unit_line(line_total_byn_checkout, quantity)
-      unit_price_byn_checkout = reconciled_checkout[:unit]
-      line_total_byn_checkout = reconciled_checkout[:line]
+      line_total_byn = [base_line_byn - line_discount_byn, 0.0].max.round(2)
+      unit_price_byn = quantity.positive? ? (line_total_byn / quantity).round(2) : 0.0
+      line_total_byn = (unit_price_byn * quantity).round(2)
       line_total_pln = if pln_rate_with_buffer.positive?
-                         (line_total_byn_checkout / pln_rate_with_buffer).round(2)
+                         (line_total_byn / pln_rate_with_buffer).round(2)
                        else
                          0.0
                        end
 
-      delivery_poland_byn += line_byn[:delivery_poland_byn]
-      delivery_to_belarus_byn += line_byn[:delivery_belarus_byn]
-
-      markup_k = line_breakdown[:markup_k]
-
-      # Расчет пошлины для отдельной позиции (line total) для информации
-      item_cost_eur = (product_pln * pln_rate / eur_rate).round(2) if eur_rate.positive?
-      line_cost_eur = (item_cost_eur || 0) * quantity
-      total_items_cost_eur += line_cost_eur
-      
-      line_customs = (line_cost_eur.positive? && line_weight.positive?) ? CustomsDutyService.calculate(line_cost_eur, line_weight, eur_rate) : nil
+      delivery_poland_byn += delivery_poland_line
+      delivery_to_belarus_byn += delivery_belarus_line
 
       {
         sku: item.product_sku,
         quantity: quantity,
-        unit_price_pln: product_pln,
+        unit_price_pln: product.price.to_f,
         unit_price_byn: unit_price_byn,
-        unit_price_byn_checkout: unit_price_byn_checkout,
-        unit_price_byn_before_discount: unit_price_byn_before_discount,
-        line_total_byn_checkout: line_total_byn_checkout,
+        unit_price_byn_checkout: unit_price_byn,
+        unit_price_byn_before_discount: base_unit_byn,
+        line_total_byn_checkout: line_total_byn,
         unit_discount_byn: unit_discount_byn,
         unit_discount_pln: unit_discount_pln,
-        line_total_pln: line_total_pln.round(2),
+        line_discount_byn: line_discount_byn,
+        line_total_pln: line_total_pln,
         line_total_byn: line_total_byn,
-        pricing_mode: line_breakdown[:mode].to_s,
+        pricing_mode: unit[:pricing_mode].to_s,
         promo_applied: promo_applied,
         promo_code: promo_applied ? promo.code : nil,
-        weight: weight,
-        customs_duty_byn: line_customs ? line_customs[:duty_byn] : 0,
-        customs_fee_byn: line_customs ? line_customs[:fee_byn] : 0,
-        customs_total_byn: line_customs ? line_customs[:total_byn] : 0
+        weight: weight_unit.to_f,
+        customs_duty_byn: 0.0,
+        customs_fee_byn: 0.0,
+        customs_total_byn: 0.0,
+        pricing_available: true,
+        pricing_status: "ok",
+        pricing_errors: [],
+        goods_byn: goods_line_byn,
+        delivery_poland_byn: delivery_poland_line,
+        delivery_belarus_byn: delivery_belarus_line
       }
     end
 
-    # Расчет пошлины для всей корзины
-    cart_customs = CustomsDutyService.calculate(total_items_cost_eur, total_weight, eur_rate)
+    vat = Pricing::Settings.vat_multiplier
+    cart_customs_cost_eur = if eur_rate.to_f.positive?
+                              (cart_ikea_pln / vat) * (Pricing::Money.bd(pln_rate) / Pricing::Money.bd(eur_rate))
+                            else
+                              BigDecimal("0")
+                            end
+    cart_customs = CustomsDutyService.calculate(cart_customs_cost_eur, cart_weight_kg, eur_rate)
 
-    # Итого в PLN и BYN: полная сумма строк (с доставкой в РБ) для checkout.
-    total_pln = items.sum { |i| i[:line_total_pln].to_f }
-    total_byn = items.sum { |i| i[:line_total_byn_checkout].to_f }.round(2)
-    storefront_subtotal_byn = items.sum { |i| i[:line_total_byn].to_f }.round(2)
-
-    delivery_total_byn = (delivery_poland_byn + delivery_to_belarus_byn).round(2)
+    items_total_byn = items.sum { |row| row[:unit_price_byn_before_discount].to_f * row[:quantity].to_i }.round(2)
+    total_pln = items.sum { |row| row[:line_total_pln].to_f }.round(2)
 
     totals = CartDisplayTotalsService.for_summary(
-      total_byn: total_byn,
-      storefront_subtotal_byn: storefront_subtotal_byn,
+      items_total_byn: items_total_byn,
+      subtotal_new_byn: items_total_byn,
       discount_total_byn: discount_total_byn.round(2),
-      delivery_to_belarus_byn: delivery_to_belarus_byn,
-      delivery_poland_byn: delivery_poland_byn,
-      delivery_total_byn: delivery_total_byn,
-      total_pln: total_pln.round(2),
-      total_weight_kg: total_weight.to_f,
+      delivery_to_belarus_byn: delivery_to_belarus_byn.round(2),
+      delivery_poland_byn: delivery_poland_byn.round(2),
+      local_delivery_total_byn: 0.0,
+      total_pln: total_pln,
+      total_weight_kg: cart_weight_kg.to_f,
       customs_total_byn: cart_customs[:total_byn],
       customs_duty_byn: cart_customs[:duty_byn],
       customs_fee_byn: cart_customs[:fee_byn]
     )
-    rules = CartRulesService.call(subtotal_new_byn: totals[:subtotal_new_byn])
+    rules = CartRulesService.call(subtotal_new_byn: totals[:items_total_byn])
+    checkout_allowed = rules[:flags][:checkout_allowed] && !pricing_blocked
+    min_order_error =
+      if pricing_blocked
+        skus = pricing_block_skus.uniq.join(", ")
+        "Цена уточняется для товаров: #{skus}. Оформление недоступно, пока не заданы вес и D_IKEA."
+      elsif checkout_allowed
+        nil
+      else
+        "Оформление доступно от #{rules[:rules][:min_order_amount_byn]} руб."
+      end
 
     {
       items: items,
@@ -184,10 +167,29 @@ class CartPricingService
       },
       meta: {
         min_order_amount: rules[:rules][:min_order_amount_byn],
-        can_checkout: rules[:flags][:checkout_allowed],
-        min_order_error: rules[:flags][:checkout_allowed] ? nil : "Оформление доступно от #{rules[:rules][:min_order_amount_byn]} руб.",
+        can_checkout: checkout_allowed,
+        min_order_error: min_order_error,
         free_delivery_threshold: rules[:rules][:free_delivery_threshold_byn],
-        free_delivery_remaining: rules[:flags][:free_delivery_missing_byn]
+        free_delivery_remaining: rules[:flags][:free_delivery_missing_byn],
+        pricing_blocked: pricing_blocked,
+        pricing_block_skus: pricing_block_skus.uniq,
+        parcel_total_weight_kg: parcel_result[:total_weight_kg].to_f
+      }
+    }
+  rescue Pricing::ConfigurationError => e
+    Rails.logger.error("[CartPricingService] #{e.message}")
+    {
+      items: [],
+      totals: CartDisplayTotalsService.for_summary({}),
+      promo: { code: promo&.code, valid: promo_valid },
+      meta: {
+        min_order_amount: CartRulesService::DEFAULTS[:min_order_amount_byn],
+        can_checkout: false,
+        min_order_error: "Некорректная конфигурация ценообразования. Оформление недоступно.",
+        free_delivery_threshold: 0.0,
+        free_delivery_remaining: 0.0,
+        pricing_blocked: true,
+        pricing_block_skus: []
       }
     }
   end
@@ -196,20 +198,19 @@ class CartPricingService
     return 0 unless promo && unit_price_byn.to_f.positive?
 
     case promo.discount_type
-    when 'percent'
+    when "percent"
       (unit_price_byn.to_f * promo.discount_value / 100.0).round(2)
-    when 'fixed_pln'
-      pln_rate ||= ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 1
+    when "fixed_pln"
+      pln_rate ||= ExchangeRate.fetch_or_create("PLN")&.rate_per_unit || 1
       buffer ||= PriceCalculationService.exchange_rate_buffer
-      [promo.discount_value.to_f * pln_rate * buffer, unit_price_byn.to_f].min.round(2)
-    when 'fixed_byn'
+      [promo.discount_value.to_f * pln_rate.to_f * buffer.to_f, unit_price_byn.to_f].min.round(2)
+    when "fixed_byn"
       [promo.discount_value.to_f, unit_price_byn.to_f].min.round(2)
     else
       0
     end
   end
 
-  # Change to public for use in CartAutoPromoService
   def self.get_promo_applicability(products, promos)
     return {} if Array(products).empty? || Array(promos).empty?
 
@@ -219,7 +220,6 @@ class CartPricingService
       sku_to_cat_ids[p.sku] = cat_ids
     end
 
-    # Pre-fetch promo relationships
     promos.each { |p| p.promo_code_products.to_a; p.promo_code_categories.to_a }
 
     applicability = {}
@@ -230,32 +230,31 @@ class CartPricingService
     applicability
   end
 
-  def self.parcel_line_weights(parcels)
-    Array(parcels).each_with_object(Hash.new(0.0)) do |parcel, weights|
-      sku = parcel[:sku].to_s
-      next if sku.blank?
-
-      weights[sku] += parcel[:weight_kg].to_f
-    end
+  def self.unavailable_item(item, unit, quantity)
+    {
+      sku: item.product_sku,
+      quantity: quantity,
+      unit_price_pln: item.product&.price.to_f,
+      unit_price_byn: 0.0,
+      unit_price_byn_checkout: 0.0,
+      unit_price_byn_before_discount: 0.0,
+      line_total_byn_checkout: 0.0,
+      unit_discount_byn: 0.0,
+      unit_discount_pln: 0.0,
+      line_discount_byn: 0.0,
+      line_total_pln: 0.0,
+      line_total_byn: 0.0,
+      pricing_mode: nil,
+      promo_applied: false,
+      promo_code: nil,
+      weight: nil,
+      customs_duty_byn: 0.0,
+      customs_fee_byn: 0.0,
+      customs_total_byn: 0.0,
+      pricing_available: false,
+      pricing_status: unit[:pricing_status] || "requires_clarification",
+      pricing_errors: Array(unit[:pricing_errors])
+    }
   end
-  private_class_method :parcel_line_weights
-
-  def self.line_weight_for_item(sku:, quantity:, packaging_weight_kg:, line_weight_by_sku:)
-    parcel_weight = line_weight_by_sku[sku.to_s].to_f
-    return parcel_weight if parcel_weight.positive?
-
-    (packaging_weight_kg.to_f * quantity.to_i).round(3)
-  end
-  private_class_method :line_weight_for_item
-
-  # Cart UI shows unit_price × quantity. After component rounding the raw line
-  # total may differ by a few kopecks (e.g. 2620.47 vs 262.05 × 10 = 2620.50).
-  def self.reconcile_unit_line(line_total, quantity)
-    qty = quantity.to_i
-    return { unit: 0.0, line: 0.0 } if qty <= 0
-
-    unit = (line_total.to_f / qty).round(2)
-    { unit: unit, line: (unit * qty).round(2) }
-  end
-  private_class_method :reconcile_unit_line
+  private_class_method :unavailable_item
 end

@@ -76,9 +76,9 @@ RSpec.describe "Cart Belarus delivery for selected items", type: :request do
     expect(partial["delivery_to_belarus_byn"].to_f).to be < full["delivery_to_belarus_byn"].to_f / 2.0
     expect(partial["subtotal_new_byn"].to_f).to be < full["subtotal_new_byn"].to_f / 2.0
 
-    visible_total = partial["subtotal_new_byn"].to_f +
-                    partial["delivery_to_belarus_byn"].to_f -
-                    partial["discount_total_byn"].to_f
+    visible_total = partial["subtotal_new_byn"].to_f -
+                    partial["discount_total_byn"].to_f +
+                    partial["customs_total_byn"].to_f
     expect(visible_total.round(2)).to eq(partial["total_byn"].to_f)
   end
 

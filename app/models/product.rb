@@ -35,6 +35,7 @@ class Product < ApplicationRecord
   # Валидации
   validates :sku, presence: true, uniqueness: true
   validates :name, presence: true
+  validates :price_addon_pln, numericality: { greater_than_or_equal_to: 0 }
   validate :validate_full_attributes_json_input
   validate :validate_full_attributes_api_override_json_input
 
@@ -169,7 +170,8 @@ class Product < ApplicationRecord
   end
 
   # Callbacks
-  before_save :calculate_delivery, if: :weight_changed?
+  before_validation :lock_manual_ikea_delivery_if_edited
+  before_save :assign_auto_ikea_delivery, if: :should_recalculate_ikea_delivery?
   after_save :maybe_sync_variant_sibling_links
   after_save :reset_variants_admin_form_flags
   after_commit :enqueue_filters_reindex, on: [:create, :update]
@@ -382,8 +384,14 @@ class Product < ApplicationRecord
         
         # variants_payload приходит с польской витрины, поэтому цену варианта
         # трактуем как PLN независимо от текущего URL товара.
-        pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 0
-        buffer = PriceCalculationService.exchange_rate_buffer
+        pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
+        eur_rate = ExchangeRate.fetch_or_create('EUR')&.rate_per_unit
+        buffer =
+          begin
+            PriceCalculationService.exchange_rate_buffer
+          rescue Pricing::ConfigurationError
+            nil
+          end
 
         variant_skus =
           data_to_process.flat_map do |vg|
@@ -417,8 +425,7 @@ class Product < ApplicationRecord
             rec = sku_v.present? ? resolve_variant_record(sku_v, variants_by_sku) : nil
             rec = nil if rec.present? && !same_variant_sku?(rec.sku, sku_v)
         
-            w_kg = (rec || self).packaging_weight_kg.to_f
-            d_pln = (rec || self).delivery_cost.to_f
+            pricing_source = rec || self
         
             payload_images =
               normalize_variant_item_images(
@@ -474,19 +481,28 @@ class Product < ApplicationRecord
             item[:small_desc_name] = normalize_variant_small_desc_label(item[:small_desc_name] || incoming_small_desc)
 
             original_price = variant_item_price(rec, item).to_f
-        
+
             if original_price > 0
-              price_byn = PriceCalculationService.product_storefront_price_byn(
-                original_price,
-                weight_kg: w_kg,
-                delivery_pln: d_pln,
+              breakdown = PriceCalculationService.for_product(
+                pricing_source,
                 pln_rate: pln_rate,
+                eur_rate: eur_rate,
                 buffer: buffer
               )
-        
-              item[:price_byn] = ActionController::Base.helpers.number_with_delimiter(price_byn, delimiter: " ")
+              if breakdown[:pricing_available]
+                item[:price_byn] = ActionController::Base.helpers.number_with_delimiter(
+                  Pricing::Money.to_f_round2(breakdown[:card_price_byn]),
+                  delimiter: " "
+                )
+              else
+                item[:price_byn] = nil
+              end
+              item[:pricing_available] = breakdown[:pricing_available]
+              item[:pricing_status] = breakdown[:pricing_status]
             else
               item[:price_byn] = nil
+              item[:pricing_available] = false
+              item[:pricing_status] = "requires_clarification"
             end
         
             # В payload вариантов оставляем канонический SKU из БД/парсера.
@@ -976,9 +992,56 @@ class Product < ApplicationRecord
     SlugifyService.call(source)
   end
 
-  def calculate_delivery
-    # Логика расчета доставки
-    # Аналогично deliveryService.js
+  public
+
+  def recalculate_ikea_delivery!
+    return if delivery_cost_manual?
+
+    quote = IkeaDeliveryService.quote(self)
+    return if quote.nil?
+
+    update_columns(
+      delivery_cost: quote[:cost_pln],
+      delivery_type: quote[:delivery_type],
+      delivery_name: quote[:delivery_name],
+      delivery_reason: quote[:delivery_reason]
+    )
+  end
+
+  private
+
+  def lock_manual_ikea_delivery_if_edited
+    return if @ikea_delivery_auto_assigning
+    return unless will_save_change_to_delivery_cost?
+    return if will_save_change_to_delivery_cost_manual?
+
+    self.delivery_cost_manual = true
+  end
+
+  def should_recalculate_ikea_delivery?
+    return false if delivery_cost_manual?
+
+    new_record? ||
+      will_save_change_to_weight? ||
+      will_save_change_to_full_attributes? ||
+      will_save_change_to_package_dimensions? ||
+      (will_save_change_to_delivery_cost_manual? && !delivery_cost_manual) ||
+      delivery_cost.nil?
+  end
+
+  def assign_auto_ikea_delivery
+    return if delivery_cost_manual?
+
+    quote = IkeaDeliveryService.quote(self)
+    return if quote.nil?
+
+    @ikea_delivery_auto_assigning = true
+    self.delivery_cost = quote[:cost_pln]
+    self.delivery_type = quote[:delivery_type]
+    self.delivery_name = quote[:delivery_name]
+    self.delivery_reason = quote[:delivery_reason]
+  ensure
+    @ikea_delivery_auto_assigning = false
   end
 
   def enqueue_filters_reindex

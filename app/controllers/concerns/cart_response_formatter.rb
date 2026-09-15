@@ -10,6 +10,7 @@ module CartResponseFormatter
     line_pricing = pricing_cart.equal?(cart) ? pricing : CartPricingService.call(cart: cart)
     totals = CartDisplayTotalsService.for_summary(pricing[:totals])
     rules_data = CartRulesService.call(subtotal_new_byn: totals[:subtotal_new_byn])
+    merge_pricing_checkout_flags!(rules_data, pricing)
     pricing_map = line_pricing[:items].index_by { |entry| entry[:sku] }
     cart_items = cart.cart_items.includes(:product)
     delivery_options = DeliveryOptionsService.call(pricing_cart)
@@ -38,6 +39,7 @@ module CartResponseFormatter
     delivery_options = DeliveryOptionsService.call(pricing_cart)
     totals = summary_totals_hash(summary)
     rules_data = CartRulesService.call(subtotal_new_byn: totals[:subtotal_new_byn])
+    merge_pricing_checkout_flags!(rules_data, { meta: summary[:meta] || {} })
 
     summary.merge(
       cart: {
@@ -106,23 +108,29 @@ module CartResponseFormatter
       customs_fee_byn: format_byn(pricing_line[:customs_fee_byn]),
       customs_total_byn: format_byn(pricing_line[:customs_total_byn]),
       promo_applied: pricing_line[:promo_applied] || false,
-      promo_code: pricing_line[:promo_code]
+      promo_code: pricing_line[:promo_code],
+      pricing_available: pricing_line.fetch(:pricing_available, true),
+      pricing_status: pricing_line[:pricing_status],
+      pricing_errors: Array(pricing_line[:pricing_errors])
     }
   end
 
   def product_payload(product)
     return nil unless product
 
+    breakdown = PriceCalculationService.for_product(product)
+    payload = PriceCalculationService.public_payload(breakdown)
+
     {
       sku: public_sku(product.sku),
       name: product.name,
-      price_byn: format_byn(
-        PriceCalculationService.product_storefront_price_byn(
-          product.price,
-          weight_kg: product.packaging_weight_kg.to_f,
-          delivery_pln: product.delivery_cost.to_f
-        )
-      ),
+      price_byn: payload[:price_byn],
+      pricing_available: payload[:pricing_available],
+      pricing_status: payload[:pricing_status],
+      pricing_errors: payload[:pricing_errors],
+      base_price_byn: payload[:base_price_byn],
+      customs_estimate_byn: payload[:customs_estimate_byn],
+      customs_included_in_card_price: payload[:customs_included_in_card_price],
       quantity: product.quantity,
       category_id: product.category_id,
       collection: product.collection,
@@ -135,16 +143,12 @@ module CartResponseFormatter
 
   def build_similar_products(product)
     SimilarProductsService.for(product: product, limit: 8).map do |similar|
+      payload = PriceCalculationService.public_payload(PriceCalculationService.for_product(similar))
       {
         sku: public_sku(similar.sku),
         name: similar.name,
-        price_byn: format_byn(
-          PriceCalculationService.product_storefront_price_byn(
-            similar.price,
-            weight_kg: similar.packaging_weight_kg.to_f,
-            delivery_pln: similar.delivery_cost.to_f
-          )
-        ),
+        price_byn: payload[:price_byn],
+        pricing_available: payload[:pricing_available],
         quantity: similar.quantity,
         category_id: similar.category_id,
         collection: similar.collection,
@@ -169,16 +173,12 @@ module CartResponseFormatter
   end
   
   def recommendation_payload(product)
+    payload = PriceCalculationService.public_payload(PriceCalculationService.for_product(product))
     {
       sku: public_sku(product.sku),
       name: product.name,
-      price_byn: format_byn(
-        PriceCalculationService.product_storefront_price_byn(
-          product.price,
-          weight_kg: product.packaging_weight_kg.to_f,
-          delivery_pln: product.delivery_cost.to_f
-        )
-      ),
+      price_byn: payload[:price_byn],
+      pricing_available: payload[:pricing_available],
       quantity: product.quantity,
       category_id: product.category_id,
       collection: product.collection,
@@ -192,6 +192,9 @@ module CartResponseFormatter
   def issue_reason_for(product, available)
     return 'not_found' if product.nil?
     return 'unavailable' unless available
+
+    breakdown = PriceCalculationService.for_product(product)
+    return 'price_requires_clarification' unless breakdown[:pricing_available]
 
     nil
   end
@@ -253,8 +256,21 @@ module CartResponseFormatter
       checkout_allowed: flags[:checkout_allowed],
       min_order_missing_byn: format_byn(flags[:min_order_missing_byn]),
       free_delivery_eligible: flags[:free_delivery_eligible],
-      free_delivery_missing_byn: format_byn(flags[:free_delivery_missing_byn])
+      free_delivery_missing_byn: format_byn(flags[:free_delivery_missing_byn]),
+      min_order_error: flags[:min_order_error],
+      pricing_blocked: flags[:pricing_blocked] || false
     }
+  end
+
+  def merge_pricing_checkout_flags!(rules_data, pricing)
+    meta = (pricing || {})[:meta] || {}
+    checkout_ok = meta.key?(:can_checkout) ? meta[:can_checkout] : meta[:checkout_allowed]
+    blocked = meta[:pricing_blocked] == true || checkout_ok == false
+    rules_data[:flags][:pricing_blocked] = meta[:pricing_blocked] == true
+    if blocked
+      rules_data[:flags][:checkout_allowed] = false
+      rules_data[:flags][:min_order_error] = meta[:min_order_error]
+    end
   end
 
   def public_sku(sku)

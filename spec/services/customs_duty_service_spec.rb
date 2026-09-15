@@ -105,16 +105,40 @@ RSpec.describe CustomsDutyService do
       end
     end
     
-    context 'Округление' do
-      it 'округляет все значения до 2 знаков после запятой' do
-        result = described_class.calculate(350.0, 15.0, eur_rate)
-        
-        expect(result[:duty_eur].to_s.split('.').last.length).to be <= 2
-        expect(result[:duty_byn].to_s.split('.').last.length).to be <= 2
-        expect(result[:total_byn].to_s.split('.').last.length).to be <= 2
+      context "Границы 200 EUR и 31 кг" do
+        it "не начисляет пошлину при C = 200" do
+          result = described_class.calculate(200.0, 10.0, 4.0)
+          expect(result[:total_byn]).to eq(0.0)
+        end
+
+        it "начисляет пошлину при C чуть выше 200" do
+          result = described_class.calculate(201.0, 10.0, 4.0)
+          expect(result[:duty_byn]).to be > 0
+          expect(result[:fee_byn]).to eq(10.0)
+        end
+
+        it "не начисляет пошлину при W = 31" do
+          result = described_class.calculate(100.0, 31.0, 4.0)
+          expect(result[:total_byn]).to eq(0.0)
+        end
+
+        it "начисляет пошлину при W чуть выше 31" do
+          result = described_class.calculate(100.0, 31.01, 4.0)
+          expect(result[:duty_byn]).to be_within(0.01).of(((31.01 - 31) * 2 * 4).round(2))
+          expect(result[:fee_byn]).to eq(10.0)
+        end
+      end
+
+      context "Округление" do
+        it "округляет все значения до 2 знаков после запятой" do
+          result = described_class.calculate(350.0, 15.0, eur_rate)
+
+          expect(result[:duty_eur].to_s.split(".").last.length).to be <= 2
+          expect(result[:duty_byn].to_s.split(".").last.length).to be <= 2
+          expect(result[:total_byn].to_s.split(".").last.length).to be <= 2
+        end
       end
     end
-  end
   
   describe 'методы получения настроек' do
     it '.free_cost_limit возвращает значение из настроек' do

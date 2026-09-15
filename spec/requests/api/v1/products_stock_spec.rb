@@ -21,7 +21,7 @@ RSpec.describe "Products API stock filtering", type: :request do
       get "/api/v1/products/#{product.sku}"
 
       expect(response).to have_http_status(:ok)
-      expect(response.parsed_body.dig("data", "attributes", "sku")).to eq(product.sku)
+      expect(response.parsed_body.dig("data", "attributes", "sku")).to eq("88888888")
     end
 
     it "returns 404 with not_found reason for unknown sku" do
@@ -42,8 +42,9 @@ RSpec.describe "Products API stock filtering", type: :request do
       get "/api/v1/products", params: { per_page: 100 }
 
       skus = response.parsed_body["data"].map { |row| row.dig("attributes", "sku") }
-      expect(skus).to include(in_stock.sku)
+      expect(skus).to include("77777777")
       expect(skus).not_to include("s66666666")
+      expect(skus).not_to include("66666666")
     end
   end
 end

@@ -110,11 +110,19 @@ RSpec.describe "Checkout delivery types", type: :request do
 
   it "creates order with ikeya_delivery when europost is unavailable" do
     product.update!(
-      weight: nil,
-      package_volume: nil,
-      package_dimensions: nil,
-      dimensions: nil,
-      full_attributes: {}
+      weight: 80.0,
+      package_volume: 2.0,
+      package_dimensions: "200 x 80 x 80 cm",
+      dimensions: "200 x 80 x 80 cm",
+      full_attributes: {
+        "dimensions_map" => {
+          "packaging" => {
+            "details" => [
+              { "weight" => "80 кг", "count" => 1, "width" => "80 см", "height" => "80 см", "length" => "200 см" }
+            ]
+          }
+        }
+      }
     )
     checkout(
       full_name: "User",

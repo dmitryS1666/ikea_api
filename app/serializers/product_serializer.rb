@@ -6,6 +6,15 @@ class ProductSerializer
              :price,
              :price_pln,
              :price_byn,
+             :base_price_byn,
+             :display_price_byn,
+             :customs_estimate_byn,
+             :customs_included_in_card_price,
+             :customs_threshold_exceeded,
+             :pricing_available,
+             :pricing_status,
+             :pricing_errors,
+             :customs_notice,
              :quantity,
              :is_bestseller,
              :is_new,
@@ -59,26 +68,15 @@ class ProductSerializer
   end
 
   attribute :customs_duty do |product, params|
-    safe_weight = safe_product_weight_kg(product)
-  
-    if product.price.to_f > 0 && safe_weight.present?
-      rates = params[:rates] || {
-        eur: ExchangeRate.fetch_or_create('EUR')&.rate_per_unit,
-        pln: ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
-      }
-  
-      if rates[:eur] && rates[:pln]
-        price_eur = (product.price.to_f * rates[:pln] / rates[:eur]).round(2)
-        calculation = CustomsDutyService.calculate(price_eur, safe_weight, rates[:eur])
-  
-        {
-          total_byn: calculation[:total_byn],
-          duty_byn: calculation[:duty_byn],
-          fee_byn: calculation[:fee_byn],
-          details: calculation[:details]
-        }
-      end
-    end
+    breakdown = pricing_breakdown_for(product, params)
+    next nil unless breakdown[:pricing_available]
+
+    {
+      total_byn: Pricing::Money.to_f_round2(breakdown[:customs_total_byn]),
+      duty_byn: Pricing::Money.to_f_round2(breakdown[:customs_duty_byn]),
+      fee_byn: Pricing::Money.to_f_round2(breakdown[:customs_fee_byn]),
+      details: breakdown[:customs_details]
+    }
   end
 
   attribute :price_pln do |product|
@@ -86,27 +84,44 @@ class ProductSerializer
   end
 
   attribute :price_byn do |product, params|
-    pln_price = product.price.to_f
-  
-    if pln_price > 0
-      rates = params[:rates] || {}
-      pln_rate = rates[:pln] || ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 0
-  
-      settings = params[:calculator_settings] || {}
-      buffer = settings['exchange_rate_buffer'] || PriceCalculationService.exchange_rate_buffer
-  
-      price = PriceCalculationService.product_storefront_price_byn(
-        pln_price,
-        weight_kg: product.packaging_weight_kg.to_f,
-        delivery_pln: product.delivery_cost.to_f,
-        pln_rate: pln_rate,
-        buffer: buffer
-      )
-  
-      ActionController::Base.helpers.number_with_delimiter(price, delimiter: ' ')
-    else
-      "0"
-    end
+    payload = PriceCalculationService.public_payload(pricing_breakdown_for(product, params))
+    payload[:price_byn] || (product.price.to_f.positive? ? nil : "0")
+  end
+
+  attribute :base_price_byn do |product, params|
+    PriceCalculationService.public_payload(pricing_breakdown_for(product, params))[:base_price_byn]
+  end
+
+  attribute :display_price_byn do |product, params|
+    PriceCalculationService.public_payload(pricing_breakdown_for(product, params))[:display_price_byn]
+  end
+
+  attribute :customs_estimate_byn do |product, params|
+    PriceCalculationService.public_payload(pricing_breakdown_for(product, params))[:customs_estimate_byn]
+  end
+
+  attribute :customs_included_in_card_price do |product, params|
+    PriceCalculationService.public_payload(pricing_breakdown_for(product, params))[:customs_included_in_card_price]
+  end
+
+  attribute :customs_threshold_exceeded do |product, params|
+    PriceCalculationService.public_payload(pricing_breakdown_for(product, params))[:customs_threshold_exceeded]
+  end
+
+  attribute :pricing_available do |product, params|
+    pricing_breakdown_for(product, params)[:pricing_available]
+  end
+
+  attribute :pricing_status do |product, params|
+    pricing_breakdown_for(product, params)[:pricing_status]
+  end
+
+  attribute :pricing_errors do |product, params|
+    Array(pricing_breakdown_for(product, params)[:pricing_errors])
+  end
+
+  attribute :customs_notice do
+    PriceCalculationService::CUSTOMS_NOTICE
   end
 
   attribute :is_favorite do |product, params|
@@ -349,6 +364,23 @@ class ProductSerializer
 
   def self.safe_product_weight_kg(product)
     Products::WeightExtractor.packaging_weight_kg_for_product(product)
+  end
+
+  def self.pricing_breakdown_for(product, params)
+    params ||= {}
+    cache = params[:product_pricing] ||= {}
+    return cache[product.id] if product&.id && cache.key?(product.id)
+
+    rates = params[:rates] || {}
+    settings = params[:calculator_settings] || {}
+    breakdown = PriceCalculationService.for_product(
+      product,
+      pln_rate: rates[:pln],
+      eur_rate: rates[:eur],
+      buffer: settings["exchange_rate_buffer"]
+    )
+    cache[product.id] = breakdown if product&.id
+    breakdown
   end
 
   MEASUREMENT_KEYS = %w[length width height weight diameter].freeze

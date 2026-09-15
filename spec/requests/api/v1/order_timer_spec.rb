@@ -19,13 +19,13 @@ RSpec.describe 'Order Payment Timer', type: :request do
 
   describe 'POST /api/v1/checkout' do
     let(:params) do
-      {
+      checkout_consents(
         full_name: 'Test User',
         phone: '375291234567',
         delivery_type: 'ikeya_delivery',
         payment_method: 'card',
-        address: { city: 'Minsk', street: 'Main' }
-      }
+        address: { city: 'Minsk', street: 'Main', house: '1' }
+      )
     end
 
     it 'returns order with payment timer information' do

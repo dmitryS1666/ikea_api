@@ -46,7 +46,7 @@ RSpec.describe CheckoutService, "checkout delivery totals" do
   end
 
   describe ".checkout_delivery_prices" do
-    it "keeps cart Belarus delivery and adds only the selected method component" do
+    it "keeps WC as breakdown and uses last-mile as payable delivery" do
       pricing = build_pricing
       cart_belarus = CartDisplayTotalsService.for_summary(pricing[:totals])[:delivery_to_belarus_byn].to_f
 
@@ -62,26 +62,29 @@ RSpec.describe CheckoutService, "checkout delivery totals" do
 
       expect(normalized[:delivery_to_belarus_price_byn]).to eq(cart_belarus)
       expect(normalized[:delivery_price_byn]).to eq(12.43)
-      expect(normalized[:total_delivery_price_byn]).to eq((cart_belarus + 12.43).round(2))
+      expect(normalized[:total_delivery_price_byn]).to eq(12.43)
     end
   end
 
   describe ".checkout_total_amount" do
-    it "includes Belarus delivery and method delivery in payable total" do
+    it "includes customs and last-mile, without adding WC twice" do
       pricing = build_pricing
       display = CartDisplayTotalsService.for_summary(pricing[:totals])
-      belarus = display[:delivery_to_belarus_byn].to_f
       method = 18.5
 
       total = described_class.send(
         :checkout_total_amount,
         pricing: pricing,
-        prices: { total_delivery_price_byn: belarus + method }
+        prices: { total_delivery_price_byn: method }
       )
 
-      expected = (display[:subtotal_new_byn].to_f - display[:discount_total_byn].to_f + belarus + method).round(2)
+      expected = (
+        display[:items_total_byn].to_f -
+          display[:discount_total_byn].to_f +
+          display[:customs_total_byn].to_f +
+          method
+      ).round(2)
       expect(total).to eq(expected)
-      expect(total).not_to be_within(0.02).of(display[:subtotal_new_byn].to_f + method)
     end
   end
 
@@ -163,7 +166,7 @@ RSpec.describe CheckoutService, "checkout delivery totals" do
 
       expect(pickup[:delivery_to_belarus_price_byn]).to eq(cart_belarus)
       expect(pickup[:delivery_price_byn]).to eq(12.43)
-      expect(pickup[:total_delivery_price_byn]).to eq((cart_belarus + 12.43).round(2))
+      expect(pickup[:total_delivery_price_byn]).to eq(12.43)
     end
 
     it "keeps cart Belarus delivery with real finance quotes for every available method" do
@@ -190,7 +193,7 @@ RSpec.describe CheckoutService, "checkout delivery totals" do
 
       priced_methods.each do |method|
         expect(method[:delivery_to_belarus_price_byn]).to eq(cart_belarus)
-        expect(method[:total_delivery_price_byn]).to eq((cart_belarus + method[:delivery_price_byn].to_f).round(2))
+        expect(method[:total_delivery_price_byn]).to eq(method[:delivery_price_byn].to_f.round(2))
       end
     end
   end
@@ -234,8 +237,7 @@ RSpec.describe CheckoutService, "checkout delivery totals" do
 
       expect(order.delivery_type).to be_nil
       expect(order.total_amount.to_f).to be_within(0.02).of(display[:total_byn].to_f)
-      expect(order.delivery_price.to_f).to be_within(0.02).of(display[:delivery_to_belarus_byn].to_f)
-      expect(order.total_amount.to_f).not_to be_within(0.02).of(display[:subtotal_new_byn].to_f + 18.5)
+      expect(order.delivery_price.to_f).to be_within(0.02).of(0.0)
     end
   end
 end

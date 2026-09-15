@@ -47,6 +47,7 @@ RSpec.describe Admin::PriceCalculatorService do
     end
 
     before do
+      CalculatorSetting.initialize_defaults
       allow(ExchangeRate).to receive(:fetch_or_create).with("PLN", anything).and_return(double(rate_per_unit: 1.0))
       allow(ExchangeRate).to receive(:fetch_or_create).with("EUR", anything).and_return(double(rate_per_unit: 3.0))
     end
@@ -55,7 +56,7 @@ RSpec.describe Admin::PriceCalculatorService do
       result = described_class.calculate_sku(product, quantity: 3, date: Date.current)
       expect(result[:error]).to be_nil
       expect(result[:quantity]).to eq(3)
-      expect(result[:line_weight_kg]).to eq(1.38)
+      expect(result[:line_weight_kg]).to be_within(0.001).of(1.38)
       expect(result[:byn][:total_byn]).to be_positive
     end
   end

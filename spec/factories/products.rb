@@ -4,6 +4,9 @@ FactoryBot.define do
     name { "Test Product" }
     price { 100.0 }
     quantity { 10 }
+    weight { 5.0 }
+    price_addon_pln { 0 }
+    delivery_cost { 20.0 }
 
     # Расчёты используют только вес из упаковки в `full_attributes`; для спеков с полем `weight`
     # подставляем синтетическую упаковку с тем же числом.

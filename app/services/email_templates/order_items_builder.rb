@@ -134,7 +134,8 @@ module EmailTemplates
         return order.delivery_price.to_f
       end
 
-      positive_money(totals[:delivery_to_belarus_byn]) ||
+      positive_money(totals[:local_delivery_total_byn]) ||
+        positive_money(totals[:delivery_method_byn]) ||
         positive_money(totals[:delivery_total_byn]) ||
         order.delivery_price.to_f
     end

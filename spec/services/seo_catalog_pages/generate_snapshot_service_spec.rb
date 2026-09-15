@@ -66,7 +66,6 @@ RSpec.describe SeoCatalogPages::GenerateSnapshotService do
 
   before do
     allow(ExchangeRate).to receive(:fetch_or_create).and_return(instance_double(ExchangeRate, rate_per_unit: 1.0))
-    allow(CalculatorSetting).to receive(:get).and_return(nil)
   end
 
   it 'generates products snapshot with ProductTeaserSerializer format and category filters' do

@@ -39,8 +39,10 @@ class CartSummaryService
       delivery: format_delivery(totals, delivery_options),
       meta: {
         min_order_amount_byn: format_byn(rules[:rules][:min_order_amount_byn]),
-        checkout_allowed: rules[:flags][:checkout_allowed],
-        min_order_error: rules[:flags][:checkout_allowed] ? nil : "Оформление доступно от #{rules[:rules][:min_order_amount_byn]} руб."
+        checkout_allowed: pricing[:meta][:can_checkout],
+        min_order_error: pricing[:meta][:min_order_error],
+        pricing_blocked: pricing[:meta][:pricing_blocked],
+        pricing_block_skus: pricing[:meta][:pricing_block_skus]
       }
     }
   end
@@ -100,7 +102,10 @@ class CartSummaryService
         line_discount_byn: format_byn(line[:line_discount_byn]),
         pricing_mode: line[:pricing_mode],
         promo_applied: line[:promo_applied] || false,
-        promo_code: line[:promo_code]
+        promo_code: line[:promo_code],
+        pricing_available: line.fetch(:pricing_available, true),
+        pricing_status: line[:pricing_status],
+        pricing_errors: Array(line[:pricing_errors])
       }
     }
   end

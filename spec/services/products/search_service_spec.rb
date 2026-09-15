@@ -2,23 +2,27 @@ require 'rails_helper'
 
 RSpec.describe Products::SearchService do
   let(:category) { create(:category) }
-  let!(:product1) { create(:product, price: 100, rating_weighted: 5, created_at: 1.day.ago) }
-  let!(:product2) { create(:product, price: 200, rating_weighted: 4, created_at: 2.days.ago) }
-  let!(:product3) { create(:product, price: 50, rating_weighted: 3, created_at: 3.days.ago) }
+  let!(:product1) { create(:product, price: 100, rating_weighted: 5, created_at: 1.day.ago, weight: 5, delivery_cost: 10) }
+  let!(:product2) { create(:product, price: 200, rating_weighted: 4, created_at: 2.days.ago, weight: 5, delivery_cost: 10) }
+  let!(:product3) { create(:product, price: 50, rating_weighted: 3, created_at: 3.days.ago, weight: 5, delivery_cost: 10) }
 
   before do
+    CalculatorSetting.initialize_defaults
     category.products_through_categories << [product1, product2, product3]
     allow(ExchangeRate).to receive(:fetch_or_create).and_return(instance_double(ExchangeRate, rate_per_unit: 1.0))
+    allow(CalculatorSetting).to receive(:get).and_call_original
     allow(CalculatorSetting).to receive(:get).with("exchange_rate_buffer").and_return(1.0)
   end
 
   def display_price_byn(product)
     PriceCalculationService.product_storefront_price_byn(
       product.price.to_f,
-      weight_kg: product.packaging_weight_kg.to_f,
-      delivery_pln: product.delivery_cost.to_f,
+      weight_kg: product.packaging_weight_kg,
+      delivery_pln: product.delivery_cost,
       pln_rate: 1.0,
-      buffer: 1.0
+      buffer: 1.0,
+      eur_rate: 1.0,
+      price_addon_pln: product.price_addon_pln
     )
   end
 
@@ -137,8 +141,8 @@ RSpec.describe Products::SearchService do
     end
 
     context 'with base_scope (global search)' do
-      let!(:scoped_product) { create(:product, sku: "SCOPE-001", name: "Scoped chair", price: 150, quantity: 5) }
-      let!(:other_product) { create(:product, sku: "OTHER-001", name: "Other table", price: 80, quantity: 5) }
+        let!(:scoped_product) { create(:product, sku: "SCOPE-001", name: "Scoped chair", price: 150, quantity: 5, weight: 5, delivery_cost: 10) }
+      let!(:other_product) { create(:product, sku: "OTHER-001", name: "Other table", price: 80, quantity: 5, weight: 5, delivery_cost: 10) }
 
       before do
         create(:product_filter_value,

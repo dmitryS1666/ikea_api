@@ -68,12 +68,14 @@ module Products
 
     def ids_matching_display_price(min_price, max_price)
       pln_rate = ExchangeRate.fetch_or_create("PLN")&.rate_per_unit
+      eur_rate = ExchangeRate.fetch_or_create("EUR")&.rate_per_unit
       buffer = CalculatorSetting.get("exchange_rate_buffer") || PriceCalculationService.exchange_rate_buffer
       matching_ids = []
 
       @scope.where.not(price: nil).find_in_batches(batch_size: 200) do |batch|
         batch.each do |product|
-          price_byn = display_price_byn_for_product(product, pln_rate: pln_rate, buffer: buffer)
+          price_byn = display_price_byn_for_product(product, pln_rate: pln_rate, eur_rate: eur_rate, buffer: buffer)
+          next if price_byn.nil?
           next if !min_price.nil? && price_byn < min_price.to_f
           next if !max_price.nil? && price_byn > max_price.to_f
 
@@ -84,17 +86,20 @@ module Products
       matching_ids
     end
 
-    def display_price_byn_for_product(product, pln_rate: nil, buffer: nil)
-      pln_rate ||= ExchangeRate.fetch_or_create("PLN")&.rate_per_unit
-      buffer ||= CalculatorSetting.get("exchange_rate_buffer") || PriceCalculationService.exchange_rate_buffer
+    def display_price_byn_for_product(product, pln_rate: nil, buffer: nil, eur_rate: nil)
+      rates_pln = pln_rate || ExchangeRate.fetch_or_create("PLN")&.rate_per_unit
+      rates_eur = eur_rate || ExchangeRate.fetch_or_create("EUR")&.rate_per_unit
+      buffer ||= CalculatorSetting.get("exchange_rate_buffer")
 
-      PriceCalculationService.product_storefront_price_byn(
-        product.price.to_f,
-        weight_kg: product.packaging_weight_kg.to_f,
-        delivery_pln: product.delivery_cost.to_f,
-        pln_rate: pln_rate,
+      breakdown = PriceCalculationService.for_product(
+        product,
+        pln_rate: rates_pln,
+        eur_rate: rates_eur,
         buffer: buffer
       )
+      return nil unless breakdown[:pricing_available]
+
+      Pricing::Money.to_f_round2(breakdown[:card_price_byn])
     end
 
     def number_from_param(value)
@@ -167,22 +172,25 @@ module Products
 
     def sort_by_display_price(direction:)
       pln_rate = ExchangeRate.fetch_or_create("PLN")&.rate_per_unit
+      eur_rate = ExchangeRate.fetch_or_create("EUR")&.rate_per_unit
       buffer = CalculatorSetting.get("exchange_rate_buffer") || PriceCalculationService.exchange_rate_buffer
       priced = []
 
       @scope.where.not(price: nil).find_in_batches(batch_size: 200) do |batch|
         batch.each do |product|
-          priced << [
-            product.id,
-            display_price_byn_for_product(product, pln_rate: pln_rate, buffer: buffer)
-          ]
+          price = display_price_byn_for_product(product, pln_rate: pln_rate, eur_rate: eur_rate, buffer: buffer)
+          next if price.nil?
+
+          priced << [product.id, price]
         end
       end
 
-      return @scope.none if priced.empty?
+      return @scope if priced.empty?
 
+      priced_ids = priced.map(&:first)
+      unpriced_ids = @scope.where.not(id: priced_ids).pluck(:id)
       sorted = priced.sort_by { |(_id, price)| direction == :asc ? price : -price }
-      sorted_ids = sorted.map(&:first)
+      sorted_ids = sorted.map(&:first) + unpriced_ids
       case_sql = sorted_ids.each_with_index.map { |id, idx| "WHEN #{id.to_i} THEN #{idx}" }.join(" ")
 
       @scope.where(id: sorted_ids).reorder(Arel.sql("CASE products.id #{case_sql} END"))

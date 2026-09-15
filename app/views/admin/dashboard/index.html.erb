@@ -223,11 +223,11 @@
             <section class="mb-4">
               <h5><i class="fa fa-calculator text-primary"></i> Ценообразование и Финансы</h5>
               <div class="formula-block mb-3">
-                <code>cheap: (price + delivery + WC_BY) × 1.3</code>; <code>k: price × (1 + K) + delivery + WC_BY</code>
+                <code>P = IKEA + max(0, addon); cheap: goods = P × 1.3; k: goods = P × (1 + K); total = goods + D_IKEA + WC</code>
               </div>
               <ul class="guide-list">
-                <li><strong>Режим cheap:</strong> если <code>price ≤ PRICE_CHEAP_THRESHOLD_PLN</code> (по умолчанию 150 PLN), на всю базу применяется множитель <code>1.3</code>.</li>
-                <li><strong>Режим k:</strong> если цена выше порога, <code>K = max(0.10, 87 / price − 0.187)</code>, и K применяется только к цене IKEA.</li>
+                <li><strong>Режим cheap:</strong> если <code>P ≤ pricing_cheap_threshold_pln</code> (по умолчанию 150 PLN), множитель применяется только к P.</li>
+                <li><strong>Режим k:</strong> если P выше порога, <code>K = max(min_markup, target_profit / P − markup_subtrahend)</code>, и K применяется только к P.</li>
                 <li><strong>Логистика по Польше:</strong> Ступенчатые тарифы в <code>poland_delivery_rates</code> (JSON).</li>
                 <li><strong>Весовая логистика РБ:</strong> PLN за кг по весу (по умолчанию до 20 кг — 16.85; далее 12.81 / 10.69 / 8.58). Настройка <code>belarus_delivery_rates</code>.</li>
                 <li><strong>Таможня:</strong> Лимиты 200€ и 31кг. Пошлина 15% или 2€/кг + сбор 10 BYN. Все расчеты автоматизированы.</li>

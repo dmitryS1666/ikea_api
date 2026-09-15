@@ -2,6 +2,10 @@ require "rails_helper"
 require "securerandom"
 
 RSpec.describe ProductSerializer do
+  before do
+    CalculatorSetting.initialize_defaults
+    allow(ExchangeRate).to receive(:fetch_or_create).and_return(instance_double(ExchangeRate, rate_per_unit: 1.0))
+  end
   describe "breadcrumbs attribute" do
     let(:category) do
       Category.create!(
@@ -225,6 +229,57 @@ RSpec.describe ProductSerializer do
         "http://example.com/a.pdf",
         "https://example.com/b.pdf"
       )
+    end
+  end
+
+  describe "pricing attributes" do
+    before do
+      CalculatorSetting.initialize_defaults
+      ExchangeRate.create!(date: Date.current, currency_code: "PLN", rate: 1.0, official_rate: 1.0, scale: 1)
+      ExchangeRate.create!(date: Date.current, currency_code: "EUR", rate: 4.0, official_rate: 4.0, scale: 1)
+    end
+
+    it "exposes card price, customs flags and clarification state" do
+      product = create(
+        :product,
+        sku: "PRICE-API-1",
+        name: "Priced",
+        price: 100,
+        weight: 10,
+        delivery_cost: 20,
+        quantity: 5
+      )
+      serialized = described_class.new(
+        product,
+        params: { rates: { pln: 1.0, eur: 4.0 }, calculator_settings: { "exchange_rate_buffer" => 1.05 } }
+      ).serializable_hash
+      attrs = serialized[:data][:attributes]
+
+      expect(attrs[:pricing_available]).to eq(true)
+      expect(attrs[:base_price_byn]).to be_a(Float)
+      expect(attrs[:display_price_byn]).to eq(attrs[:base_price_byn])
+      expect(attrs[:customs_included_in_card_price]).to eq(false)
+      expect(attrs[:customs_notice]).to include("200")
+      expect(attrs[:price_byn]).to be_present
+    end
+
+    it "returns pricing unavailable without turning missing data into 0" do
+      product = create(
+        :product,
+        sku: "PRICE-API-2",
+        name: "Unknown",
+        price: 100,
+        quantity: 5,
+        weight: nil,
+        delivery_cost: nil,
+        full_attributes: {}
+      )
+      serialized = described_class.new(product).serializable_hash
+      attrs = serialized[:data][:attributes]
+
+      expect(attrs[:pricing_available]).to eq(false)
+      expect(attrs[:price_byn]).to be_nil
+      expect(attrs[:pricing_errors]).to include("missing_weight").or include("missing_ikea_delivery")
     end
   end
 end

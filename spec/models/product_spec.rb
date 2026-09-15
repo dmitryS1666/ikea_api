@@ -37,9 +37,16 @@ RSpec.describe Product, type: :model do
     end
 
     before do
+      CalculatorSetting.initialize_defaults
       allow(ExchangeRate).to receive(:fetch_or_create).and_return(instance_double(ExchangeRate, rate_per_unit: 3.5))
-      allow(PriceCalculationService).to receive(:exchange_rate_buffer).and_return(0)
-      allow(PriceCalculationService).to receive(:product_storefront_price_byn).and_return(350.0)
+      allow(PriceCalculationService).to receive(:for_product).and_return(
+        {
+          pricing_available: true,
+          card_price_byn: 350.0,
+          pricing_status: "ok",
+          pricing_errors: []
+        }
+      )
 
       create(:product, sku: "s11111111", quantity: 5)
       create(:product, sku: "s29545213", quantity: 5)
@@ -79,10 +86,7 @@ RSpec.describe Product, type: :model do
 
       product.normalized_variants_for_api
 
-      expect(PriceCalculationService).to have_received(:product_storefront_price_byn).with(
-        100.0,
-        hash_including(pln_rate: 3.5, buffer: 0, weight_kg: product.packaging_weight_kg.to_f, delivery_pln: product.delivery_cost.to_f)
-      ).at_least(:once)
+      expect(PriceCalculationService).to have_received(:for_product).at_least(:once)
     end
 
     it "normalizes Polish color labels and armrest phrase to Russian" do
@@ -322,9 +326,16 @@ RSpec.describe Product, type: :model do
     end
 
     before do
+      CalculatorSetting.initialize_defaults
       allow(ExchangeRate).to receive(:fetch_or_create).and_return(instance_double(ExchangeRate, rate_per_unit: 3.5))
-      allow(PriceCalculationService).to receive(:exchange_rate_buffer).and_return(0)
-      allow(PriceCalculationService).to receive(:product_storefront_price_byn).and_return(350.0)
+      allow(PriceCalculationService).to receive(:for_product).and_return(
+        {
+          pricing_available: true,
+          card_price_byn: 350.0,
+          pricing_status: "ok",
+          pricing_errors: []
+        }
+      )
 
       create(:product, sku: "s11111111", quantity: 5, local_images: ["/images/a.webp"])
       create(:product, sku: "s29545213", quantity: 5)

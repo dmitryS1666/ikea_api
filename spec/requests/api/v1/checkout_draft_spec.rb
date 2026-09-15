@@ -85,11 +85,7 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     totals = body["pricing"]["totals"]
     expect(totals["subtotal_new_byn"]).to be_present
     expect(totals["delivery_to_belarus_byn"]).to be_present
-    if totals["delivery_to_belarus_byn"].to_f.positive?
-      expect(totals["subtotal_new_byn"].to_f + totals["delivery_to_belarus_byn"].to_f).to be_within(0.02).of(
-        totals["total_byn"].to_f + totals["discount_total_byn"].to_f
-      )
-    end
+    expect_cart_stage_totals_contract!(totals)
 
     patch "/api/v1/checkout/#{order.id}", params: {
       delivery_type: "europost_pickup",
@@ -239,13 +235,7 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(delivery["delivery_price_byn"]).to eq("9.50")
     expect(delivery["delivery_method_price_byn"]).to eq(delivery["delivery_price_byn"])
     expect(totals["delivery_method_byn"]).to eq(delivery["delivery_price_byn"])
-    expect(
-      totals["delivery_to_belarus_byn"].to_f + totals["delivery_method_byn"].to_f
-    ).to be_within(0.02).of(delivery_total_byn.to_f)
-
-    expect(
-      totals["subtotal_new_byn"].to_f - totals["discount_total_byn"].to_f + delivery_total_byn.to_f
-    ).to be_within(0.02).of(totals["total_byn"].to_f)
+    expect_checkout_delivery_totals_contract!(totals, delivery: delivery)
   end
 
   it "keeps cart delivery to Belarus stable and adds only method delivery on checkout" do
@@ -282,8 +272,9 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(delivery["delivery_price_byn"]).to eq("10.00")
     expect(delivery["delivery_method_price_byn"]).to eq("10.00")
 
-    expect(totals["delivery_total_byn"]).to eq(format("%.2f", cart_delivery_to_belarus + 10.0))
-    expect(delivery["total_delivery_price_byn"]).to eq(format("%.2f", cart_delivery_to_belarus + 10.0))
+    expect(totals["delivery_total_byn"]).to eq("10.00")
+    expect(delivery["total_delivery_price_byn"]).to eq("10.00")
+    expect_checkout_delivery_totals_contract!(totals, delivery: delivery)
     expect(totals["total_byn"].to_f).to be_within(0.02).of(cart_total + 10.0)
   end
 
@@ -356,9 +347,7 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
 
     expect(body.dig("order", "total_amount").to_f).to be_within(0.02).of(totals["total_byn"].to_f)
     expect(order.total_amount.to_f).to be_within(0.02).of(totals["total_byn"].to_f)
-    expect(
-      totals["subtotal_new_byn"].to_f - totals["discount_total_byn"].to_f + totals["delivery_to_belarus_byn"].to_f
-    ).to be_within(0.02).of(totals["total_byn"].to_f)
+    expect_cart_stage_totals_contract!(totals)
 
     order.update_columns(total_amount: totals["subtotal_new_byn"].to_f + 99.0)
 

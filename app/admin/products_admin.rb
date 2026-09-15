@@ -485,16 +485,18 @@ Trestle.resource(:products, model: Product) do
     end
 
     tab :pricing, label: "Цена и наличие" do
-      number_field :price, label: "Цена (PLN)"
+      number_field :price, label: "Цена IKEA (PLN)"
+      number_field :price_addon_pln, label: "Доп. надбавка к цене IKEA (PLN)", help: "Используется в P = IKEA + max(0, priceAddonPln)"
       number_field :quantity, label: "Количество"
       text_field :home_delivery, label: "Доставка на дом"
     end
 
-    tab :delivery, label: "Доставка" do
-      select :delivery_type, [['ПВЗ Европочты', 'europost_pickup'], ['Курьер', 'courier'], ['Доставка IKEYA', 'ikeya_delivery']], { label: "Тип доставки" }
-      text_field :delivery_name, label: "Название способа доставки"
-      number_field :delivery_cost, label: "Стоимость доставки"
-      text_field :delivery_reason, label: "Комментарий к доставке"
+    tab :delivery, label: "Доставка IKEA.pl (D_IKEA)" do
+      text_field :delivery_type, label: "Код метода D_IKEA"
+      text_field :delivery_name, label: "Название метода D_IKEA"
+      number_field :delivery_cost, label: "D_IKEA — доставка IKEA.pl до склада в Белостоке (PLN)", step: 0.01
+      text_field :delivery_reason, label: "Как рассчитана D_IKEA"
+      check_box :delivery_cost_manual, label: "Ручная стоимость D_IKEA (не перезаписывать авторасчётом)"
     end
 
     tab :extended, label: "Характеристики" do
@@ -778,10 +780,10 @@ Trestle.resource(:products, model: Product) do
   params do |params|
     raw = params.require(:product).permit(
       :sku, :unique_id, :item_no, :url, :name, :name_ru, :collection, :category_id, :small_desc_name,
-      :price, :quantity, :home_delivery, :weight, :net_weight, :package_volume,
+      :price, :price_addon_pln, :quantity, :home_delivery, :weight, :net_weight, :package_volume,
       :package_dimensions, :dimensions, :dimensions_ru, :is_parcel,
       :is_bestseller, :is_new, :is_popular, :is_recommended, :translated, :popularity_score, :views_count, :sales_count,
-      :delivery_type, :delivery_name, :delivery_cost, :delivery_reason,
+      :delivery_type, :delivery_name, :delivery_cost, :delivery_reason, :delivery_cost_manual,
       :short_description, :short_description_ru, :materials, :materials_ru,
       :care_instructions, :care_instructions_ru,
       :included_products, :included_products_text_for_form, :variant_type,

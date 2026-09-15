@@ -51,19 +51,10 @@ module Seo
       end
 
       def offer_price_byn
-        pln = product.price.to_f
-        return nil unless pln.positive?
+        breakdown = PriceCalculationService.for_product(product)
+        return nil unless breakdown[:pricing_available]
 
-        pln_rate = ExchangeRate.fetch_or_create("PLN")&.rate_per_unit.to_f
-        return nil unless pln_rate.positive?
-
-        PriceCalculationService.product_storefront_price_byn(
-          pln,
-          weight_kg: product.packaging_weight_kg.to_f,
-          delivery_pln: product.delivery_cost.to_f,
-          pln_rate: pln_rate,
-          buffer: PriceCalculationService.exchange_rate_buffer
-        )
+        Pricing::Money.to_f_round2(breakdown[:card_price_byn])
       end
 
       def availability_url

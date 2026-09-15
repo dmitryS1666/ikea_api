@@ -26,6 +26,16 @@ RSpec.describe BelarusDeliveryService do
       expect(described_class.calculate(50.0)).to eq(429.0) # 50 * 8.58
       expect(described_class.calculate(100.0)).to eq(858.0) # 100 * 8.58
     end
+
+    it 'на границе 20 кг использует ставку 16.85, сразу после — 12.81' do
+      expect(described_class.calculate(20.0)).to eq(337.0)
+      expect(described_class.calculate(20.01)).to eq((20.01 * 12.81).round(2))
+    end
+
+    it 'не превращает неизвестный вес в 0 через quote' do
+      expect(described_class.quote(nil)).to be_nil
+      expect(described_class.quote(0)).to be_nil
+    end
     
     it 'округляет результат до 2 знаков после запятой' do
       result = described_class.calculate(25.0)

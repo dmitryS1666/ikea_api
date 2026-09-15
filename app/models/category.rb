@@ -121,21 +121,21 @@ class Category < ApplicationRecord
     pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
     return nil if pln_rate.blank?
 
-    buffer = CalculatorSetting.get('exchange_rate_buffer') || PriceCalculationService.exchange_rate_buffer
+    eur_rate = ExchangeRate.fetch_or_create('EUR')&.rate_per_unit
+    buffer = CalculatorSetting.get('exchange_rate_buffer')
 
     prices_byn = []
     products_scope.find_in_batches(batch_size: 200) do |batch|
       batch.each do |product|
-        pln_price = product.price.to_f
-        next if pln_price <= 0
-
-        prices_byn << PriceCalculationService.product_storefront_price_byn(
-          pln_price,
-          weight_kg: product.packaging_weight_kg.to_f,
-          delivery_pln: product.delivery_cost.to_f,
+        breakdown = PriceCalculationService.for_product(
+          product,
           pln_rate: pln_rate,
+          eur_rate: eur_rate,
           buffer: buffer
         )
+        next unless breakdown[:pricing_available]
+
+        prices_byn << Pricing::Money.to_f_round2(breakdown[:card_price_byn])
       end
     end
 

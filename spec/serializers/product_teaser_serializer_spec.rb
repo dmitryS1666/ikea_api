@@ -2,6 +2,10 @@ require "rails_helper"
 require "securerandom"
 
 RSpec.describe ProductTeaserSerializer do
+  before do
+    CalculatorSetting.initialize_defaults
+    allow(ExchangeRate).to receive(:fetch_or_create).and_return(instance_double(ExchangeRate, rate_per_unit: 1.0))
+  end
   describe "category_id attribute" do
     let!(:root_category) do
       Category.create!(
@@ -39,6 +43,14 @@ RSpec.describe ProductTeaserSerializer do
       serialized = described_class.new(product, params: { root_categories_only: true }).serializable_hash
 
       expect(serialized[:data][:attributes][:category_id]).to eq(root_category.ikea_id)
+    end
+
+    it "marks a product without weight/D_IKEA as requiring clarification" do
+      serialized = described_class.new(product, params: {}).serializable_hash
+      attrs = serialized[:data][:attributes]
+
+      expect(attrs).to include(:pricing_available, :base_price_byn, :customs_notice, :price_byn)
+      expect(attrs[:pricing_available]).to eq(false)
     end
   end
 end

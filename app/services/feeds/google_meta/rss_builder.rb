@@ -90,6 +90,7 @@ module Feeds
       def pricing_context
         {
           pln_rate: ExchangeRate.fetch_or_create("PLN")&.rate_per_unit.to_f,
+          eur_rate: ExchangeRate.fetch_or_create("EUR")&.rate_per_unit.to_f,
           buffer: PriceCalculationService.exchange_rate_buffer
         }
       end

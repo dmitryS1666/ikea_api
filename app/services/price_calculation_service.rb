@@ -1,266 +1,483 @@
-# Сервис для расчета итоговой цены товара (PLN → BYN по новой политике cheap/k)
+# frozen_string_literal: true
+
 class PriceCalculationService
-  TARGET_PROFIT_PLN = 87.0
-  MARKUP_SUBTRAHEND = 0.187
-  MIN_MARKUP = 0.10
-  CHEAP_MULTIPLIER = 1.3
-  PRICE_CHEAP_THRESHOLD_PLN_DEFAULT = 150.0
+  CUSTOMS_NOTICE = "Таможенный сбор рассчитывается в корзине, если заказ дороже 200 € или тяжелее 31 кг"
 
-  def self.compute_k(price_zl)
-    return MIN_MARKUP if price_zl.to_f <= 0
-
-    k = (TARGET_PROFIT_PLN / price_zl.to_f) - MARKUP_SUBTRAHEND
-    [k, MIN_MARKUP].max
-  end
-
-  def self.cheap_threshold_pln
-    raw = ENV.fetch("PRICE_CHEAP_THRESHOLD_PLN", PRICE_CHEAP_THRESHOLD_PLN_DEFAULT.to_s)
-    threshold = raw.to_f
-    threshold.positive? ? threshold : PRICE_CHEAP_THRESHOLD_PLN_DEFAULT
-  rescue StandardError
-    PRICE_CHEAP_THRESHOLD_PLN_DEFAULT
-  end
-
-  def self.pricing_mode_for(price_zl)
-    price_zl.to_f <= cheap_threshold_pln ? :cheap : :k
-  end
-
-  def self.exchange_rate_buffer
-    CalculatorSetting.get('exchange_rate_buffer') || 1.05
-  end
-
-  # Полная сумма в PLN для строки корзины/товара по новой формуле.
-  # mode выбирается по цене единицы товара (PLN).
-  def self.line_total_pln(unit_price_zl:, quantity:, weight_kg:, delivery_unit_pln:)
-    qty = quantity.to_i
-    return 0.0 if qty <= 0
-
-    breakdown = line_breakdown_pln(
-      unit_price_zl: unit_price_zl,
-      quantity: qty,
-      weight_kg: weight_kg,
-      delivery_unit_pln: delivery_unit_pln
-    )
-
-    breakdown[:total_pln].round(2)
-  end
-
-  def self.line_breakdown_pln(unit_price_zl:, quantity:, weight_kg:, delivery_unit_pln:)
-    unit_price = unit_price_zl.to_f
-    qty = quantity.to_i
-    return empty_line_breakdown if unit_price <= 0 || qty <= 0
-
-    goods_pln = unit_price * qty
-    delivery_pln = delivery_unit_pln.to_f * qty
-    wc_by_pln = BelarusDeliveryService.calculate(weight_kg.to_f)
-
-    mode = pricing_mode_for(unit_price)
-    if mode == :cheap
-      base_pln = goods_pln + delivery_pln + wc_by_pln
-      total_pln = base_pln * CHEAP_MULTIPLIER
-      markup_k = 0.0
-    else
-      markup_k = compute_k(unit_price)
-      goods_with_markup_pln = goods_pln * (1 + markup_k)
-      total_pln = goods_with_markup_pln + delivery_pln + wc_by_pln
-      base_pln = nil
+  class << self
+    def cheap_threshold_pln
+      Pricing::Settings.cheap_threshold_pln.to_f
     end
 
-    {
-      mode: mode,
-      markup_k: markup_k,
-      goods_pln: goods_pln.round(2),
-      delivery_pln: delivery_pln.round(2),
-      wc_by_pln: wc_by_pln.round(2),
-      base_pln: base_pln&.round(2),
-      total_pln: total_pln.round(2)
-    }
-  end
-
-  def self.empty_line_breakdown
-    {
-      mode: :cheap,
-      markup_k: 0.0,
-      goods_pln: 0.0,
-      delivery_pln: 0.0,
-      wc_by_pln: 0.0,
-      base_pln: 0.0,
-      total_pln: 0.0
-    }
-  end
-
-  # Компоненты строки в BYN: товар с наценкой, доставка PL, доставка в РБ, итого.
-  def self.line_byn_components(unit_price_zl:, quantity: 1, weight_kg: nil, delivery_unit_pln: 0, pln_rate: nil, buffer: nil, date: nil)
-    unit_price_zl = unit_price_zl.to_f
-    return empty_line_byn_components if unit_price_zl <= 0
-
-    breakdown = line_breakdown_pln(
-      unit_price_zl: unit_price_zl,
-      quantity: quantity,
-      weight_kg: weight_kg.to_f,
-      delivery_unit_pln: delivery_unit_pln.to_f
-    )
-
-    date ||= Date.today
-    pln_rate ||= ExchangeRate.fetch_or_create('PLN', date)&.rate_per_unit || 0
-    buffer ||= exchange_rate_buffer
-    rate = pln_rate * buffer
-
-    if breakdown[:mode] == :cheap
-      multiplier = CHEAP_MULTIPLIER
-      {
-        goods_byn: (breakdown[:goods_pln] * multiplier * rate).round(2),
-        delivery_poland_byn: (breakdown[:delivery_pln] * multiplier * rate).round(2),
-        delivery_belarus_byn: (breakdown[:wc_by_pln] * multiplier * rate).round(2),
-        total_byn: (breakdown[:total_pln] * rate).round(2)
-      }
-    else
-      markup_k = breakdown[:markup_k]
-      {
-        goods_byn: (breakdown[:goods_pln] * (1 + markup_k) * rate).round(2),
-        delivery_poland_byn: (breakdown[:delivery_pln] * rate).round(2),
-        delivery_belarus_byn: (breakdown[:wc_by_pln] * rate).round(2),
-        total_byn: (breakdown[:total_pln] * rate).round(2)
-      }
+    def cheap_multiplier
+      Pricing::Settings.cheap_multiplier.to_f
     end
-  end
 
-  def self.empty_line_byn_components
-    {
-      goods_byn: 0.0,
-      delivery_poland_byn: 0.0,
-      delivery_belarus_byn: 0.0,
-      total_byn: 0.0
-    }
-  end
+    def exchange_rate_buffer
+      Pricing::Settings.exchange_rate_buffer.to_f
+    end
 
-  # Витринная цена для карточки/каталога: без доставки в Беларусь (как «Стоимость товаров» в корзине).
-  def self.product_storefront_price_byn(product_price_zl, weight_kg: nil, delivery_pln: nil, pln_rate: nil, buffer: nil, date: nil)
-    components = line_byn_components(
-      unit_price_zl: product_price_zl,
-      quantity: 1,
-      weight_kg: weight_kg,
-      delivery_unit_pln: delivery_pln.nil? ? 0.0 : delivery_pln.to_f,
-      pln_rate: pln_rate,
-      buffer: buffer,
-      date: date
-    )
+    def vat_multiplier
+      Pricing::Settings.vat_multiplier.to_f
+    end
 
-    (components[:goods_byn] + components[:delivery_poland_byn]).round(2)
-  end
+    def compute_k(price_zl)
+      p = Pricing::Money.bd(price_zl)
+      return Pricing::Settings.min_markup if p.nil? || p <= 0
 
-  # Полная цена строки в BYN (товар + вся логистика).
-  # @param weight_kg [Float, nil] если nil или 0 — WC_BY=0
-  # @param delivery_pln [Float, nil] если nil — доставка в PLN не добавляется
-  def self.product_price_byn(product_price_zl, weight_kg: nil, delivery_pln: nil, pln_rate: nil, buffer: nil, date: nil)
-    line_byn_components(
-      unit_price_zl: product_price_zl,
-      quantity: 1,
-      weight_kg: weight_kg,
-      delivery_unit_pln: delivery_pln.nil? ? 0.0 : delivery_pln.to_f,
-      pln_rate: pln_rate,
-      buffer: buffer,
-      date: date
-    )[:total_byn]
-  end
+      k = (Pricing::Settings.target_profit_pln / p) - Pricing::Settings.markup_subtrahend
+      [k, Pricing::Settings.min_markup].max
+    end
 
-  # Расчет итоговой цены товара для админ-калькулятора
-  # @param product_price_zl [Float] Цена товара в злотых
-  # @param weight_kg [Float] Вес товара в килограммах
-  # @param use_gls_pickup [Boolean] Использовать пункт отбора GLS
-  # @param date [Date, nil] Дата для курсов валют (по умолчанию сегодня)
-  # @return [Hash] Детальный расчет цены
-  def self.calculate(product_price_zl, weight_kg, use_gls_pickup: false, delivery_pln: nil, date: nil)
-    date ||= Date.today
-    
-    # Получаем базовые курсы валют (НБ РБ)
-    pln_rate = ExchangeRate.fetch_or_create('PLN', date)&.rate_per_unit
-    eur_rate = ExchangeRate.fetch_or_create('EUR', date)&.rate_per_unit
-    
-    return { error: 'Не удалось получить курсы валют' } unless pln_rate && eur_rate
-    
-    # 1. Доставка в PLN: явное значение (как delivery_cost у товара) или тариф по Польше
-    delivery_zl = if delivery_pln.nil?
-                    PolandDeliveryService.calculate(weight_kg, use_gls_pickup: use_gls_pickup)
-                  else
-                    delivery_pln.to_f
-                  end
+    def pricing_mode_for(price_zl)
+      p = Pricing::Money.bd(price_zl)
+      return :cheap if p.nil? || p <= 0
 
-    breakdown = line_breakdown_pln(
-      unit_price_zl: product_price_zl,
-      quantity: 1,
-      weight_kg: weight_kg,
-      delivery_unit_pln: delivery_zl
-    )
-    total_pln = breakdown[:total_pln]
-    belarus_delivery_zl = breakdown[:wc_by_pln]
-    markup_k = breakdown[:markup_k]
-    pricing_mode = breakdown[:mode]
-    
-    # 2. Перевод в BYN: round(total_pln × курс_PLN_BYN × exchange_rate_buffer, 2), buffer по умолчанию 1.05
-    buffer = exchange_rate_buffer
-    pln_rate_with_buffer = pln_rate * buffer
-    total_price_byn = (total_pln * pln_rate_with_buffer).round(2)
-    
-    # Для UI: составляющие в BYN
-    goods_component_pln =
-      if pricing_mode == :cheap
-        # В cheap режиме множитель применяется к всей базе, поэтому "товарный" компонент
-        # в UI оставляем как цена IKEA без разбиения коэффициента.
-        product_price_zl
-      else
-        product_price_zl * (1 + markup_k)
+      p <= Pricing::Settings.cheap_threshold_pln ? :cheap : :k
+    end
+
+    def effective_p_pln(ikea_price_pln, price_addon_pln = 0)
+      ikea = Pricing::Money.bd(ikea_price_pln) || BigDecimal("0")
+      addon = [Pricing::Money.bd(price_addon_pln) || BigDecimal("0"), BigDecimal("0")].max
+      ikea + addon
+    end
+
+    def customs_cost_eur(ikea_price_pln, pln_rate:, eur_rate:)
+      ikea = Pricing::Money.bd(ikea_price_pln)
+      pln = Pricing::Money.bd(pln_rate)
+      eur = Pricing::Money.bd(eur_rate)
+      return nil if ikea.nil? || pln.nil? || eur.nil? || eur <= 0 || ikea < 0
+
+      (ikea / Pricing::Settings.vat_multiplier) * (pln / eur)
+    end
+
+    def unit_breakdown(ikea_price_pln:, price_addon_pln: 0, weight_kg:, d_ikea_pln:, pln_rate:, eur_rate:, buffer: nil)
+      errors = []
+      ikea = Pricing::Money.bd(ikea_price_pln)
+      errors << "missing_ikea_price" if ikea.nil? || ikea <= 0
+      errors << "missing_weight" if weight_kg.nil? || Pricing::Money.bd(weight_kg).nil? || Pricing::Money.bd(weight_kg) <= 0
+      errors << "missing_ikea_delivery" if d_ikea_pln.nil?
+      errors << "missing_exchange_rate" if Pricing::Money.bd(pln_rate).nil? || Pricing::Money.bd(pln_rate) <= 0
+
+      addon = [Pricing::Money.bd(price_addon_pln) || BigDecimal("0"), BigDecimal("0")].max
+      p = (ikea || BigDecimal("0")) + addon
+      buffer_bd = Pricing::Money.bd(buffer) || Pricing::Settings.exchange_rate_buffer
+      pln_bd = Pricing::Money.bd(pln_rate)
+      eur_bd = Pricing::Money.bd(eur_rate)
+      weight = Pricing::Money.bd(weight_kg)
+      d_ikea = Pricing::Money.bd(d_ikea_pln)
+
+      if errors.any?
+        return unavailable_unit(
+          ikea_price_pln: ikea,
+          price_addon_pln: addon,
+          effective_price_p_pln: p,
+          weight_kg: weight,
+          d_ikea_pln: d_ikea,
+          pln_byn_raw: pln_bd,
+          exchange_rate_buffer: buffer_bd,
+          errors: errors
+        )
       end
-    product_price_byn = (goods_component_pln * pln_rate_with_buffer).round(2)
-    poland_delivery_byn = (delivery_zl * pln_rate_with_buffer).round(2)
-    belarus_delivery_byn = (belarus_delivery_zl * pln_rate_with_buffer).round(2)
 
-    # Таможенная пошлина (в новой логике пока не учитывается в общей сумме, 
-    # но можем рассчитать для информации)
-    product_price_eur = (product_price_zl * pln_rate / eur_rate).round(2)
-    customs = CustomsDutyService.calculate(product_price_eur, weight_kg, eur_rate)
-    
-    {
-      product_price_zl: product_price_zl.round(2),
-      product_price_byn: product_price_byn,
-      weight_kg: weight_kg.round(2),
-      markup_k: markup_k.round(4),
-      pricing_mode: pricing_mode.to_s,
-      cheap_threshold_pln: cheap_threshold_pln.round(2),
-      cheap_multiplier: CHEAP_MULTIPLIER,
-      
-      # Доставка и логистика
-      delivery_pln: delivery_zl.round(2),
-      poland_delivery_zl: delivery_zl.round(2), # legacy key: фактическая доставка в PLN
-      poland_delivery_byn: poland_delivery_byn,
-      belarus_delivery_zl: belarus_delivery_zl.round(2),
-      belarus_delivery_byn: belarus_delivery_byn,
-      
-      # Курсы и буфер
-      pln_rate: pln_rate.round(4),
-      eur_rate: eur_rate.round(4),
-      exchange_rate_buffer: buffer,
-      pln_rate_with_buffer: pln_rate_with_buffer.round(4),
-      
-      # Таможенная пошлина (информативно)
-      customs_duty_eur: customs[:duty_eur],
-      customs_duty_byn: customs[:duty_byn],
-      customs_fee_byn: customs[:fee_byn],
-      customs_total_byn: customs[:total_byn],
-      customs_details: customs[:details],
-      
-      # Итого
-      total_pln: total_pln.round(2),
-      total_price_byn: total_price_byn,
-      
-      # Детализация
-      breakdown: {
-        product: product_price_byn,
-        poland_delivery: poland_delivery_byn,
-        belarus_delivery: belarus_delivery_byn,
-        customs: 0, # В новой формуле таможня не включена в total_price_byn
-        total: total_price_byn
+      mode = pricing_mode_for(p)
+      markup_rate = mode == :cheap ? (Pricing::Settings.cheap_multiplier - 1) : compute_k(p)
+      goods = mode == :cheap ? (p * Pricing::Settings.cheap_multiplier) : (p * (1 + markup_rate))
+
+      wc = BelarusDeliveryService.quote(weight)
+      if wc.nil?
+        return unavailable_unit(
+          ikea_price_pln: ikea,
+          price_addon_pln: addon,
+          effective_price_p_pln: p,
+          weight_kg: weight,
+          d_ikea_pln: d_ikea,
+          pln_byn_raw: pln_bd,
+          exchange_rate_buffer: buffer_bd,
+          errors: ["missing_weight"]
+        )
+      end
+
+      subtotal_pln = goods + d_ikea + wc[:amount_pln]
+      base_price_byn = Pricing::Money.round2(subtotal_pln * pln_bd * buffer_bd)
+
+      c_eur = customs_cost_eur(ikea, pln_rate: pln_bd, eur_rate: eur_bd)
+      customs = if c_eur && eur_bd && eur_bd.positive?
+                  CustomsDutyService.calculate(c_eur, weight, eur_bd)
+                else
+                  zero_customs
+                end
+
+      threshold_exceeded = customs[:total_byn].to_f.positive?
+      customs_total = Pricing::Money.bd(customs[:total_byn]) || BigDecimal("0")
+      card_price = threshold_exceeded ? Pricing::Money.round2(base_price_byn + customs_total) : base_price_byn
+
+      {
+        ikea_price_pln: ikea,
+        price_addon_pln: addon,
+        effective_price_p_pln: p,
+        pricing_mode: mode,
+        markup_rate: markup_rate,
+        goods_pln: goods,
+        weight_kg: weight,
+        wc_rate: wc[:rate],
+        wc_pln: wc[:amount_pln],
+        d_ikea_pln: d_ikea,
+        subtotal_pln: subtotal_pln,
+        pln_byn_raw: pln_bd,
+        exchange_rate_buffer: buffer_bd,
+        base_price_byn: base_price_byn,
+        customs_cost_eur: c_eur,
+        customs_duty_byn: Pricing::Money.bd(customs[:duty_byn]),
+        customs_fee_byn: Pricing::Money.bd(customs[:fee_byn]),
+        customs_total_byn: customs_total,
+        customs_details: customs[:details],
+        customs_included_in_card_price: threshold_exceeded,
+        customs_threshold_exceeded: threshold_exceeded,
+        card_price_byn: card_price,
+        pricing_available: true,
+        pricing_status: "ok",
+        pricing_errors: []
       }
-    }
+    rescue Pricing::ConfigurationError => e
+      Rails.logger.error("[PriceCalculationService] #{e.message}")
+      unavailable_unit(
+        ikea_price_pln: ikea_price_pln,
+        price_addon_pln: price_addon_pln,
+        effective_price_p_pln: effective_p_pln(ikea_price_pln, price_addon_pln),
+        weight_kg: weight_kg,
+        d_ikea_pln: d_ikea_pln,
+        pln_byn_raw: pln_rate,
+        exchange_rate_buffer: buffer,
+        errors: ["missing_configuration"]
+      )
+    end
+
+    def for_product(product, pln_rate: nil, eur_rate: nil, buffer: nil, date: nil)
+      date ||= Date.current
+      pln_rate ||= ExchangeRate.fetch_or_create("PLN", date)&.rate_per_unit
+      eur_rate ||= ExchangeRate.fetch_or_create("EUR", date)&.rate_per_unit
+
+      unit_breakdown(
+        ikea_price_pln: product&.price,
+        price_addon_pln: product&.price_addon_pln,
+        weight_kg: product&.packaging_weight_kg,
+        d_ikea_pln: product&.delivery_cost,
+        pln_rate: pln_rate,
+        eur_rate: eur_rate,
+        buffer: buffer
+      )
+    end
+
+    def product_storefront_price_byn(product_price_zl, weight_kg: nil, delivery_pln: nil, pln_rate: nil, buffer: nil, date: nil, price_addon_pln: 0, eur_rate: nil)
+      date ||= Date.current
+      pln_rate ||= ExchangeRate.fetch_or_create("PLN", date)&.rate_per_unit
+      eur_rate ||= ExchangeRate.fetch_or_create("EUR", date)&.rate_per_unit
+
+      breakdown = unit_breakdown(
+        ikea_price_pln: product_price_zl,
+        price_addon_pln: price_addon_pln,
+        weight_kg: weight_kg,
+        d_ikea_pln: delivery_pln,
+        pln_rate: pln_rate,
+        eur_rate: eur_rate,
+        buffer: buffer
+      )
+
+      return nil unless breakdown[:pricing_available]
+
+      Pricing::Money.to_f_round2(breakdown[:card_price_byn])
+    end
+
+    def product_price_byn(product_price_zl, weight_kg: nil, delivery_pln: nil, pln_rate: nil, buffer: nil, date: nil, price_addon_pln: 0, eur_rate: nil)
+      product_storefront_price_byn(
+        product_price_zl,
+        weight_kg: weight_kg,
+        delivery_pln: delivery_pln,
+        pln_rate: pln_rate,
+        buffer: buffer,
+        date: date,
+        price_addon_pln: price_addon_pln,
+        eur_rate: eur_rate
+      )
+    end
+
+    def line_total_pln(unit_price_zl:, quantity:, weight_kg:, delivery_unit_pln:, price_addon_pln: 0)
+      breakdown = line_breakdown_pln(
+        unit_price_zl: unit_price_zl,
+        quantity: quantity,
+        weight_kg: weight_kg,
+        delivery_unit_pln: delivery_unit_pln,
+        price_addon_pln: price_addon_pln
+      )
+      breakdown[:total_pln]
+    end
+
+    def line_breakdown_pln(unit_price_zl:, quantity:, weight_kg:, delivery_unit_pln:, price_addon_pln: 0)
+      qty = quantity.to_i
+      return empty_line_breakdown if qty <= 0
+
+      unit = unit_pln_components(
+        ikea_price_pln: unit_price_zl,
+        price_addon_pln: price_addon_pln,
+        weight_kg: weight_kg,
+        d_ikea_pln: delivery_unit_pln
+      )
+      return empty_line_breakdown.merge(pricing_available: false, pricing_errors: unit[:pricing_errors]) unless unit[:pricing_available]
+
+      {
+        mode: unit[:pricing_mode],
+        markup_k: unit[:markup_rate].to_f,
+        goods_pln: Pricing::Money.to_f_round2(unit[:goods_pln] * qty),
+        delivery_pln: Pricing::Money.to_f_round2(unit[:d_ikea_pln] * qty),
+        wc_by_pln: Pricing::Money.to_f_round2(unit[:wc_pln] * qty),
+        base_pln: Pricing::Money.to_f_round2(unit[:subtotal_pln] * qty),
+        total_pln: Pricing::Money.to_f_round2(unit[:subtotal_pln] * qty),
+        pricing_available: true,
+        pricing_errors: []
+      }
+    end
+
+    def line_byn_components(unit_price_zl:, quantity: 1, weight_kg: nil, delivery_unit_pln: 0, pln_rate: nil, buffer: nil, date: nil, price_addon_pln: 0, eur_rate: nil)
+      qty = quantity.to_i
+      return empty_line_byn_components if qty <= 0
+
+      date ||= Date.current
+      pln_rate ||= ExchangeRate.fetch_or_create("PLN", date)&.rate_per_unit
+      eur_rate ||= ExchangeRate.fetch_or_create("EUR", date)&.rate_per_unit
+      buffer ||= exchange_rate_buffer
+
+      unit = unit_breakdown(
+        ikea_price_pln: unit_price_zl,
+        price_addon_pln: price_addon_pln,
+        weight_kg: weight_kg,
+        d_ikea_pln: delivery_unit_pln,
+        pln_rate: pln_rate,
+        eur_rate: eur_rate,
+        buffer: buffer
+      )
+      return empty_line_byn_components.merge(pricing_available: false, pricing_errors: unit[:pricing_errors]) unless unit[:pricing_available]
+
+      rate = unit[:pln_byn_raw] * unit[:exchange_rate_buffer]
+      {
+        goods_byn: Pricing::Money.to_f_round2(unit[:goods_pln] * qty * rate),
+        delivery_poland_byn: Pricing::Money.to_f_round2(unit[:d_ikea_pln] * qty * rate),
+        delivery_belarus_byn: Pricing::Money.to_f_round2(unit[:wc_pln] * qty * rate),
+        total_byn: Pricing::Money.to_f_round2(unit[:base_price_byn] * qty),
+        base_price_byn: Pricing::Money.to_f_round2(unit[:base_price_byn] * qty),
+        card_price_byn: Pricing::Money.to_f_round2(unit[:card_price_byn]),
+        pricing_available: true,
+        pricing_errors: []
+      }
+    end
+
+    def empty_line_breakdown
+      {
+        mode: :cheap,
+        markup_k: 0.0,
+        goods_pln: 0.0,
+        delivery_pln: 0.0,
+        wc_by_pln: 0.0,
+        base_pln: 0.0,
+        total_pln: 0.0,
+        pricing_available: false,
+        pricing_errors: []
+      }
+    end
+
+    def empty_line_byn_components
+      {
+        goods_byn: 0.0,
+        delivery_poland_byn: 0.0,
+        delivery_belarus_byn: 0.0,
+        total_byn: 0.0,
+        base_price_byn: 0.0,
+        card_price_byn: nil,
+        pricing_available: false,
+        pricing_errors: []
+      }
+    end
+
+    def calculate(product_price_zl, weight_kg, use_gls_pickup: false, delivery_pln: nil, date: nil, price_addon_pln: 0)
+      date ||= Date.current
+      pln_rate = ExchangeRate.fetch_or_create("PLN", date)&.rate_per_unit
+      eur_rate = ExchangeRate.fetch_or_create("EUR", date)&.rate_per_unit
+      return { error: "Не удалось получить курсы валют" } unless pln_rate && eur_rate
+
+      delivery_zl = if delivery_pln.nil?
+                      PolandDeliveryService.calculate(weight_kg, use_gls_pickup: use_gls_pickup)
+                    else
+                      delivery_pln
+                    end
+
+      unit = unit_breakdown(
+        ikea_price_pln: product_price_zl,
+        price_addon_pln: price_addon_pln,
+        weight_kg: weight_kg,
+        d_ikea_pln: delivery_zl,
+        pln_rate: pln_rate,
+        eur_rate: eur_rate
+      )
+      return { error: pricing_error_message(unit) } unless unit[:pricing_available]
+
+      buffer = unit[:exchange_rate_buffer]
+      rate = unit[:pln_byn_raw] * buffer
+      {
+        product_price_zl: Pricing::Money.to_f_round2(unit[:ikea_price_pln]),
+        price_addon_pln: Pricing::Money.to_f_round2(unit[:price_addon_pln]),
+        effective_price_p_pln: Pricing::Money.to_f_round2(unit[:effective_price_p_pln]),
+        product_price_byn: Pricing::Money.to_f_round2(unit[:goods_pln] * rate),
+        weight_kg: Pricing::Money.to_f_round2(unit[:weight_kg]),
+        markup_k: unit[:markup_rate].to_f.round(6),
+        pricing_mode: unit[:pricing_mode].to_s,
+        cheap_threshold_pln: cheap_threshold_pln.round(2),
+        cheap_multiplier: cheap_multiplier,
+        goods_pln: Pricing::Money.to_f_round2(unit[:goods_pln]),
+        delivery_pln: Pricing::Money.to_f_round2(unit[:d_ikea_pln]),
+        poland_delivery_zl: Pricing::Money.to_f_round2(unit[:d_ikea_pln]),
+        poland_delivery_byn: Pricing::Money.to_f_round2(unit[:d_ikea_pln] * rate),
+        belarus_delivery_zl: Pricing::Money.to_f_round2(unit[:wc_pln]),
+        belarus_delivery_byn: Pricing::Money.to_f_round2(unit[:wc_pln] * rate),
+        wc_rate: unit[:wc_rate].to_f,
+        pln_rate: unit[:pln_byn_raw].to_f.round(4),
+        eur_rate: eur_rate.to_f.round(4),
+        exchange_rate_buffer: buffer.to_f,
+        pln_rate_with_buffer: rate.to_f.round(4),
+        customs_cost_eur: unit[:customs_cost_eur]&.to_f,
+        customs_duty_eur: unit.dig(:customs_details, :duty_by_cost_eur) || 0,
+        customs_duty_byn: Pricing::Money.to_f_round2(unit[:customs_duty_byn]),
+        customs_fee_byn: Pricing::Money.to_f_round2(unit[:customs_fee_byn]),
+        customs_total_byn: Pricing::Money.to_f_round2(unit[:customs_total_byn]),
+        customs_details: unit[:customs_details],
+        customs_included_in_card_price: unit[:customs_included_in_card_price],
+        total_pln: Pricing::Money.to_f_round2(unit[:subtotal_pln]),
+        base_price_byn: Pricing::Money.to_f_round2(unit[:base_price_byn]),
+        total_price_byn: Pricing::Money.to_f_round2(unit[:card_price_byn]),
+        card_price_byn: Pricing::Money.to_f_round2(unit[:card_price_byn]),
+        breakdown: {
+          product: Pricing::Money.to_f_round2(unit[:goods_pln] * rate),
+          poland_delivery: Pricing::Money.to_f_round2(unit[:d_ikea_pln] * rate),
+          belarus_delivery: Pricing::Money.to_f_round2(unit[:wc_pln] * rate),
+          customs: unit[:customs_included_in_card_price] ? Pricing::Money.to_f_round2(unit[:customs_total_byn]) : 0.0,
+          total: Pricing::Money.to_f_round2(unit[:card_price_byn])
+        }
+      }
+    rescue Pricing::ConfigurationError => e
+      { error: e.message }
+    end
+
+    def public_payload(breakdown)
+      available = breakdown[:pricing_available]
+      {
+        pricing_available: available,
+        pricing_status: breakdown[:pricing_status],
+        pricing_errors: Array(breakdown[:pricing_errors]),
+        base_price_byn: available ? Pricing::Money.to_f_round2(breakdown[:base_price_byn]) : nil,
+        customs_estimate_byn: available ? Pricing::Money.to_f_round2(breakdown[:customs_total_byn]) : nil,
+        customs_included_in_card_price: breakdown[:customs_included_in_card_price] || false,
+        customs_threshold_exceeded: breakdown[:customs_threshold_exceeded] || false,
+        display_price_byn: available ? Pricing::Money.to_f_round2(breakdown[:card_price_byn]) : nil,
+        price_byn: available ? format_delimited(breakdown[:card_price_byn]) : nil,
+        customs_notice: CUSTOMS_NOTICE
+      }
+    end
+
+    private
+
+    def unit_pln_components(ikea_price_pln:, price_addon_pln:, weight_kg:, d_ikea_pln:)
+      errors = []
+      ikea = Pricing::Money.bd(ikea_price_pln)
+      errors << "missing_ikea_price" if ikea.nil? || ikea <= 0
+      errors << "missing_weight" if weight_kg.nil? || Pricing::Money.bd(weight_kg).nil? || Pricing::Money.bd(weight_kg) <= 0
+      errors << "missing_ikea_delivery" if d_ikea_pln.nil?
+
+      addon = [Pricing::Money.bd(price_addon_pln) || BigDecimal("0"), BigDecimal("0")].max
+      p = (ikea || BigDecimal("0")) + addon
+      wc = BelarusDeliveryService.quote(weight_kg)
+      errors << "missing_weight" if wc.nil? && !errors.include?("missing_weight")
+
+      if errors.any?
+        return { pricing_available: false, pricing_errors: errors.uniq }
+      end
+
+      mode = pricing_mode_for(p)
+      markup_rate = mode == :cheap ? (Pricing::Settings.cheap_multiplier - 1) : compute_k(p)
+      goods = mode == :cheap ? (p * Pricing::Settings.cheap_multiplier) : (p * (1 + markup_rate))
+      d_ikea = Pricing::Money.bd(d_ikea_pln)
+
+      {
+        pricing_available: true,
+        pricing_errors: [],
+        pricing_mode: mode,
+        markup_rate: markup_rate,
+        goods_pln: goods,
+        d_ikea_pln: d_ikea,
+        wc_pln: wc[:amount_pln],
+        subtotal_pln: goods + d_ikea + wc[:amount_pln]
+      }
+    rescue Pricing::ConfigurationError => e
+      Rails.logger.error("[PriceCalculationService] #{e.message}")
+      { pricing_available: false, pricing_errors: ["missing_configuration"] }
+    end
+
+    def unavailable_unit(ikea_price_pln:, price_addon_pln:, effective_price_p_pln:, weight_kg:, d_ikea_pln:, pln_byn_raw:, exchange_rate_buffer:, errors:)
+      {
+        ikea_price_pln: Pricing::Money.bd(ikea_price_pln),
+        price_addon_pln: Pricing::Money.bd(price_addon_pln) || BigDecimal("0"),
+        effective_price_p_pln: Pricing::Money.bd(effective_price_p_pln),
+        pricing_mode: nil,
+        markup_rate: nil,
+        goods_pln: nil,
+        weight_kg: Pricing::Money.bd(weight_kg),
+        wc_rate: nil,
+        wc_pln: nil,
+        d_ikea_pln: Pricing::Money.bd(d_ikea_pln),
+        subtotal_pln: nil,
+        pln_byn_raw: Pricing::Money.bd(pln_byn_raw),
+        exchange_rate_buffer: Pricing::Money.bd(exchange_rate_buffer),
+        base_price_byn: nil,
+        customs_cost_eur: nil,
+        customs_duty_byn: nil,
+        customs_fee_byn: nil,
+        customs_total_byn: nil,
+        customs_details: nil,
+        customs_included_in_card_price: false,
+        customs_threshold_exceeded: false,
+        card_price_byn: nil,
+        pricing_available: false,
+        pricing_status: "requires_clarification",
+        pricing_errors: Array(errors).uniq
+      }
+    end
+
+    def zero_customs
+      {
+        duty_eur: 0.0,
+        duty_byn: 0.0,
+        fee_byn: 0.0,
+        total_byn: 0.0,
+        details: {}
+      }
+    end
+
+    def format_delimited(value)
+      number = Pricing::Money.to_f_round2(value)
+      return nil if number.nil?
+
+      ActionController::Base.helpers.number_with_delimiter(number, delimiter: " ")
+    end
+
+    def pricing_error_message(unit)
+      errors = Array(unit[:pricing_errors])
+      return "Не удалось рассчитать цену" if errors.empty?
+
+      labels = {
+        "missing_weight" => "нет корректного веса упаковки",
+        "missing_ikea_delivery" => "нет стоимости D_IKEA",
+        "missing_ikea_price" => "нет цены IKEA",
+        "missing_exchange_rate" => "нет курса валют",
+        "missing_configuration" => "не заданы настройки калькулятора"
+      }
+      "Цена уточняется: #{errors.map { |key| labels[key] || key }.join(", ")}"
+    end
   end
 end

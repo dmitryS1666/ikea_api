@@ -251,92 +251,52 @@ module Admin
       private
 
       def build_pricing_row(product:, pln_rate:, eur_rate:, buffer:, rate_with_buffer:, vgh_limits:)
-        price_zl = product.price.to_f
         customer_payload = ProductSerializer.customer_size_payload_for_product(product)
-        weight_kg = Products::WeightExtractor.extract_packaging_kg_from_customer_payload(customer_payload).to_f
-        delivery_unit_pln = product.delivery_cost.to_f
+        weight_kg = Products::WeightExtractor.extract_packaging_kg_from_customer_payload(customer_payload)
         metrics = Delivery::ParcelPackingService.export_parcel_metrics(
           product,
-          weight_kg: weight_kg.positive? ? weight_kg : nil,
+          weight_kg: weight_kg,
           customer_payload: customer_payload
         )
         max_side_cm = [metrics[:width_cm], metrics[:height_cm], metrics[:depth_cm]].compact.max
-
-        breakdown =
-          if price_zl.positive?
-            PriceCalculationService.line_breakdown_pln(
-              unit_price_zl: price_zl,
-              quantity: 1,
-              weight_kg: weight_kg,
-              delivery_unit_pln: delivery_unit_pln
-            )
-          else
-            PriceCalculationService.empty_line_breakdown
-          end
-
-        byn_parts = byn_components_from_breakdown(breakdown, rate_with_buffer)
-
-        customs_total =
-          if price_zl.positive? && weight_kg.positive? && eur_rate.to_f.positive? && pln_rate.positive?
-            price_eur = (price_zl * pln_rate / eur_rate).round(2)
-            CustomsDutyService.calculate(price_eur, weight_kg, eur_rate)[:total_byn]
-          end
-
+        unit = PriceCalculationService.for_product(
+          product,
+          pln_rate: pln_rate,
+          eur_rate: eur_rate,
+          buffer: buffer
+        )
         vgh = evaluate_vgh(metrics, vgh_limits)
+        rate = Pricing::Money.bd(rate_with_buffer) || BigDecimal("0")
 
         {
           sku: product.sku,
           display_name: display_name_for(product),
           dimensions_text: dimensions_display_for(product),
-          weight_kg: weight_kg.positive? ? weight_kg : nil,
+          weight_kg: weight_kg,
           volume_m3: metrics[:volume_m3],
           max_side_cm: max_side_cm,
-          price_pln: price_zl,
-          delivery_cost_pln: delivery_unit_pln,
-          pricing_mode: breakdown[:mode].to_s,
-          markup_k: breakdown[:markup_k],
-          goods_pln: breakdown[:goods_pln],
-          delivery_pln: breakdown[:delivery_pln],
-          wc_by_pln: breakdown[:wc_by_pln],
-          total_pln: breakdown[:total_pln],
+          price_pln: product.price.to_f,
+          delivery_cost_pln: product.delivery_cost,
+          pricing_mode: unit[:pricing_mode].to_s,
+          markup_k: unit[:markup_rate]&.to_f,
+          goods_pln: Pricing::Money.to_f_round2(unit[:goods_pln]),
+          delivery_pln: Pricing::Money.to_f_round2(unit[:d_ikea_pln]),
+          wc_by_pln: Pricing::Money.to_f_round2(unit[:wc_pln]),
+          total_pln: Pricing::Money.to_f_round2(unit[:subtotal_pln]),
           pln_rate: pln_rate,
           buffer: buffer,
           rate_with_buffer: rate_with_buffer,
-          goods_byn: byn_parts[:goods_byn],
-          delivery_to_belarus_byn: byn_parts[:delivery_to_belarus_byn],
-          delivery_poland_in_price_byn: byn_parts[:delivery_poland_in_price_byn],
-          price_byn: byn_parts[:total_byn],
-          customs_byn: customs_total,
+          goods_byn: unit[:pricing_available] ? Pricing::Money.to_f_round2(unit[:goods_pln] * rate) : nil,
+          delivery_to_belarus_byn: unit[:pricing_available] ? Pricing::Money.to_f_round2(unit[:wc_pln] * rate) : nil,
+          delivery_poland_in_price_byn: unit[:pricing_available] ? Pricing::Money.to_f_round2(unit[:d_ikea_pln] * rate) : nil,
+          price_byn: unit[:pricing_available] ? Pricing::Money.to_f_round2(unit[:card_price_byn]) : nil,
+          customs_byn: unit[:pricing_available] ? Pricing::Money.to_f_round2(unit[:customs_total_byn]) : nil,
           vgh_weight_ok: vgh[:weight_ok] ? 1 : 0,
           vgh_volume_ok: vgh[:volume_ok] ? 1 : 0,
           vgh_dimension_ok: vgh[:dimension_ok] ? 1 : 0,
           vgh_status: vgh[:status],
-          url: product.url.to_s.presence
-        }
-      end
-
-      def byn_components_from_breakdown(breakdown, rate_with_buffer)
-        rate = rate_with_buffer.to_f
-        cheap_mult = PriceCalculationService::CHEAP_MULTIPLIER
-
-        if breakdown[:mode] == :cheap
-          goods_byn = (breakdown[:goods_pln] * cheap_mult * rate).round(2)
-          delivery_to_belarus_byn = (breakdown[:wc_by_pln] * cheap_mult * rate).round(2)
-          delivery_poland_in_price_byn = (breakdown[:delivery_pln] * cheap_mult * rate).round(2)
-        else
-          markup_k = breakdown[:markup_k].to_f
-          goods_byn = (breakdown[:goods_pln] * (1 + markup_k) * rate).round(2)
-          delivery_to_belarus_byn = (breakdown[:wc_by_pln] * rate).round(2)
-          delivery_poland_in_price_byn = (breakdown[:delivery_pln] * rate).round(2)
-        end
-
-        total_byn = (breakdown[:total_pln] * rate).round(2)
-
-        {
-          goods_byn: goods_byn,
-          delivery_to_belarus_byn: delivery_to_belarus_byn,
-          delivery_poland_in_price_byn: delivery_poland_in_price_byn,
-          total_byn: total_byn
+          url: product.url.to_s.presence,
+          pricing_available: unit[:pricing_available]
         }
       end
 
@@ -628,13 +588,13 @@ module Admin
 
       def logic_lines
         [
-          "Логика совпадает с PriceCalculationService (карточка товара и корзина).",
-          "1) Цена IKEA в PLN + delivery_cost (PLN/шт) + логистика по РБ WC_BY = вес × ставка PLN/кг (belarus_delivery_rates).",
-          "2) Режим cheap: если цена IKEA ≤ порога PLN — итог PLN = (товар + delivery_cost + WC_BY) × 1.3.",
-          "3) Режим k: иначе товар с наценкой K = max(10%, 87/цена − 0.187), итог = товар×(1+K) + delivery_cost + WC_BY.",
-          "4) Перевод в BYN: итог PLN × курс PLN→BYN × буфер (по умолчанию 1.05).",
-          "5) Таможня: отдельно по стоимости в EUR и весу (CustomsDutyService), в цену сервиса не входит.",
-          "6) ВГХ: вес/объём/сторона из упаковки товара; лимиты — настройки europost_max_* (доступность ПВЗ).",
+          "Логика совпадает с PriceCalculationService (карточка товара).",
+          "P = IKEA + max(0, price_addon_pln). cheap: P ≤ порога → goods = P × cheap_multiplier. k: goods = P × (1 + max(min_markup, target/P − subtrahend)).",
+          "Множитель 1.3 применяется только к P/goods, не к D_IKEA и не к WC.",
+          "WC считается по весу ОДНОЙ единицы (не прогрессивная шкала). Количество умножает WC_unit, не объединяет вес.",
+          "Цена сервиса = (goods + D_IKEA + WC) × PLN_BYN_raw × buffer, плюс individual customs если C>200 EUR или W>31 кг.",
+          "Таможенная база C = (IKEA / poland_vat_multiplier) × PLN_EUR без буфера 1.05 и без addon.",
+          "ВГХ: вес/объём/сторона из упаковки товара; лимиты — настройки europost_max_* (доступность ПВЗ).",
           "Лист «Данные» — плоская копия расчётных полей; калькулятор ищет SKU через INDEX/MATCH."
         ]
       end

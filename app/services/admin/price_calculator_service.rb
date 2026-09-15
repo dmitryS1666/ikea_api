@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 module Admin
-  # Расчёт цен в админ-калькуляторе: по SKU / корзине (как CartPricingService) или вручную.
   class PriceCalculatorService
     LineParseResult = Struct.new(:lines, :errors, keyword_init: true)
 
@@ -15,7 +14,6 @@ module Admin
           Product.find_by(item_no: raw.gsub(/\D/, ""))
       end
 
-      # Строки: "80598646 8", "80598646:8", "80598646" (qty=1)
       def parse_cart_lines(text)
         errors = []
         lines = []
@@ -96,67 +94,74 @@ module Admin
         }
       end
 
-      def calculate_sku(product, quantity:, use_gls_pickup: false, delivery_pln: nil, date: Date.current)
+      def calculate_sku(product, quantity:, use_gls_pickup: false, delivery_pln: nil, date: Date.current, price_addon_pln: nil)
         qty = quantity.to_i
         qty = 1 if qty <= 0
 
-        unit_price = product.price.to_f
-        return { error: "У товара не задана цена (PLN)" } if unit_price <= 0
+        unit_price = product.price
+        return { error: "У товара не задана цена (PLN)" } if unit_price.nil? || unit_price.to_f <= 0
 
-        weight_kg = product.packaging_weight_kg.to_f
-        return { error: "Не удалось определить вес упаковки (packaging_weight_kg)" } if weight_kg <= 0
+        weight_kg = product.packaging_weight_kg
+        return { error: "Не удалось определить вес упаковки (packaging_weight_kg)" } if weight_kg.nil? || weight_kg.to_f <= 0
 
-        line_weight = weight_kg * qty
         delivery_unit =
-          if delivery_pln.present?
-            delivery_pln.to_f
+          if !delivery_pln.nil?
+            delivery_pln
           else
-            product.delivery_cost.to_f
+            product.delivery_cost
           end
 
-        if delivery_pln.blank? && delivery_unit <= 0
+        if delivery_unit.nil?
           delivery_unit = PolandDeliveryService.calculate(weight_kg, use_gls_pickup: use_gls_pickup)
         end
 
-        breakdown = PriceCalculationService.line_breakdown_pln(
-          unit_price_zl: unit_price,
-          quantity: qty,
-          weight_kg: line_weight,
-          delivery_unit_pln: delivery_unit
-        )
-
+        addon = price_addon_pln.nil? ? product.price_addon_pln : price_addon_pln
         pln_rate = ExchangeRate.fetch_or_create("PLN", date)&.rate_per_unit
         eur_rate = ExchangeRate.fetch_or_create("EUR", date)&.rate_per_unit
         return { error: "Не удалось получить курсы валют на #{date}" } unless pln_rate && eur_rate
 
-        buffer = PriceCalculationService.exchange_rate_buffer
+        unit = PriceCalculationService.unit_breakdown(
+          ikea_price_pln: unit_price,
+          price_addon_pln: addon,
+          weight_kg: weight_kg,
+          d_ikea_pln: delivery_unit,
+          pln_rate: pln_rate,
+          eur_rate: eur_rate
+        )
+        return { error: "Цена уточняется: #{Array(unit[:pricing_errors]).join(", ")}" } unless unit[:pricing_available]
+
         byn = PriceCalculationService.line_byn_components(
           unit_price_zl: unit_price,
           quantity: qty,
-          weight_kg: line_weight,
+          weight_kg: weight_kg,
           delivery_unit_pln: delivery_unit,
           pln_rate: pln_rate,
-          buffer: buffer,
-          date: date
+          buffer: unit[:exchange_rate_buffer],
+          date: date,
+          price_addon_pln: addon,
+          eur_rate: eur_rate
         )
-
-        item_cost_eur = (unit_price * pln_rate / eur_rate).round(2) * qty if eur_rate.positive?
-        customs =
-          if item_cost_eur.to_f.positive? && line_weight.positive?
-            CustomsDutyService.calculate(item_cost_eur, line_weight, eur_rate)
-          end
+        cart_c = PriceCalculationService.customs_cost_eur(unit_price, pln_rate: pln_rate, eur_rate: eur_rate) * qty
+        customs = CustomsDutyService.calculate(cart_c, weight_kg * qty, eur_rate)
 
         {
           product: product_snapshot(product),
           quantity: qty,
           unit_weight_kg: weight_kg,
-          line_weight_kg: line_weight,
+          line_weight_kg: (weight_kg * qty),
           delivery_unit_pln: delivery_unit,
-          breakdown: breakdown,
+          unit: unit,
+          breakdown: PriceCalculationService.line_breakdown_pln(
+            unit_price_zl: unit_price,
+            quantity: qty,
+            weight_kg: weight_kg,
+            delivery_unit_pln: delivery_unit,
+            price_addon_pln: addon
+          ),
           byn: byn,
           pln_rate: pln_rate,
           eur_rate: eur_rate,
-          buffer: buffer,
+          buffer: unit[:exchange_rate_buffer].to_f,
           customs: customs,
           date: date
         }
@@ -169,8 +174,9 @@ module Admin
           sku: product.sku.to_s,
           name: product.name_ru.presence || product.name.presence || product.small_desc_name,
           price_pln: product.price.to_f,
-          delivery_cost_pln: product.delivery_cost.to_f,
-          packaging_weight_kg: product.packaging_weight_kg.to_f,
+          price_addon_pln: product.price_addon_pln.to_f,
+          delivery_cost_pln: product.delivery_cost,
+          packaging_weight_kg: product.packaging_weight_kg,
           category_id: product.category_id
         }
       end
@@ -187,7 +193,8 @@ module Admin
           line_total_pln: row[:line_total_pln],
           pricing_mode: row[:pricing_mode],
           promo_applied: row[:promo_applied],
-          weight: row[:weight]
+          weight: row[:weight],
+          pricing_available: row[:pricing_available]
         }
       end
     end

@@ -4,6 +4,15 @@ class ProductTeaserSerializer
   attributes :small_desc_name,
              :slug,
              :price_byn,
+             :base_price_byn,
+             :display_price_byn,
+             :customs_estimate_byn,
+             :customs_included_in_card_price,
+             :customs_threshold_exceeded,
+             :pricing_available,
+             :pricing_status,
+             :pricing_errors,
+             :customs_notice,
              :is_bestseller,
              :is_new,
              :is_recommended,
@@ -77,27 +86,44 @@ class ProductTeaserSerializer
   end
 
   attribute :price_byn do |product, params|
-    pln_price = product.price.to_f
+    payload = PriceCalculationService.public_payload(pricing_breakdown_for(product, params))
+    payload[:price_byn] || (product.price.to_f.positive? ? nil : "0")
+  end
 
-    if pln_price > 0
-      rates = params[:rates] || {}
-      pln_rate = rates[:pln] || ExchangeRate.fetch_or_create('PLN')&.rate_per_unit || 0
+  attribute :base_price_byn do |product, params|
+    PriceCalculationService.public_payload(pricing_breakdown_for(product, params))[:base_price_byn]
+  end
 
-      settings = params[:calculator_settings] || {}
-      buffer = settings['exchange_rate_buffer'] || PriceCalculationService.exchange_rate_buffer
+  attribute :display_price_byn do |product, params|
+    PriceCalculationService.public_payload(pricing_breakdown_for(product, params))[:display_price_byn]
+  end
 
-      price = PriceCalculationService.product_storefront_price_byn(
-        pln_price,
-        weight_kg: product.packaging_weight_kg.to_f,
-        delivery_pln: product.delivery_cost.to_f,
-        pln_rate: pln_rate,
-        buffer: buffer
-      )
+  attribute :customs_estimate_byn do |product, params|
+    PriceCalculationService.public_payload(pricing_breakdown_for(product, params))[:customs_estimate_byn]
+  end
 
-      ActionController::Base.helpers.number_with_delimiter(price, delimiter: ' ')
-    else
-      "0"
-    end
+  attribute :customs_included_in_card_price do |product, params|
+    PriceCalculationService.public_payload(pricing_breakdown_for(product, params))[:customs_included_in_card_price]
+  end
+
+  attribute :customs_threshold_exceeded do |product, params|
+    PriceCalculationService.public_payload(pricing_breakdown_for(product, params))[:customs_threshold_exceeded]
+  end
+
+  attribute :pricing_available do |product, params|
+    pricing_breakdown_for(product, params)[:pricing_available]
+  end
+
+  attribute :pricing_status do |product, params|
+    pricing_breakdown_for(product, params)[:pricing_status]
+  end
+
+  attribute :pricing_errors do |product, params|
+    Array(pricing_breakdown_for(product, params)[:pricing_errors])
+  end
+
+  attribute :customs_notice do
+    PriceCalculationService::CUSTOMS_NOTICE
   end
 
   attribute :is_favorite do |product, params|
@@ -121,6 +147,10 @@ class ProductTeaserSerializer
 
   def self.public_sku(sku)
     sku.to_s.sub(/\As(?=\d+\z)/i, "")
+  end
+
+  def self.pricing_breakdown_for(product, params)
+    ProductSerializer.pricing_breakdown_for(product, params)
   end
 
   def self.absolute_image_url(path, site_url)

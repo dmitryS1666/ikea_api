@@ -1,8 +1,12 @@
 require 'rails_helper'
 
 RSpec.describe Api::V1::CartItemsController, type: :controller do
-  let!(:product) { Product.create!(sku: '123.456.78', name: 'Test Product', price: 100, weight: 1.0) }
-  
+  let!(:product) { Product.create!(sku: '123.456.78', name: 'Test Product', price: 100, weight: 1.0, quantity: 10, delivery_cost: 20) }
+
+  before do
+    allow(ExchangeRate).to receive(:fetch_or_create).and_return(double(rate_per_unit: 3.2))
+  end
+
   describe 'POST #create' do
     it 'adds exactly 1 item to the cart when quantity 1 is requested' do
       expect {

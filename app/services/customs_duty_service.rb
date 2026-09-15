@@ -2,23 +2,23 @@
 class CustomsDutyService
   # Получить лимиты и ставки из настроек
   def self.free_cost_limit
-    CalculatorSetting.get('customs_free_cost_limit') || 200.0
+    Pricing::Settings.customs_free_cost_limit.to_f
   end
-  
+
   def self.free_weight_limit
-    CalculatorSetting.get('customs_free_weight_limit') || 31.0
+    Pricing::Settings.customs_free_weight_limit.to_f
   end
-  
+
   def self.cost_duty_rate
-    CalculatorSetting.get('customs_cost_duty_rate') || 0.15
+    Pricing::Settings.customs_cost_duty_rate.to_f
   end
-  
+
   def self.weight_duty_rate
-    CalculatorSetting.get('customs_weight_duty_rate') || 2.0
+    Pricing::Settings.customs_weight_duty_rate.to_f
   end
-  
+
   def self.customs_fee
-    CalculatorSetting.get('customs_fee') || 10.0
+    Pricing::Settings.customs_fee.to_f
   end
   
   # Расчет таможенной пошлины
@@ -27,13 +27,12 @@ class CustomsDutyService
   # @param eur_rate [Float] Курс евро к BYN (от НБ РБ)
   # @return [Hash] Хеш с деталями расчета: { duty: Float, fee: Float, total: Float, details: Hash }
   def self.calculate(cost_eur, weight_kg, eur_rate)
-    cost = cost_eur.to_f
-    weight = weight_kg.to_f
-    rate = eur_rate.to_f
-    
-    # Получаем лимиты из настроек
-    cost_limit = free_cost_limit
-    weight_limit = free_weight_limit
+    cost = Pricing::Money.bd(cost_eur) || BigDecimal("0")
+    weight = Pricing::Money.bd(weight_kg) || BigDecimal("0")
+    rate = Pricing::Money.bd(eur_rate) || BigDecimal("0")
+
+    cost_limit = Pricing::Money.bd(free_cost_limit)
+    weight_limit = Pricing::Money.bd(free_weight_limit)
     
     # Проверяем превышение лимитов
     cost_exceeded = cost > cost_limit
@@ -78,19 +77,15 @@ class CustomsDutyService
       details[:max_duty_used] = duty_by_cost_eur > duty_by_weight_eur ? 'cost' : 'weight'
     end
     
-    # Конвертируем пошлину в BYN
-    duty_byn = duty_eur * rate
-    
-    # Таможенный сбор взимается только при превышении лимитов
-    fee_byn = (cost_exceeded || weight_exceeded) ? customs_fee : 0.0
-    
+    duty_byn = Pricing::Money.round2(duty_eur * rate) || BigDecimal("0")
+    fee_byn = (cost_exceeded || weight_exceeded) ? (Pricing::Money.bd(customs_fee) || BigDecimal("0")) : BigDecimal("0")
     total_byn = duty_byn + fee_byn
-    
+
     {
-      duty_eur: duty_eur.round(2),
-      duty_byn: duty_byn.round(2),
-      fee_byn: fee_byn.round(2),
-      total_byn: total_byn.round(2),
+      duty_eur: Pricing::Money.to_f_round2(duty_eur),
+      duty_byn: duty_byn.to_f,
+      fee_byn: Pricing::Money.to_f_round2(fee_byn),
+      total_byn: Pricing::Money.to_f_round2(total_byn),
       details: details
     }
   end

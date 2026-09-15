@@ -97,6 +97,12 @@
                   <small class="form-text text-muted">Брутто цена IKEA Poland (PLN)</small>
                 </div>
                 <div class="form-group mb-3">
+                  <%= label_tag :price_addon_pln, "Доп. надбавка PLN (priceAddonPln)", class: "form-label" %>
+                  <%= number_field_tag :price_addon_pln, params[:price_addon_pln],
+                      class: "form-control", step: 0.01, min: 0, placeholder: "0.00" %>
+                  <small class="form-text text-muted">P = IKEA + max(0, priceAddonPln)</small>
+                </div>
+                <div class="form-group mb-3">
                   <%= label_tag :weight, "Вес товара (кг)", class: "form-label" %>
                   <%= number_field_tag :weight, params[:weight],
                       class: "form-control", step: 0.01, min: 0, required: true, placeholder: "0.00" %>
@@ -202,8 +208,8 @@
             <li class="mb-2">
               <strong>Сумма в PLN:</strong><br>
               <small class="text-muted">
-                <code>cheap: (price + delivery + WC_BY) × <%= @params_info[:cheap_multiplier] %></code><br>
-                <code>k: price × (1 + K) + delivery + WC_BY</code>, где <code>K = max(<%= @params_info[:min_markup] %>, <%= @params_info[:target_profit] %> / price − <%= @params_info[:markup_subtrahend] %>)</code>
+                <code>cheap: goods = P × <%= @params_info[:cheap_multiplier] %>; total = goods + D_IKEA + WC</code><br>
+                <code>k: goods = P × (1 + K); total = goods + D_IKEA + WC</code>, где <code>K = max(<%= @params_info[:min_markup] %>, <%= @params_info[:target_profit] %> / P − <%= @params_info[:markup_subtrahend] %>)</code>
               </small>
             </li>
             <li class="mb-2">
@@ -217,7 +223,7 @@
           <p class="mb-0 small text-muted">
             <strong>Пример (режим k):</strong> 500 PLN, доставка 50 PLN, 15 кг → K = max(10%, 87/500−0.187) = 10%;
             WC_BY = 15×16.85 = 252.75; итого PLN = 500×1.10 + 50 + 252.75 = 852.75.
-            Для цены ≤ <%= @params_info[:cheap_threshold_pln] %> PLN работает режим cheap с множителем <%= @params_info[:cheap_multiplier] %> на всю базу.
+            Для цены ≤ <%= @params_info[:cheap_threshold_pln] %> PLN работает режим cheap: множитель только на P, затем + D_IKEA + WC.
           </p>
         </div>
       </div>
@@ -261,7 +267,7 @@
               <tr class="table-info"><td><strong>Итого PLN</strong></td><td class="text-right"><strong><%= number_with_precision(bd[:total_pln], precision: 2) %> PLN</strong></td></tr>
             </table>
             <% if sc[:customs] %>
-              <p class="small text-muted mb-0">Таможня (справочно): <%= number_to_currency(sc[:customs][:total_byn], unit: 'BYN', format: '%n %u', precision: 2) %> — не в итоге цены.</p>
+              <p class="small text-muted mb-0">Таможня карточки: <%= number_to_currency(sc[:customs][:total_byn], unit: 'BYN', format: '%n %u', precision: 2) %>. Для qty&gt;1 таможня пересчитывается по строке, как в корзине, и входит в оценку.</p>
             <% end %>
           </div>
         </div>
@@ -431,7 +437,7 @@
               </button>
               <div class="collapse mt-3" id="customsDetails">
                 <div class="card card-body">
-                  <h6>Таможенная пошлина (не включена в итоговую цену):</h6>
+                  <h6>Таможенная пошлина:</h6>
                   <table class="table table-sm table-bordered mb-0">
                     <tr>
                       <td>Пошлина (EUR):</td>
@@ -447,7 +453,7 @@
                     </tr>
                   </table>
                   <small class="text-muted mt-2">
-                    Внимание: В данной логике таможенная пошлина не прибавляется к стоимости товара автоматически.
+                    В карточке таможня входит в итоговую цену только если одна единица сама превышает 200 € net или 31 кг. В корзине таможня всегда пересчитывается по всему заказу и входит в итог.
                   </small>
                 </div>
               </div>

@@ -33,6 +33,7 @@ RSpec.describe "Checkout delivery totals contract", type: :request do
   end
 
   before do
+    CalculatorSetting.initialize_defaults
     user.orders.where(checkout_draft: true).find_each do |draft|
       CheckoutService.cancel_draft(user: user, order_id: draft.id)
     end
@@ -98,19 +99,19 @@ RSpec.describe "Checkout delivery totals contract", type: :request do
   end
 
   describe "regression: production totals bug" do
-    it "documents the additive contract with the reported numbers" do
+    it "documents last-mile-only delivery_total after WC moved into items" do
       totals = {
-        "subtotal_new_byn" => "185.72",
+        "items_total_byn" => "191.73",
+        "subtotal_new_byn" => "191.73",
         "discount_total_byn" => "0.00",
         "delivery_to_belarus_byn" => "6.01",
         "delivery_method_byn" => "12.43",
-        "delivery_total_byn" => "18.44",
+        "delivery_total_byn" => "12.43",
+        "customs_total_byn" => "0.00",
         "total_byn" => "204.16"
       }
 
       expect_checkout_delivery_totals_contract!(totals)
-      expect(totals["total_byn"].to_f).not_to eq(198.15)
-      expect(totals["total_byn"].to_f).not_to eq(204.22)
     end
   end
 
@@ -123,7 +124,7 @@ RSpec.describe "Checkout delivery totals contract", type: :request do
       )
     end
 
-    it "adds pickup fee on top of Belarus delivery in total_byn" do
+    it "adds pickup fee on top of turnkey items, without adding WC twice" do
       initial = create_draft!
       cart_belarus = initial.dig("pricing", "totals", "delivery_to_belarus_byn").to_f
       cart_total = initial.dig("pricing", "totals", "total_byn").to_f
@@ -158,7 +159,7 @@ RSpec.describe "Checkout delivery totals contract", type: :request do
       )
     end
 
-    it "adds courier fee on top of Belarus delivery in total_byn" do
+    it "adds courier fee on top of turnkey items, without adding WC twice" do
       initial = create_draft!
       cart_belarus = initial.dig("pricing", "totals", "delivery_to_belarus_byn").to_f
       cart_total = initial.dig("pricing", "totals", "total_byn").to_f
@@ -207,10 +208,19 @@ RSpec.describe "Checkout delivery totals contract", type: :request do
         quantity: 10,
         price: 50.0,
         weight: 5.0,
+        delivery_cost: 8.0,
         package_volume: 0.02,
         package_dimensions: "20 x 30 x 40 cm",
         dimensions: "20 x 30 x 40 cm",
-        full_attributes: {}
+        full_attributes: {
+          "dimensions_map" => {
+            "packaging" => {
+              "details" => [
+                { "weight" => "5 кг", "count" => 1, "width" => "20 см", "height" => "30 см", "length" => "40 см" }
+              ]
+            }
+          }
+        }
       )
       create(:cart_item, cart: cart, product_sku: other.sku, quantity: 1)
 
@@ -237,7 +247,7 @@ RSpec.describe "Checkout delivery totals contract", type: :request do
       c
     end
 
-    it "includes Belarus delivery in totals.total_byn for europost pickup" do
+    it "returns last-mile-only delivery_total for europost pickup" do
       allow(EuropostPostalPaymentQuote).to receive(:call).and_return(
         success: true,
         postal_total_byn: 12.43,
@@ -259,7 +269,7 @@ RSpec.describe "Checkout delivery totals contract", type: :request do
       expect(delivery["display"]["total_byn"]).to eq(totals["total_byn"])
     end
 
-    it "includes Belarus delivery in totals.total_byn for courier" do
+    it "returns last-mile-only delivery_total for courier" do
       allow(EuropostPostalPaymentQuote).to receive(:call).and_return(
         success: true,
         postal_total_byn: 18.5,

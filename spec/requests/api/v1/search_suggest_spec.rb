@@ -35,14 +35,18 @@ RSpec.describe "Api::V1::Search", type: :request do
         small_desc_name: "Шкаф, белый",
         price: 100,
         quantity: 5,
+        weight: 5,
+        delivery_cost: 10,
         category_id: category.ikea_id,
         cached_slug: "shkaf-paks"
       )
     end
 
     before do
+      CalculatorSetting.initialize_defaults
       allow(ExchangeRate).to receive(:fetch_or_create).and_return(instance_double(ExchangeRate, rate_per_unit: 1.0))
-      allow(CalculatorSetting).to receive(:get).and_return(1.0)
+      allow(CalculatorSetting).to receive(:get).and_call_original
+      allow(CalculatorSetting).to receive(:get).with("exchange_rate_buffer").and_return(1.0)
       allow(Seo::BreadcrumbsBuilder).to receive(:for_product).and_return([{ title: "Шкафы", url: "/catalog/shkafy/" }])
     end
 
@@ -65,15 +69,16 @@ RSpec.describe "Api::V1::Search", type: :request do
     end
 
     it "filters products by min_price in BYN" do
-      cheap = create(:product, sku: "cheap-1", name: "Cheap шкаф", price: 10, quantity: 5, category_id: category.ikea_id)
-      expensive = create(:product, sku: "exp-1", name: "Premium шкаф", price: 500, quantity: 5, category_id: category.ikea_id)
+      cheap = create(:product, sku: "cheap-1", name: "Cheap шкаф", price: 10, quantity: 5, weight: 5, delivery_cost: 10, category_id: category.ikea_id)
+      expensive = create(:product, sku: "exp-1", name: "Premium шкаф", price: 500, quantity: 5, weight: 5, delivery_cost: 10, category_id: category.ikea_id)
 
       threshold = PriceCalculationService.product_storefront_price_byn(
         cheap.price.to_f,
-        weight_kg: cheap.packaging_weight_kg.to_f,
-        delivery_pln: cheap.delivery_cost.to_f,
+        weight_kg: cheap.packaging_weight_kg,
+        delivery_pln: cheap.delivery_cost,
         pln_rate: 1.0,
-        buffer: 1.0
+        buffer: 1.0,
+        eur_rate: 1.0
       ) + 0.01
 
       get "/api/v1/search/suggest", params: { q: "шкаф", min_price: threshold }
