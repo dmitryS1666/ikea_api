@@ -48,6 +48,14 @@ module Admin
     PROGRESS_FILE = EXPORT_DIR.join(".export_progress.json")
     LAST_ERROR_FILE = EXPORT_DIR.join(".export_last_error.txt")
 
+    # Колонки для find_each: хватает памяти на полный каталог, но должны
+    # покрывать unit_breakdown (в т.ч. price_addon_pln) и ВГХ из упаковки.
+    EXPORT_PRODUCT_COLUMNS = [
+      :id, :sku, :name, :small_desc_name, :price, :price_addon_pln, :delivery_cost, :weight,
+      :package_volume, :package_dimensions, :dimensions, :dimensions_ru, :url,
+      :category_id, :full_attributes
+    ].freeze
+
     class AlreadyBuilding < StandardError; end
 
     class << self
@@ -150,11 +158,7 @@ module Admin
         processed = 0
         started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-        scope = Product.select(
-          :id, :sku, :name, :small_desc_name, :price, :delivery_cost, :weight,
-          :package_volume, :package_dimensions, :dimensions, :dimensions_ru, :url,
-          :category_id, :full_attributes
-        ).order(:id)
+        scope = Product.select(*EXPORT_PRODUCT_COLUMNS).order(:id)
         scope = scope.limit(limit) if limit.present? && limit.positive?
 
         # COUNT(*) — не COUNT(select-полей): при .select(...) иначе PG::UndefinedFunction.
@@ -259,8 +263,11 @@ module Admin
           customer_payload: customer_payload
         )
         max_side_cm = [metrics[:width_cm], metrics[:height_cm], metrics[:depth_cm]].compact.max
-        unit = PriceCalculationService.for_product(
-          product,
+        unit = PriceCalculationService.unit_breakdown(
+          ikea_price_pln: product.price,
+          price_addon_pln: product.price_addon_pln,
+          weight_kg: weight_kg,
+          d_ikea_pln: product.delivery_cost,
           pln_rate: pln_rate,
           eur_rate: eur_rate,
           buffer: buffer

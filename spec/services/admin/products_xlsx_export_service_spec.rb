@@ -64,6 +64,14 @@ RSpec.describe Admin::ProductsXlsxExportService do
     expect(row[:wc_by_pln]).to eq(168.5)
   end
 
+  it "can build a pricing row from the export select list" do
+    product = product_for(price: 100, weight: 10, delivery_cost: 20, addon: 5)
+    selected = Product.select(*described_class::EXPORT_PRODUCT_COLUMNS).find(product.id)
+
+    expect { row_for(selected) }.not_to raise_error
+    expect(row_for(selected)[:goods_pln]).to eq(136.5)
+  end
+
   it "keeps customs as a separate column even when it is already in the card price" do
     product = product_for(price: 1200, weight: 10, delivery_cost: 20)
     unit = PriceCalculationService.for_product(product, pln_rate: pln_rate, eur_rate: eur_rate, buffer: buffer)
