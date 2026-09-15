@@ -28,11 +28,12 @@ module FavoriteResponseFormatter
   def product_payload(product)
     return nil unless product
 
+    payload = PriceCalculationService.public_payload(PriceCalculationService.for_product(product))
+
     {
       sku: public_sku(product.sku),
       name: product.name,
       name_ru: product.name.to_s.presence,
-      payload = PriceCalculationService.public_payload(PriceCalculationService.for_product(product))
       price_byn: payload[:display_price_byn] ? format_byn(payload[:display_price_byn]) : nil,
       pricing_available: payload[:pricing_available],
       quantity: product.quantity,
