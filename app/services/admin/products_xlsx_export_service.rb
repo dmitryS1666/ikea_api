@@ -10,6 +10,7 @@ module Admin
     CATALOG_SHEET = "Товары"
     DATA_SHEET = "Данные"
     CALC_SHEET = "Калькулятор"
+    SUMMARY_SHEET = "Сводка"
     CATALOG_COL_LAST = "H" # A–H: SKU, название, размеры, вес, PLN, BYN, таможня, ссылка
 
     # Плоская таблица на листе «Данные» (строка 1 — заголовки, данные с 2)
@@ -201,6 +202,16 @@ module Admin
         workbook = package.workbook
         styles = build_styles(workbook)
 
+        add_summary_worksheet(
+          workbook,
+          styles,
+          catalog_rows: catalog_rows,
+          pln_rate: pln_rate,
+          eur_rate: eur_rate,
+          buffer: buffer,
+          rate_with_buffer: rate_with_buffer,
+          vgh_limits: vgh_limits
+        )
         add_catalog_worksheet(workbook, styles, catalog_rows)
         data_last_row = add_data_worksheet(workbook, styles, data_rows)
         add_calculator_worksheet(
@@ -390,6 +401,88 @@ module Admin
         }
       end
 
+      def add_summary_worksheet(workbook, styles, catalog_rows:, pln_rate:, eur_rate:, buffer:, rate_with_buffer:, vgh_limits:)
+        snapshot = formula_snapshot
+        priced = catalog_rows.count { |row| row[:pricing_available] }
+        unclear = catalog_rows.size - priced
+
+        workbook.add_worksheet(name: SUMMARY_SHEET) do |sheet|
+          sheet.add_row(["Сводка коэффициентов на момент выгрузки"], style: styles[:title])
+          sheet.add_row(
+            ["Сформировано: #{Time.zone.now.strftime('%d.%m.%Y %H:%M')} (#{Time.zone.name})"],
+            style: styles[:meta]
+          )
+          sheet.add_row(
+            ["Товаров в файле: #{catalog_rows.size} · цена посчитана: #{priced} · «Цена уточняется»: #{unclear}"],
+            style: styles[:meta]
+          )
+          sheet.add_row([])
+
+          if snapshot[:error]
+            sheet.add_row(["Не удалось прочитать настройки", snapshot[:error]], style: [styles[:label], styles[:vgh_warn]])
+          else
+            sheet.add_row(["Формула карточки"], style: styles[:label])
+            formula_lines(snapshot).each { |line| sheet.add_row([line], style: styles[:text]) }
+            sheet.add_row([])
+
+            sheet.add_row(["Курсы"], style: styles[:label])
+            add_kv_row(sheet, styles, "Курс PLN (НБ РБ)", pln_rate, numeric: true)
+            add_kv_row(sheet, styles, "Курс EUR (НБ РБ)", eur_rate, numeric: true)
+            add_kv_row(sheet, styles, "Буфер курса", buffer, numeric: true)
+            add_kv_row(sheet, styles, "Курс PLN × буфер", rate_with_buffer, numeric: true)
+            add_kv_row(sheet, styles, "VAT Польша", snapshot[:vat_multiplier], numeric: true)
+            sheet.add_row([])
+
+            sheet.add_row(["Наценка (goods / P)"], style: styles[:label])
+            add_kv_row(sheet, styles, "Порог cheap, PLN", snapshot[:cheap_threshold_pln], numeric: true)
+            add_kv_row(sheet, styles, "Множитель cheap", snapshot[:cheap_multiplier], numeric: true)
+            add_kv_row(sheet, styles, "Целевая прибыль, PLN", snapshot[:target_profit_pln], numeric: true)
+            add_kv_row(sheet, styles, "Вычитаемое K", snapshot[:markup_subtrahend], numeric: true)
+            add_kv_row(sheet, styles, "Минимальная наценка K", snapshot[:min_markup], numeric: true)
+            sheet.add_row(["K = max(мин. наценка, целевая прибыль / P − вычитаемое). Только на P, не на D_IKEA и не на WC."], style: styles[:text])
+            sheet.add_row([])
+
+            sheet.add_row(["Таможня"], style: styles[:label])
+            add_kv_row(sheet, styles, "Беспошлинный лимит C, EUR", snapshot[:customs_free_cost_limit], numeric: true)
+            add_kv_row(sheet, styles, "Беспошлинный вес, кг", snapshot[:customs_free_weight_limit], numeric: true)
+            add_kv_row(sheet, styles, "Ставка от превышения C", snapshot[:customs_cost_duty_rate], numeric: true)
+            add_kv_row(sheet, styles, "Ставка от превышения веса, EUR/кг", snapshot[:customs_weight_duty_rate], numeric: true)
+            add_kv_row(sheet, styles, "Сбор, BYN (один раз, если duty > 0)", snapshot[:customs_fee], numeric: true)
+            sheet.add_row(["C = (IKEA / VAT) × PLN_EUR. Без буфера, addon, D_IKEA и WC. На карточке таможня входит в цену только если одна единица уже выше лимита."], style: styles[:text])
+            sheet.add_row([])
+
+            sheet.add_row(["WC Беларусь, PLN/кг (не прогрессивно, вес одной единицы)"], style: styles[:label])
+            sheet.add_row(["Диапазон веса, кг", "Ставка, PLN/кг"], style: [styles[:subheader], styles[:subheader]])
+            wc_rate_rows(snapshot[:belarus_delivery_rates]).each do |band, rate|
+              sheet.add_row([band, rate], style: [styles[:text], styles[:num]])
+            end
+            sheet.add_row([])
+
+            dest = snapshot.dig(:ikea_delivery_config, "destination") || {}
+            sheet.add_row(["D_IKEA — тарифы IKEA.pl"], style: styles[:label])
+            sheet.add_row(["Назначение", [dest["city"], dest["postal_code"], dest["address"]].compact.join(", ").presence || "—"], style: [styles[:label], styles[:text]])
+            sheet.add_row(["Источник", snapshot.dig(:ikea_delivery_config, "source") || "ikea_delivery_config"], style: [styles[:label], styles[:text]])
+            sheet.add_row(["IKEA Family", snapshot.dig(:ikea_delivery_config, "use_member_prices") ? "да" : "нет"], style: [styles[:label], styles[:text]])
+            sheet.add_row(
+              ["Код", "Название", "PLN", "Вес, кг", "Только GLS-коробка", "Вкл."],
+              style: Array.new(6, styles[:subheader])
+            )
+            ikea_method_rows(snapshot[:ikea_delivery_config]).each do |method_row|
+              sheet.add_row(method_row, style: [styles[:text], styles[:text], styles[:num], styles[:text], styles[:text], styles[:text]])
+            end
+            sheet.add_row(["GLS берётся только если все коробки с габаритами проходят лимиты; иначе transport по весу."], style: styles[:text])
+            sheet.add_row([])
+          end
+
+          sheet.add_row(["ВГХ Европочты (доступность ПВЗ, не цена карточки)"], style: styles[:label])
+          add_kv_row(sheet, styles, "Лимит веса, кг", vgh_limits[:max_weight_kg], numeric: true)
+          add_kv_row(sheet, styles, "Лимит объёма, м³", vgh_limits[:max_volume_m3], numeric: true)
+          add_kv_row(sheet, styles, "Лимит стороны, см", vgh_limits[:max_dimension_cm], numeric: true)
+
+          sheet.column_widths 42, 36, 12, 16, 20, 10
+        end
+      end
+
       def add_catalog_worksheet(workbook, styles, catalog_rows)
         groups = catalog_rows.slice_when { |a, b| a[:category_label] != b[:category_label] }.to_a
 
@@ -520,6 +613,7 @@ module Admin
 
           sheet.add_row([])
           sheet.add_row(["Параметры на момент выгрузки"], style: styles[:label])
+          sheet.add_row(["Полный набор коэффициентов — лист «Сводка»."], style: styles[:text])
           sheet.add_row(["Курс PLN (НБ РБ)", pln_rate], style: [styles[:label], styles[:num]])
           sheet.add_row(["Буфер курса", buffer], style: [styles[:label], styles[:num]])
           sheet.add_row(["Курс × буфер", rate_with_buffer], style: [styles[:label], styles[:num]])
@@ -594,16 +688,90 @@ module Admin
       end
 
       def logic_lines
-        [
-          "Логика совпадает с PriceCalculationService (карточка товара).",
-          "P = IKEA + max(0, price_addon_pln). cheap: P ≤ порога → goods = P × cheap_multiplier. k: goods = P × (1 + max(min_markup, target/P − subtrahend)).",
-          "Множитель 1.3 применяется только к P/goods, не к D_IKEA и не к WC.",
-          "WC считается по весу ОДНОЙ единицы (не прогрессивная шкала). Количество умножает WC_unit, не объединяет вес.",
-          "Цена сервиса = (goods + D_IKEA + WC) × PLN_BYN_raw × buffer, плюс individual customs если C>200 EUR или W>31 кг.",
-          "Таможенная база C = (IKEA / poland_vat_multiplier) × PLN_EUR без буфера 1.05 и без addon.",
-          "ВГХ: вес/объём/сторона из упаковки товара; лимиты — настройки europost_max_* (доступность ПВЗ).",
-          "Лист «Данные» — плоская копия расчётных полей; калькулятор ищет SKU через INDEX/MATCH."
+        snapshot = formula_snapshot
+        return ["Логика совпадает с PriceCalculationService (карточка товара)."] if snapshot[:error]
+
+        formula_lines(snapshot) + [
+          "Лист «Данные» — плоская копия расчётных полей; калькулятор ищет SKU через INDEX/MATCH.",
+          "Коэффициенты и тарифы D_IKEA/WC — лист «Сводка»."
         ]
+      end
+
+      def formula_lines(snapshot)
+        cheap = snapshot[:cheap_multiplier]
+        threshold = snapshot[:cheap_threshold_pln]
+        min_k = snapshot[:min_markup]
+        target = snapshot[:target_profit_pln]
+        sub = snapshot[:markup_subtrahend]
+        buffer = snapshot[:exchange_rate_buffer]
+        vat = snapshot[:vat_multiplier]
+        c_lim = snapshot[:customs_free_cost_limit]
+        w_lim = snapshot[:customs_free_weight_limit]
+
+        [
+          "Логика совпадает с витриной (PriceCalculationService).",
+          "P = IKEA + max(0, price_addon_pln).",
+          "cheap: P ≤ #{format_coeff(threshold)} PLN → goods = P × #{format_coeff(cheap)}. Только на P, не на D_IKEA и не на WC.",
+          "k: goods = P × (1 + max(#{format_coeff(min_k)}, #{format_coeff(target)} / P − #{format_coeff(sub)})).",
+          "Цена сервиса BYN = (goods + D_IKEA + WC) × курс PLN × #{format_coeff(buffer)}, плюс таможня если одна единица C > #{format_coeff(c_lim)} € или W > #{format_coeff(w_lim)} кг.",
+          "Таможенная база C = (IKEA / #{format_coeff(vat)}) × PLN_EUR без буфера и без addon."
+        ]
+      end
+
+      def formula_snapshot
+        {
+          cheap_threshold_pln: Pricing::Settings.cheap_threshold_pln.to_f,
+          cheap_multiplier: Pricing::Settings.cheap_multiplier.to_f,
+          target_profit_pln: Pricing::Settings.target_profit_pln.to_f,
+          markup_subtrahend: Pricing::Settings.markup_subtrahend.to_f,
+          min_markup: Pricing::Settings.min_markup.to_f,
+          exchange_rate_buffer: Pricing::Settings.exchange_rate_buffer.to_f,
+          vat_multiplier: Pricing::Settings.vat_multiplier.to_f,
+          customs_free_cost_limit: Pricing::Settings.customs_free_cost_limit.to_f,
+          customs_free_weight_limit: Pricing::Settings.customs_free_weight_limit.to_f,
+          customs_cost_duty_rate: Pricing::Settings.customs_cost_duty_rate.to_f,
+          customs_weight_duty_rate: Pricing::Settings.customs_weight_duty_rate.to_f,
+          customs_fee: Pricing::Settings.customs_fee.to_f,
+          belarus_delivery_rates: Pricing::Settings.belarus_delivery_rates,
+          ikea_delivery_config: Pricing::Settings.ikea_delivery_config
+        }
+      rescue Pricing::ConfigurationError => e
+        { error: e.message }
+      end
+
+      def wc_rate_rows(rates)
+        hash = rates.is_a?(Hash) ? rates : {}
+        hash.map { |band, rate| [band.to_s, rate.to_f] }.sort_by { |band, _rate| band[/\d+(?:\.\d+)?/].to_f }
+      end
+
+      def ikea_method_rows(config)
+        methods = Array(config.is_a?(Hash) ? (config["methods"] || config[:methods]) : nil)
+        methods.map do |method|
+          next unless method.is_a?(Hash)
+
+          min_w = method["min_weight_kg"] || method.dig("constraints", "min_weight_kg")
+          max_w = method["max_weight_kg"] || method.dig("constraints", "max_weight_kg")
+          cost = method["cost_pln"] || method["price_pln"]
+          enabled = ActiveModel::Type::Boolean.new.cast(method["enabled"])
+          gls_only = ActiveModel::Type::Boolean.new.cast(method["requires_product_eligibility"])
+          [
+            method["code"].to_s,
+            method["name"].to_s,
+            cost&.to_f,
+            [min_w, max_w].compact.join("–"),
+            gls_only ? "да" : "нет",
+            enabled ? "да" : "нет"
+          ]
+        end.compact
+      end
+
+      def add_kv_row(sheet, styles, label, value, numeric: false)
+        sheet.add_row([label, value], style: [styles[:label], numeric ? styles[:num] : styles[:text]])
+      end
+
+      def format_coeff(value)
+        number = value.to_f
+        number == number.to_i ? number.to_i.to_s : number.to_s
       end
 
       def lookup_formula(sku_cell, data_last_row, col:, text: false)

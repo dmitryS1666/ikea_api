@@ -89,6 +89,37 @@ RSpec.describe Admin::ProductsXlsxExportService do
     }.not_to raise_error
   end
 
+  it "puts live formula coefficients on the summary sheet" do
+    require "caxlsx"
+    priced = row_for(product_for(price: 100, weight: 10, delivery_cost: 20)).merge(category_label: "A")
+    unclear = row_for(create(:product, price: 100, weight: nil, delivery_cost: nil, full_attributes: {})).merge(category_label: "B")
+    package = Axlsx::Package.new
+    styles = described_class.send(:build_styles, package.workbook)
+
+    described_class.send(
+      :add_summary_worksheet,
+      package.workbook,
+      styles,
+      catalog_rows: [priced, unclear],
+      pln_rate: pln_rate,
+      eur_rate: eur_rate,
+      buffer: buffer,
+      rate_with_buffer: (pln_rate * buffer).round(4),
+      vgh_limits: { max_weight_kg: 30, max_volume_m3: 0.25, max_dimension_cm: 105 }
+    )
+
+    sheet = package.workbook.worksheets.find { |item| item.name == "Сводка" }
+    values = sheet.rows.flat_map { |row| row.cells.map { |cell| cell.value.to_s } }
+
+    expect(values).to include("Наценка (goods / P)")
+    expect(values).to include("Множитель cheap")
+    expect(values).to include("1.3")
+    expect(values).to include("Целевая прибыль, PLN")
+    expect(values).to include("87.0")
+    expect(values.join(" ")).to include("Цена уточняется")
+    expect(values).to include("gls_home_0_25")
+  end
+
   it "keeps customs as a separate column even when it is already in the card price" do
     product = product_for(price: 1200, weight: 10, delivery_cost: 20)
     unit = PriceCalculationService.for_product(product, pln_rate: pln_rate, eur_rate: eur_rate, buffer: buffer)
