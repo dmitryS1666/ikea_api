@@ -72,6 +72,23 @@ RSpec.describe Admin::ProductsXlsxExportService do
     expect(row_for(selected)[:goods_pln]).to eq(136.5)
   end
 
+  it "writes catalog and data sheets when the service price is unavailable" do
+    product = create(:product, price: 100, weight: nil, delivery_cost: nil, full_attributes: {})
+    row = row_for(product).merge(category_label: "Без категории")
+
+    expect(row[:pricing_available]).to eq(false)
+    expect(row[:price_byn]).to be_nil
+
+    require "caxlsx"
+    package = Axlsx::Package.new
+    styles = described_class.send(:build_styles, package.workbook)
+
+    expect {
+      described_class.send(:add_catalog_worksheet, package.workbook, styles, [row])
+      described_class.send(:add_data_worksheet, package.workbook, styles, [row])
+    }.not_to raise_error
+  end
+
   it "keeps customs as a separate column even when it is already in the card price" do
     product = product_for(price: 1200, weight: 10, delivery_cost: 20)
     unit = PriceCalculationService.for_product(product, pln_rate: pln_rate, eur_rate: eur_rate, buffer: buffer)

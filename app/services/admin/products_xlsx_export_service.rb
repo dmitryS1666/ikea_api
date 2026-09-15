@@ -432,8 +432,8 @@ module Admin
                   r[:display_name],
                   r[:dimensions_text],
                   r[:weight_kg].present? && r[:weight_kg].to_f.positive? ? r[:weight_kg].to_f : nil,
-                  r[:price_pln].positive? ? r[:price_pln] : nil,
-                  r[:price_byn].positive? ? r[:price_byn] : nil,
+                  positive_cell(r[:price_pln]),
+                  positive_cell(r[:price_byn]),
                   r[:customs_byn],
                   r[:url]
                 ],
@@ -473,7 +473,7 @@ module Admin
                 r[:weight_kg],
                 r[:volume_m3],
                 r[:max_side_cm],
-                r[:price_pln].positive? ? r[:price_pln] : nil,
+                positive_cell(r[:price_pln]),
                 r[:delivery_cost_pln],
                 r[:pricing_mode],
                 r[:markup_k],
@@ -484,10 +484,10 @@ module Admin
                 r[:pln_rate],
                 r[:buffer],
                 r[:rate_with_buffer],
-                r[:goods_byn].positive? ? r[:goods_byn] : nil,
-                r[:delivery_to_belarus_byn].positive? ? r[:delivery_to_belarus_byn] : nil,
-                r[:delivery_poland_in_price_byn].positive? ? r[:delivery_poland_in_price_byn] : nil,
-                r[:price_byn].positive? ? r[:price_byn] : nil,
+                positive_cell(r[:goods_byn]),
+                positive_cell(r[:delivery_to_belarus_byn]),
+                positive_cell(r[:delivery_poland_in_price_byn]),
+                positive_cell(r[:price_byn]),
                 r[:customs_byn],
                 r[:vgh_weight_ok],
                 r[:vgh_volume_ok],
@@ -623,6 +623,10 @@ module Admin
 
       def data_col_letter(index)
         Axlsx.col_ref(index - 1)
+      end
+
+      def positive_cell(value)
+        value.is_a?(Numeric) && value.positive? ? value : nil
       end
 
       def build_data_row_styles(styles)
