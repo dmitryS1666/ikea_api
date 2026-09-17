@@ -1,4 +1,8 @@
 class OrderNotificationService
+  # ЕРИП нельзя подтвердить колбэком — менеджерам пишем сразу.
+  # Карта/WebPay: пишем только после фактической оплаты.
+  UNTRACKED_PAYMENT_METHODS = %w[erip].freeze
+
   def self.call(order, status_changed: false)
     if status_changed
       handle_status_change(order)
@@ -7,7 +11,7 @@ class OrderNotificationService
       # «В обработке» уходит раньше — при создании черновика (корзина → оформление).
       TransactionalEmailService.send_order_emails(%i[order_awaiting_payment], order)
       enqueue_admin_order_created_email(order)
-      send_telegram_manager_notification(order)
+      send_telegram_manager_notification(order) if send_telegram_on_finalize?(order)
     end
   end
 
@@ -28,6 +32,8 @@ class OrderNotificationService
     if template_key
       TransactionalEmailService.send_order_email(template_key, order)
     end
+
+    send_telegram_manager_notification(order) if send_telegram_on_paid?(order)
 
     tg_statuses = %w[confirmed paid purchased received_poland export_eu arrived_pvz handed_to_courier handed_to_courier_ikeya]
     if tg_statuses.include?(order.status)
@@ -96,7 +102,8 @@ class OrderNotificationService
     message += "📞 Телефон: #{order.phone}\n"
     message += "💰 Сумма: #{order.total_amount} BYN\n"
     message += "🚚 Доставка: #{order.delivery_type}\n"
-    message += "💳 Оплата: #{order.payment_method}\n"
+    message += "💳 Способ оплаты: #{order.payment_method}\n"
+    message += "💵 Статус оплаты: <b>#{payment_status_label(order)}</b>\n"
 
     if (service_labels = OrderServicesFormatter.labels(order.address_json["services"])).present?
       message += "\n🛠 <b>Доп. услуги:</b>\n"
@@ -121,6 +128,30 @@ class OrderNotificationService
     return [] if labels.blank?
 
     ["Доп. услуги:", *labels.map { |label| "- #{label}" }]
+  end
+
+  def self.send_telegram_on_finalize?(order)
+    untracked_payment_method?(order)
+  end
+
+  def self.send_telegram_on_paid?(order)
+    order.status.to_s == "paid" && !untracked_payment_method?(order)
+  end
+
+  def self.untracked_payment_method?(order)
+    UNTRACKED_PAYMENT_METHODS.include?(order.payment_method.to_s.strip.downcase)
+  end
+
+  def self.payment_status_label(order)
+    if order_paid?(order)
+      "оплачен"
+    else
+      "не оплачен"
+    end
+  end
+
+  def self.order_paid?(order)
+    order.webpay_paid_at.present? || order.status.to_s.in?(FinanceEntry::PAID_ORDER_STATUSES)
   end
 
   def self.send_telegram_status_notification(order)
