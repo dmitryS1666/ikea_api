@@ -1,5 +1,19 @@
 class CrmIntegrationService
+  class Error < StandardError; end
+
   include HTTParty
+
+  # AmoCRM v4 rejects string IDs in JSON ("42583661") with 400 InvalidType.
+  # users.crm_contact_id / orders.crm_external_id are string columns.
+  def self.amo_entity_id(value)
+    return :error if value == :error
+    return nil if value.nil?
+    return nil if value.respond_to?(:blank?) && value.blank?
+
+    Integer(value)
+  rescue ArgumentError, TypeError
+    nil
+  end
   
   def self.base_url
     "https://#{ENV['AMO_CRM_SUBDOMAIN']}.amocrm.ru"
@@ -194,10 +208,11 @@ class CrmIntegrationService
     user = return_request.user
     contact_id =
       if user
-        user.crm_contact_id || find_contact(user)
+        amo_entity_id(user.crm_contact_id) || find_contact(user)
       else
         find_or_create_contact_for_return(return_request)
       end
+    contact_id = amo_entity_id(contact_id)
     return false unless contact_id && contact_id != :error
 
     status_id = case return_request.status
@@ -256,7 +271,7 @@ class CrmIntegrationService
   def self.notify_cooperation(cooperation_request)
     Rails.logger.info "[AmoCRM] Notifying about cooperation request #{cooperation_request.id}"
 
-    contact_id = find_or_create_contact_for_cooperation(cooperation_request)
+    contact_id = amo_entity_id(find_or_create_contact_for_cooperation(cooperation_request))
     return false unless contact_id && contact_id != :error
 
     pipeline_id = ENV['AMO_CRM_COOP_PIPELINE_ID']&.to_i
@@ -286,10 +301,12 @@ class CrmIntegrationService
   end
 
   def self.sync_order(order)
-    contact_id = order.user.crm_contact_id || find_contact(order.user)
+    contact_id = amo_entity_id(order.user.crm_contact_id) || find_contact(order.user)
     if contact_id == :error
       return { success: false, error: "Contact search failed" }
     end
+
+    contact_id = amo_entity_id(contact_id)
 
     unless contact_id
       contact_payload = {
@@ -384,9 +401,9 @@ class CrmIntegrationService
     end
     
     if response.success?
-      lead_id = order.crm_external_id || response.parsed_response.dig('_embedded', 'leads', 0, 'id')
+      lead_id = amo_entity_id(order.crm_external_id.presence || response.parsed_response.dig('_embedded', 'leads', 0, 'id'))
       order.update_columns(crm_external_id: lead_id) if lead_id && order.crm_external_id.blank?
-      
+
       sync_order_items(lead_id, order) if lead_id
       { success: true, lead_id: lead_id }
     else
@@ -396,6 +413,22 @@ class CrmIntegrationService
   rescue => e
     Rails.logger.error "[AmoCRM] Sync order #{order.id} exception: #{e.message}"
     { success: false, error: e.message }
+  end
+
+  def self.resync_missing_orders(limit: nil)
+    scope = Order.where(checkout_draft: false).where(crm_external_id: [nil, ""]).order(:id)
+    scope = scope.limit(limit) if limit.present?
+
+    scope.map do |order|
+      result = sync_order(order)
+      {
+        order_id: order.id,
+        public_uid: order.public_uid,
+        success: result[:success],
+        lead_id: result[:lead_id],
+        error: result[:error]
+      }
+    end
   end
 
   private
@@ -409,13 +442,13 @@ class CrmIntegrationService
     return :error if response.code >= 500
     return nil unless response.success? && response.parsed_response.present?
 
-    response.parsed_response.dig('_embedded', 'contacts', 0, 'id')
+    amo_entity_id(response.parsed_response.dig('_embedded', 'contacts', 0, 'id'))
   end
 
   def self.create_contact_with_id(payload)
     response = post_with_log("#{base_url}/api/v4/contacts", body: [payload].to_json, headers: headers)
     return nil unless response.success?
-    response.parsed_response.dig('_embedded', 'contacts', 0, 'id')
+    amo_entity_id(response.parsed_response.dig('_embedded', 'contacts', 0, 'id'))
   end
 
   def self.find_or_create_contact_for_return(return_request)
@@ -425,7 +458,7 @@ class CrmIntegrationService
       Rails.logger.info "[AmoCRM] Finding contact for return #{query}"
       response = get_with_log("#{base_url}/api/v4/contacts", query: { query: query }, headers: headers)
       return :error if response.code >= 500
-      found = response.success? ? response.parsed_response.dig('_embedded', 'contacts', 0, 'id') : nil
+      found = response.success? ? amo_entity_id(response.parsed_response.dig('_embedded', 'contacts', 0, 'id')) : nil
       return found if found.present?
     end
 
@@ -459,7 +492,7 @@ class CrmIntegrationService
       Rails.logger.info "[AmoCRM] Finding contact for cooperation #{query}"
       response = get_with_log("#{base_url}/api/v4/contacts", query: { query: query }, headers: headers)
       return :error if response.code >= 500
-      found = response.success? ? response.parsed_response.dig('_embedded', 'contacts', 0, 'id') : nil
+      found = response.success? ? amo_entity_id(response.parsed_response.dig('_embedded', 'contacts', 0, 'id')) : nil
       return found if found.present?
     end
 
@@ -488,6 +521,9 @@ class CrmIntegrationService
   end
 
   def self.sync_order_items(lead_id, order)
+    lead_id = amo_entity_id(lead_id)
+    return unless lead_id
+
     items_text = format_order_items_for_amo(order)
     note_payload = {
       entity_id: lead_id,

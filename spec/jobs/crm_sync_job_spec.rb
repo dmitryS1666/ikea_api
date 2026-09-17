@@ -4,10 +4,10 @@ require "rails_helper"
 
 RSpec.describe CrmSyncJob, type: :job do
   before do
-    allow(CrmIntegrationService).to receive(:sync_user)
-    allow(CrmIntegrationService).to receive(:sync_order)
-    allow(CrmIntegrationService).to receive(:notify_return)
-    allow(CrmIntegrationService).to receive(:notify_cooperation)
+    allow(CrmIntegrationService).to receive(:sync_user).and_return({ success: true })
+    allow(CrmIntegrationService).to receive(:sync_order).and_return({ success: true, lead_id: 1 })
+    allow(CrmIntegrationService).to receive(:notify_return).and_return(true)
+    allow(CrmIntegrationService).to receive(:notify_cooperation).and_return(true)
   end
 
   describe "#perform" do
@@ -60,6 +60,24 @@ RSpec.describe CrmSyncJob, type: :job do
       allow(CrmIntegrationService).to receive(:sync_user).and_raise(StandardError, "boom")
 
       expect { described_class.perform_now("User", user.id) }.to raise_error(StandardError, "boom")
+    end
+
+    it "raises when order sync returns failure so Sidekiq retries" do
+      order = create(:order, checkout_draft: false)
+      allow(CrmIntegrationService).to receive(:sync_order).and_return(
+        { success: false, error: "Bad Request", code: 400 }
+      )
+
+      expect { described_class.perform_now("Order", order.id) }
+        .to raise_error(CrmIntegrationService::Error, /Order #{order.id} sync failed/)
+    end
+
+    it "skips checkout drafts" do
+      order = create(:order, checkout_draft: true)
+
+      described_class.perform_now("Order", order.id)
+
+      expect(CrmIntegrationService).not_to have_received(:sync_order)
     end
   end
 end
