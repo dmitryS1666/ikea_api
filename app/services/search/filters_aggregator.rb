@@ -13,7 +13,10 @@ module Search
     def call
       return [] if @products_scope.blank? || @categories.blank?
 
-      counts = ProductFilterValue.where(product_id: @products_scope.select(:id))
+      product_ids = product_ids_for_counts
+      return [] if product_ids.empty?
+
+      counts = ProductFilterValue.where(product_id: product_ids)
                                  .group(:parameter, :value_id)
                                  .count
 
@@ -64,6 +67,14 @@ module Search
     end
 
     private
+
+    # IN (search subquery) seq-scans product_filter_values; IN (ids) uses the index.
+    def product_ids_for_counts
+      @products_scope.except(:select, :order, :includes, :preload, :eager_load, :limit, :offset)
+                     .reselect(Product.arel_table[:id])
+                     .distinct
+                     .pluck(:id)
+    end
 
     def build_filter_entry(filter, matching_values)
       label = filter["translated_name"].presence || filter["name"].to_s

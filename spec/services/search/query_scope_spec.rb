@@ -104,6 +104,13 @@ RSpec.describe Search::QueryScope do
 
       expect(query_scope.call.pluck(:id)).to eq(text_scope.pluck(:id))
     end
+
+    it "does not union an empty category branch into the SQL" do
+      sql = described_class.new("00568144").call.to_sql
+
+      expect(sql).not_to include("OR 1=0")
+      expect(sql).to include("00568144")
+    end
   end
 
   describe "#apply_default_order" do

@@ -17,10 +17,10 @@ module Search
       text_scope = direct_text_scope
       category_scope = products_from_matching_categories
 
-      # Keep the search lazy. Calling `exists?` on both branches performed up
-      # to two additional database round trips before count/load pagination
-      # queries. Both relations are structurally compatible product scopes,
-      # and ActiveRecord handles `none` correctly when either branch is empty.
+      # Keep the search lazy: do not probe `exists?` on either branch.
+      # Skip `or(none)` so the SQL does not pick up a dummy `OR 1=0`.
+      return text_scope if category_scope.null_relation?
+
       text_scope.or(category_scope)
     end
 
