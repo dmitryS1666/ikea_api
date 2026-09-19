@@ -29,9 +29,10 @@ module Search
       aggregated = {}
 
       @categories.each do |category|
+        # Stored schema only — display_filters_for_api scans the whole category tree.
         filters_to_use =
-          if category.respond_to?(:display_filters_for_api)
-            category.display_filters_for_api
+          if category.respond_to?(:display_filters)
+            category.display_filters
           else
             category.available_filters || []
           end

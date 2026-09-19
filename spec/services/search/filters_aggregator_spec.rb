@@ -67,4 +67,12 @@ RSpec.describe Search::FiltersAggregator do
 
     expect(ProductFilterValue).to have_received(:where).with(product_id: [product.id])
   end
+
+  it "does not recompute category-wide API filters" do
+    scope = Search::QueryScope.new("00568144").call
+
+    expect(category).not_to receive(:display_filters_for_api)
+
+    described_class.new(scope, [category]).call
+  end
 end
