@@ -66,7 +66,7 @@ class WebpayPaymentLinkService
       return_url = effective_return_url
       fields['wsb_return_url'] = return_url if return_url.present?
 
-      cancel_url = effective_cancel_url
+      cancel_url = effective_cancel_url(order)
       fields['wsb_cancel_return_url'] = cancel_url if cancel_url.present?
 
       notify = effective_notify_url
@@ -136,14 +136,26 @@ class WebpayPaymentLinkService
       WebpayReturnUrl.normalize(webpay_config.return_url, api_base: webpay_config.link_base_url)
     end
 
-    def effective_cancel_url
+    def effective_cancel_url(order)
+      uid = order.public_uid.presence || order.id
+      query = "order_id=#{ERB::Util.url_encode(uid.to_s)}&payment=failed"
+
       configured = webpay_config.cancel_url.to_s.strip
-      return configured if configured.present?
+      if configured.present? && !generic_payment_cancel_url?(configured)
+        separator = configured.include?('?') ? '&' : '?'
+        return "#{configured}#{separator}#{query}"
+      end
 
       site = public_site_url
       return nil if site.blank?
 
-      "#{site}/payment/cancel"
+      "#{site}/order-success/?#{query}"
+    end
+
+    def generic_payment_cancel_url?(url)
+      URI.parse(url).path.to_s.chomp('/') == '/payment/cancel'
+    rescue URI::InvalidURIError
+      false
     end
 
     def public_site_url

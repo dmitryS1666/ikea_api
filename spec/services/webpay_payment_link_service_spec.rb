@@ -73,5 +73,27 @@ RSpec.describe WebpayPaymentLinkService do
         expect(form.fields['wsb_test']).to eq('0')
       end
     end
+
+    context 'cancel return url' do
+      let(:return_url_env) { '' }
+
+      it 'sends declined payments back to order-success with the order id' do
+        form = described_class.build_form(order: order)
+        expect(form.fields['wsb_cancel_return_url']).to eq(
+          "https://ikeya.by/order-success/?order_id=#{order.public_uid}&payment=failed"
+        )
+      end
+
+      it 'replaces a generic /payment/cancel URL with order-success' do
+        previous_cancel = Rails.application.config.x.webpay.cancel_url
+        Rails.application.config.x.webpay.cancel_url = 'https://ikeya.by/payment/cancel'
+        form = described_class.build_form(order: order)
+        expect(form.fields['wsb_cancel_return_url']).to eq(
+          "https://ikeya.by/order-success/?order_id=#{order.public_uid}&payment=failed"
+        )
+      ensure
+        Rails.application.config.x.webpay.cancel_url = previous_cancel
+      end
+    end
   end
 end
