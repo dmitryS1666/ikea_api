@@ -162,6 +162,11 @@ class Order < ApplicationRecord
       europost_create.dig("response", "number").presence
   end
 
+  # Номер, который видят клиент и менеджеры (Amo, Telegram, письма).
+  def display_number
+    public_uid.presence || id.to_s
+  end
+
   # ЛК: в URL можно передавать public_uid (6–8 цифр) или числовой id (как раньше).
   def self.find_for_account!(user, id_or_uid)
     s = id_or_uid.to_s.strip

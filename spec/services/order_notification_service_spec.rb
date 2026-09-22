@@ -57,7 +57,7 @@ RSpec.describe OrderNotificationService do
     described_class.call(order)
 
     expect(TelegramService).to have_received(:send_message).with(
-      a_string_including("Новый заказ №#{order.id}")
+      a_string_including("Новый заказ №#{order.public_uid}")
         .and(a_string_including("Статус оплаты: <b>не оплачен</b>"))
     )
   end
@@ -81,7 +81,7 @@ RSpec.describe OrderNotificationService do
     described_class.call(order.reload, status_changed: true)
 
     expect(TelegramService).to have_received(:send_message).with(
-      a_string_including("Новый заказ №#{order.id}")
+      a_string_including("Новый заказ №#{order.public_uid}")
         .and(a_string_including("Статус оплаты: <b>оплачен</b>"))
     )
   end
@@ -107,5 +107,17 @@ RSpec.describe OrderNotificationService do
     described_class.call(order.reload, status_changed: true)
 
     expect(described_class).not_to have_received(:send_telegram_manager_notification)
+  end
+
+  it "uses the public order number in status telegram messages" do
+    user.update_columns(telegram_chat_id: "123")
+    order.update_columns(status: Order.statuses[:confirmed])
+    allow(described_class).to receive(:send_telegram_manager_notification)
+
+    described_class.call(order.reload, status_changed: true)
+
+    expect(TelegramService).to have_received(:send_message).with(
+      a_string_including("Заказ №#{order.public_uid}")
+    )
   end
 end

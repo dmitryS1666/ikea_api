@@ -47,7 +47,7 @@ class OrderNotificationService
 
     SendpulseEmailJob.perform_later(
       to_email: admin_email,
-      subject: "Новый заказ №#{order.id}",
+      subject: "Новый заказ №#{order.display_number}",
       html: build_admin_order_created_html(order),
       text: build_admin_order_created_text(order)
     )
@@ -62,7 +62,7 @@ class OrderNotificationService
     services_html = admin_services_html_block(order)
 
     <<~HTML
-      <h2>Новый заказ №#{order.id}</h2>
+      <h2>Новый заказ №#{order.display_number}</h2>
       <p>Имя клиента: #{order.full_name || "—"}</p>
       <p>Телефон: #{order.phone || "—"}</p>
       <p>Email: #{order.user&.email || "—"}</p>
@@ -79,7 +79,7 @@ class OrderNotificationService
     admin_order_url = "#{ENV.fetch('API_BASE_URL', '').to_s.sub(%r{/\z}, '')}/admin/orders/#{order.id}"
 
     lines = [
-      "Новый заказ №#{order.id}",
+      "Новый заказ №#{order.display_number}",
       "Имя клиента: #{order.full_name || '—'}",
       "Телефон: #{order.phone || '—'}",
       "Email: #{order.user&.email || '—'}",
@@ -97,7 +97,7 @@ class OrderNotificationService
   end
 
   def self.send_telegram_manager_notification(order)
-    message = "🆕 <b>Новый заказ №#{order.id}</b>\n\n"
+    message = "🆕 <b>Новый заказ №#{order.display_number}</b>\n\n"
     message += "👤 Клиент: #{order.full_name}\n"
     message += "📞 Телефон: #{order.phone}\n"
     message += "💰 Сумма: #{order.total_amount} BYN\n"
@@ -156,7 +156,7 @@ class OrderNotificationService
 
   def self.send_telegram_status_notification(order)
     status_text = I18n.t("activerecord.attributes.order.statuses.#{order.status}")
-    message = "📦 <b>Заказ №#{order.id}</b>\n"
+    message = "📦 <b>Заказ №#{order.display_number}</b>\n"
     message += "Статус изменен на: <b>#{status_text}</b>"
 
     if order.user&.respond_to?(:telegram_chat_id) && order.user.telegram_chat_id.present?
