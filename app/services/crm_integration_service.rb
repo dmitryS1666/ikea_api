@@ -498,7 +498,7 @@ class CrmIntegrationService
     append_field!(fields, "LEAD_LAST_NAME", user&.last_name)
     append_field!(fields, "LEAD_MIDDLE_NAME", user&.middle_name)
     append_field!(fields, "LEAD_PHONE", phone)
-    append_street_address_field!(fields, order, address_text)
+    append_field!(fields, "ADDRESS_STREET", address_text)
     append_main_delivery_field!(fields, order)
     fields
   end
@@ -523,22 +523,6 @@ class CrmIntegrationService
     }
   end
 
-  def self.append_street_address_field!(fields, order, address_text)
-    return if address_text.blank?
-
-    city = delivery_city(order)
-    fields << {
-      field_id: contact_field_id("ADDRESS_STREET"),
-      values: [{
-        value: {
-          "address" => address_text,
-          "city" => city,
-          "country" => "Беларусь"
-        }.compact
-      }]
-    }
-  end
-
   def self.append_main_delivery_field!(fields, order)
     enum_id = MAIN_DELIVERY_ENUM_IDS[DeliveryTypeNormalizer.normalize(order.delivery_type)]
     return if enum_id.blank?
@@ -547,21 +531,6 @@ class CrmIntegrationService
       field_id: contact_field_id("MAIN_DELIVERY"),
       values: [{ enum_id: enum_id }]
     }
-  end
-
-  def self.delivery_city(order)
-    pickup_point_hash(order)&.[]("city").presence ||
-      nested_hash(order_address_hash(order).dig("delivery", "address"))&.[]("city").presence ||
-      order_address_hash(order)["city"].presence
-  end
-
-  def self.nested_hash(raw)
-    return if raw.blank?
-    return raw.stringify_keys if raw.respond_to?(:stringify_keys)
-
-    raw.to_h.stringify_keys
-  rescue StandardError
-    nil
   end
 
   def self.payment_method_label(order)

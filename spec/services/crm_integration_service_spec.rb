@@ -238,8 +238,7 @@ RSpec.describe CrmIntegrationService do
           lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 363323 }.dig('values', 0, 'value') == '2.50' &&
           lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 578791 }.dig('values', 0, 'enum_id') == 831831 &&
           lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 200633 }.dig('values', 0, 'enum_id') == 288055 &&
-          lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 204265 }.dig('values', 0, 'value', 'city') == 'Минск' &&
-          lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 204265 }.dig('values', 0, 'value', 'address') == 'Отделение №1, Минск'
+          lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 204265 }.dig('values', 0, 'value') == 'Отделение №1, Минск'
       }
     end
 
