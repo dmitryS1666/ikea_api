@@ -195,7 +195,7 @@ class CalculatorSetting < ApplicationRecord
         key: "ikea_delivery_config",
         value: default_ikea_delivery_config,
         setting_type: "json",
-        description: "Конфиг D_IKEA: регулярные тарифы IKEA.pl зона A (Białystok) с 08.09.2026. GLS 19.99/29.99 только для parcel-eligible коробок; иначе transport. IKEA Family не применяется."
+        description: "Конфиг D_IKEA. Посылка IKEA до 30 кг — пункт GLS 0 PLN. Иначе без заноса: 69/99/159 PLN. Платный курьер GLS в цену карточки не входит."
       },
       {
         key: "customs_free_cost_limit",
@@ -284,10 +284,10 @@ class CalculatorSetting < ApplicationRecord
     end
   end
 
-  # Регулярные тарифы IKEA.pl с 08.09.2026, зона A (Białystok 15-399).
-  # IKEA Family / Business Network НЕ используются (use_member_prices: false).
-  # GLS 19.99/29.99 нельзя брать только по весу: IKEA проверяет товар в корзине.
-  # У нас proxy: все коробки должны иметь габариты и пройти лимиты GLS Polska.
+  # Доставка IKEA в цену карточки совпадает с парсером:
+  # is_parcel и вес до gls_pickup_free_weight (30 кг) → пункт GLS, 0 PLN.
+  # Иначе «без заноса»: 0–50 кг 69, 50–100 кг 99, 100–200 кг 159 PLN.
+  # Платный курьер GLS в конфиге остаётся, но IkeaDeliveryService его не выбирает.
   def self.default_ikea_delivery_config
     {
       "destination" => {
@@ -346,7 +346,7 @@ class CalculatorSetting < ApplicationRecord
           "name" => "Transport bez wniesienia do 50 kg",
           "service_code" => "ikea_transport",
           "enabled" => true,
-          "cost_pln" => 99.0,
+          "cost_pln" => 69.0,
           "priority" => 30,
           "pricing_profile" => "per_unit",
           "requires_product_eligibility" => false,
@@ -362,7 +362,7 @@ class CalculatorSetting < ApplicationRecord
           "name" => "Transport bez wniesienia 50–100 kg",
           "service_code" => "ikea_transport",
           "enabled" => true,
-          "cost_pln" => 139.0,
+          "cost_pln" => 99.0,
           "priority" => 40,
           "pricing_profile" => "per_unit",
           "requires_product_eligibility" => false,
@@ -378,7 +378,7 @@ class CalculatorSetting < ApplicationRecord
           "name" => "Transport bez wniesienia 100–200 kg",
           "service_code" => "ikea_transport",
           "enabled" => true,
-          "cost_pln" => 189.0,
+          "cost_pln" => 159.0,
           "priority" => 50,
           "pricing_profile" => "per_unit",
           "requires_product_eligibility" => false,

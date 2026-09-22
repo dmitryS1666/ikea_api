@@ -3,7 +3,7 @@
 require "rails_helper"
 
 RSpec.describe IkeaDeliveryService do
-  def product_with_package(weight: 2.0, sides: [20, 30, 40])
+  def product_with_package(weight: 2.0, sides: [20, 30, 40], is_parcel: false)
     details = {
       "weight" => "#{weight} кг",
       "count" => 1
@@ -17,6 +17,7 @@ RSpec.describe IkeaDeliveryService do
     create(
       :product,
       weight: weight,
+      is_parcel: is_parcel,
       delivery_cost: nil,
       delivery_cost_manual: false,
       full_attributes: {
@@ -60,34 +61,38 @@ RSpec.describe IkeaDeliveryService do
     expect(described_class.quote(product_with_package)).to be_nil
   end
 
-  it "picks the cheapest enabled method that matches package limits" do
+  it "gives an IKEA parcel up to 30 kg free GLS pickup and skips paid GLS courier" do
     write_config!(
       [
         {
-          "code" => "gls",
+          "code" => "gls_home_0_25",
           "name" => "GLS courier",
           "service_code" => "ikea_gls",
           "enabled" => true,
           "cost_pln" => 19.99,
           "priority" => 1,
           "requires_product_eligibility" => true,
-          "constraints" => { "max_weight_kg" => 20, "max_length_cm" => 120 }
+          "constraints" => { "max_weight_kg" => 25, "max_length_cm" => 120 }
         },
         {
           "code" => "transport",
           "name" => "Transport",
           "service_code" => "ikea_transport",
           "enabled" => true,
-          "cost_pln" => 79.0,
+          "cost_pln" => 69.0,
           "priority" => 10,
-          "constraints" => { "max_weight_kg" => 1000 }
+          "constraints" => { "max_weight_kg" => 50 }
         }
       ]
     )
 
-    quote = described_class.quote(product_with_package(weight: 2.0))
-    expect(quote[:delivery_type]).to eq("ikea_gls")
-    expect(quote[:cost_pln]).to eq(BigDecimal("19.99"))
+    parcel = described_class.quote(product_with_package(weight: 12.35, is_parcel: true))
+    expect(parcel[:delivery_type]).to eq("gls_point")
+    expect(parcel[:cost_pln]).to eq(BigDecimal("0"))
+
+    cargo = described_class.quote(product_with_package(weight: 12.35, is_parcel: false))
+    expect(cargo[:delivery_type]).to eq("ikea_transport")
+    expect(cargo[:cost_pln]).to eq(BigDecimal("69.0"))
   end
 
   it "skips methods that do not fit package dimensions even if they are cheaper" do
@@ -151,35 +156,40 @@ RSpec.describe IkeaDeliveryService do
   describe "IKEA.pl regular tariffs zone A" do
     before { write_production_defaults! }
 
-    it "uses GLS 19.99 for a small parcel-eligible product, not Family 7 PLN" do
-      quote = described_class.quote(product_with_package(weight: 4.0, sides: [20, 30, 40]))
-      expect(quote[:delivery_type]).to eq("ikea_gls")
-      expect(quote[:cost_pln]).to eq(BigDecimal("19.99"))
+    it "uses free GLS pickup for an IKEA parcel up to 30 kg" do
+      quote = described_class.quote(product_with_package(weight: 4.0, sides: [20, 30, 40], is_parcel: true))
+      expect(quote[:delivery_type]).to eq("gls_point")
+      expect(quote[:cost_pln]).to eq(BigDecimal("0"))
     end
 
-    it "does not apply GLS 19.99 by weight alone when box dimensions are missing" do
-      quote = described_class.quote(product_with_package(weight: 4.0, sides: nil))
+    it "charges without-carry 69 PLN when the product is not an IKEA parcel" do
+      quote = described_class.quote(product_with_package(weight: 4.0, sides: [20, 30, 40], is_parcel: false))
       expect(quote[:delivery_type]).to eq("ikea_transport")
+      expect(quote[:cost_pln]).to eq(BigDecimal("69.0"))
+    end
+
+    it "keeps free GLS pickup at 30 kg and switches to 69 PLN just above it" do
+      at_limit = described_class.quote(product_with_package(weight: 30.0, sides: [40, 40, 40], is_parcel: true))
+      expect(at_limit[:cost_pln]).to eq(BigDecimal("0"))
+
+      above = described_class.quote(product_with_package(weight: 30.01, sides: [40, 40, 40], is_parcel: true))
+      expect(above[:cost_pln]).to eq(BigDecimal("69.0"))
+    end
+
+    it "uses without-carry 69 PLN when the box exceeds paid GLS dimensions" do
+      quote = described_class.quote(product_with_package(weight: 10.0, sides: [70, 90, 210], is_parcel: false))
+      expect(quote[:delivery_type]).to eq("ikea_transport")
+      expect(quote[:cost_pln]).to eq(BigDecimal("69.0"))
+    end
+
+    it "uses without-carry 99 PLN for 50.01–100 kg" do
+      quote = described_class.quote(product_with_package(weight: 80.0, sides: [80, 80, 200], is_parcel: false))
       expect(quote[:cost_pln]).to eq(BigDecimal("99.0"))
     end
 
-    it "uses GLS 19.99 at the 25 kg boundary and 29.99 just above it" do
-      at_limit = described_class.quote(product_with_package(weight: 25.0, sides: [40, 40, 40]))
-      expect(at_limit[:cost_pln]).to eq(BigDecimal("19.99"))
-
-      above = described_class.quote(product_with_package(weight: 25.01, sides: [40, 40, 40]))
-      expect(above[:cost_pln]).to eq(BigDecimal("29.99"))
-    end
-
-    it "falls back to transport when the box exceeds GLS dimensions" do
-      quote = described_class.quote(product_with_package(weight: 10.0, sides: [70, 90, 210]))
-      expect(quote[:delivery_type]).to eq("ikea_transport")
-      expect(quote[:cost_pln]).to eq(BigDecimal("99.0"))
-    end
-
-    it "uses transport 139 PLN for 50.01–100 kg" do
-      quote = described_class.quote(product_with_package(weight: 80.0, sides: [80, 80, 200]))
-      expect(quote[:cost_pln]).to eq(BigDecimal("139.0"))
+    it "uses without-carry 159 PLN for 100.01–200 kg" do
+      quote = described_class.quote(product_with_package(weight: 120.0, sides: [80, 80, 200], is_parcel: false))
+      expect(quote[:cost_pln]).to eq(BigDecimal("159.0"))
     end
   end
 end

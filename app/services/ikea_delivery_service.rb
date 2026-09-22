@@ -10,6 +10,20 @@ class IkeaDeliveryService
       packages = Delivery::ParcelPackingService.parcel_metrics_list(product)
       weight_kg = Products::WeightExtractor.packaging_weight_kg_for_product(product)
 
+      if gls_point?(product, weight_kg)
+        return {
+          delivery_type: "gls_point",
+          delivery_name: "Доставка в Пункт Odbioru GLS",
+          delivery_reason: "Посылка - доставка в пункт отбора GLS",
+          cost_pln: BigDecimal("0"),
+          priority: 0
+        }
+      end
+
+      # Платный курьер GLS (19.99/29.99) в цену карточки не входит:
+      # парсер для посылки ставит пункт GLS за 0, иначе — «без заноса».
+      methods = methods.reject { |method| gls_courier?(method) }
+
       candidates = methods.filter_map do |method|
         next unless method_enabled?(method)
         next unless cost_present?(method)
@@ -41,6 +55,21 @@ class IkeaDeliveryService
     end
 
     private
+
+    def gls_point?(product, weight_kg)
+      return false unless product.is_parcel
+
+      weight = weight_kg.to_f
+      return false unless weight.positive?
+
+      weight <= PolandDeliveryService.gls_free_weight.to_f
+    end
+
+    def gls_courier?(method)
+      service_code = (method["service_code"] || method[:service_code]).to_s
+      code = (method["code"] || method[:code]).to_s
+      service_code == "ikea_gls" || code.start_with?("gls_home")
+    end
 
     def method_enabled?(method)
       ActiveModel::Type::Boolean.new.cast(method["enabled"] || method[:enabled])
