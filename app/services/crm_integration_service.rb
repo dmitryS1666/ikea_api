@@ -1,6 +1,31 @@
 class CrmIntegrationService
   class Error < StandardError; end
 
+  # Воронка «IKEA». 10700202 — это «IKEA - Сотрудничество», туда заказы не кладём.
+  IKEA_PIPELINE_ID = 10_314_334
+  PAYMENT_METHOD_LABELS = {
+    "card" => "Оплата картой",
+    "installment" => "Оплата в рассрочку",
+    "qr" => "Оплата QR-кодом",
+    "erip" => "Оплата через ЕРИП",
+    "oplati" => "Оплати",
+    "cash" => "Наличными"
+  }.freeze
+  DELIVERY_ENUM_IDS = {
+    "belpost" => 831829,
+    "evropost" => 831831,
+    "europost_pickup" => 831831,
+    "courier" => 831835,
+    "ikeya_delivery" => 831835
+  }.freeze
+  MAIN_DELIVERY_ENUM_IDS = {
+    "europost_pickup" => 288055,
+    "evropost" => 288055,
+    "belpost" => 827955
+  }.freeze
+  private_constant :PAYMENT_METHOD_LABELS, :DELIVERY_ENUM_IDS, :MAIN_DELIVERY_ENUM_IDS
+
+
   include HTTParty
 
   # AmoCRM v4 rejects string IDs in JSON ("42583661") with 400 InvalidType.
@@ -301,103 +326,36 @@ class CrmIntegrationService
   end
 
   def self.sync_order(order)
-    contact_id = amo_entity_id(order.user.crm_contact_id) || find_contact(order.user)
+    contact_id = ensure_contact_for_order(order)
     if contact_id == :error
       return { success: false, error: "Contact search failed" }
     end
 
-    contact_id = amo_entity_id(contact_id)
-
-    unless contact_id
-      contact_payload = {
-        name: order.full_name.presence || order.user.username || order.user.email,
-        first_name: order.user.first_name,
-        last_name: order.user.last_name
-      }
-      contact_id = create_contact_with_id(contact_payload)
-      order.user.update_columns(crm_contact_id: contact_id) if contact_id
-    end
-
     return { success: false, error: "Could not create or find contact" } unless contact_id
 
-    items_text = format_order_items_for_amo(order)
     order_number = order.public_uid.presence || order.id.to_s
 
     lead_payload = {
       name: order_number,
       price: order.total_amount.to_i,
       status_id: Order.statuses[order.status],
-      pipeline_id: 10700202,
-      custom_fields_values: [
-        {
-          field_id: contact_field_id('PAYMENT_STATUS'),
-          values: [{ value: order.paid? }]
-        },
-        {
-          field_id: contact_field_id('PAYMENT_METHOD'),
-          values: [{ value: order.payment_method }]
-        },
-        {
-          field_id: contact_field_id('ORDER_NUMBER'),
-          values: [{ value: order_number }]
-        },
-        {
-          field_id: contact_field_id('ORDER_DATE'),
-          values: [{ value: order.created_at.to_i }]
-        },
-        {
-          field_id: contact_field_id('ITEMS_LIST'),
-          values: [{ value: items_text }]
-        }
-      ],
+      pipeline_id: ikea_pipeline_id,
+      custom_fields_values: order_lead_custom_fields(order),
       _embedded: {
         contacts: [{ id: contact_id }]
       }
     }
 
-    if (address_text = order.address_json.values.join(", ")).present?
-      lead_payload[:custom_fields_values] << {
-        field_id: contact_field_id('ADDRESS'),
-        values: [{ value: address_text }]
-      }
-    end
-
-    normalized_delivery_type = DeliveryTypeNormalizer.normalize(order.delivery_type)
-
-    delivery_enum_id = case normalized_delivery_type
-    when 'belpost'   then 831829
-    when 'evropost'  then 831831
-    when 'europost_pickup' then 831831
-    when 'courier'   then 831835
-    when 'ikeya_delivery' then 831835
-    else nil
-    end
-
-    if delivery_enum_id
-      lead_payload[:custom_fields_values] << {
-        field_id: contact_field_id('DELIVERY_TYPE'),
-        values: [{ enum_id: delivery_enum_id }]
-      }
-    end
-
-    if order.track_number.present?
-      lead_payload[:custom_fields_values] << {
-        field_id: contact_field_id('TRACK_NUMBER'),
-        values: [{ value: order.track_number }]
-      }
-    end
-
-    if (services = order.address_json['services']).present?
-      lead_payload[:custom_fields_values] << {
-        field_id: contact_field_id('SERVICES'),
-        values: [{ value: OrderServicesFormatter.labels_joined(services) }]
-      }
-    end
-
-    response = if order.crm_external_id.present?
-      patch_with_log("#{base_url}/api/v4/leads/#{order.crm_external_id}", body: lead_payload.to_json, headers: headers)
-    else
-      post_with_log("#{base_url}/api/v4/leads", body: [lead_payload].to_json, headers: headers)
+    response = submit_lead(order, lead_payload)
+    unless response.success?
+      stripped = lead_payload[:custom_fields_values].reject do |field|
+        [contact_field_id("ADDRESS_STREET"), contact_field_id("MAIN_DELIVERY")].include?(field[:field_id])
+      end
+      if stripped.size < lead_payload[:custom_fields_values].size
+        Rails.logger.warn "[AmoCRM] Retrying order #{order.id} without Основное address/delivery fields: #{response.body}"
+        lead_payload[:custom_fields_values] = stripped
+        response = submit_lead(order, lead_payload)
+      end
     end
     
     if response.success?
@@ -415,8 +373,23 @@ class CrmIntegrationService
     { success: false, error: e.message }
   end
 
+  def self.submit_lead(order, lead_payload)
+    if order.crm_external_id.present?
+      patch_with_log("#{base_url}/api/v4/leads/#{order.crm_external_id}", body: lead_payload.to_json, headers: headers)
+    else
+      post_with_log("#{base_url}/api/v4/leads", body: [lead_payload].to_json, headers: headers)
+    end
+  end
+
   def self.resync_missing_orders(limit: nil)
-    scope = Order.where(checkout_draft: false).where(crm_external_id: [nil, ""]).order(:id)
+    resync_orders(only_missing: true, limit: limit)
+  end
+
+  def self.resync_orders(since: nil, until_time: nil, only_missing: false, limit: nil)
+    scope = Order.where(checkout_draft: false).order(:id)
+    scope = scope.where(crm_external_id: [nil, ""]) if only_missing
+    scope = scope.where("created_at >= ?", since) if since.present?
+    scope = scope.where("created_at < ?", until_time) if until_time.present?
     scope = scope.limit(limit) if limit.present?
 
     scope.map do |order|
@@ -432,6 +405,192 @@ class CrmIntegrationService
   end
 
   private
+
+  def self.ensure_contact_for_order(order)
+    user = order.user
+    return nil unless user
+
+    contact_id = amo_entity_id(user.crm_contact_id) || find_contact(user)
+    return :error if contact_id == :error
+
+    contact_id = amo_entity_id(contact_id)
+    payload = order_contact_payload(order)
+
+    if contact_id
+      response = patch_with_log("#{base_url}/api/v4/contacts/#{contact_id}", body: payload.to_json, headers: headers)
+      unless response.success?
+        Rails.logger.warn "[AmoCRM] Contact #{contact_id} update failed: #{response.body}"
+      end
+      contact_id
+    else
+      contact_id = create_contact_with_id(payload)
+      user.update_columns(crm_contact_id: contact_id) if contact_id
+      contact_id
+    end
+  end
+
+  def self.order_contact_payload(order)
+    user = order.user
+    phone = order.phone.presence || user&.phone
+    email = user&.email
+
+    payload = {
+      name: order.full_name.presence || user&.full_name.presence || user&.username.presence || phone || email,
+      first_name: user&.first_name,
+      last_name: user&.last_name,
+      custom_fields_values: []
+    }
+
+    append_phone_email_fields!(payload[:custom_fields_values], phone: phone, email: email)
+    payload
+  end
+
+  def self.append_phone_email_fields!(custom_fields, phone:, email:)
+    if phone.present?
+      custom_fields << {
+        field_id: contact_field_id('PHONE'),
+        values: [{ value: phone, enum_code: 'MOB' }]
+      }
+    end
+
+    if email.present?
+      custom_fields << {
+        field_id: contact_field_id('EMAIL'),
+        values: [{ value: email, enum_code: 'WORK' }]
+      }
+    end
+  end
+
+  def self.format_order_address_for_amo(order)
+    pickup = pickup_point_hash(order)
+    if pickup.present?
+      [pickup["name"], pickup["city"]].map { |value| value.to_s.strip.presence }.compact.join(", ").presence ||
+        OrderAddressFormatter.display(order)
+    else
+      OrderAddressFormatter.display(order)
+    end
+  end
+
+  def self.ikea_pipeline_id
+    env_id = ENV["AMO_CRM_PIPELINE_ID"].to_i
+    env_id.positive? ? env_id : IKEA_PIPELINE_ID
+  end
+
+  def self.order_lead_custom_fields(order)
+    fields = []
+    user = order.user
+    phone = order.phone.presence || user&.phone
+    address_text = format_order_address_for_amo(order)
+    services = order_address_hash(order)["services"]
+
+    append_field!(fields, "PAYMENT_STATUS", order.paid?)
+    append_field!(fields, "PAYMENT_METHOD", payment_method_label(order))
+    append_field!(fields, "ORDER_NUMBER", order.public_uid.presence || order.id.to_s)
+    append_field!(fields, "ORDER_DATE", order.created_at.to_i)
+    append_field!(fields, "ITEMS_LIST", format_order_items_for_amo(order))
+    append_field!(fields, "ADDRESS", address_text)
+    append_delivery_type_field!(fields, order)
+    append_field!(fields, "TRACK_NUMBER", order.track_number)
+    append_field!(fields, "SERVICES", OrderServicesFormatter.labels_joined(services)) if services.present?
+    append_field!(fields, "WEIGHT", order_weight_for_amo(order))
+    append_field!(fields, "RECIPIENT", order.full_name.presence || user&.full_name)
+    append_field!(fields, "LEAD_FIRST_NAME", user&.first_name)
+    append_field!(fields, "LEAD_LAST_NAME", user&.last_name)
+    append_field!(fields, "LEAD_MIDDLE_NAME", user&.middle_name)
+    append_field!(fields, "LEAD_PHONE", phone)
+    append_street_address_field!(fields, order, address_text)
+    append_main_delivery_field!(fields, order)
+    fields
+  end
+
+  def self.append_field!(fields, code, value)
+    return if value.nil?
+    return if value.is_a?(String) && value.blank?
+
+    field_id = contact_field_id(code)
+    return if field_id.blank? || field_id == code
+
+    fields << { field_id: field_id, values: [{ value: value }] }
+  end
+
+  def self.append_delivery_type_field!(fields, order)
+    enum_id = DELIVERY_ENUM_IDS[DeliveryTypeNormalizer.normalize(order.delivery_type)]
+    return if enum_id.blank?
+
+    fields << {
+      field_id: contact_field_id("DELIVERY_TYPE"),
+      values: [{ enum_id: enum_id }]
+    }
+  end
+
+  def self.append_street_address_field!(fields, order, address_text)
+    return if address_text.blank?
+
+    city = delivery_city(order)
+    fields << {
+      field_id: contact_field_id("ADDRESS_STREET"),
+      values: [{
+        value: {
+          "address" => address_text,
+          "city" => city,
+          "country" => "Беларусь"
+        }.compact
+      }]
+    }
+  end
+
+  def self.append_main_delivery_field!(fields, order)
+    enum_id = MAIN_DELIVERY_ENUM_IDS[DeliveryTypeNormalizer.normalize(order.delivery_type)]
+    return if enum_id.blank?
+
+    fields << {
+      field_id: contact_field_id("MAIN_DELIVERY"),
+      values: [{ enum_id: enum_id }]
+    }
+  end
+
+  def self.delivery_city(order)
+    pickup_point_hash(order)&.[]("city").presence ||
+      nested_hash(order_address_hash(order).dig("delivery", "address"))&.[]("city").presence ||
+      order_address_hash(order)["city"].presence
+  end
+
+  def self.nested_hash(raw)
+    return if raw.blank?
+    return raw.stringify_keys if raw.respond_to?(:stringify_keys)
+
+    raw.to_h.stringify_keys
+  rescue StandardError
+    nil
+  end
+
+  def self.payment_method_label(order)
+    code = order.payment_method.to_s.strip.downcase
+    return if code.blank?
+
+    PAYMENT_METHOD_LABELS[code] || order.payment_method
+  end
+
+  def self.order_weight_for_amo(order)
+    weight = order.weight.presence || order_address_hash(order)["weight_kg"]
+    return if weight.blank?
+
+    Kernel.format("%.2f", weight.to_f)
+  end
+
+  def self.order_address_hash(order)
+    aj = order.address_json
+    return {} unless aj.is_a?(Hash)
+
+    aj.stringify_keys
+  end
+
+  def self.pickup_point_hash(order)
+    raw = order_address_hash(order).dig("delivery", "pickup_point")
+    return if raw.blank?
+
+    raw.respond_to?(:stringify_keys) ? raw.stringify_keys : raw.to_h.stringify_keys
+  end
 
   def self.find_contact(user)
     query = user.phone.presence || user.email
@@ -586,6 +745,13 @@ class CrmIntegrationService
       'ITEMS_LIST' => 578789,
       'SERVICES' => 578795,
       'ADDRESS' => 578793,
+      'ADDRESS_STREET' => 204265,
+      'MAIN_DELIVERY' => 200633,
+      'RECIPIENT' => 204251,
+      'LEAD_FIRST_NAME' => 204249,
+      'LEAD_LAST_NAME' => 323785,
+      'LEAD_MIDDLE_NAME' => 323787,
+      'LEAD_PHONE' => 330991,
       'MIDDLE_NAME' => 579213, # Поле "Отчетсов" из ТЗ
       'PASSPORT_SERIES' => 579201, # В ТЗ нет явного маппинга, использую свободные ID или из кода
       'PASSPORT_NUMBER' => 579203,

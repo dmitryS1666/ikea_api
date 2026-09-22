@@ -70,8 +70,11 @@ RSpec.describe CrmIntegrationService do
     let!(:order_item) { create(:order_item, order: order, product_sku: 'SKU123', quantity: 2) }
 
     before do
-      # Mock finding contact
       stub_request(:get, %r{#{base_url}/api/v4/contacts})
+        .to_return(status: 200, body: { _embedded: { contacts: [{ id: 123 }] } }.to_json, headers: { 'Content-Type' => 'application/json' })
+      stub_request(:patch, %r{#{base_url}/api/v4/contacts/\d+})
+        .to_return(status: 200, body: { id: 123 }.to_json, headers: { 'Content-Type' => 'application/json' })
+      stub_request(:post, %r{#{base_url}/api/v4/contacts})
         .to_return(status: 200, body: { _embedded: { contacts: [{ id: 123 }] } }.to_json, headers: { 'Content-Type' => 'application/json' })
     end
 
@@ -145,6 +148,133 @@ RSpec.describe CrmIntegrationService do
       }
     end
 
+    it 'creates contact with phone and email when none exists' do
+      user.update_columns(crm_contact_id: nil)
+      stub_request(:get, %r{#{base_url}/api/v4/contacts}).to_return(status: 204, body: '')
+      contacts = stub_request(:post, "#{base_url}/api/v4/contacts")
+        .to_return(status: 200, body: { _embedded: { contacts: [{ id: 321 }] } }.to_json, headers: { 'Content-Type' => 'application/json' })
+      stub_request(:post, "#{base_url}/api/v4/leads")
+        .to_return(status: 200, body: { _embedded: { leads: [{ id: 789 }] } }.to_json, headers: { 'Content-Type' => 'application/json' })
+      stub_request(:post, "#{base_url}/api/v4/leads/789/notes")
+        .to_return(status: 200, body: {}.to_json)
+
+      result = described_class.sync_order(order)
+
+      expect(result[:success]).to be_truthy
+      expect(contacts).to have_been_requested
+      expect(WebMock).to have_requested(:post, "#{base_url}/api/v4/contacts").with { |request|
+        payload = JSON.parse(request.body).first
+        phone_field = payload.fetch('custom_fields_values').find { |f| f['field_id'] == 145813 }
+        email_field = payload.fetch('custom_fields_values').find { |f| f['field_id'] == 145815 }
+
+        payload['name'] == order.full_name &&
+          phone_field.dig('values', 0, 'value') == order.phone &&
+          phone_field.dig('values', 0, 'enum_code') == 'MOB' &&
+          email_field.dig('values', 0, 'value') == user.email
+      }
+      expect(user.reload.crm_contact_id).to eq('321')
+    end
+
+    it 'patches existing contact with phone and email' do
+      user.update_columns(crm_contact_id: '42583661')
+
+      stub_request(:post, "#{base_url}/api/v4/leads")
+        .to_return(status: 200, body: { _embedded: { leads: [{ id: 789 }] } }.to_json, headers: { 'Content-Type' => 'application/json' })
+      stub_request(:post, "#{base_url}/api/v4/leads/789/notes")
+        .to_return(status: 200, body: {}.to_json)
+
+      described_class.sync_order(order)
+
+      expect(WebMock).to have_requested(:patch, "#{base_url}/api/v4/contacts/42583661").with { |request|
+        payload = JSON.parse(request.body)
+        phone_field = payload.fetch('custom_fields_values').find { |f| f['field_id'] == 145813 }
+        email_field = payload.fetch('custom_fields_values').find { |f| f['field_id'] == 145815 }
+
+        phone_field.dig('values', 0, 'value') == order.phone &&
+          email_field.dig('values', 0, 'value') == user.email
+      }
+    end
+
+    it 'sends pickup office name and city instead of raw address json' do
+      order.update!(
+        address_json: {
+          'weight_kg' => 2.5,
+          'pickup_point_id' => 70_130_010,
+          'services' => ['furniture_assembly'],
+          'delivery' => {
+            'type' => 'europost_pickup',
+            'prices' => { 'delivery_price_byn' => '12.00' },
+            'pickup_point' => {
+              'id' => '70130010',
+              'name' => 'Отделение №1',
+              'city' => 'Минск',
+              'address' => 'Монтажников, 2',
+              'working_hours' => '09:00-21:00'
+            }
+          }
+        }
+      )
+
+      stub_request(:post, "#{base_url}/api/v4/leads")
+        .to_return(status: 200, body: { _embedded: { leads: [{ id: 789 }] } }.to_json, headers: { 'Content-Type' => 'application/json' })
+      stub_request(:post, "#{base_url}/api/v4/leads/789/notes")
+        .to_return(status: 200, body: {}.to_json)
+
+      result = described_class.sync_order(order)
+
+      expect(result[:success]).to be_truthy
+      expect(WebMock).to have_requested(:post, "#{base_url}/api/v4/leads").with { |request|
+        lead_payload = JSON.parse(request.body).first
+        address_field = lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 578793 }
+        address_text = address_field.dig('values', 0, 'value')
+
+        address_text == 'Отделение №1, Минск' &&
+          !address_text.include?('weight_kg') &&
+          !address_text.include?('working_hours') &&
+          !address_text.include?('delivery_price_byn') &&
+          lead_payload['pipeline_id'] == 10_314_334 &&
+          lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 204251 }.dig('values', 0, 'value') == order.full_name &&
+          lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 330991 }.dig('values', 0, 'value') == order.phone &&
+          lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 363323 }.dig('values', 0, 'value') == '2.50' &&
+          lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 578791 }.dig('values', 0, 'enum_id') == 831831 &&
+          lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 200633 }.dig('values', 0, 'enum_id') == 288055 &&
+          lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 204265 }.dig('values', 0, 'value', 'city') == 'Минск' &&
+          lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 204265 }.dig('values', 0, 'value', 'address') == 'Отделение №1, Минск'
+      }
+    end
+
+    it 'sends formatted courier address instead of raw json' do
+      order.update!(
+        delivery_type: DeliveryTypeNormalizer::COURIER,
+        address_json: {
+          'weight_kg' => 8.1,
+          'delivery' => {
+            'type' => 'courier',
+            'prices' => { 'delivery_price_byn' => '25.00' },
+            'address' => {
+              'city' => 'Минск',
+              'street' => 'Независимости',
+              'house' => '10',
+              'apartment' => '5'
+            }
+          }
+        }
+      )
+
+      stub_request(:post, "#{base_url}/api/v4/leads")
+        .to_return(status: 200, body: { _embedded: { leads: [{ id: 789 }] } }.to_json, headers: { 'Content-Type' => 'application/json' })
+      stub_request(:post, "#{base_url}/api/v4/leads/789/notes")
+        .to_return(status: 200, body: {}.to_json)
+
+      described_class.sync_order(order)
+
+      expect(WebMock).to have_requested(:post, "#{base_url}/api/v4/leads").with { |request|
+        lead_payload = JSON.parse(request.body).first
+        address_field = lead_payload.fetch('custom_fields_values').find { |f| f['field_id'] == 578793 }
+        address_field.dig('values', 0, 'value') == 'Минск, Независимости, д. 10, кв. 5'
+      }
+    end
+
     it 'sends order number as public_uid and formatted items list' do
       product = create(
         :product,
@@ -201,6 +331,39 @@ RSpec.describe CrmIntegrationService do
 
       expect(results.map { |row| row[:order_id] }).to eq([missing.id])
       expect(described_class).to have_received(:sync_order).with(missing).once
+    end
+  end
+
+  describe '.resync_orders' do
+    it 'resyncs existing September leads in the given period' do
+      travel_to Time.zone.parse('2026-09-10 12:00') do
+        september = create(:order, user: user, checkout_draft: false, crm_external_id: '111')
+        create(:order, user: user, checkout_draft: true)
+        allow(described_class).to receive(:sync_order).and_return({ success: true, lead_id: 111 })
+
+        results = described_class.resync_orders(
+          since: Time.zone.parse('2026-09-01'),
+          until_time: Time.zone.parse('2026-10-01')
+        )
+
+        expect(results.map { |row| row[:order_id] }).to eq([september.id])
+        expect(described_class).to have_received(:sync_order).with(september).once
+      end
+    end
+
+    it 'skips orders outside the period' do
+      travel_to Time.zone.parse('2026-08-20 12:00') do
+        create(:order, user: user, checkout_draft: false, crm_external_id: '222')
+      end
+      allow(described_class).to receive(:sync_order).and_return({ success: true, lead_id: 111 })
+
+      results = described_class.resync_orders(
+        since: Time.zone.parse('2026-09-01'),
+        until_time: Time.zone.parse('2026-10-01')
+      )
+
+      expect(results).to eq([])
+      expect(described_class).not_to have_received(:sync_order)
     end
   end
 
