@@ -14,6 +14,16 @@ RSpec.describe PlDetailsFetcher, "#shelf_snapshot_pln_price_from_json_ld" do
     }
   end
 
+  it "читает единственный isParcel со страницы" do
+    html = %("description":"Szafka","isCustomMade":false},"availabilityResponse":{"availability":{"homeDelivery":{"isParcel":true}}})
+    expect(described_class.home_delivery_parcel_flag(html)).to be true
+  end
+
+  it "читает false, если страница явно говорит, что это не посылка" do
+    html = %("availabilityResponse":{"availability":{"homeDelivery":{"isParcel":false}}})
+    expect(described_class.home_delivery_parcel_flag(html)).to be false
+  end
+
   it "берёт цену при единственном PLN-offer" do
     schema = base_product.merge(
       "offers" => {

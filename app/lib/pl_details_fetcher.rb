@@ -333,8 +333,23 @@ class PlDetailsFetcher
       price: price,
       price_currency: "PLN",
       availability: availability,
-      canonical_url: canonical_url
+      canonical_url: canonical_url,
+      is_parcel: self.class.home_delivery_parcel_flag(html)
     }
+  end
+
+  # Флаг посылки с польской карточки: availabilityResponse.homeDelivery.isParcel.
+  # На странице он один. Если вдруг меток несколько, берётся та, что внутри availabilityResponse.
+  def self.home_delivery_parcel_flag(html)
+    source = html.to_s
+    flags = source.scan(/"isParcel"\s*:\s*(true|false)/).flatten
+    return nil if flags.empty?
+    return flags.first == "true" if flags.uniq.one?
+
+    match = source.match(/"availabilityResponse".{0,800}"isParcel"\s*:\s*(true|false)/m)
+    return nil unless match
+
+    match[1] == "true"
   end
 
   def parse_html(html, url = nil, use_headless: true)

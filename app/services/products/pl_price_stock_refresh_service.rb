@@ -2,7 +2,8 @@
 
 # Только польский сайт: цена в злотых (PLN) и наличие через PlDetailsFetcher.shelf_snapshot
 # (JSON-LD: при нескольких PLN-offer цена только при однозначном оффере или совпадении sku/mpn/url с артикулом страницы; иначе — цена из hydration).
-# обновление канонической ссылки на товар. В БД пишутся только price, quantity, url (+ updated_at).
+# обновление канонической ссылки на товар. В БД пишутся price, quantity, url, is_parcel (+ updated_at).
+# is_parcel берётся со страницы (homeDelivery.isParcel). После записи флага пересчитывается delivery_cost.
 # Поле products.price — всегда в PLN для записей, обновлённых этим сервисом.
 # Если страница PL недоступна (нет URL, 404, пустой HTML/снимок) — quantity принудительно 0.
 class Products::PlPriceStockRefreshService
@@ -38,14 +39,19 @@ class Products::PlPriceStockRefreshService
       updated_at: Time.current
     }
     attrs[:price] = price if price.present?
+    parcel_flag = snap[:is_parcel]
+    attrs[:is_parcel] = parcel_flag unless parcel_flag.nil?
 
     price_changed = price.present? && product.price != price
+    parcel_changed = !parcel_flag.nil? && product.is_parcel != parcel_flag
     changed = product.quantity != quantity ||
       product.url.to_s != canonical ||
-      price_changed
+      price_changed ||
+      parcel_changed
 
     product.update_columns(attrs)
-    { updated: changed, price_updated: price_changed }
+    product.recalculate_ikea_delivery! unless parcel_flag.nil?
+    { updated: changed, price_updated: price_changed, parcel_updated: parcel_changed }
   end
 
   # Число в злотых (PLN), разделитель дробной части на странице PL — запятая или точка.

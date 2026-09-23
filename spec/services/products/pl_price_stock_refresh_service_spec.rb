@@ -33,6 +33,43 @@ RSpec.describe Products::PlPriceStockRefreshService do
     end
   end
 
+  describe ".refresh! parcel flag" do
+    let(:category) { create(:category) }
+
+    it "stores isParcel from the PL page and recalculates delivery" do
+      product = create(
+        :product,
+        category: category,
+        sku: "30535109",
+        item_no: "30535109",
+        url: "https://www.ikea.com/pl/pl/p/-30535109/",
+        quantity: 1,
+        price: 10,
+        is_parcel: nil,
+        delivery_cost: 69
+      )
+      allow(PlDetailsFetcher).to receive(:shelf_snapshot).and_return(
+        price: 499,
+        availability: { "status" => "IN_STOCK" },
+        canonical_url: "https://www.ikea.com/pl/pl/p/-30535109/",
+        is_parcel: true
+      )
+      allow(IkeaDeliveryService).to receive(:quote).and_return(
+        delivery_type: "gls_point",
+        delivery_name: "GLS",
+        delivery_reason: "parcel",
+        cost_pln: BigDecimal("0")
+      )
+
+      described_class.refresh!(product)
+
+      product.reload
+      expect(product.is_parcel).to be true
+      expect(product.delivery_cost).to eq(0)
+      expect(product.delivery_type).to eq("gls_point")
+    end
+  end
+
   describe ".http_not_found_error?" do
     it "returns true for fetcher-style 404 messages" do
       expect(described_class.http_not_found_error?(StandardError.new("HTTP error: 404 Not Found"))).to be true
