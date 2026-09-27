@@ -13,7 +13,7 @@ module PolandTracks
       DELIVERY_TYPES[DeliveryTypeNormalizer.normalize(order.delivery_type)]
     end
 
-    RECIPIENT_REQUIRED = %w[first_name last_name email phone birthdate document_country address_country
+    RECIPIENT_REQUIRED = %w[first_name last_name phone birthdate document_country address_country
                             passport_serial passport_number passport_date passport_founder region city street building index].freeze
 
     def self.snapshot(order)
@@ -65,6 +65,8 @@ module PolandTracks
         "building" => registration["house"], "corpus" => registration["building"],
         "apartment" => registration["apartment"], "index" => registration["postcode"]
       }
+      # Send no placeholder/null email. ShopByShop may still reject its omission.
+      recipient.delete("email") if recipient["email"].blank?
 
       payload = {
         "delivery_type" => self.class.delivery_type(@order),
@@ -138,7 +140,9 @@ module PolandTracks
       end
       phone_pattern = recipient["phone_country"] == "by" ? /\A\+375\d{9}\z/ : /\A\+7\d{10}\z/
       raise Invalid, "recipient.phone: invalid format" unless recipient["phone"].match?(phone_pattern)
-      raise Invalid, "recipient.email: invalid format" unless recipient["email"].to_s.match?(/\A[^\s@]+@[^\s@]+\.[^\s@]+\z/)
+      if recipient["email"].present? && !recipient["email"].to_s.match?(/\A[^\s@]+@[^\s@]+\.[^\s@]+\z/)
+        raise Invalid, "recipient.email: invalid format"
+      end
       by = recipient["document_country"] == "by"
       serial_pattern = by ? /\A[A-Z]{2}\z/ : /\A\d{4}\z/
       number_pattern = by ? /\A\d{7}\z/ : /\A\d{6}\z/

@@ -268,6 +268,30 @@ RSpec.describe PolandTracks::ExportService do
     expect(export.reload.state).to eq("uncertain")
   end
 
+  it "sends without email and records success only when the API accepts it" do
+    user.update_columns(email: nil)
+    request = stub_create.with { |req| !JSON.parse(req.body).fetch("recipient").key?("email") }
+    current = export
+    described_class.call(current)
+    expect(current.reload.state).to eq("succeeded")
+    expect(current.remote_response).to eq(remote_response)
+    expect(request).to have_been_requested.once
+  end
+
+  it "keeps an email-less request blocked after 422 without an automatic second POST" do
+    user.update_columns(email: nil)
+    request = stub_create(status: 422, body: '{"email":"required","passport_number":"secret"}')
+      .with { |req| !JSON.parse(req.body).fetch("recipient").key?("email") }
+    current = export
+    described_class.call(current)
+    described_class.call(current)
+    expect(current.reload.state).to eq("blocked")
+    expect(current.last_error).to eq("HTTP 422")
+    expect(current.attempts).to eq(1)
+    expect(current.remote_response).to eq({})
+    expect(request).to have_been_requested.once
+  end
+
   it "blocks missing recipient fields while keeping payment successful" do
     user.update!(postcode: nil)
     expect(PolandTracks::Client).not_to receive(:create!)

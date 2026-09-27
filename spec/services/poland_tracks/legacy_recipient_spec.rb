@@ -62,8 +62,17 @@ RSpec.describe PolandTracks::Payload, "legacy recipient storage" do
     expect { described_class.validate!(described_class.snapshot(order)) }.to raise_error(described_class::Invalid, /passport_date/)
   end
 
-  it "still blocks missing email after recovering legacy passport fields" do
-    user.email = nil
+  [nil, "", "   "].each do |empty_email|
+    it "omits blank email #{empty_email.inspect} without substituting another address" do
+      user.email = empty_email
+      payload = described_class.snapshot(order)
+      expect(payload["recipient"]).not_to have_key("email")
+      expect(described_class.validate!(payload)).to eq(true)
+    end
+  end
+
+  it "still rejects a supplied malformed email" do
+    user.email = "invalid-email"
     expect { described_class.validate!(described_class.snapshot(order)) }.to raise_error(described_class::Invalid, /recipient.email/)
   end
 
