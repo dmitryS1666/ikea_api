@@ -1,0 +1,99 @@
+require "rails_helper"
+
+RSpec.describe PolandTracks::Payload do
+  def payload
+    {
+      "delivery_type" => 1, "nomerikea" => "12345678", "europost_track" => "BY000000000BY", "pvz" => 12345,
+      "recipient" => {
+        "first_name" => "Иван", "last_name" => "Иванов", "email" => "test@example.com",
+        "phone" => "+375291112233", "phone_country" => "by", "birthdate" => "01.01.1990",
+        "document_country" => "by", "address_country" => "by", "passport_serial" => "AB",
+        "passport_number" => "1234567", "iin" => "1234567A123AB1", "passport_date" => "01.01.2015",
+        "passport_founder" => "РОВД", "region" => "Минская", "city" => "Минск", "street" => "Ленина",
+        "building" => "1", "index" => "220000"
+      },
+      "items" => [{ "name" => "Стеллаж", "count" => 1, "price" => 99.99, "link" => "https://www.ikea.com/pl/pl/p/example-123/" }]
+    }
+  end
+
+  it "accepts BY and optional recipient fields omitted" do
+    expect(described_class.validate!(payload)).to be(true)
+  end
+
+  [4, 5].each do |type|
+    it "requires a delivery address for delivery_type #{type}" do
+      data = payload.merge("delivery_type" => type).except("pvz")
+      data.delete("europost_track") if type == 5
+      expect { described_class.validate!(data) }.to raise_error(described_class::Invalid, /delivery_address/)
+    end
+  end
+
+  [1, 4].each do |type|
+    it "requires a Europost track for delivery_type #{type}" do
+      data = payload.merge("delivery_type" => type).except("europost_track")
+      data = data.except("pvz").merge("delivery_address" => "Минск, Ленина, д. 1") if type == 4
+      expect { described_class.validate!(data) }.to raise_error(described_class::Invalid, /europost_track/)
+    end
+  end
+
+  it "requires a numeric provider PVZ ID for type 1" do
+    expect { described_class.validate!(payload.except("pvz")) }.to raise_error(described_class::Invalid, /pvz/)
+  end
+
+  it "rejects irrelevant Europost keys for IKEYA delivery" do
+    data = payload.merge("delivery_type" => 5, "delivery_address" => "Минск, Ленина, д. 1").except("pvz")
+    expect { described_class.validate!(data) }.to raise_error(described_class::Invalid, /europost_track/)
+  end
+
+  it "accepts RU documents without optional INN" do
+    data = payload
+    data["recipient"].merge!("document_country" => "ru", "address_country" => "ru", "passport_serial" => "4510",
+                             "passport_number" => "123456", "iin" => nil, "phone_country" => "ru", "phone" => "+79991112233")
+    expect(described_class.validate!(data)).to be(true)
+  end
+
+  it "requires BY personal number" do
+    data = payload
+    data["recipient"].delete("iin")
+    expect { described_class.validate!(data) }.to raise_error(described_class::Invalid, /iin/)
+  end
+
+  it "rejects nonexistent calendar dates" do
+    data = payload
+    data["recipient"]["birthdate"] = "31.02.1990"
+    expect { described_class.validate!(data) }.to raise_error(described_class::Invalid, /birthdate/)
+  end
+
+  [0, 0.99, nil].each do |price|
+    it "rejects PLN price #{price.inspect}" do
+      data = payload
+      data["items"].first["price"] = price
+      expect { described_class.validate!(data) }.to raise_error(described_class::Invalid, /PLN/)
+    end
+  end
+
+  it "rejects fractional quantities" do
+    data = payload
+    data["items"].first["count"] = 1.5
+    expect { described_class.validate!(data) }.to raise_error(described_class::Invalid)
+  end
+
+  it "rejects unsupported countries" do
+    data = payload
+    data["recipient"]["address_country"] = "kz"
+    expect { described_class.validate!(data) }.to raise_error(described_class::Invalid, /address_country/)
+  end
+
+  it "rejects an empty goods list" do
+    data = payload
+    data["items"] = []
+    expect { described_class.validate!(data) }.to raise_error(described_class::Invalid, /items/)
+  end
+
+  it "preserves the exact original request on a reconciled retry" do
+    original = payload
+    export = instance_double(PolandTrackExport, payload_json: original.to_json)
+    expect(export).not_to receive(:order)
+    expect(described_class.for_export(export)).to eq(original)
+  end
+end

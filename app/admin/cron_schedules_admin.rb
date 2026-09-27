@@ -20,6 +20,7 @@ Trestle.resource :cron_schedules, model: CronSchedule do
       when 'pl_prices_stock' then 'Цены и остатки PL'
       when 'seo_catalog_pages' then 'SEO-страницы каталога'
       when 'cancel_expired_unpaid_orders' then 'Автоотмена неоплаченных заказов'
+      when 'poland_track_exports' then 'Отправка Poland-треков'
       when 'send_abandoned_cart_emails' then 'Напоминание о брошенной корзине'
       else schedule.task_type
       end
@@ -54,7 +55,8 @@ Trestle.resource :cron_schedules, model: CronSchedule do
                     when 'pl_prices_stock' then 'Цены и остатки PL'
                     when 'seo_catalog_pages' then 'SEO-страницы каталога'
                     when 'cancel_expired_unpaid_orders' then 'Автоотмена неоплаченных заказов'
-      when 'send_abandoned_cart_emails' then 'Напоминание о брошенной корзине'
+                    when 'poland_track_exports' then 'Отправка Poland-треков'
+                    when 'send_abandoned_cart_emails' then 'Напоминание о брошенной корзине'
                     else t
                     end
             [label, t]

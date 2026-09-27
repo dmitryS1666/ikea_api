@@ -435,7 +435,8 @@ class CheckoutService
             order: order,
             product_sku: cart_item.product_sku,
             quantity: cart_item.quantity,
-            price: price_snapshot[:unit_price_byn_checkout]
+            price: price_snapshot[:unit_price_byn_checkout],
+            poland_price_pln: price_snapshot[:unit_price_pln]
           )
         end
 
@@ -1053,7 +1054,8 @@ class CheckoutService
         order: order,
         product_sku: cart_item.product_sku,
         quantity: cart_item.quantity,
-        price: price_snapshot[:unit_price_byn_checkout]
+        price: price_snapshot[:unit_price_byn_checkout],
+        poland_price_pln: price_snapshot[:unit_price_pln]
       )
     end
   end

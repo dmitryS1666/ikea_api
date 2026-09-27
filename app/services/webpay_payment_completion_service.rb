@@ -166,7 +166,8 @@ class WebpayPaymentCompletionService
         )
         outcome = :paid
         sync_crm = true
-        create_europost_shipment = true
+        create_europost_shipment = [DeliveryTypeNormalizer::EUROPOST_PICKUP, DeliveryTypeNormalizer::COURIER]
+          .include?(DeliveryTypeNormalizer.normalize(order.delivery_type))
       end
     end
     EuropostCreateShipmentJob.perform_later(order.id) if create_europost_shipment

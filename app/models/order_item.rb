@@ -7,6 +7,7 @@ class OrderItem < ApplicationRecord
 
   before_validation :snapshot_image_url, on: :create
   before_validation :snapshot_email_content, on: :create
+  before_validation :snapshot_poland_content, on: :create
 
   def capture_email_snapshot!(force: false)
     product_record = product || Product.find_by(sku: product_sku)
@@ -26,6 +27,12 @@ class OrderItem < ApplicationRecord
   end
 
   private
+
+  def snapshot_poland_content
+    product_record = product || Product.find_by(sku: product_sku)
+    self.poland_price_pln = product_record&.price if poland_price_pln.nil?
+    self.poland_product_url = product_record&.url if poland_product_url.blank?
+  end
 
   def snapshot_image_url
     return if image_url.present? || product_sku.blank?

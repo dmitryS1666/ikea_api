@@ -103,6 +103,8 @@ class CronManagerService
         RegenerateSeoCatalogPagesJob
       when 'cancel_expired_unpaid_orders'
         CancelExpiredUnpaidOrdersJob
+      when 'poland_track_exports'
+        DispatchPolandTrackExportsJob
       when 'send_abandoned_cart_emails'
         SendAbandonedCartEmailsJob
       else

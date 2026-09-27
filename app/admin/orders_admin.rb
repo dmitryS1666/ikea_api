@@ -220,6 +220,30 @@ Trestle.resource(:orders) do
              locals: { record: order, admin: admin, can_manage: current_user&.has_admin_permission?(:orders_manage) }
     end
 
+    if (export = order.poland_track_export)
+      tab :poland_track, label: "Poland-трек" do
+        static_field :poland_export_state, label: "Статус отправки" do
+          {
+            "pending" => "Ожидает отправки / трека Европочты",
+            "blocked" => "Нужна проверка данных или настройки",
+            "sending" => "Отправляется",
+            "succeeded" => "Создан",
+            "uncertain" => "Нужна сверка с ShopByShop перед повтором",
+            "cancelled" => "Отправка отменена"
+          }.fetch(export.state, export.state)
+        end
+        static_field :poland_export_error, label: "Диагностика" do
+          export.last_error.presence || "—"
+        end
+        static_field :poland_export_code, label: "Внутренний трек" do
+          export.remote_response["code"].presence || "—"
+        end
+        static_field :poland_shop_number, label: "Номер ShopByShop" do
+          export.remote_response["shop_number"].presence || "—"
+        end
+      end
+    end
+
     sidebar do
       form_group :order_status, label: "Статус заказа" do
         if current_user&.has_admin_permission?(:orders_manage)

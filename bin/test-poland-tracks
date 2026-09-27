@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+export RAILS_ENV=test
+export POLAND_TRACKS_ENABLED=false
+export POLAND_TRACKS_API_KEY=test-key
+export DB_POOL="${DB_POOL:-5}"
+
+bundle exec rails db:prepare
+bundle exec rails zeitwerk:check
+bundle exec rspec --format documentation \
+  spec/services/poland_tracks \
+  spec/models/poland_track_export_concurrency_spec.rb \
+  spec/services/webpay_payment_completion_service_spec.rb \
+  spec/services/europost_create_shipment_service_spec.rb \
+  spec/jobs/europost_create_shipment_job_spec.rb \
+  "$@"

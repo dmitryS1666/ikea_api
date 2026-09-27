@@ -15,6 +15,7 @@ class Order < ApplicationRecord
   has_many :reviews, dependent: :nullify
   has_many :consent_records, dependent: :nullify
   has_one :finance_entry, dependent: :destroy
+  has_one :poland_track_export, dependent: :destroy
 
   attr_accessor :status_changed_at, :status_change_source, :status_change_raw_payload
 
@@ -121,6 +122,18 @@ class Order < ApplicationRecord
   # RSpec-примера и оставляет временное окно без FinanceEntry на production.
   after_create :sync_finance_entry
   after_update :sync_finance_entry, if: :finance_data_changed?
+  after_save :capture_poland_track_export, if: -> { saved_change_to_status? && paid? }
+  after_commit :enqueue_poland_track_export, on: [:create, :update]
+
+  def capture_poland_track_export
+    PolandTrackExport.capture_paid!(self)
+  end
+
+  def enqueue_poland_track_export
+    return unless saved_change_to_status? || saved_change_to_track_number?
+
+    PolandTrackExport.enqueue_safely(id)
+  end
 
   def purchased?
     status.in?(PURCHASED_STATUSES)

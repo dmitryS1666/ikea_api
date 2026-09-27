@@ -5,7 +5,7 @@ set :application, "ikea_api"
 set :repo_url, "git@github.com:dmitryS1666/ikea_api.git"
 
 # Default branch
-set :branch, :main
+set :branch, ENV.fetch("DEPLOY_REF", "main")
 
 # Deploy directory
 set :deploy_to, "/home/deploy/apps/ikea_back"
