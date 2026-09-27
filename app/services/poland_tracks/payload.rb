@@ -44,6 +44,7 @@ module PolandTracks
       document_country ||= "by" if serial.match?(/\A[A-Z]{2}\z/)
       document_country ||= "ru" if serial.match?(/\A\d{4}\z/)
       phone = (@order.phone.presence || user.phone).to_s.gsub(/\D/, "")
+      registration = registration_address(user, passport)
 
       recipient = {
         "first_name" => user.first_name.presence || passport["first_name"],
@@ -57,13 +58,12 @@ module PolandTracks
         "address_country" => country(value(passport, "address_country")) || country(user.country_code) || document_country,
         "passport_serial" => serial,
         "passport_number" => number,
-        "iin" => value(passport, "iin", "id_number", "personal_number"),
-        "passport_date" => formatted_date(value(passport, "passport_date", "issued_date", "issued_at")),
+        "iin" => value(passport, "iin", "id_number", "personal_number", "identification_number"),
+        "passport_date" => formatted_date(value(passport, "passport_date", "issued_date", "issued_at", "issue_date")),
         "passport_founder" => value(passport, "passport_founder", "issued_by"),
-        # Profile address is registration; delivery address may belong to a different person/place.
-        "region" => user.region, "city" => user.city, "street" => user.street,
-        "building" => user.house, "corpus" => user.building,
-        "apartment" => user.apartment, "index" => user.postcode
+        "region" => registration["region"], "city" => registration["city"], "street" => registration["street"],
+        "building" => registration["house"], "corpus" => registration["building"],
+        "apartment" => registration["apartment"], "index" => registration["postcode"]
       }
 
       payload = {
@@ -170,6 +170,17 @@ module PolandTracks
     end
 
     private
+
+    def registration_address(user, passport)
+      fields = %w[region city street house building apartment postcode]
+      profile = fields.to_h { |key| [key, user.public_send(key)] }
+      # Legacy checkout stored registration inside the encrypted passport JSON.
+      # Select a whole source: never splice two different addresses together.
+      # A partial profile remains invalid until corrected explicitly.
+      return profile if profile.values.any?(&:present?)
+
+      passport.slice(*fields)
+    end
 
     def delivery_address
       root = (@order.address_json || {}).deep_stringify_keys
