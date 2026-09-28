@@ -105,6 +105,7 @@ Trestle.configure do |config|
   # paginating or reordering. Defaults to [:sort, :order, :scope].
   #
   config.persistent_params << :q
+  config.persistent_params << :status
 
   # List of methods to try calling on an instance when displayed by the `display` helper.
   # Defaults to [:display_name, :full_name, :name, :title, :username, :login, :email].

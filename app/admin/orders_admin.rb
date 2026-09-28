@@ -25,6 +25,11 @@ Trestle.resource(:orders) do
   collection do |params|
     scope = Order.includes(:user).order(created_at: :desc, id: :desc)
 
+    status = params[:status].to_s.strip
+    if status.present? && Order.statuses.key?(status)
+      scope = scope.where(status: status)
+    end
+
     q = params[:q].to_s.strip
     if q.present?
       like = "%#{ActiveRecord::Base.sanitize_sql_like(q)}%"

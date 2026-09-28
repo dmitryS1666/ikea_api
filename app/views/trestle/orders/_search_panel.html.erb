@@ -1,19 +1,39 @@
+<%
+  status_options = Order.statuses.keys.map do |status|
+    [I18n.t("activerecord.attributes.order.statuses.#{status}"), status]
+  end
+  filters_active = params[:q].present? || params[:status].present?
+%>
 <div class="card mb-4">
   <div class="card-body py-3">
     <form class="search-form" action="<%= admin.path(:index) %>" method="get">
-      <div class="input-group">
-        <input type="search"
-               name="q"
-               class="form-control"
-               value="<%= params[:q] %>"
-               placeholder="Телефон, ФИО, ID/UID заказа, трек-номер…"
-               autocomplete="off" />
-        <% if params[:q].present? %>
-          <%= link_to admin.path(:index), class: "btn btn-outline-secondary", title: "Очистить поиск" do %>
-            <i class="fa fa-times"></i>
-          <% end %>
-        <% end %>
-        <button type="submit" class="btn btn-primary">Искать</button>
+      <div class="row g-2 align-items-center">
+        <div class="col-md-6">
+          <input type="search"
+                 name="q"
+                 class="form-control"
+                 value="<%= params[:q] %>"
+                 placeholder="Телефон, ФИО, ID/UID заказа, трек-номер…"
+                 autocomplete="off" />
+        </div>
+        <div class="col-md-4">
+          <select name="status" class="form-select form-control">
+            <option value="">Все статусы</option>
+            <% status_options.each do |label, value| %>
+              <option value="<%= value %>" <%= "selected" if params[:status].to_s == value %>><%= label %></option>
+            <% end %>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary flex-grow-1">Искать</button>
+            <% if filters_active %>
+              <%= link_to admin.path(:index), class: "btn btn-outline-secondary", title: "Сбросить фильтры" do %>
+                <i class="fa fa-times"></i>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
       </div>
     </form>
   </div>
