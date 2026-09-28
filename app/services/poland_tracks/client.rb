@@ -33,7 +33,10 @@ module PolandTracks
       response = http.request(request)
       status = response.code.to_i
       # Do not log/store arbitrary upstream bodies: they may echo passports or the key.
-      raise Rejected, "HTTP #{status}" if [400, 401, 403, 404, 405, 422].include?(status)
+      if [400, 401, 403, 404, 405, 422].include?(status)
+        diagnostic = [400, 422].include?(status) ? RejectionDiagnostic.summary(response.body) : nil
+        raise Rejected, ["HTTP #{status}", diagnostic].compact.join("; ")
+      end
       raise Uncertain, "HTTP #{status}; reconcile before retry" unless status == 201
 
       data = JSON.parse(response.body)

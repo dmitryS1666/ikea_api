@@ -251,7 +251,8 @@ RSpec.describe PolandTracks::ExportService do
       stub_create(status: status, body: '{"passport_number":"secret-passport"}')
       described_class.call(export)
       expect(export.reload.state).to eq("blocked")
-      expect(export.last_error).to eq("HTTP #{status}")
+      expected = status == 422 ? "HTTP 422; validation=unrecognized_response" : "HTTP #{status}"
+      expect(export.last_error).to eq(expected)
       expect(export.remote_response).to eq({})
     end
   end
@@ -286,9 +287,25 @@ RSpec.describe PolandTracks::ExportService do
     described_class.call(current)
     described_class.call(current)
     expect(current.reload.state).to eq("blocked")
-    expect(current.last_error).to eq("HTTP 422")
+    expect(current.last_error).to eq("HTTP 422; validation=unrecognized_response")
     expect(current.attempts).to eq(1)
     expect(current.remote_response).to eq({})
+    expect(request).to have_been_requested.once
+  end
+
+  it "stores safe 422 validation details and makes no automatic repeat request" do
+    body = { errors: { "recipient.email" => ["The recipient.email field is required."],
+                       "recipient.iin" => ["secret-passport-value"],
+                       "items.0.price" => [{ code: "min", input: "private" }],
+                       "private-key-in-field" => ["secret"] }, input: "secret-passport-value" }
+    request = stub_create(status: 422, body: body.to_json)
+    current = export
+    described_class.call(current)
+    described_class.call(current)
+    expect(current.reload.state).to eq("blocked")
+    expect(current.last_error).to eq("HTTP 422; fields=recipient.email(required),recipient.iin(details_redacted),items.0.price(out_of_range)")
+    expect(current.remote_response).to eq({})
+    expect(current.attempts).to eq(1)
     expect(request).to have_been_requested.once
   end
 
