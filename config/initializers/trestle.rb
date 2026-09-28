@@ -104,7 +104,7 @@ Trestle.configure do |config|
   # Specify the parameters that should persist across requests when
   # paginating or reordering. Defaults to [:sort, :order, :scope].
   #
-  # config.persistent_params << :query
+  config.persistent_params << :q
 
   # List of methods to try calling on an instance when displayed by the `display` helper.
   # Defaults to [:display_name, :full_name, :name, :title, :username, :login, :email].

@@ -1,0 +1,20 @@
+<div class="card mb-4">
+  <div class="card-body py-3">
+    <form class="search-form" action="<%= admin.path(:index) %>" method="get">
+      <div class="input-group">
+        <input type="search"
+               name="q"
+               class="form-control"
+               value="<%= params[:q] %>"
+               placeholder="Телефон, ФИО, ID/UID заказа, трек-номер…"
+               autocomplete="off" />
+        <% if params[:q].present? %>
+          <%= link_to admin.path(:index), class: "btn btn-outline-secondary", title: "Очистить поиск" do %>
+            <i class="fa fa-times"></i>
+          <% end %>
+        <% end %>
+        <button type="submit" class="btn btn-primary">Искать</button>
+      </div>
+    </form>
+  </div>
+</div>

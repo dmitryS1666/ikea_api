@@ -22,8 +22,49 @@ Trestle.resource(:orders) do
     end
   end
 
+  collection do |params|
+    scope = Order.includes(:user).order(created_at: :desc, id: :desc)
+
+    q = params[:q].to_s.strip
+    if q.present?
+      like = "%#{ActiveRecord::Base.sanitize_sql_like(q)}%"
+      digits = q.gsub(/\D/, "")
+      conditions = [
+        "orders.full_name ILIKE :like",
+        "orders.public_uid ILIKE :like",
+        "orders.track_number ILIKE :like",
+        "orders.phone ILIKE :like",
+        "users.phone ILIKE :like",
+        "users.first_name ILIKE :like",
+        "users.last_name ILIKE :like",
+        "users.middle_name ILIKE :like",
+        "CONCAT_WS(' ', users.last_name, users.first_name, users.middle_name) ILIKE :like"
+      ]
+      binds = { like: like }
+
+      if q.match?(/\A\d+\z/)
+        conditions << "orders.id = :id"
+        binds[:id] = q.to_i
+      end
+
+      if digits.present? && digits.length >= 3
+        conditions << "regexp_replace(COALESCE(orders.phone, ''), '[^0-9]', '', 'g') LIKE :digits"
+        conditions << "regexp_replace(COALESCE(users.phone, ''), '[^0-9]', '', 'g') LIKE :digits"
+        binds[:digits] = "%#{digits}%"
+      end
+
+      scope = scope.left_joins(:user).where(conditions.join(" OR "), binds)
+    end
+
+    scope
+  end
+
+  hook("resource.index.header") do
+    render partial: "trestle/orders/search_panel", locals: { admin: admin }
+  end
+
   table do
-    column :id
+    column :public_uid, label: "№ заказа", link: true
     column :customer_name do |order|
       current_user&.can_view_personal_data? ? order.customer_name : "Скрыто"
     end
