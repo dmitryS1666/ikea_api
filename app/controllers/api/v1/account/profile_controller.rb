@@ -71,7 +71,11 @@ module Api
 
           result = PhoneAuthService.send_code(phone: phone, metadata: { user_id: current_user.id, context: 'change_phone' })
           if result[:success]
-            render json: { message: result[:message] }
+            render json: {
+              message: result[:message],
+              mode: result[:mode],
+              code: result[:code]
+            }.compact
           else
             render json: { error: result[:error] }, status: :unprocessable_entity
           end

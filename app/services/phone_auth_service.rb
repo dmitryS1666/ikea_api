@@ -47,7 +47,12 @@ class PhoneAuthService
       unless PhoneAuthSetting.asterisk_enabled?
         Rails.logger.warn "\n[ASTERISK DISABLED] Skipped call for #{phone}. Static verification code: #{code}\n"
         request.update!(status: 'success')
-        return { success: true, message: 'Код подтверждения отправлен.' }
+        return {
+          success: true,
+          message: 'Код подтверждения отправлен.',
+          mode: 'static',
+          code: code
+        }
       end
 
       # Интеграция с asterisk.by
@@ -56,7 +61,11 @@ class PhoneAuthService
       if result[:success]
         Rails.logger.info "\n[ASTERISK CALL] Initiated call to #{phone}. Verification code: #{code}\n"
         request.update!(status: 'success')
-        { success: true, message: 'Ожидайте звонок. Введите последние 4 цифры номера.' }
+        {
+          success: true,
+          message: 'Ожидайте звонок. Введите последние 4 цифры номера.',
+          mode: 'call'
+        }
       else
         Rails.logger.error "\n[ASTERISK ERROR] Failed to initiate call to #{phone}. Error: #{result[:error]}\n"
         request.update!(status: 'error', error_message: result[:error])

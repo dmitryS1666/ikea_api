@@ -33,7 +33,11 @@ module Api
         )
 
         if result[:success]
-          render json: { message: result[:message] }
+          render json: {
+            message: result[:message],
+            mode: result[:mode],
+            code: result[:code]
+          }.compact
         else
           render json: { error: result[:error] }, status: :unprocessable_entity
         end

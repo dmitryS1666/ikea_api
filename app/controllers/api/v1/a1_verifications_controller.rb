@@ -23,13 +23,19 @@ module Api
         if result[:success]
           # Находим созданный код для возврата ID (хотя ID теперь не так важен)
           verification = VerificationCode.find_by(phone: phone.gsub(/\D/, ''))
-          render json: {
+          payload = {
             verification_id: verification&.id,
             phone: phone,
-            display_message: "Введите последние 4 цифры номера, с которого поступил звонок",
-            caller_number_masked: "+375 (**) ***-**-#{verification&.code}",
-            expires_at: verification&.expires_at&.iso8601
-          }, status: :created
+            display_message: result[:mode] == 'static' ?
+              'Код подтверждения отправлен.' :
+              'Введите последние 4 цифры номера, с которого поступил звонок',
+            # Never embed the real code in the masked caller — that leaked it in call mode.
+            caller_number_masked: '+375 (**) ***-**-**',
+            expires_at: verification&.expires_at&.iso8601,
+            mode: result[:mode]
+          }
+          payload[:code] = result[:code] if result[:mode] == 'static' && result[:code].present?
+          render json: payload, status: :created
         else
           render json: { error: result[:error] }, status: :unprocessable_entity
         end
