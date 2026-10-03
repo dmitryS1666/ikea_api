@@ -25,6 +25,11 @@ RSpec.describe PolandTracks::RejectionDiagnostic do
     expect(summary(errors: [{ field: "pvz", code: "invalid" }])).to eq("fields=pvz(invalid_format)")
   end
 
+  it "recognizes root weight validation errors" do
+    expect(summary(errors: { "weight" => ["The weight field is required."] }))
+      .to eq("fields=weight(required)")
+  end
+
   it "supports top-level known fields but never arbitrary keys or message text" do
     expect(summary("pvz" => ["invalid"], "secret@example.com" => "required", "message" => "secret"))
       .to eq("fields=pvz(invalid_format)")

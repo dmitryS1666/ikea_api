@@ -7,6 +7,7 @@ FactoryBot.define do
     phone { "+375291234567" }
     delivery_type { DeliveryTypeNormalizer::EUROPOST_PICKUP }
     payment_method { "cash" }
+    weight { 1.0 }
     address_json { { city: "Minsk" } }
   end
 

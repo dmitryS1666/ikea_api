@@ -57,7 +57,8 @@ RSpec.describe PolandTracks::ExportService do
     expect(request.with do |req|
       payload = JSON.parse(req.body)
       expect(req.headers["Authorization"]).to eq("Bearer test-key")
-      expect(payload).to include("delivery_type" => 1, "nomerikea" => order.public_uid, "pvz" => 70130090, "europost_track" => order.track_number)
+      expect(payload).to include("delivery_type" => 1, "weight" => "1000", "nomerikea" => order.public_uid,
+                                 "pvz" => 70130090, "europost_track" => order.track_number)
       expect(payload["items"].first).to include("count" => 2, "price" => 99.99, "link" => product.url)
       expect(payload["recipient"]).to include("passport_serial" => "MP", "passport_number" => "1234567",
                                              "passport_date" => "01.01.2015", "birthdate" => "01.01.1990",
@@ -77,7 +78,7 @@ RSpec.describe PolandTracks::ExportService do
     expect(export.reload.state).to eq("succeeded")
     expect(request.with do |req|
       data = JSON.parse(req.body)
-      expect(data).to include("delivery_type" => 4, "europost_track" => order.track_number,
+      expect(data).to include("delivery_type" => 4, "weight" => "1000", "europost_track" => order.track_number,
                              "delivery_address" => "Минск, Ленина, д. 1, кв. 10")
       expect(data).not_to have_key("pvz")
       true
@@ -91,7 +92,9 @@ RSpec.describe PolandTracks::ExportService do
     expect(export.reload.state).to eq("succeeded")
     expect(request.with do |req|
       data = JSON.parse(req.body)
-      expect(data).to include("delivery_type" => 5, "delivery_address" => "Минск, Ленина, д. 1, кв. 10")
+      expect(data).to include("delivery_type" => 5, "weight" => "1000",
+                             "delivery_address" => "Минск, Ленина, д. 1, кв. 10")
+      expect(data.keys.take(2)).to eq(%w[delivery_type weight])
       expect(data).not_to have_key("europost_track")
       expect(data).not_to have_key("pvz")
       true

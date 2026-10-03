@@ -6,7 +6,7 @@ module PolandTracks
   # Only known field names and normalized codes leave this parser.
   # Never persist upstream messages, input values or arbitrary JSON keys.
   class RejectionDiagnostic
-    ROOT_FIELDS = %w[nomerikea delivery_type europost_track delivery_address pvz recipient items].freeze
+    ROOT_FIELDS = %w[nomerikea delivery_type weight europost_track delivery_address pvz recipient items].freeze
     RECIPIENT_FIELDS = %w[first_name middle_name last_name email phone phone_country birthdate
                           document_country address_country passport_serial passport_number iin
                           passport_date passport_founder region city street building corpus apartment index].freeze

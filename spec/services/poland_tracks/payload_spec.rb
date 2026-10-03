@@ -3,7 +3,8 @@ require "rails_helper"
 RSpec.describe PolandTracks::Payload do
   def payload
     {
-      "delivery_type" => 1, "nomerikea" => "12345678", "europost_track" => "BY000000000BY", "pvz" => 12345,
+      "delivery_type" => 1, "weight" => "1000", "nomerikea" => "12345678",
+      "europost_track" => "BY000000000BY", "pvz" => 12345,
       "recipient" => {
         "first_name" => "Иван", "last_name" => "Иванов", "email" => "test@example.com",
         "phone" => "+375291112233", "phone_country" => "by", "birthdate" => "01.01.1990",
@@ -95,5 +96,26 @@ RSpec.describe PolandTracks::Payload do
     export = instance_double(PolandTrackExport, payload_json: original.to_json)
     expect(export).not_to receive(:order)
     expect(described_class.for_export(export)).to eq(original)
+  end
+
+  it "rejects missing or non-positive weight" do
+    [nil, "", "0", 1000, "1000.5", "-1"].each do |weight|
+      data = payload.merge("weight" => weight)
+      expect { described_class.validate!(data) }.to raise_error(described_class::Invalid, /weight/)
+    end
+  end
+
+  it "fills missing weight from the order before export" do
+    order = instance_double(Order, weight: 2.5, address_json: {}, pricing_snapshot: nil,
+                                   resolved_track_number: "BY000000000BY",
+                                   tracking_info: nil)
+    original = payload.except("weight")
+    export = instance_double(PolandTrackExport, payload_json: original.to_json, order: order)
+    expect(described_class.for_export(export)).to include("delivery_type" => 1, "weight" => "2500")
+  end
+
+  it "places weight immediately after delivery_type" do
+    keys = described_class.with_weight({ "delivery_type" => 5, "nomerikea" => "1" }, "1000").keys
+    expect(keys.take(2)).to eq(%w[delivery_type weight])
   end
 end

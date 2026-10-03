@@ -35,9 +35,14 @@ Endpoint: `POST https://profile.shopbyshop.by/api/external/poland/ikea-tracks`.
 
 | Доставка в проекте | delivery_type API | Поля доставки |
 | --- | --- | --- |
-| europost_pickup | 1 | europost_track + pvz; delivery_address отсутствует |
-| courier | 4 | europost_track + delivery_address; ключ pvz отсутствует |
-| ikeya_delivery | 5 | delivery_address; ключи pvz и europost_track отсутствуют |
+| europost_pickup | 1 | weight + europost_track + pvz; delivery_address отсутствует |
+| courier | 4 | weight + europost_track + delivery_address; ключ pvz отсутствует |
+| ikeya_delivery | 5 | weight + delivery_address; ключи pvz и europost_track отсутствуют |
+
+Корневое поле `weight` — общий вес заказа в граммах, строка (например `"1000"`),
+сразу после `delivery_type`. Источник: `order.weight` (кг) → граммы; иначе
+`address_json.weight_kg` / `pricing_snapshot.total_weight_kg`. Без положительного
+веса экспорт блокируется. Старые снимки без `weight` дополняются из заказа перед POST.
 
 Тип 5 отправляется после оплаты без ожидания Европочты; Webpay больше не ставит
 EuropostCreateShipmentJob для собственной доставки IKEYA. Адрес доставки сохраняется
@@ -49,6 +54,7 @@ apartment/flat/flat_number, корпус и готовые address_full/full_add
 
 | Поле API | Источник |
 | --- | --- |
+| weight | кг заказа × 1000, строка граммов; обязателен для всех типов 1/4/5 |
 | nomerikea | `order.public_uid`, fallback `order.id.to_s`: ровно как название сделки в CrmIntegrationService |
 | europost_track | `order.resolved_track_number` |
 | pvz для отделения | Сохранённый `store_id_finish` успешного запроса Европочты; иначе `pickup_point_id` / snapshot external_id / id |

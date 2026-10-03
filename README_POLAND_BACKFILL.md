@@ -80,6 +80,27 @@ BackfillPolandTrackExportsJob.perform_later(as_of: "2026-09-27T14:08:17+03:00", 
 Возврат денег повторно проверяется непосредственно перед Poland-отправкой.
 Запуск вручную, без добавления периодического расписания.
 
+## Патч weight для сентябрьских снимков
+
+После выкладки поля `weight` уже созданные сентябрьские exports могут не содержать
+его в `payload_json`. Сухой прогон:
+
+```bash
+AS_OF='2026-09-27T14:08:17+03:00' RAILS_ENV=production bundle exec rake poland_tracks:patch_weight_september
+```
+
+Реальная запись только для `pending`/`blocked` (blocked переводится в pending и
+ставится в очередь). `succeeded` не трогаются: у create API нет безопасного
+обновления уже принятых треков. `sending`/`uncertain` пропускаются до сверки.
+
+```bash
+AS_OF='2026-09-27T14:08:17+03:00' RUN=true LIMIT=5 RAILS_ENV=production bundle exec rake poland_tracks:patch_weight_september
+AS_OF='2026-09-27T14:08:17+03:00' RUN=true RAILS_ENV=production bundle exec rake poland_tracks:patch_weight_september
+```
+
+Даже без этого rake pending-снимки без `weight` дополняются из заказа в момент
+отправки (`Payload.for_export`).
+
 ## Нехватка исторических данных
 
 Для старых позиций `poland_price_pln` и `poland_product_url` могут быть пустыми.

@@ -70,6 +70,8 @@ module PolandTracks
 
       payload = {
         "delivery_type" => self.class.delivery_type(@order),
+        # ShopByShop contract: total order weight in grams, string, root field.
+        "weight" => weight_grams,
         "nomerikea" => @order.public_uid.presence || @order.id.to_s,
         "recipient" => recipient,
         "items" => @order.order_items.order(:id).map do |item|
@@ -110,15 +112,30 @@ module PolandTracks
           end
         end
       end
+      # Older September snapshots may lack weight; fill from the order before POST.
+      payload = with_weight(payload, new(export.order).weight_grams) if payload["weight"].blank?
       validate!(payload, allow_missing_track: allow_missing_track)
       payload
     rescue JSON::ParserError
       raise Invalid, "payload: invalid snapshot"
     end
 
+    def self.with_weight(payload, weight)
+      rebuilt = {}
+      payload.each do |key, value|
+        rebuilt[key] = value
+        rebuilt["weight"] = weight if key == "delivery_type" && !rebuilt.key?("weight")
+      end
+      rebuilt["weight"] = weight unless rebuilt.key?("weight")
+      rebuilt
+    end
+
     def self.validate!(payload, allow_missing_track: false)
       type = payload["delivery_type"]
       raise Invalid, "delivery_type: expected 1, 4 or 5" unless [1, 4, 5].include?(type)
+      unless payload["weight"].is_a?(String) && payload["weight"].match?(/\A[1-9]\d*\z/)
+        raise Invalid, "weight: expected positive grams string"
+      end
       required = ["nomerikea"]
       required << "europost_track" if [1, 4].include?(type) && !allow_missing_track
       required << "delivery_address" if [4, 5].include?(type)
@@ -171,6 +188,22 @@ module PolandTracks
         raise Invalid, "items[#{index}].link: invalid URL"
       end
       true
+    end
+
+    def weight_grams
+      kg = @order.weight.presence
+      if kg.blank?
+        address = (@order.address_json || {}).deep_stringify_keys
+        kg = address["weight_kg"].presence || address.dig("delivery", "weight_kg")
+      end
+      if kg.blank? && @order.respond_to?(:pricing_snapshot) && @order.pricing_snapshot.is_a?(Hash)
+        snap = @order.pricing_snapshot.deep_stringify_keys
+        kg = snap["total_weight_kg"].presence || snap.dig("totals", "total_weight_kg")
+      end
+      grams = (kg.to_f * 1000).round
+      raise Invalid, "weight: missing or not positive" unless grams >= 1
+
+      grams.to_s
     end
 
     private
