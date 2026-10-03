@@ -80,9 +80,10 @@ rails parser:sync_cron
 Добавьте в `.env`:
 
 ```bash
-# Telegram уведомления
+# Telegram уведомления (системный бот парсера)
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_CHAT_ID=your_chat_id
+# Заказы идут в отдельный бот (TELEGRAM_ORDERS_*)
 
 # Прокси серверы (через запятую)
 PROXY_LIST=http://user:pass@proxy1:port,http://user:pass@proxy2:port

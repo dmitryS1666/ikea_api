@@ -1,28 +1,49 @@
 # Сервис для отправки уведомлений в Telegram
 # Используем простой HTTP запрос к Telegram Bot API
+#
+# Каналы:
+#   :system — парсер, курсы, тех. алерты (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID)
+#   :orders — уведомления о заказах (TELEGRAM_ORDERS_BOT_TOKEN / TELEGRAM_ORDERS_CHAT_ID)
 require 'net/http'
 require 'uri'
 
 class TelegramService
+  CHANNELS = {
+    system: {
+      token: 'TELEGRAM_BOT_TOKEN',
+      chat_id: 'TELEGRAM_CHAT_ID'
+    }.freeze,
+    orders: {
+      token: 'TELEGRAM_ORDERS_BOT_TOKEN',
+      chat_id: 'TELEGRAM_ORDERS_CHAT_ID'
+    }.freeze
+  }.freeze
+
   class << self
-    def send_message(text, parse_mode: 'HTML')
-      return unless bot_token.present? && chat_id.present?
+    def send_message(text, parse_mode: 'HTML', channel: :system, chat_id: nil)
+      token, default_chat_id = credentials_for(channel)
+      target_chat_id = chat_id.presence || default_chat_id
+      return unless token.present? && target_chat_id.present?
 
       begin
-        uri = URI("https://api.telegram.org/bot#{bot_token}/sendMessage")
+        uri = URI("https://api.telegram.org/bot#{token}/sendMessage")
         response = Net::HTTP.post_form(uri, {
-          chat_id: chat_id,
+          chat_id: target_chat_id,
           text: text,
           parse_mode: parse_mode
         })
-        
+
         unless response.is_a?(Net::HTTPSuccess)
-          Rails.logger.error "Telegram API error: #{response.body}"
+          Rails.logger.error "Telegram API error (#{channel}): #{response.body}"
         end
       rescue => e
-        Rails.logger.error "Telegram error: #{e.message}"
+        Rails.logger.error "Telegram error (#{channel}): #{e.message}"
         # Не падаем, если Telegram недоступен
       end
+    end
+
+    def send_order_message(text, parse_mode: 'HTML', chat_id: nil)
+      send_message(text, parse_mode: parse_mode, channel: :orders, chat_id: chat_id)
     end
 
     def send_parser_started(task_type, limit: nil)
@@ -30,7 +51,7 @@ class TelegramService
       message += "Тип: #{task_type_name(task_type)}\n"
       message += "Ограничение: #{limit || 'без ограничений'}\n"
       message += "Время: #{Time.current.strftime('%d.%m.%Y %H:%M:%S')}"
-      
+
       send_message(message)
     end
 
@@ -42,7 +63,7 @@ class TelegramService
       message += "Обновлено: #{stats[:updated] || 0}\n"
       message += "Ошибок: #{stats[:errors] || 0}\n"
       message += "Время выполнения: #{format_duration(stats[:duration] || 0)}"
-      
+
       send_message(message)
     end
 
@@ -89,18 +110,15 @@ class TelegramService
       message += "Тип: #{task_type_name(task_type)}\n"
       message += "Ошибка: #{error.message}\n"
       message += "Время: #{Time.current.strftime('%d.%m.%Y %H:%M:%S')}"
-      
+
       send_message(message)
     end
 
     private
 
-    def bot_token
-      ENV['TELEGRAM_BOT_TOKEN']
-    end
-
-    def chat_id
-      ENV['TELEGRAM_CHAT_ID']
+    def credentials_for(channel)
+      config = CHANNELS[channel.to_sym] || CHANNELS[:system]
+      [ENV[config[:token]], ENV[config[:chat_id]]]
     end
 
     def task_type_name(task_type)
@@ -140,18 +158,17 @@ class TelegramService
 
     def format_duration(seconds)
       return '0 сек' if seconds.nil? || seconds.zero?
-      
+
       hours = (seconds / 3600).to_i
       minutes = ((seconds % 3600) / 60).to_i
       secs = (seconds % 60).to_i
-      
+
       parts = []
       parts << "#{hours} ч" if hours > 0
       parts << "#{minutes} мин" if minutes > 0
       parts << "#{secs} сек" if secs > 0
-      
+
       parts.join(' ') || '0 сек'
     end
   end
 end
-

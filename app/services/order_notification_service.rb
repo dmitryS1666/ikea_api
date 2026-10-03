@@ -112,7 +112,7 @@ class OrderNotificationService
 
     message += "\n<i>Менеджеру необходимо связаться с клиентом в течение 30 минут.</i>"
 
-    TelegramService.send_message(message)
+    TelegramService.send_order_message(message)
   end
 
   def self.admin_services_html_block(order)
@@ -160,7 +160,7 @@ class OrderNotificationService
     message += "Статус изменен на: <b>#{status_text}</b>"
 
     if order.user&.respond_to?(:telegram_chat_id) && order.user.telegram_chat_id.present?
-      TelegramService.send_message(message)
+      TelegramService.send_order_message(message)
     end
   end
 end

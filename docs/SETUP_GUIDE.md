@@ -82,21 +82,28 @@ gem 'cloudinary'
 
 ```bash
 # В .env файле
+# Системный бот: парсер, курсы, тех. алерты
 TELEGRAM_BOT_TOKEN=your_bot_token_here
 TELEGRAM_CHAT_ID=your_chat_id_here
+# Отдельный бот для заказов (не смешивать с системным)
+TELEGRAM_ORDERS_BOT_TOKEN=your_orders_bot_token_here
+TELEGRAM_ORDERS_CHAT_ID=your_orders_chat_id_here
 ```
 
 ### Использование
 
-Telegram уведомления автоматически отправляются при:
+Системный бот автоматически отправляет уведомления при:
 - Запуске задач парсинга
 - Завершении задач парсинга
 - Ошибках в задачах парсинга
 - Получении курсов валют (успех или ошибка)
 
+Бот заказов — при создании/оплате заказа и смене статусов (см. `OrderNotificationService`).
+
 **Ручная отправка сообщения:**
 ```ruby
-TelegramService.send_message("Текст сообщения", parse_mode: 'HTML')
+TelegramService.send_message("Текст сообщения", parse_mode: 'HTML') # системный канал
+TelegramService.send_order_message("Новый заказ …")                 # канал заказов
 ```
 
 ## Проверка настроек
@@ -137,9 +144,12 @@ CLOUDINARY_CLOUD_NAME=my_cloud_name
 CLOUDINARY_API_KEY=123456789012345
 CLOUDINARY_API_SECRET=abcdefghijklmnopqrstuvwxyz123456
 
-# Telegram
+# Telegram (системные уведомления)
 TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
 TELEGRAM_CHAT_ID=-1001234567890
+# Telegram (заказы)
+TELEGRAM_ORDERS_BOT_TOKEN=987654321:XYZordersBotTokenExample
+TELEGRAM_ORDERS_CHAT_ID=-1009876543210
 
 # Redis (для кеширования курсов валют)
 REDIS_URL=redis://localhost:6379/0
