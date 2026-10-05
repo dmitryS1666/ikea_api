@@ -404,6 +404,53 @@ class CrmIntegrationService
     end
   end
 
+  # Patch only ITEMS_LIST for leads already linked in Amo (no new notes, no full sync).
+  def self.refresh_items_lists!(limit: nil, sleep_seconds: 0.2)
+    scope = Order.where(checkout_draft: false)
+                 .where.not(crm_external_id: [nil, ""])
+                 .includes(order_items: :product)
+                 .order(:id)
+    scope = scope.limit(limit) if limit.present?
+
+    results = []
+    scope.find_each do |order|
+      result = refresh_items_list!(order)
+      results << {
+        order_id: order.id,
+        public_uid: order.public_uid,
+        lead_id: order.crm_external_id,
+        success: result[:success],
+        error: result[:error]
+      }
+      sleep(sleep_seconds) if sleep_seconds.to_f.positive?
+    end
+    results
+  end
+
+  def self.refresh_items_list!(order)
+    lead_id = amo_entity_id(order.crm_external_id)
+    return { success: false, error: "missing crm_external_id" } unless lead_id
+
+    field_id = contact_field_id("ITEMS_LIST")
+    return { success: false, error: "ITEMS_LIST field missing" } if field_id.blank? || field_id == "ITEMS_LIST"
+
+    payload = {
+      custom_fields_values: [
+        { field_id: field_id, values: [{ value: format_order_items_for_amo(order) }] }
+      ]
+    }
+    response = patch_with_log("#{base_url}/api/v4/leads/#{lead_id}", body: payload.to_json, headers: headers)
+    if response.success?
+      { success: true, lead_id: lead_id }
+    else
+      Rails.logger.error "[AmoCRM] Refresh ITEMS_LIST order=#{order.id} failed: #{response.body}"
+      { success: false, error: response.body, code: response.code, lead_id: lead_id }
+    end
+  rescue => e
+    Rails.logger.error "[AmoCRM] Refresh ITEMS_LIST order=#{order.id} exception: #{e.message}"
+    { success: false, error: e.message }
+  end
+
   private
 
   def self.ensure_contact_for_order(order)
@@ -665,7 +712,7 @@ class CrmIntegrationService
     return "" if order.order_items.blank?
 
     rows = order.order_items.each_with_index.map do |order_item, index|
-      title = order_item.product&.name_ru.presence || order_item.product&.name.presence || "Товар"
+      title = order_item.catalog_title
       sku = order_item.product_sku.to_s
       quantity = order_item.quantity.to_i
       unit_price = Kernel.format("%.2f", order_item.price.to_f)

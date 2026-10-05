@@ -306,6 +306,63 @@ RSpec.describe CrmIntegrationService do
           items_text.include?(product.url)
       }
     end
+
+    it 'appends small_desc_name to product title in ITEMS_LIST and notes' do
+      product = create(
+        :product,
+        sku: 'SKU123',
+        name_ru: 'IKEA PS 2026',
+        small_desc_name: 'Стол, зеленый, 96 см',
+        url: 'https://www.ikea.com/pl/pl/p/ikea-ps-2026-123/'
+      )
+      order_item.update!(product: product, price: 199.0, quantity: 1)
+
+      stub_request(:post, "#{base_url}/api/v4/leads")
+        .to_return(status: 200, body: { _embedded: { leads: [{ id: 789 }] } }.to_json, headers: { 'Content-Type' => 'application/json' })
+      notes_request = stub_request(:post, "#{base_url}/api/v4/leads/789/notes")
+        .to_return(status: 200, body: {}.to_json)
+
+      expect(described_class.sync_order(order)[:success]).to be_truthy
+
+      expected_title = 'IKEA PS 2026 Стол, зеленый, 96 см'
+      expect(WebMock).to have_requested(:post, "#{base_url}/api/v4/leads").with { |request|
+        lead_payload = JSON.parse(request.body).first
+        items_text = lead_payload.fetch('custom_fields_values')
+                                 .find { |f| f['field_id'] == 578789 }
+                                 .dig('values', 0, 'value')
+        items_text.include?("1. #{expected_title} (SKU123) x1 ----- 199.00 PLN")
+      }
+      expect(notes_request.with { |request|
+        JSON.parse(request.body).first.dig('params', 'text').include?(expected_title)
+      }).to have_been_requested
+    end
+
+    it 'does not duplicate small_desc_name when it is already part of name_ru' do
+      product = create(
+        :product,
+        sku: 'SKU123',
+        name_ru: 'IKEA PS 2026 Стол, зеленый, 96 см',
+        small_desc_name: 'Стол, зеленый, 96 см',
+        url: 'https://www.ikea.com/pl/pl/p/ikea-ps-2026-123/'
+      )
+      order_item.update!(product: product, price: 199.0, quantity: 1)
+
+      stub_request(:post, "#{base_url}/api/v4/leads")
+        .to_return(status: 200, body: { _embedded: { leads: [{ id: 789 }] } }.to_json, headers: { 'Content-Type' => 'application/json' })
+      stub_request(:post, "#{base_url}/api/v4/leads/789/notes")
+        .to_return(status: 200, body: {}.to_json)
+
+      described_class.sync_order(order)
+
+      expect(WebMock).to have_requested(:post, "#{base_url}/api/v4/leads").with { |request|
+        items_text = JSON.parse(request.body).first
+                         .fetch('custom_fields_values')
+                         .find { |f| f['field_id'] == 578789 }
+                         .dig('values', 0, 'value')
+        items_text.include?('IKEA PS 2026 Стол, зеленый, 96 см (SKU123)') &&
+          !items_text.include?('Стол, зеленый, 96 см Стол, зеленый, 96 см')
+      }
+    end
   end
 
   describe '.amo_entity_id' do
@@ -330,6 +387,52 @@ RSpec.describe CrmIntegrationService do
 
       expect(results.map { |row| row[:order_id] }).to eq([missing.id])
       expect(described_class).to have_received(:sync_order).with(missing).once
+    end
+  end
+
+  describe '.refresh_items_list!' do
+    it 'patches only ITEMS_LIST for an existing lead without creating notes' do
+      product = create(
+        :product,
+        sku: 'SKU123',
+        name_ru: 'IKEA PS 2026',
+        small_desc_name: 'Стол, зеленый, 96 см',
+        url: 'https://www.ikea.com/pl/pl/p/ikea-ps-2026-123/'
+      )
+      order = create(:order, user: user, checkout_draft: false, crm_external_id: '555')
+      create(:order_item, order: order, product: product, product_sku: product.sku, price: 199.0, quantity: 1)
+
+      patch_request = stub_request(:patch, "#{base_url}/api/v4/leads/555")
+        .to_return(status: 200, body: {}.to_json)
+      notes_request = stub_request(:post, "#{base_url}/api/v4/leads/555/notes")
+        .to_return(status: 200, body: {}.to_json)
+
+      result = described_class.refresh_items_list!(order)
+
+      expect(result[:success]).to be(true)
+      expect(patch_request.with { |request|
+        payload = JSON.parse(request.body)
+        fields = payload.fetch('custom_fields_values')
+        fields.size == 1 &&
+          fields.first['field_id'] == 578789 &&
+          fields.first.dig('values', 0, 'value').include?('IKEA PS 2026 Стол, зеленый, 96 см')
+      }).to have_been_requested
+      expect(notes_request).not_to have_been_requested
+    end
+  end
+
+  describe '.refresh_items_lists!' do
+    it 'updates only linked non-draft orders' do
+      linked = create(:order, user: user, checkout_draft: false, crm_external_id: '111')
+      create(:order, user: user, checkout_draft: false)
+      create(:order, user: user, checkout_draft: true, crm_external_id: '222')
+
+      allow(described_class).to receive(:refresh_items_list!).and_return({ success: true, lead_id: 111 })
+
+      results = described_class.refresh_items_lists!(sleep_seconds: 0)
+
+      expect(results.map { |row| row[:order_id] }).to eq([linked.id])
+      expect(described_class).to have_received(:refresh_items_list!).with(linked).once
     end
   end
 

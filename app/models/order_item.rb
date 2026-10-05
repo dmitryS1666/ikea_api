@@ -26,6 +26,18 @@ class OrderItem < ApplicationRecord
     self
   end
 
+  # Full catalog title for CRM / display: "IKEA PS 2026 Стол, зеленый, 96 см".
+  # Prefer live product (name + small_desc_name); fall back to frozen snapshot / SKU.
+  def catalog_title
+    product_record = product || Product.find_by(sku: product_sku)
+    if product_record
+      title = SeoHelper.record_full_name(product_record).to_s.strip
+      return title if title.present?
+    end
+
+    name_snapshot.presence || product_sku.presence || "Товар"
+  end
+
   # Heal missing ShopByShop snapshots from the current catalog.
   # Never overwrites an existing PLN/URL snapshot and never uses BYN OrderItem#price.
   # Returns true when any field was filled.
