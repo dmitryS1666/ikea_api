@@ -90,10 +90,12 @@ class OrderItem < ApplicationRecord
   end
 
   def snapshot_name(product_record)
-    product_record&.small_desc_name.presence ||
-      product_record&.name_ru.presence ||
-      product_record&.name.presence ||
-      product_sku
+    if product_record
+      title = SeoHelper.record_full_name(product_record).to_s.strip
+      return title if title.present?
+    end
+
+    product_sku
   end
 
   def snapshot_description(product_record)

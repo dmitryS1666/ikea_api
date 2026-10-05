@@ -68,7 +68,7 @@ apartment/flat/flat_number, корпус и готовые address_full/full_add
 | phone_country | По коду телефона +375 / +7 |
 | items[].price | `order_item.poland_price_pln`: цена IKEA в PLN, без BYN-наценки и доставки |
 | items[].link | `order_item.poland_product_url`: снимок Product.url |
-| items[].name/count | `name_snapshot` / `quantity` |
+| items[].name/count | `catalog_title` (name_ru + small_desc_name, как в AmoCRM) / `quantity` |
 
 Поддержаны существующие ключи паспорта `passport_number` или `number`, `series`,
 `issued_date` или `issued_at`, `issued_by`, `id_number`; также прямые имена API.

@@ -119,7 +119,8 @@ module PolandTracks
       order.order_items.order(:id).map do |item|
         item.ensure_poland_snapshot!
         {
-          "name" => item.name_snapshot,
+          # Same naming as AmoCRM: name_ru + small_desc_name via catalog_title.
+          "name" => item.catalog_title,
           "count" => item.quantity,
           # Never send OrderItem#price: that column contains BYN.
           "price" => item.poland_price_pln&.to_f,
@@ -148,7 +149,8 @@ module PolandTracks
         source = healed[index]
         next item unless source
 
-        item["name"] = source["name"] if item["name"].blank?
+        # Refresh title from catalog (name + small_desc) when healing older snapshots.
+        item["name"] = source["name"] if source["name"].present?
         item["count"] = source["count"] unless item["count"].is_a?(Integer) && item["count"] >= 1
         unless item["price"].is_a?(Numeric) && item["price"].finite? && item["price"] >= 1
           item["price"] = source["price"]

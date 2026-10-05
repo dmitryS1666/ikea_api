@@ -129,6 +129,39 @@ RSpec.describe PolandTracks::Payload do
     expect(item.poland_product_url).to eq(product.url)
   end
 
+  it "uses catalog title with small_desc_name for ShopByShop item names" do
+    product = create(
+      :product,
+      name: "IKEA PS 2026",
+      name_ru: "IKEA PS 2026",
+      small_desc_name: "Стол, зеленый, 96 см",
+      price: 199.0,
+      url: "https://www.ikea.com/pl/pl/p/ps-table-123/"
+    )
+    order = create(:order)
+    create(:order_item, order: order, product_sku: product.sku, quantity: 1)
+    rows = described_class.item_rows(order)
+    expect(rows.first["name"]).to eq("IKEA PS 2026 Стол, зеленый, 96 см")
+  end
+
+  it "refreshes short item names from catalog when healing older snapshots" do
+    product = create(
+      :product,
+      name_ru: "IKEA PS 2026",
+      small_desc_name: "Стол, зеленый, 96 см",
+      price: 149.5,
+      url: "https://www.ikea.com/pl/pl/p/healed-name-123/"
+    )
+    order = create(:order, track_number: "BY000000000BY",
+                           address_json: { "pickup_point_id" => "70130090" })
+    create(:order_item, order: order, product_sku: product.sku, quantity: 1,
+                        poland_price_pln: nil, poland_product_url: nil)
+    original = payload.merge("items" => [{ "name" => "Стол", "count" => 1, "price" => nil, "link" => nil }])
+    export = PolandTrackExport.create!(order: order, payload_json: original.to_json)
+    result = described_class.for_export(export)
+    expect(result["items"].first["name"]).to eq("IKEA PS 2026 Стол, зеленый, 96 см")
+  end
+
   it "places weight immediately after delivery_type" do
     keys = described_class.with_weight({ "delivery_type" => 5, "nomerikea" => "1" }, "1000").keys
     expect(keys.take(2)).to eq(%w[delivery_type weight])
