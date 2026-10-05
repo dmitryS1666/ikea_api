@@ -162,6 +162,20 @@ module PolandTracks
       payload.merge("items" => items)
     end
 
+    # Refresh items[].name from catalog for local exports that were not POSTed yet.
+    # Succeeded remotes are immutable (ShopByShop create has no update path).
+    def self.refresh_export_item_names!(export, persist: true)
+      payload = JSON.parse(export.payload_json.presence || "{}")
+      raise Invalid, "payload: invalid snapshot structure" unless payload.is_a?(Hash)
+
+      refreshed = with_item_snapshots(payload, export.order)
+      changed = refreshed["items"] != payload["items"]
+      export.update!(payload_json: JSON.generate(refreshed)) if persist && changed
+      { changed: changed, items: refreshed["items"] }
+    rescue JSON::ParserError
+      raise Invalid, "payload: invalid snapshot"
+    end
+
     def self.with_weight(payload, weight)
       rebuilt = {}
       payload.each do |key, value|

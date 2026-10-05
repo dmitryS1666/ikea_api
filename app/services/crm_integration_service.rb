@@ -713,11 +713,10 @@ class CrmIntegrationService
 
     rows = order.order_items.each_with_index.map do |order_item, index|
       title = order_item.catalog_title
-      sku = order_item.product_sku.to_s
       quantity = order_item.quantity.to_i
       unit_price = Kernel.format("%.2f", order_item.price.to_f)
 
-      line = "#{index + 1}. #{title} (#{sku}) x#{quantity} ----- #{unit_price} PLN"
+      line = "#{index + 1}. #{title} x#{quantity} ----- #{unit_price} PLN"
       product_url = amo_product_url(order_item)
       product_url.present? ? "#{line}\n#{product_url}" : line
     end

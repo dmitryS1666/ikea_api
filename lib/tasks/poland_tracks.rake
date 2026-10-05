@@ -24,6 +24,28 @@ namespace :poland_tracks do
     puts({ blocked_before: before, blocked_after: after, requeued: before - after }.to_json)
   end
 
+  desc "Refresh items[].name from catalog for pending/blocked exports (not succeeded). RUN=true to persist"
+  task refresh_item_names: :environment do
+    run = ENV["RUN"] == "true"
+    scope = PolandTrackExport.where(state: %w[pending blocked]).includes(order: { order_items: :product }).order(:id)
+    changed = 0
+    skipped = 0
+    errors = 0
+    scope.find_each do |export|
+      result = PolandTracks::Payload.refresh_export_item_names!(export, persist: run)
+      if result[:changed]
+        changed += 1
+        puts({ order_id: export.order_id, state: export.state, names: result[:items].map { |i| i["name"] } }.to_json) if ENV["VERBOSE"] == "1"
+      else
+        skipped += 1
+      end
+    rescue StandardError => e
+      errors += 1
+      puts({ order_id: export.order_id, error: e.message }.to_json)
+    end
+    puts({ candidates: scope.count, changed: changed, skipped: skipped, errors: errors, persisted: run }.to_json)
+  end
+
   desc "After remote reconciliation only: resolve uncertain export as absent; CONFIRMED_ABSENT=yes required"
   task :resolve_absent, [:order_id] => :environment do |_task, args|
     abort "First verify in ShopByShop that this order has NO track; then set CONFIRMED_ABSENT=yes" unless ENV["CONFIRMED_ABSENT"] == "yes"

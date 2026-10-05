@@ -302,7 +302,8 @@ RSpec.describe CrmIntegrationService do
 
         lead_payload['name'] == order.public_uid &&
           order_number_field.dig('values', 0, 'value') == order.public_uid &&
-          items_text.include?("1. Мягкая развивающая книжка, Занятые строители, синяя (SKU123) x1 ----- 71.26 PLN") &&
+          items_text.include?("1. Мягкая развивающая книжка, Занятые строители, синяя x1 ----- 71.26 PLN") &&
+          !items_text.include?("(SKU123)") &&
           items_text.include?(product.url)
       }
     end
@@ -330,7 +331,8 @@ RSpec.describe CrmIntegrationService do
         items_text = lead_payload.fetch('custom_fields_values')
                                  .find { |f| f['field_id'] == 578789 }
                                  .dig('values', 0, 'value')
-        items_text.include?("1. #{expected_title} (SKU123) x1 ----- 199.00 PLN")
+        items_text.include?("1. #{expected_title} x1 ----- 199.00 PLN") &&
+          !items_text.include?("(SKU123)")
       }
       expect(notes_request.with { |request|
         JSON.parse(request.body).first.dig('params', 'text').include?(expected_title)
@@ -359,7 +361,8 @@ RSpec.describe CrmIntegrationService do
                          .fetch('custom_fields_values')
                          .find { |f| f['field_id'] == 578789 }
                          .dig('values', 0, 'value')
-        items_text.include?('IKEA PS 2026 Стол, зеленый, 96 см (SKU123)') &&
+        items_text.include?('IKEA PS 2026 Стол, зеленый, 96 см x1') &&
+          !items_text.include?('(SKU123)') &&
           !items_text.include?('Стол, зеленый, 96 см Стол, зеленый, 96 см')
       }
     end
