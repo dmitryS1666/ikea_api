@@ -74,15 +74,7 @@ module PolandTracks
         "weight" => weight_grams,
         "nomerikea" => @order.public_uid.presence || @order.id.to_s,
         "recipient" => recipient,
-        "items" => @order.order_items.order(:id).map do |item|
-          {
-            "name" => item.name_snapshot,
-            "count" => item.quantity,
-            # Never send OrderItem#price: that column contains BYN.
-            "price" => item.poland_price_pln&.to_f,
-            "link" => item.poland_product_url
-          }
-        end
+        "items" => self.class.item_rows(@order)
       }
       if payload["delivery_type"] == 1
         address = (@order.address_json || {}).deep_stringify_keys
@@ -114,10 +106,58 @@ module PolandTracks
       end
       # Older September snapshots may lack weight; fill from the order before POST.
       payload = with_weight(payload, new(export.order).weight_grams) if payload["weight"].blank?
+      # Orders created before PLN/URL snapshotting (or with a lost catalog link)
+      # stay blocked forever unless we heal missing item fields from the catalog.
+      payload = with_item_snapshots(payload, export.order) if items_need_heal?(payload)
       validate!(payload, allow_missing_track: allow_missing_track)
       payload
     rescue JSON::ParserError
       raise Invalid, "payload: invalid snapshot"
+    end
+
+    def self.item_rows(order)
+      order.order_items.order(:id).map do |item|
+        item.ensure_poland_snapshot!
+        {
+          "name" => item.name_snapshot,
+          "count" => item.quantity,
+          # Never send OrderItem#price: that column contains BYN.
+          "price" => item.poland_price_pln&.to_f,
+          "link" => item.poland_product_url
+        }
+      end
+    end
+
+    def self.items_need_heal?(payload)
+      items = payload["items"]
+      return true unless items.is_a?(Array) && items.any?
+
+      items.any? do |item|
+        !item.is_a?(Hash) ||
+          item["name"].blank? ||
+          !(item["count"].is_a?(Integer) && item["count"] >= 1) ||
+          !(item["price"].is_a?(Numeric) && item["price"].finite? && item["price"] >= 1) ||
+          item["link"].blank?
+      end
+    end
+
+    def self.with_item_snapshots(payload, order)
+      healed = item_rows(order)
+      items = Array(payload["items"]).map.with_index do |item, index|
+        item = item.is_a?(Hash) ? item.dup : {}
+        source = healed[index]
+        next item unless source
+
+        item["name"] = source["name"] if item["name"].blank?
+        item["count"] = source["count"] unless item["count"].is_a?(Integer) && item["count"] >= 1
+        unless item["price"].is_a?(Numeric) && item["price"].finite? && item["price"] >= 1
+          item["price"] = source["price"]
+        end
+        item["link"] = source["link"] if item["link"].blank?
+        item
+      end
+      items = healed if items.empty?
+      payload.merge("items" => items)
     end
 
     def self.with_weight(payload, weight)

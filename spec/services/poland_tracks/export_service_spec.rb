@@ -366,12 +366,41 @@ RSpec.describe PolandTracks::ExportService do
     expect(JSON.parse(current.reload.payload_json).dig("recipient", "iin")).to eq("1234567A123AB1")
   end
 
-  it "never substitutes BYN or a current catalog price for a missing historical PLN snapshot" do
-    item.update_columns(poland_price_pln: nil)
-    expect(PolandTracks::Client).not_to receive(:create!)
+  it "heals missing PLN/URL from catalog before POST and persists the snapshot" do
+    item.update_columns(poland_price_pln: nil, poland_product_url: nil)
+    product.update!(price: 88.5, url: "https://www.ikea.com/pl/pl/p/healed-catalog/")
+    request = stub_create
+    described_class.call(export)
+    expect(export.reload.state).to eq("succeeded")
+    expect(item.reload.poland_price_pln.to_f).to eq(88.5)
+    expect(item.poland_product_url).to eq(product.url)
+    expect(request.with do |req|
+      expect(JSON.parse(req.body)["items"].first).to include("price" => 88.5, "link" => product.url)
+      true
+    end).to have_been_requested.once
+  end
+
+  it "does not overwrite an existing PLN snapshot with a newer catalog price" do
+    current = export
+    product.update!(price: 777, url: "https://example.com/changed")
+    payload = PolandTracks::Payload.for_export(current)
+    expect(payload["items"].first["price"]).to eq(99.99)
+    expect(payload["items"].first["link"]).to include("ikea.com")
+  end
+
+  it "requeues a blocked PLN export once catalog can heal it" do
+    item.update_columns(poland_price_pln: nil, poland_product_url: nil)
+    product.update_columns(price: nil, url: nil)
     described_class.call(export)
     expect(export.reload.state).to eq("blocked")
     expect(export.last_error).to include("PLN snapshot")
+
+    product.update!(price: 120.0, url: "https://www.ikea.com/pl/pl/p/retry-heal/")
+    expect {
+      DispatchPolandTrackExportsJob.perform_now
+    }.to have_enqueued_job(PolandTrackExportJob).with(export.id)
+    expect(export.reload.state).to eq("pending")
+    expect(item.reload.poland_price_pln.to_f).to eq(120.0)
   end
 
   it "does not POST when disabled" do

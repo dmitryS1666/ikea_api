@@ -16,6 +16,14 @@ namespace :poland_tracks do
     DispatchPolandTrackExportsJob.perform_now
   end
 
+  desc "Heal blocked exports missing PLN/URL/weight from catalog and requeue: poland_tracks:heal_blocked"
+  task heal_blocked: :environment do
+    before = PolandTrackExport.where(state: "blocked").count
+    PolandTrackExport.requeue_healable_blocked!
+    after = PolandTrackExport.where(state: "blocked").count
+    puts({ blocked_before: before, blocked_after: after, requeued: before - after }.to_json)
+  end
+
   desc "After remote reconciliation only: resolve uncertain export as absent; CONFIRMED_ABSENT=yes required"
   task :resolve_absent, [:order_id] => :environment do |_task, args|
     abort "First verify in ShopByShop that this order has NO track; then set CONFIRMED_ABSENT=yes" unless ENV["CONFIRMED_ABSENT"] == "yes"

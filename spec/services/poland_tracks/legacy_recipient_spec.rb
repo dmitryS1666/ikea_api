@@ -76,8 +76,10 @@ RSpec.describe PolandTracks::Payload, "legacy recipient storage" do
     expect { described_class.validate!(described_class.snapshot(order)) }.to raise_error(described_class::Invalid, /recipient.email/)
   end
 
-  it "still blocks missing historical PLN after recovering legacy passport fields" do
+  it "still blocks missing PLN when the catalog has no usable price or URL" do
     item.poland_price_pln = nil
+    item.poland_product_url = nil
+    allow(item).to receive(:ensure_poland_snapshot!).and_return(false)
     expect { described_class.validate!(described_class.snapshot(order)) }.to raise_error(described_class::Invalid, /PLN snapshot/)
   end
 end

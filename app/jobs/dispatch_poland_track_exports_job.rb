@@ -13,6 +13,8 @@ class DispatchPolandTrackExportsJob < ApplicationJob
         export.update!(state: "uncertain", last_error: "Worker interrupted; reconcile before retry")
       end
     end
+    # Recover exports blocked only by missing historical PLN/URL/weight when catalog can fill them.
+    PolandTrackExport.requeue_healable_blocked!
     PolandTrackExport.due.find_each { |export| PolandTrackExportJob.perform_later(export.id) }
   end
 end

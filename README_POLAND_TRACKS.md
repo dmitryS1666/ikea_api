@@ -175,15 +175,19 @@ RAILS_ENV=production bundle exec rake poland_tracks:dispatch
 
 ## Заказы, оформленные до установки
 
-У старых позиций нет исторического снимка PLN/URL. Они намеренно не заполняются
-текущей ценой каталога или ценой BYN: это могло бы передать неверную стоимость.
-Если такой заказ оплачивается после установки, экспорт останется `blocked`.
-Восстановить для его позиций подтверждённую цену IKEA в PLN и ссылку из исходного
-заказа, затем вызвать `retry`. Пример через Rails console с реальными проверенными
-значениями, где 555 — ID позиции, а не SKU:
+У старых позиций может не быть снимка `poland_price_pln` / `poland_product_url`.
+При сборке и отправке экспорта недостающие PLN/URL **дозаполняются из текущего
+каталога** (`Product.price` / `Product.url`) и сохраняются на позиции. Уже
+заполненный снимок не перезаписывается; цена BYN из `order_items.price` никогда
+не подставляется. Если товара в каталоге нет или у него нет цены/URL ≥ 1 PLN,
+экспорт остаётся `blocked`.
 
-```ruby
-OrderItem.find(555).update!(poland_price_pln: 99.99, poland_product_url: "https://www.ikea.com/pl/pl/p/actual-product/")
+Минутный `DispatchPolandTrackExportsJob` сам переоткрывает `blocked` с ошибками
+вида PLN/URL/weight, когда каталог уже может их закрыть. Ручной запуск:
+
+```bash
+RAILS_ENV=production bundle exec rake poland_tracks:heal_blocked
+RAILS_ENV=production bundle exec rake 'poland_tracks:retry[ORDER_DATABASE_ID]'
 ```
 
 Для новых заказов поля сохраняются автоматически. Новые проверки не меняют

@@ -114,6 +114,21 @@ RSpec.describe PolandTracks::Payload do
     expect(described_class.for_export(export)).to include("delivery_type" => 1, "weight" => "2500")
   end
 
+  it "fills missing item PLN and link from catalog-backed order items" do
+    product = create(:product, price: 149.5, url: "https://www.ikea.com/pl/pl/p/healed-123/")
+    order = create(:order, track_number: "BY000000000BY",
+                           address_json: { "pickup_point_id" => "70130090" })
+    item = create(:order_item, order: order, product_sku: product.sku, quantity: 2,
+                               poland_price_pln: nil, poland_product_url: nil)
+    item.update_columns(poland_price_pln: nil, poland_product_url: nil)
+    original = payload.merge("items" => [{ "name" => "Стеллаж", "count" => 2, "price" => nil, "link" => nil }])
+    export = PolandTrackExport.create!(order: order, payload_json: original.to_json)
+    result = described_class.for_export(export)
+    expect(result["items"].first).to include("price" => 149.5, "link" => product.url, "count" => 2)
+    expect(item.reload.poland_price_pln.to_f).to eq(149.5)
+    expect(item.poland_product_url).to eq(product.url)
+  end
+
   it "places weight immediately after delivery_type" do
     keys = described_class.with_weight({ "delivery_type" => 5, "nomerikea" => "1" }, "1000").keys
     expect(keys.take(2)).to eq(%w[delivery_type weight])
