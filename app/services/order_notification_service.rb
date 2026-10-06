@@ -1,6 +1,8 @@
 class OrderNotificationService
-  # ЕРИП нельзя подтвердить колбэком — менеджерам пишем сразу.
-  # Карта/WebPay: пишем только после фактической оплаты.
+  # ЕРИП выключен (ERIP_PAYMENTS_ENABLED=false): до оплаты менеджерам не пишем.
+  # «Новый заказ» уходит только после фактической оплаты, как у карты.
+  # Когда ЕРИП снова включат — пишем сразу, не дожидаясь оплаты, а после колбэка
+  # отправляем отдельное «оплачен», чтобы в чате не оставался статус «не оплачен».
   UNTRACKED_PAYMENT_METHODS = %w[erip].freeze
 
   def self.call(order, status_changed: false)
@@ -34,6 +36,7 @@ class OrderNotificationService
     end
 
     send_telegram_manager_notification(order) if send_telegram_on_paid?(order)
+    send_telegram_payment_confirmed_notification(order) if send_telegram_payment_confirmed?(order)
 
     tg_statuses = %w[confirmed paid purchased received_poland export_eu arrived_pvz handed_to_courier handed_to_courier_ikeya]
     if tg_statuses.include?(order.status)
@@ -146,12 +149,37 @@ class OrderNotificationService
     ["Доп. услуги:", *labels.map { |label| "- #{label}" }]
   end
 
+  def self.erip_payments_enabled?
+    ENV.fetch("ERIP_PAYMENTS_ENABLED", "false").casecmp?("true")
+  end
+
   def self.send_telegram_on_finalize?(order)
-    untracked_payment_method?(order)
+    erip_payments_enabled? && untracked_payment_method?(order)
   end
 
   def self.send_telegram_on_paid?(order)
-    order.status.to_s == "paid" && !untracked_payment_method?(order)
+    return false unless order.status.to_s == "paid" && order_paid?(order)
+    return true unless untracked_payment_method?(order)
+
+    !erip_payments_enabled?
+  end
+
+  def self.send_telegram_payment_confirmed?(order)
+    erip_payments_enabled? &&
+      order.status.to_s == "paid" &&
+      untracked_payment_method?(order) &&
+      order_paid?(order)
+  end
+
+  def self.send_telegram_payment_confirmed_notification(order)
+    message = "💵 <b>Заказ №#{order.display_number} оплачен</b>\n\n"
+    message += "👤 Клиент: #{order.full_name}\n"
+    message += "📞 Телефон: #{order.phone}\n"
+    message += "💰 Сумма: #{order.total_amount} BYN\n"
+    message += "💳 Способ оплаты: #{order.payment_method}\n"
+    message += "💵 Статус оплаты: <b>оплачен</b>"
+
+    TelegramService.send_order_message(message)
   end
 
   def self.untracked_payment_method?(order)

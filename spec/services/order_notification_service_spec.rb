@@ -58,11 +58,22 @@ RSpec.describe OrderNotificationService do
     expect(TransactionalEmailService).to have_received(:send_order_email).with(:order_delivered, order)
   end
 
-  it "sends telegram immediately for ERIP and marks the order unpaid" do
+  it "does not send telegram on finalize for ERIP while it is disabled" do
+    order.update_columns(payment_method: "erip")
+
+    described_class.call(order)
+
+    expect(described_class).not_to have_received(:send_telegram_manager_notification)
+    expect(TelegramService).not_to have_received(:send_order_message)
+  end
+
+  it "sends telegram immediately for ERIP and marks the order unpaid when ERIP is enabled" do
     order.update_columns(payment_method: "erip")
     allow(described_class).to receive(:send_telegram_manager_notification).and_call_original
 
-    described_class.call(order)
+    with_erip_payments_enabled do
+      described_class.call(order)
+    end
 
     expect(TelegramService).to have_received(:send_order_message).with(
       a_string_including("Новый заказ №#{order.public_uid}")
@@ -94,15 +105,42 @@ RSpec.describe OrderNotificationService do
     )
   end
 
-  it "does not send a second telegram when an ERIP order is later marked paid" do
+  it "sends the new-order telegram when an ERIP order is paid while ERIP is disabled" do
     order.update_columns(
       payment_method: "erip",
-      status: Order.statuses[:paid]
+      status: Order.statuses[:paid],
+      webpay_paid_at: Time.current
     )
+    allow(described_class).to receive(:send_telegram_manager_notification).and_call_original
 
     described_class.call(order.reload, status_changed: true)
 
+    expect(TelegramService).to have_received(:send_order_message).with(
+      a_string_including("Новый заказ №#{order.public_uid}")
+        .and(a_string_including("Статус оплаты: <b>оплачен</b>"))
+    )
+  end
+
+  it "tells managers when an enabled-ERIP order is later marked paid" do
+    order.update_columns(
+      payment_method: "erip",
+      status: Order.statuses[:paid],
+      webpay_paid_at: Time.current
+    )
+
+    with_erip_payments_enabled do
+      described_class.call(order.reload, status_changed: true)
+    end
+
     expect(described_class).not_to have_received(:send_telegram_manager_notification)
+    expect(TelegramService).to have_received(:send_order_message).with(
+      satisfy { |message|
+        message.include?("Заказ №#{order.public_uid}") &&
+          message.include?("Статус оплаты: <b>оплачен</b>") &&
+          !message.include?("Новый заказ") &&
+          !message.include?("не оплачен")
+      }
+    )
   end
 
   it "does not send the new-order telegram on later fulfillment statuses" do
@@ -127,5 +165,17 @@ RSpec.describe OrderNotificationService do
     expect(TelegramService).to have_received(:send_order_message).with(
       a_string_including("Заказ №#{order.public_uid}")
     )
+  end
+
+  def with_erip_payments_enabled
+    previous = ENV["ERIP_PAYMENTS_ENABLED"]
+    ENV["ERIP_PAYMENTS_ENABLED"] = "true"
+    yield
+  ensure
+    if previous.nil?
+      ENV.delete("ERIP_PAYMENTS_ENABLED")
+    else
+      ENV["ERIP_PAYMENTS_ENABLED"] = previous
+    end
   end
 end
