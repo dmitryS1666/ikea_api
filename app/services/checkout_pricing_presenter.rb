@@ -62,8 +62,9 @@ class CheckoutPricingPresenter
       total_delivery_byn = format_byn(delivery_total)
 
       # Cart pricing already includes D_IKEA and WC in items. Checkout adds only
-      # the selected last-mile method (Europost/courier/IKEYA) plus cart customs:
-      #   total_byn = items_total_byn - discount + customs + delivery_method_byn
+      # the selected last-mile method (Europost/courier/IKEYA). Customs stays
+      # outside the payable total and is collected later as a separate payment:
+      #   total_byn = items_total_byn - discount + delivery_method_byn
       payable_total_byn = checkout_payable_total(summary: summary, delivery_total_byn: delivery_total)
       display_total_byn = order.checkout_draft? ? payable_total_byn : order.total_amount.to_f
 
@@ -97,9 +98,8 @@ class CheckoutPricingPresenter
       items = summary.dig(:totals, :items_total_byn).to_f
       items = summary.dig(:totals, :subtotal_new_byn).to_f if items <= 0
       discount = summary.dig(:totals, :discount_total_byn).to_f
-      customs = summary.dig(:totals, :customs_total_byn).to_f
 
-      [(items - discount + customs + delivery_total_byn.to_f), 0.0].max.round(2)
+      [(items - discount + delivery_total_byn.to_f), 0.0].max.round(2)
     end
 
     def resolve_checkout_delivery_total(cart_delivery_to_belarus_byn:, snapshot_prices:, order_delivery_price:)

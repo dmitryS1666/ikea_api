@@ -699,10 +699,9 @@ class CheckoutService
     totals = CartDisplayTotalsService.for_summary(pricing[:totals])
     items = totals[:items_total_byn].to_f
     discount = totals[:discount_total_byn].to_f
-    customs = totals[:customs_total_byn].to_f
     delivery_total = prices[:total_delivery_price_byn].to_f
 
-    [(items - discount + customs + delivery_total), 0.0].max.round(2)
+    [(items - discount + delivery_total), 0.0].max.round(2)
   end
   private_class_method :checkout_total_amount
 

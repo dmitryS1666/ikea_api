@@ -64,7 +64,6 @@ RSpec.describe CartSummaryService do
 
     visible_total = summary[:subtotal_new_byn].to_f -
                     summary[:discount_total_byn].to_f +
-                    summary[:customs_total_byn].to_f +
                     summary[:delivery_total_byn].to_f
 
     expect(visible_total.round(2)).to eq(summary[:total_byn].to_f)

@@ -40,8 +40,7 @@ RSpec.describe CheckoutPricingPresenter do
     expect(pricing[:items].first[:line_total_byn_checkout]).to eq(pricing[:items].first[:line_total_byn])
     expect(summary[:totals][:total_byn].to_f).to be_within(0.02).of(
       summary[:totals][:subtotal_new_byn].to_f -
-        summary[:totals][:discount_total_byn].to_f +
-        summary[:totals][:customs_total_byn].to_f
+        summary[:totals][:discount_total_byn].to_f
     )
     expect(summary.dig(:totals, :delivery_method_byn)).to eq("0.00")
     expect(item[:pricing][:line_total_new_byn]).to be_present

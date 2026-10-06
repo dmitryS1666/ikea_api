@@ -61,7 +61,6 @@ RSpec.describe "Delivery calculate types", type: :request do
     expected_total = (
       body.dig("totals", "subtotal_new_byn").to_f -
       body.dig("totals", "discount_total_byn").to_f +
-      body.dig("totals", "customs_total_byn").to_f +
       body.dig("totals", "delivery_total_byn").to_f
     ).round(2)
     expect(body.dig("totals", "total_byn").to_f).to be_within(0.01).of(expected_total)

@@ -4,7 +4,7 @@ require "rails_helper"
 
 RSpec.describe CartDisplayTotalsService do
   describe ".for_summary" do
-    it "includes customs and last-mile only, without adding WC twice" do
+    it "includes last-mile only and keeps customs out of the payable total" do
       totals = described_class.for_summary(
         items_total_byn: 4085.64,
         subtotal_new_byn: 4085.64,
@@ -21,7 +21,7 @@ RSpec.describe CartDisplayTotalsService do
       expect(totals[:delivery_to_belarus_byn]).to eq(128.56)
       expect(totals[:delivery_total_byn]).to eq(12.43)
       expect(totals[:customs_total_byn]).to eq(852.21)
-      expect(totals[:total_byn]).to eq((4085.64 + 852.21 + 12.43).round(2))
+      expect(totals[:total_byn]).to eq((4085.64 + 12.43).round(2))
       expect(totals[:final_total_byn]).to eq(totals[:total_byn])
     end
 
@@ -33,7 +33,8 @@ RSpec.describe CartDisplayTotalsService do
         local_delivery_total_byn: 0.0
       )
 
-      expect(totals[:total_byn]).to eq(1045.0)
+      expect(totals[:customs_total_byn]).to eq(70.0)
+      expect(totals[:total_byn]).to eq(975.0)
     end
 
     it "keeps WC/D_IKEA as breakdown that is not added again" do

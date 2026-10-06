@@ -335,17 +335,16 @@ RSpec.describe "IKEYA new pricing formula" do
       expect(pricing[:totals][:discount_total_byn].to_f).to be_within(0.02).of((pricing[:items].first[:unit_price_byn_before_discount] * 0.5).round(2))
       expected_total = (
         pricing[:totals][:items_total_byn].to_f -
-          pricing[:totals][:discount_total_byn].to_f +
-          customs
+          pricing[:totals][:discount_total_byn].to_f
       ).round(2)
       expect(pricing[:totals][:total_byn].to_f).to eq(expected_total)
     end
   end
 
-  describe "AD. checkout/payment includes cart customs once" do
+  describe "AD. checkout/payment keeps cart customs out of the payable total" do
     before { seed_rates! }
 
-    it "adds customs exactly once to payable total" do
+    it "charges goods and last-mile without customs" do
       a = priced_product(sku: "PAY-A", price: 738, weight: 10, delivery_cost: 20)
       b = priced_product(sku: "PAY-B", price: 738, weight: 10, delivery_cost: 20)
       user = create(:user)
@@ -362,7 +361,7 @@ RSpec.describe "IKEYA new pricing formula" do
       display = CartDisplayTotalsService.for_summary(pricing[:totals])
       expect(display[:customs_total_byn].to_f).to eq(70.0)
       expect(total).to eq(
-        (display[:items_total_byn].to_f - display[:discount_total_byn].to_f + 70.0 + 12.43).round(2)
+        (display[:items_total_byn].to_f - display[:discount_total_byn].to_f + 12.43).round(2)
       )
     end
   end
