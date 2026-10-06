@@ -26,12 +26,39 @@ RSpec.describe "SendPulse webhook", type: :request do
 
   it "ignores unknown events" do
     post "/api/v1/webhooks/sendpulse",
-         params: { event: "delivered", email: "user@example.com" },
+         params: { event: "unknown_event", email: "user@example.com" },
          as: :json
 
     expect(response).to have_http_status(:ok)
     body = JSON.parse(response.body)
     expect(body["ignored"]).to be(true)
     expect(user.reload.email_marketing).to be(true)
+  end
+
+  it "updates transactional email delivery status" do
+    log = create(
+      :transactional_email_log,
+      user: user,
+      to_email: user.email,
+      subject: "Ваш заказ доставлен",
+      status: "sent",
+      provider_message_id: "msg-1",
+      sent_at: Time.current
+    )
+
+    post "/api/v1/webhooks/sendpulse",
+         params: [
+           {
+             event: "delivered",
+             message_id: "msg-1",
+             recipient: user.email,
+             subject: "Ваш заказ доставлен",
+             timestamp: Time.current.to_i
+           }
+         ],
+         as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(log.reload.status).to eq("delivered")
   end
 end

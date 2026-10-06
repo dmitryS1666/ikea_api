@@ -59,6 +59,11 @@ module EmailTemplates
         subject: "Ваш заказ отменён",
         preheader: "Оплата не поступила, поэтому заказ был отменён."
       },
+      order_delivered: {
+        file: "order_delivered.html",
+        subject: "Ваш заказ доставлен",
+        preheader: "Спасибо за покупку. Оцените товары в личном кабинете — это займёт около минуты."
+      },
       abandoned_cart: {
         file: "abandoned_cart.html",
         subject: "В вашей корзине остались товары",
@@ -82,6 +87,7 @@ module EmailTemplates
       "paid" => :order_placed,
       "received_poland" => :received_poland,
       "shipped" => :shipped_to_pvz,
+      "completed" => :order_delivered,
       "cancelled" => :order_cancelled
     }.freeze
 
@@ -169,7 +175,7 @@ module EmailTemplates
     def apply_template_specific_replacements(html)
       case template_key
       when :order_created, :order_awaiting_payment, :order_placed,
-           :received_poland, :shipped_to_pvz, :order_cancelled, :abandoned_cart
+           :received_poland, :shipped_to_pvz, :order_delivered, :order_cancelled, :abandoned_cart
         apply_order_replacements(html)
       when :welcome, :email_changed
         apply_verification_replacements(html)
@@ -424,6 +430,8 @@ module EmailTemplates
         order.payment_url.presence || profile_order_url
       when :abandoned_cart
         "#{public_site_url}/cart"
+      when :order_delivered
+        profile_reviews_url
       else
         profile_order_url
       end
@@ -483,6 +491,10 @@ module EmailTemplates
 
     def profile_orders_url
       "#{public_site_url}/profile/orders"
+    end
+
+    def profile_reviews_url
+      "#{public_site_url}/profile/reviews/"
     end
 
     def cart_url

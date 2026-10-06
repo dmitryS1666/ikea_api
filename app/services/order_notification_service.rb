@@ -45,11 +45,27 @@ class OrderNotificationService
     admin_email = ENV["SENDPULSE_ADMIN_NOTIFY_EMAIL"]
     return if admin_email.blank?
 
+    subject = "Новый заказ №#{order.display_number}"
+    html = build_admin_order_created_html(order)
+    text = build_admin_order_created_text(order)
+    log = TransactionalEmailLogs::Creator.call(
+      template_key: "admin_order_created",
+      to_email: admin_email,
+      subject: subject,
+      html: html,
+      text: text,
+      order: order,
+      user: order.user
+    )
+
     SendpulseEmailJob.perform_later(
       to_email: admin_email,
-      subject: "Новый заказ №#{order.display_number}",
-      html: build_admin_order_created_html(order),
-      text: build_admin_order_created_text(order)
+      subject: subject,
+      html: html,
+      text: text,
+      template_key: "admin_order_created",
+      order_id: order.id,
+      email_log_id: log.id
     )
   rescue StandardError => e
     Rails.logger.error("[SendPulse] Failed to enqueue admin order created email for order=#{order.id}: #{e.class} #{e.message}")

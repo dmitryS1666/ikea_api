@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_15_140000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_06_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -548,6 +548,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_15_140000) do
     t.text "image_url"
     t.text "name_snapshot"
     t.text "description_snapshot"
+    t.decimal "poland_price_pln", precision: 12, scale: 2
+    t.text "poland_product_url"
     t.index ["order_id", "product_sku"], name: "index_order_items_on_order_id_and_product_sku", unique: true
     t.index ["order_id"], name: "index_order_items_on_order_id"
     t.index ["product_sku"], name: "index_order_items_on_product_sku"
@@ -600,12 +602,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_15_140000) do
     t.boolean "offer_agreement_consent", default: false, null: false
     t.boolean "customs_broker_consent", default: false, null: false
     t.datetime "abandoned_cart_email_sent_at"
+    t.datetime "order_delivered_email_sent_at"
     t.jsonb "pricing_snapshot", default: {}, null: false
     t.bigint "assigned_to_id"
     t.jsonb "pending_order_email_keys", default: [], null: false
     t.datetime "email_dispatch_locked_at"
     t.index ["assigned_to_id"], name: "index_orders_on_assigned_to_id"
     t.index ["crm_external_id"], name: "index_orders_on_crm_external_id"
+    t.index ["order_delivered_email_sent_at"], name: "index_orders_on_pending_order_delivered_email", where: "(order_delivered_email_sent_at IS NULL)"
     t.index ["payment_link_token"], name: "index_orders_on_payment_link_token", unique: true
     t.index ["promo_code_id"], name: "index_orders_on_promo_code_id"
     t.index ["public_uid"], name: "index_orders_on_public_uid", unique: true
@@ -676,6 +680,21 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_15_140000) do
     t.datetime "updated_at", null: false
     t.index ["priority", "active"], name: "index_pickup_points_on_priority_and_active"
     t.index ["provider", "active"], name: "index_pickup_points_on_provider_and_active"
+  end
+
+  create_table "poland_track_exports", force: :cascade do |t|
+    t.bigint "order_id", null: false
+    t.string "state", default: "pending", null: false
+    t.text "payload_json"
+    t.jsonb "remote_response", default: {}, null: false
+    t.integer "attempts", default: 0, null: false
+    t.string "last_error"
+    t.datetime "next_attempt_at"
+    t.datetime "last_attempt_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["order_id"], name: "index_poland_track_exports_on_order_id", unique: true
+    t.index ["state", "next_attempt_at"], name: "index_poland_track_exports_on_state_and_next_attempt_at"
   end
 
   create_table "popular_search_queries", force: :cascade do |t|
@@ -1001,6 +1020,36 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_15_140000) do
     t.index ["seoable_type", "seoable_id"], name: "index_seo_meta_on_seoable"
   end
 
+  create_table "transactional_email_logs", force: :cascade do |t|
+    t.bigint "user_id"
+    t.bigint "order_id"
+    t.string "to_email", null: false
+    t.string "to_name"
+    t.string "template_key", null: false
+    t.string "subject", null: false
+    t.string "preview_text"
+    t.string "status", default: "queued", null: false
+    t.string "provider", default: "sendpulse", null: false
+    t.string "provider_message_id"
+    t.text "error_message"
+    t.datetime "queued_at", null: false
+    t.datetime "sent_at"
+    t.datetime "delivered_at"
+    t.datetime "opened_at"
+    t.datetime "failed_at"
+    t.datetime "last_event_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_transactional_email_logs_on_created_at"
+    t.index ["order_id"], name: "index_transactional_email_logs_on_order_id"
+    t.index ["provider_message_id"], name: "index_transactional_email_logs_on_provider_message_id"
+    t.index ["status"], name: "index_transactional_email_logs_on_status"
+    t.index ["template_key"], name: "index_transactional_email_logs_on_template_key"
+    t.index ["to_email"], name: "index_transactional_email_logs_on_to_email"
+    t.index ["user_id"], name: "index_transactional_email_logs_on_user_id"
+  end
+
   create_table "translation_caches", force: :cascade do |t|
     t.text "text", null: false
     t.string "target_language", limit: 10, null: false
@@ -1138,6 +1187,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_15_140000) do
   add_foreign_key "orders", "promo_codes"
   add_foreign_key "orders", "users"
   add_foreign_key "orders", "users", column: "assigned_to_id", on_delete: :nullify
+  add_foreign_key "poland_track_exports", "orders"
   add_foreign_key "product_filter_values", "categories", primary_key: "ikea_id"
   add_foreign_key "product_filter_values", "products"
   add_foreign_key "promo_code_categories", "promo_codes"
@@ -1150,6 +1200,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_15_140000) do
   add_foreign_key "reviews", "orders"
   add_foreign_key "reviews", "users"
   add_foreign_key "search_query_logs", "users", column: "customer_id"
+  add_foreign_key "transactional_email_logs", "orders"
+  add_foreign_key "transactional_email_logs", "users"
   add_foreign_key "user_delivery_addresses", "users"
   add_foreign_key "user_pickup_points", "pickup_points"
   add_foreign_key "user_pickup_points", "users"

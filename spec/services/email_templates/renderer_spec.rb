@@ -410,6 +410,24 @@ RSpec.describe EmailTemplates::Renderer do
     expect(described_class.template_for_order(order.reload)).to eq(:shipped_to_pvz)
   end
 
+  it "maps completed orders to the delivered review-request template" do
+    order.update_column(:status, Order.statuses[:completed])
+
+    expect(described_class.template_for_order(order.reload)).to eq(:order_delivered)
+  end
+
+  it "links the delivered review button to the account reviews page" do
+    order.update_column(:status, Order.statuses[:completed])
+
+    html = described_class.render(:order_delivered, order: order.reload, user: user)
+
+    expect(html).to include("Ваш заказ доставлен")
+    expect(html).to include("Оценить покупку")
+    expect(html).to include("Ваш отзыв поможет другим покупателям")
+    expect(html).to match(%r{href="https://ikeya\.by/profile/reviews/"[^>]*>Оценить покупку})
+    expect(html).to include("№7654321")
+  end
+
   it "uses static subjects without template variables" do
     expect(described_class.subject_for(:order_created, order: order, user: user))
       .to eq("Ваш заказ находится в обработке")

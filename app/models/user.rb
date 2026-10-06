@@ -57,6 +57,7 @@ class User < ApplicationRecord
     "consent_records" => { read: :customer_data_read, write: :customer_data_manage },
     "favorites" => { read: :customer_data_read, write: :customer_data_manage },
     "reviews" => { read: :customer_data_read, write: :customer_data_manage },
+    "transactional_email_logs" => { read: :orders_read, write: :orders_read },
     "products" => { read: :content_read, write: :content_manage },
     "categories" => { read: :content_read, write: :content_manage },
     "breadcrumb_rules" => { read: :content_read, write: :content_manage },

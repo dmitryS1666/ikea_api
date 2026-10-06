@@ -127,6 +127,39 @@ RSpec.describe PrepareOrderEmailJob, type: :job do
       .to eq("order_placed")
   end
 
+  it "sends the delivered review-request email and claims the order" do
+    order.update!(status: :completed)
+
+    described_class.perform_now(template_key: "order_delivered", order_id: order.id)
+
+    expect(SendpulseEmailJob).to have_received(:perform_later) do |payload|
+      expect(payload[:html]).to include("Ваш заказ доставлен")
+      expect(payload[:html]).to include("Оценить покупку")
+      expect(payload[:html]).to include("/profile/reviews/")
+      expect(payload[:subject]).to eq("Ваш заказ доставлен")
+    end
+    expect(order.reload.order_delivered_email_sent_at).to be_present
+  end
+
+  it "skips a second delivered review-request email for the same order" do
+    order.update!(status: :completed, order_delivered_email_sent_at: 1.hour.ago)
+
+    described_class.perform_now(template_key: "order_delivered", order_id: order.id)
+
+    expect(SendpulseEmailJob).not_to have_received(:perform_later)
+  end
+
+  it "releases the delivered claim when rendering fails" do
+    order.update!(status: :completed)
+    allow(TransactionalEmailService).to receive(:send_template).and_raise(StandardError, "boom")
+
+    expect {
+      described_class.new.perform(template_key: "order_delivered", order_id: order.id)
+    }.to raise_error(StandardError, "boom")
+
+    expect(order.reload.order_delivered_email_sent_at).to be_nil
+  end
+
   it "rejects non-order_created drafts instead of sending incomplete data" do
     order.update_column(:checkout_draft, true)
 

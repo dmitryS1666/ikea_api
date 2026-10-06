@@ -50,6 +50,14 @@ RSpec.describe OrderNotificationService do
     expect(TransactionalEmailService).not_to have_received(:send_order_email)
   end
 
+  it "enqueues the delivered review-request email when an order is completed" do
+    order.update_column(:status, Order.statuses[:completed])
+
+    described_class.call(order.reload, status_changed: true)
+
+    expect(TransactionalEmailService).to have_received(:send_order_email).with(:order_delivered, order)
+  end
+
   it "sends telegram immediately for ERIP and marks the order unpaid" do
     order.update_columns(payment_method: "erip")
     allow(described_class).to receive(:send_telegram_manager_notification).and_call_original

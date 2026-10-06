@@ -36,17 +36,40 @@ class PrepareOrderEmailJob < ApplicationJob
       return
     end
 
+    if key == :order_delivered
+      unless order.status.to_s == "completed"
+        Rails.logger.info(
+          "[TransactionalEmail] Skip order_delivered for order=#{order_id}: status=#{order.status}"
+        )
+        OrderEmailQueue.complete_and_continue!(order_id, previous_template_key: key) if continue_queue
+        return
+      end
+
+      unless claim_order_delivered_email!(order)
+        Rails.logger.info(
+          "[TransactionalEmail] Skip order_delivered for order=#{order_id}: already claimed/sent"
+        )
+        OrderEmailQueue.complete_and_continue!(order_id, previous_template_key: key) if continue_queue
+        return
+      end
+    end
+
     OrderEmailSnapshotService.capture!(order)
 
-    TransactionalEmailService.send_template(
-      key,
-      to_email: order.user&.email,
-      to_name: order.full_name.presence || order.user&.full_name,
-      order: order.reload,
-      user: order.user,
-      continue_order_queue: continue_queue,
-      order_id: order.id
-    )
+    begin
+      TransactionalEmailService.send_template(
+        key,
+        to_email: order.user&.email,
+        to_name: order.full_name.presence || order.user&.full_name,
+        order: order.reload,
+        user: order.user,
+        continue_order_queue: continue_queue,
+        order_id: order.id
+      )
+    rescue StandardError
+      release_order_delivered_email_claim!(order) if key == :order_delivered
+      raise
+    end
   rescue StandardError => e
     Rails.logger.error(
       "[TransactionalEmail] Failed to prepare #{template_key} for order=#{order_id}: #{e.class} #{e.message}"
@@ -55,6 +78,16 @@ class PrepareOrderEmailJob < ApplicationJob
   end
 
   private
+
+  def claim_order_delivered_email!(order)
+    Order.where(id: order.id, order_delivered_email_sent_at: nil)
+         .update_all(order_delivered_email_sent_at: Time.current)
+         .positive?
+  end
+
+  def release_order_delivered_email_claim!(order)
+    Order.where(id: order.id).update_all(order_delivered_email_sent_at: nil)
+  end
 
   def order_already_paid?(order)
     order.webpay_paid_at.present? || !%w[created processing confirmed].include?(order.status.to_s)

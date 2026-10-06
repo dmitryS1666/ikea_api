@@ -14,12 +14,14 @@ RSpec.describe SendpulseEmailJob, type: :job do
   it "calls Sendpulse::EmailSender" do
     sender = instance_double(Sendpulse::EmailSender)
     allow(Sendpulse::EmailSender).to receive(:new).and_return(sender)
-    allow(sender).to receive(:call).and_return(Sendpulse::Result.new(success: true, response: { "ok" => true }))
+    allow(sender).to receive(:call).and_return(Sendpulse::Result.new(success: true, response: { "result" => true, "id" => "abc-123" }))
+    log = create(:transactional_email_log, to_email: "user@example.com", subject: "Test", status: "queued")
 
     described_class.perform_now(
       to_email: "user@example.com",
       subject: "Test",
-      html: "<p>Test</p>"
+      html: "<p>Test</p>",
+      email_log_id: log.id
     )
 
     expect(sender).to have_received(:call).with(
@@ -28,6 +30,8 @@ RSpec.describe SendpulseEmailJob, type: :job do
       html: "<p>Test</p>",
       raise_on_error: true
     )
+    expect(log.reload.status).to eq("sent")
+    expect(log.provider_message_id).to eq("abc-123")
   end
 
   it "advances the per-order queue only after a successful send" do

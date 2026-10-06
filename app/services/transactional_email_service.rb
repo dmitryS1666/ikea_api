@@ -21,19 +21,35 @@ class TransactionalEmailService
       html = EmailTemplates::Renderer.render(template_key, **locals)
       subject = EmailTemplates::Renderer.subject_for(template_key, **locals)
       text = strip_html(html)
+      order = locals[:order]
+      resolved_order_id = order_id.presence || order&.id
+
+      log = TransactionalEmailLogs::Creator.call(
+        template_key: template_key,
+        to_email: to_email,
+        to_name: to_name,
+        subject: subject,
+        text: text,
+        html: html,
+        user: locals[:user],
+        order: order
+      )
 
       payload = {
         to_email: to_email,
         to_name: to_name,
         subject: subject,
         html: html,
-        text: text
+        text: text,
+        template_key: template_key.to_s,
+        email_log_id: log.id
       }
       payload[:next_order_email] = next_order_email if next_order_email.present?
-      if continue_order_queue && order_id.present?
+      if continue_order_queue && resolved_order_id.present?
         payload[:continue_order_queue] = true
-        payload[:order_id] = order_id
-        payload[:template_key] = template_key.to_s
+        payload[:order_id] = resolved_order_id
+      elsif resolved_order_id.present?
+        payload[:order_id] = resolved_order_id
       end
 
       SendpulseEmailJob.perform_later(**payload)
