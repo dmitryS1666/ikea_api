@@ -46,6 +46,8 @@ class User < ApplicationRecord
     technical_read
     technical_manage
   ].freeze
+  EMAIL_PROMPT_SNOOZE_PERIOD = 7.days
+
   ADMIN_RESOURCE_RULES = {
     "dashboard" => { read: :reports_view, write: :reports_view },
     "users" => { read: :manage_users, write: :manage_users },
@@ -453,6 +455,24 @@ class User < ApplicationRecord
     email_verified_at.present?
   end
 
+  def email_prompt_snoozed?
+    email_prompt_snoozed_until.present? && email_prompt_snoozed_until > Time.current
+  end
+
+  # Форма запроса email: нет почты или она не подтверждена, и неделя после «Напомнить позже» уже прошла.
+  def email_prompt_due?
+    return false unless is_active?
+    return false if role.present? && role != "user"
+    return false if email.present? && email_verified?
+    return false if email_prompt_snoozed?
+
+    true
+  end
+
+  def snooze_email_prompt!(from: Time.current)
+    update!(email_prompt_snoozed_until: from + EMAIL_PROMPT_SNOOZE_PERIOD)
+  end
+
   # Полный стоп любых писем на этот адрес (после отписки с неподтверждённого email).
   def email_suppressed?
     email_suppressed_at.present?
@@ -528,6 +548,7 @@ class User < ApplicationRecord
   end
 
   before_save :clear_email_verification_if_email_changed
+  before_save :clear_email_prompt_snooze_when_verified
   after_commit :sync_with_crm, on: [:create, :update], if: :should_sync_crm?
   after_commit :sync_marketing_subscription, on: [:create, :update], if: :should_sync_marketing_subscription?
 
@@ -536,6 +557,12 @@ class User < ApplicationRecord
   # Смена email сбрасывает верификацию, кроме случая verify!,
   # где email и email_verified_at выставляются вместе.
   # Новый адрес снова может получать письма (снимаем suppress).
+  def clear_email_prompt_snooze_when_verified
+    return unless will_save_change_to_email_verified_at? && email_verified_at.present?
+
+    self.email_prompt_snoozed_until = nil
+  end
+
   def clear_email_verification_if_email_changed
     return unless will_save_change_to_email?
     return if will_save_change_to_email_verified_at? && email_verified_at.present?

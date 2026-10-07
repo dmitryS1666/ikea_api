@@ -76,6 +76,7 @@ Rails.application.routes.draw do
           post :change_phone_verify
           get :change_email_verify
           post :change_email_verify
+          post :email_prompt_snooze
         end
 
         resources :purchases, only: [:index]

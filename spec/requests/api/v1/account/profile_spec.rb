@@ -278,6 +278,36 @@ RSpec.describe "Account Profile API", type: :request do
       expect(body["email_verified"]).to be(false)
     end
 
+    it "asks for email when it is missing or not verified" do
+      get "/api/v1/account/profile", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["email_prompt_due"]).to be(true)
+      expect(body["email_prompt_snoozed_until"]).to be_nil
+    end
+
+    it "does not ask for email when it is verified" do
+      user.update!(email_verified_at: 1.day.ago)
+
+      get "/api/v1/account/profile", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["email_prompt_due"]).to be(false)
+    end
+
+    it "does not ask for email while the reminder is still ahead" do
+      user.update!(email_prompt_snoozed_until: 2.days.from_now)
+
+      get "/api/v1/account/profile", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["email_prompt_due"]).to be(false)
+      expect(Time.iso8601(body["email_prompt_snoozed_until"])).to be_within(1.second).of(user.email_prompt_snoozed_until)
+    end
+
     it "returns email_verified when email was confirmed" do
       user.update!(email_verified_at: 1.day.ago)
 
@@ -340,6 +370,44 @@ RSpec.describe "Account Profile API", type: :request do
       expect(response).to have_http_status(:ok)
       body = JSON.parse(response.body)
       expect(body["passport_data"]).to be_nil
+    end
+  end
+
+  describe "POST /api/v1/account/profile/email_prompt_snooze" do
+    it "requires bearer authorization" do
+      post "/api/v1/account/profile/email_prompt_snooze"
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "hides the email prompt for 7 days" do
+      freeze_time do
+        post "/api/v1/account/profile/email_prompt_snooze", headers: headers
+
+        expect(response).to have_http_status(:ok)
+        body = JSON.parse(response.body)
+        expect(body["email_prompt_due"]).to be(false)
+        expect(Time.iso8601(body["email_prompt_snoozed_until"])).to be_within(1.second).of(7.days.from_now)
+        expect(user.reload.email_prompt_snoozed_until).to be_within(1.second).of(7.days.from_now)
+      end
+    end
+
+    it "shows the prompt again after the reminder date" do
+      user.update!(email_prompt_snoozed_until: 1.hour.ago)
+
+      get "/api/v1/account/profile", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["email_prompt_due"]).to be(true)
+    end
+
+    it "clears the reminder when the email is verified" do
+      user.update!(email_prompt_snoozed_until: 3.days.from_now)
+
+      user.update!(email_verified_at: Time.current)
+
+      expect(user.reload.email_prompt_snoozed_until).to be_nil
+      expect(user.email_prompt_due?).to be(false)
     end
   end
 

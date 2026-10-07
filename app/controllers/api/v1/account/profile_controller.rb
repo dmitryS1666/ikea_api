@@ -99,6 +99,13 @@ module Api
           end
         end
 
+        # POST /api/v1/account/profile/email_prompt_snooze
+        # «Напомнить через неделю» / закрытие формы: скрыть запрос email на 7 дней.
+        def email_prompt_snooze
+          current_user.snooze_email_prompt!
+          render json: user_payload(current_user)
+        end
+
         # POST /api/v1/account/profile/change_email_verify/resend
         def resend_change_email_verify
           result = EmailVerificationService.resend_current_email!(current_user)
@@ -239,6 +246,8 @@ module Api
             personal_data_consent: user.personal_data_consent,
             personal_data_consented_at: user.personal_data_consented_at&.iso8601,
             email_verified: user.email_verified?,
+            email_prompt_due: user.email_prompt_due?,
+            email_prompt_snoozed_until: user.email_prompt_snoozed_until&.iso8601,
             passport_verified: user.passport_verified?,
             passport_data: passport_data,
             a1_verification_id: user.a1_verification_id

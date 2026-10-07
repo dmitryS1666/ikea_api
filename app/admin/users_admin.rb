@@ -145,6 +145,24 @@ Trestle.resource(:users, model: User) do
           end
         end
       end
+      if current_user&.can_view_personal_data?
+        row do
+          col(sm: 6) { datetime_field :email_prompt_snoozed_until, label: "Напомнить про email" }
+          col(sm: 6) do
+            static_field :email_prompt_status, label: "Форма запроса email" do
+              if user.email_verified?
+                "Не показывается: почта подтверждена"
+              elsif user.email_prompt_snoozed?
+                "Скрыта до #{user.email_prompt_snoozed_until.strftime('%d.%m.%Y %H:%M')}. Затем снова при входе."
+              elsif user.email.blank?
+                "Покажется при следующем входе: email не указан"
+              else
+                "Покажется при следующем входе: email не подтверждён"
+              end
+            end
+          end
+        end
+      end
       row do
         if current_user&.can_view_personal_data?
           col(sm: 6) { text_field :phone, label: "Телефон" }
@@ -338,7 +356,7 @@ Trestle.resource(:users, model: User) do
     params.require(:user).permit(
       :last_name, :first_name, :middle_name, :username, :email, :phone, :country_code,
       :dob, :gender, :region, :city, :postcode, :street, :house, :building, :apartment,
-      :address, :email_verified_flag, :email_verified_at,
+      :address, :email_verified_flag, :email_verified_at, :email_prompt_snoozed_until,
       :email_suppressed_flag, :email_suppressed_at, :email_marketing_enabled,
       :telegram_marketing, :gdpr_consent,
       :personal_data_consent, :personal_data_consented_at,
