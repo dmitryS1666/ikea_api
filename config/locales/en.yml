@@ -109,6 +109,7 @@ en:
         search_query_logs: { label: "Логи поиска" }
         transactional_email_logs: { label: "Письма клиентам" }
         users: { label: "Пользователи" }
+        admin_role_permissions: { label: "Права ролей" }
   activerecord:
     models:
       breadcrumb_rule:

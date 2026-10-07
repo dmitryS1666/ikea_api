@@ -59,11 +59,16 @@ RSpec.describe User, type: :model do
       expect(user.has_admin_permission?(:content_manage)).to be(false)
     end
 
-    it "applies custom permissions overrides" do
-      user = build(:user, role: "observer", custom_permissions: { content_manage: true })
+    it "lets custom permissions only narrow the role" do
+      user = build(
+        :user,
+        role: "observer",
+        custom_permissions: { content_manage: true, orders_read: false }
+      )
 
-      expect(user.has_admin_permission?(:content_manage)).to be(true)
-      expect(user.has_admin_permission?(:orders_manage)).to be(false)
+      expect(user.has_admin_permission?(:content_manage)).to be(false)
+      expect(user.has_admin_permission?(:orders_read)).to be(false)
+      expect(user.has_admin_permission?(:reports_view)).to be(true)
     end
 
     it "checks access by admin resource and action" do

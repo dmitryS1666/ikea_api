@@ -18,7 +18,7 @@ module Api
       private
 
       def require_admin
-        render json: { error: 'Недостаточно прав' }, status: :forbidden unless current_user&.admin?
+        render json: { error: 'Недостаточно прав' }, status: :forbidden unless current_user&.admin? || current_user&.super_admin?
       end
 
       def export_filename

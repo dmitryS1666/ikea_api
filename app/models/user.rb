@@ -7,6 +7,7 @@ class User < ApplicationRecord
     "manager" => "manager_requests"
   }.freeze
   ROLE_OPTIONS = {
+    "Суперадминистратор" => "super_admin",
     "Владелец / директор" => "admin",
     "Администратор сайта" => "site_admin",
     "Менеджер по заявкам" => "manager_requests",
@@ -25,6 +26,8 @@ class User < ApplicationRecord
     technician
     observer
   ].freeze
+  # super_admin входит в панель, но не в редактируемую матрицу ролей.
+  ADMIN_LOGIN_ROLES = (ADMIN_PANEL_ROLES + %w[super_admin]).freeze
   ADMIN_PERMISSION_KEYS = %i[
     manage_users
     restrictions_manage
@@ -89,6 +92,7 @@ class User < ApplicationRecord
     "customs_registry_export" => { read: :orders_read, write: :orders_read },
     "review_settings" => { read: :technical_read, write: :technical_manage },
     "europost_tester" => { read: :technical_read, write: :technical_manage },
+    "admin_role_permissions" => { read: :restrictions_manage, write: :restrictions_manage },
     "auth/account" => { read: :reports_view, write: :reports_view }
   }.freeze
   ADMIN_READ_ACTIONS = %w[index show stats search by_category].freeze
@@ -309,13 +313,32 @@ class User < ApplicationRecord
   def admin?
     role == 'admin'
   end
+
+  def site_admin?
+    role == 'site_admin'
+  end
+
+  def super_admin?
+    role == 'super_admin'
+  end
   
   def manager?
     role == 'manager_requests'
   end
 
   def can_access_admin_panel?
-    is_active? && ADMIN_PANEL_ROLES.include?(role)
+    is_active? && ADMIN_LOGIN_ROLES.include?(role)
+  end
+
+  # Паспорт — отдельный уровень чувствительности; не открывается общим view_personal_data.
+  def can_view_passport_data?
+    admin?
+  end
+
+  def self.assignable_role_options(actor)
+    options = ROLE_OPTIONS.dup
+    options.delete("Суперадминистратор") unless actor&.super_admin?
+    options
   end
 
   def custom_permissions_hash
@@ -328,8 +351,13 @@ class User < ApplicationRecord
   end
 
   def permissions_for_admin
-    base = BASE_ADMIN_PERMISSIONS.fetch(role, BASE_ADMIN_PERMISSIONS.fetch("user")).dup
-    custom_permissions_hash.each { |key, value| base[key] = value }
+    return ADMIN_PERMISSION_KEYS.index_with(true) if super_admin?
+
+    base = AdminRolePermission.permissions_for(role).dup
+    # Индивидуальные флаги только сужают роль: true не расширяет базовый запрет.
+    custom_permissions_hash.each do |key, value|
+      base[key] = false if value == false
+    end
     base
   end
 
@@ -355,7 +383,7 @@ class User < ApplicationRecord
 
   def allowed_for_admin_resource?(resource_name, action_name)
     return false unless can_access_admin_panel?
-    return true if admin?
+    return true if admin? || super_admin?
 
     resource_key = normalize_admin_resource_name(resource_name)
     return true if resource_key == "auth/account"
@@ -575,7 +603,7 @@ class User < ApplicationRecord
     raw = name.to_s
     return raw if raw.include?("/")
 
-    raw.split("::").last.to_s.underscore
+    raw.split("::").last.to_s.underscore.sub(/_admin\z/, "")
   end
 
   def normalize_role!

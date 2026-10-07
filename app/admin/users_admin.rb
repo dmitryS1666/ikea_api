@@ -10,6 +10,12 @@ Trestle.resource(:users, model: User) do
                  if: -> { current_user&.allowed_for_admin_resource?(:users, :index) }
   end
 
+  collection do
+    scope = User.all
+    scope = scope.where.not(role: "super_admin") unless current_user&.super_admin?
+    scope
+  end
+
   hook("resource.index.header") do
     if current_user&.allowed_for_admin_resource?(:users, :export_marketing_emails) &&
        current_user&.can_view_personal_data?
@@ -29,6 +35,8 @@ Trestle.resource(:users, model: User) do
     end
     column :role do |user|
       case user.role
+      when 'super_admin'
+        status_tag('Суперадминистратор', :success)
       when 'admin'
         status_tag('Владелец / директор', :success)
       when 'site_admin'
@@ -48,8 +56,12 @@ Trestle.resource(:users, model: User) do
       end
     end
     column :passport_verified?, label: "Паспорт" do |user|
-      status_tag(user.passport_verified? ? 'Верифицирован' : 'Не верифицирован', 
-                 user.passport_verified? ? :success : :warning)
+      if current_user&.can_view_passport_data?
+        status_tag(user.passport_verified? ? 'Верифицирован' : 'Не верифицирован',
+                   user.passport_verified? ? :success : :warning)
+      else
+        "Скрыто"
+      end
     end
     column :email_verified?, label: "Почта" do |user|
       status_tag(user.email_verified? ? 'Подтверждена' : 'Не подтверждена',
@@ -67,12 +79,31 @@ Trestle.resource(:users, model: User) do
     end
     column :created_at, align: :center
     actions do |toolbar, user|
-      toolbar.link "Запрос звонка", admin.instance_path(user, action: :request_call), method: :post, icon: "fa fa-phone", class: "btn btn-info"
+      if current_user&.can_view_passport_data?
+        toolbar.link "Запрос звонка", admin.instance_path(user, action: :request_call), method: :post, icon: "fa fa-phone", class: "btn btn-info"
+      end
     end
   end
 
   controller do
+    before_action :protect_super_admin_record, only: [:show, :edit, :update, :destroy]
+
+    def protect_super_admin_record
+      return if current_user&.super_admin?
+
+      record = admin.find_instance(params)
+      return unless record&.super_admin?
+
+      flash[:error] = "Недостаточно прав для аккаунта суперадминистратора"
+      redirect_to admin.path(:index)
+    end
+
     def request_call
+      unless current_user&.can_view_passport_data?
+        flash[:error] = "Недостаточно прав"
+        redirect_to admin.path(:index) and return
+      end
+
       user = admin.find_instance(params)
       if user.phone.blank?
         flash[:error] = "У пользователя не указан номер телефона"
@@ -91,6 +122,11 @@ Trestle.resource(:users, model: User) do
     end
 
     def verify_call
+      unless current_user&.can_view_passport_data?
+        flash[:error] = "Недостаточно прав"
+        redirect_to admin.path(:index) and return
+      end
+
       user = admin.find_instance(params)
       last4 = params[:last4]
       if last4.blank?
@@ -217,7 +253,7 @@ Trestle.resource(:users, model: User) do
     if current_user&.can_manage_restrictions?
       tab :restrictions, label: "Ограничения" do
         static_field :restrictions_note, label: "Настройка прав" do
-          "Кастомные ограничения дополняют ролевую модель и доступны только администратору."
+          "Индивидуальные флаги только сужают возможности роли. Включённый флаг не добавляет право, которого у роли нет."
         end
 
         User::ADMIN_PERMISSION_KEYS.each do |permission_key|
@@ -242,6 +278,7 @@ Trestle.resource(:users, model: User) do
       end
     end
 
+    if current_user&.can_view_passport_data?
     tab :passport, label: "Паспортные данные" do
       if user.encrypted_passport_json.present?
         data = user.passport_data || {}
@@ -328,6 +365,7 @@ Trestle.resource(:users, model: User) do
         end
       end
     end
+    end
 
     sidebar do
       password_field :password, label: "Пароль"
@@ -335,7 +373,7 @@ Trestle.resource(:users, model: User) do
       
       row do
         if current_user&.can_manage_users?
-          col(sm: 12) { select :role, User::ROLE_OPTIONS, label: "Роль" }
+          col(sm: 12) { select :role, User.assignable_role_options(current_user), label: "Роль" }
         else
           col(sm: 12) { static_field :role, label: "Роль" }
         end

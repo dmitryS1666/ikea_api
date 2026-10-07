@@ -9,10 +9,10 @@ RSpec.describe Seeds::AdminRoleUsers do
 
     expect(first_result.pluck(:status)).to all(eq(:saved))
     expect(second_result.pluck(:status)).to all(eq(:saved))
-    expect(User.where(username: described_class::USERS.pluck(:username)).count).to eq(7)
+    expect(User.where(username: described_class::USERS.pluck(:username)).count).to eq(8)
     expect(User.find_by!(username: "director")).to have_attributes(first_name: "Владимир", role: "admin")
     expect(User.where(username: described_class::USERS.pluck(:username)).pluck(:role)).to match_array(
-      %w[admin site_admin manager_requests content_manager accountant technician observer]
+      %w[super_admin admin site_admin manager_requests content_manager accountant technician observer]
     )
   end
 
@@ -30,5 +30,17 @@ RSpec.describe Seeds::AdminRoleUsers do
     described_class.call(environment: {}, production: true)
 
     expect(director.reload.authenticate("Initial-password-42")).to eq(director)
+  end
+
+  it "does not reactivate or retake a customer username" do
+    create(:user, username: "director", role: "user", phone: "+375291110000")
+    observer = create(:user, username: "observer", role: "observer", is_active: false, phone: "+375291110001")
+
+    result = described_class.call(environment: {}, production: false)
+    director_result = result.find { |row| row[:username] == "director" }
+
+    expect(director_result[:status]).to eq(:failed)
+    expect(User.find_by!(username: "director").role).to eq("user")
+    expect(observer.reload.is_active).to be(false)
   end
 end

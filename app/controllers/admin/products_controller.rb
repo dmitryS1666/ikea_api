@@ -1,7 +1,12 @@
 # app/controllers/admin/products_controller.rb
 class Admin::ProductsController < ApplicationController
-  # Если у вас есть стандартная админ-авторизация — подключи её тут, как в остальных админ-контроллерах.
-  # before_action :authenticate_admin!
+  before_action :require_admin_panel_access
+
+  def require_admin_panel_access
+    return if current_user&.can_access_admin_panel?
+
+    render json: { error: "Недостаточно прав" }, status: :forbidden
+  end
 
   # GET /admin/products/by_category?category_id=12345
   #

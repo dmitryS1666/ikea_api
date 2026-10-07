@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_07_160000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_07_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -59,6 +59,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_07_160000) do
     t.index ["auditable_type", "auditable_id", "created_at"], name: "idx_admin_audit_logs_auditable_created"
     t.index ["request_id"], name: "index_admin_audit_logs_on_request_id"
     t.index ["resource", "action", "created_at"], name: "idx_admin_audit_logs_resource_action_created"
+  end
+
+  create_table "admin_role_permissions", force: :cascade do |t|
+    t.string "role", null: false
+    t.jsonb "permissions", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["role"], name: "index_admin_role_permissions_on_role", unique: true
   end
 
   create_table "breadcrumb_rules", force: :cascade do |t|

@@ -3,6 +3,7 @@
 module Seeds
   class AdminRoleUsers
     USERS = [
+      { key: "SUPER_ADMIN", username: "super_admin", first_name: "Суперадминистратор", role: "super_admin", phone: "+375290000008" },
       { key: "DIRECTOR", username: "director", first_name: "Владимир", role: "admin", phone: "+375290000001" },
       { key: "SITE_ADMIN", username: "site_admin", first_name: "Администратор", role: "site_admin", phone: "+375290000002" },
       { key: "REQUEST_MANAGER", username: "requests_manager", first_name: "Менеджер", role: "manager_requests", phone: "+375290000003" },
@@ -18,33 +19,51 @@ module Seeds
 
     def self.upsert_user(attributes, environment:, production:)
       key = attributes.fetch(:key)
-      user = User.find_or_initialize_by(username: attributes.fetch(:username))
-      password = environment["#{key}_PASSWORD"].presence
+      username = attributes.fetch(:username)
+      user = User.find_by(username: username)
 
-      if user.new_record? && production && password.blank?
-        return { username: user.username, status: :skipped, error: "#{key}_PASSWORD is required" }
+      if user&.role == "user"
+        return { username: username, status: :failed, error: "username belongs to a customer" }
       end
 
-      user.assign_attributes(
+      # Повторный запуск не меняет пароль, роль, блокировку и ограничения.
+      if user&.persisted?
+        return { username: user.username, role: user.role, status: :saved }
+      end
+
+      password = environment["#{key}_PASSWORD"].presence
+      if production && password.blank?
+        return { username: username, status: :skipped, error: "#{key}_PASSWORD is required" }
+      end
+
+      password ||= SecureRandom.alphanumeric(24)
+      user = User.new(
+        username: username,
         first_name: attributes.fetch(:first_name),
-        email: environment["#{key}_EMAIL"].presence || "#{attributes.fetch(:username)}@ikea_api.local",
+        email: environment["#{key}_EMAIL"].presence || "#{username}@ikea_api.local",
         phone: environment["#{key}_PHONE"].presence || attributes.fetch(:phone),
         role: attributes.fetch(:role),
-        is_active: true
+        is_active: true,
+        password: password,
+        password_confirmation: password
       )
-
-      # Повторный db:seed не меняет существующий пароль без явного ENV.
-      password ||= "ChangeMe_#{key.downcase}_123" if user.new_record? && !production
-      if password.present?
-        user.password = password
-        user.password_confirmation = password
-      end
-
       user.save!
+      store_local_password(username, password) unless production || Rails.env.test?
       { username: user.username, role: user.role, status: :saved }
     rescue ActiveRecord::RecordInvalid => e
-      { username: attributes.fetch(:username), status: :failed, error: e.record.errors.full_messages.join(", ") }
+      { username: username, status: :failed, error: e.record.errors.full_messages.join(", ") }
     end
-    private_class_method :upsert_user
+
+    def self.store_local_password(username, password)
+      path = Rails.root.join("tmp/rbac_local_credentials.md")
+      FileUtils.mkdir_p(path.dirname)
+      created = !File.exist?(path)
+      File.open(path, "a", 0o600) do |file|
+        file.puts("# Local RBAC accounts") if created
+        file.puts("- #{username}: #{password}")
+      end
+      File.chmod(0o600, path)
+    end
+    private_class_method :upsert_user, :store_local_password
   end
 end
