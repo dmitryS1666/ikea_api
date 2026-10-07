@@ -84,6 +84,7 @@ class User < ApplicationRecord
     "calculator_setting" => { read: :technical_read, write: :technical_manage },
     "feed_setting" => { read: :technical_read, write: :technical_manage },
     "customs_duty_calculator" => { read: :finance_view, write: :finance_manage },
+    "customs_registry_export" => { read: :orders_read, write: :orders_read },
     "review_settings" => { read: :technical_read, write: :technical_manage },
     "europost_tester" => { read: :technical_read, write: :technical_manage },
     "auth/account" => { read: :reports_view, write: :reports_view }
@@ -107,7 +108,8 @@ class User < ApplicationRecord
       export_extended_attrs_input
     ].freeze,
     "finance_entries" => %w[export_registry].freeze,
-    "users" => %w[export_marketing_emails].freeze
+    "users" => %w[export_marketing_emails].freeze,
+    "customs_registry_export" => %w[download].freeze
   }.freeze
   ADMIN_EXPORT_ACTION_PATTERN = /export|download|xlsx/i
   ADMIN_LANDING_RESOURCES = {

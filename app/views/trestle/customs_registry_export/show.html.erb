@@ -1,0 +1,99 @@
+<div class="container-fluid">
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h3 class="mb-0">Реестр для таможни (XLSX)</h3>
+        </div>
+        <div class="card-body">
+          <p class="mb-2">
+            Формирует Excel в формате листа «Реестр» (одна строка на товарную позицию).
+            В выборку попадают оплаченные и последующие статусы заказов за выбранный период
+            (по дате создания заказа). Черновики и отменённые заказы не включаются.
+          </p>
+          <p class="mb-0 text-muted">
+            Поля, которых пока нет в системе (ТН ВЭД, реквизиты отправителя и т.п.),
+            заполняются как «Н/Д» или оставляются пустыми по шаблону.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <% if flash[:error].present? %>
+    <div class="alert alert-danger"><%= flash[:error] %></div>
+  <% end %>
+  <% if @error.present? %>
+    <div class="alert alert-danger"><%= @error %></div>
+  <% end %>
+
+  <div class="row">
+    <div class="col-lg-6">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Период отчёта</h5>
+        </div>
+        <div class="card-body">
+          <%= form_tag admin.instance_path(CustomsRegistryExport.new(id: "show")), method: :get, data: { turbo: false } do %>
+            <div class="form-row">
+              <div class="form-group col-md-6">
+                <label for="from_date">С даты</label>
+                <input type="date" name="from_date" id="from_date" class="form-control"
+                       value="<%= @from_date %>" required>
+              </div>
+              <div class="form-group col-md-6">
+                <label for="to_date">По дату</label>
+                <input type="date" name="to_date" id="to_date" class="form-control"
+                       value="<%= @to_date %>" required>
+              </div>
+            </div>
+
+            <div class="d-flex flex-wrap" style="gap: 0.5rem;">
+              <button type="submit" name="preview" value="1" class="btn btn-secondary">
+                Показать количество
+              </button>
+
+              <% if current_user&.allowed_for_admin_resource?(:customs_registry_export, :download) &&
+                    current_user&.can_view_personal_data? %>
+                <button type="submit"
+                        formaction="<%= admin.path(:download) %>"
+                        class="btn btn-primary">
+                  Скачать XLSX
+                </button>
+              <% else %>
+                <span class="text-muted align-self-center">
+                  Для скачивания нужны права на экспорт и персональные данные
+                </span>
+              <% end %>
+            </div>
+          <% end %>
+
+          <% if @orders_count %>
+            <div class="alert alert-info mt-3 mb-0">
+              Заказов в периоде: <strong><%= @orders_count %></strong>
+              (с <%= @from_date %> по <%= @to_date %>)
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Что попадает в файл</h5>
+        </div>
+        <div class="card-body">
+          <ul class="mb-0">
+            <li>Получатель, паспорт, прописка</li>
+            <li>Адрес доставки / код ПВЗ</li>
+            <li>Позиции заказа: название, PLN, вес</li>
+            <li>Трек Европочты (если есть)</li>
+            <li>Номер ShopByShop или сгенерированный GP…PL</li>
+            <li>Тексты согласий (ПДн и таможенный брокер)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

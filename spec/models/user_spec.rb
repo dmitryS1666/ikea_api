@@ -150,9 +150,12 @@ RSpec.describe User, type: :model do
       expect(content_manager.allowed_for_admin_resource?("products", "download_products_xlsx")).to be(false)
       expect(accountant.allowed_for_admin_resource?("finance_entries", "export_registry")).to be(true)
       expect(accountant.allowed_for_admin_resource?("orders", "export_registry")).to be(false)
+      expect(accountant.allowed_for_admin_resource?("customs_registry_export", "download")).to be(true)
       expect(owner.allowed_for_admin_resource?("products", "download_products_xlsx")).to be(true)
       expect(owner.allowed_for_admin_resource?("users", "export_marketing_emails")).to be(true)
+      expect(owner.allowed_for_admin_resource?("customs_registry_export", "download")).to be(true)
       expect(site_admin.allowed_for_admin_resource?("users", "export_marketing_emails")).to be(false)
+      expect(site_admin.allowed_for_admin_resource?("customs_registry_export", "download")).to be(false)
     end
 
     it "limits the audit log to the owner" do

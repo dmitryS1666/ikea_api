@@ -7,6 +7,7 @@ RSpec.describe "User::ADMIN_EXPORT_ACTIONS" do
     expect(User::ADMIN_EXPORT_ACTIONS.fetch("products")).to include("download_products_xlsx")
     expect(User::ADMIN_EXPORT_ACTIONS.fetch("finance_entries")).to include("export_registry")
     expect(User::ADMIN_EXPORT_ACTIONS.fetch("users")).to include("export_marketing_emails")
+    expect(User::ADMIN_EXPORT_ACTIONS.fetch("customs_registry_export")).to include("download")
   end
 
   it "does not classify an unregistered action as an export" do
