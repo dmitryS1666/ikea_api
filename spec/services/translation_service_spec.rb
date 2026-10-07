@@ -37,9 +37,8 @@ RSpec.describe TranslationService do
   end
 
   describe ".translate" do
-    it "does not call Google Translate" do
+    it "translates Polish text via AI" do
       polish = "Szafka z 5 półkami, beżowy/pomarańczowy"
-      expect(GoogleTranslateService).not_to receive(:translate)
       expect(AiTranslationService).to receive(:translate).with(polish, target_lang: "ru", source_lang: "pl")
         .and_return("Шкаф с 5 полками, бежевый/оранжевый")
 

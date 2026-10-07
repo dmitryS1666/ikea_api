@@ -191,15 +191,6 @@ Rails.application.routes.draw do
       # WebPay user return (must live under /api — NPM proxies only /api to Rails)
       get 'payment/success', to: '/payment#success'
 
-      # Debug & Integration (AmoCRM)
-      namespace :debug do
-        namespace :amo_crm do
-          post 'sync_order/:id', to: 'amo_crm#sync_order'
-          post 'sync_user/:id', to: 'amo_crm#sync_user'
-          post 'exchange_token', to: 'amo_crm#exchange_token'
-        end
-      end
-
       # Webhooks
       namespace :webhooks do
         post 'amo_crm', to: 'amo_crm#receive'
