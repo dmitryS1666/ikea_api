@@ -174,6 +174,7 @@ RSpec.describe ProductSerializer do
       "Wysokość szuflady (wewnątrz):" => "Высота ящика (внутри)",
       "Szerokość szuflady (wewnętrzna):" => "Ширина ящика (внутренняя)",
       "Pojemność przechowywania:" => "Объем хранения",
+      "Powierzchnia:" => "Площадь",
       "Wysokość wezgłowia:" => "Высота изголовья"
     }.each do |polish, russian|
       it "translates #{polish} to #{russian}" do
