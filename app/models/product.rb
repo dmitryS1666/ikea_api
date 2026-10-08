@@ -730,6 +730,7 @@ class Product < ApplicationRecord
 
         images = Array(item[:images]).map(&:to_s).map(&:strip).reject(&:blank?)
         compact_item = { sku: self.class.public_sku(sku) }
+        compact_item[:quantity] = item[:quantity] if item.key?(:quantity)
         label = item[:small_desc_name].presence
         compact_item[:small_desc_name] = label if label.present?
         compact_item[:images] = [images.first] if images.first.present?

@@ -40,7 +40,7 @@ module Search
     private
 
     def direct_text_scope
-      base = Product.with_available_stock
+      base = Product.all
       sku_query = normalized_sku_query(@query)
 
       and_clauses = []
@@ -73,7 +73,7 @@ module Search
       ikea_ids = matching_category_ikea_ids
       return Product.none if ikea_ids.blank?
 
-      Product.with_available_stock.in_categories_ikea_ids(ikea_ids)
+      Product.in_categories_ikea_ids(ikea_ids)
     end
 
     def matching_category_ikea_ids

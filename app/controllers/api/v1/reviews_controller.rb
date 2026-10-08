@@ -72,7 +72,7 @@ module Api
 
       def find_product
         @product = Products::ListingSkuResolver.find_product(params[:product_sku])
-        raise ActiveRecord::RecordNotFound, "Couldn't find Product" unless @product&.available_in_stock?
+        raise ActiveRecord::RecordNotFound, "Couldn't find Product" unless @product
       end
 
       def find_product_for_reviews

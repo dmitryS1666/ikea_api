@@ -33,7 +33,7 @@ module Search
       end
       binds = terms.each_with_index.to_h { |term, index| [:"term_#{index}", "%#{term}%"] }
 
-      products = Product.with_available_stock.where(clauses.join(" OR "), binds).limit(100)
+      products = Product.where(clauses.join(" OR "), binds).limit(100)
 
       product_suggestions = products.filter_map do |product|
         display_name = product.small_desc_name.presence || product.name_ru.presence || product.name.presence

@@ -15,7 +15,7 @@ module Api
         favorite, token, _ = FavoriteTokenResolver.call(request: request, params: params, user: current_user)
         sku = params.require(:sku)
         
-        product = find_available_product_by_public_sku!(sku)
+        product = find_product_by_public_sku!(sku)
 
         favorite_item = favorite.favorite_items.find_or_initialize_by(product_sku: product.sku)
         favorite_item.save!
@@ -46,9 +46,9 @@ module Api
 
       private
 
-      def find_available_product_by_public_sku!(sku)
+      def find_product_by_public_sku!(sku)
         product = Products::ListingSkuResolver.find_product(sku)
-        raise ActiveRecord::RecordNotFound, "Couldn't find Product" unless product&.available_in_stock?
+        raise ActiveRecord::RecordNotFound, "Couldn't find Product" unless product
 
         product
       end

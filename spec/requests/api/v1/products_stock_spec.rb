@@ -4,15 +4,14 @@ require "rails_helper"
 
 RSpec.describe "Products API stock filtering", type: :request do
   describe "GET /api/v1/products/:sku" do
-    it "returns 404 when product is out of stock" do
+    it "returns the product when quantity is zero" do
       product = create(:product, sku: "s99999999", quantity: 0)
 
       get "/api/v1/products/#{product.sku}"
 
-      expect(response).to have_http_status(:not_found)
-      expect(response.parsed_body["code"]).to eq("product_unavailable")
-      expect(response.parsed_body["issue_reason"]).to eq("discontinued")
-      expect(response.parsed_body["similar_products"]).to be_an(Array)
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig("data", "attributes", "sku")).to eq("99999999")
+      expect(response.parsed_body.dig("data", "attributes", "quantity")).to eq(0)
     end
 
     it "returns product when in stock" do

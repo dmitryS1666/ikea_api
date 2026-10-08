@@ -9,6 +9,21 @@ RSpec.describe Search::QueryScope do
   end
 
   describe "#call" do
+    it "includes products with zero quantity when the text matches" do
+      product = create(
+        :product,
+        sku: "OOS-001",
+        name: "PAKS",
+        name_ru: "ПАКС",
+        small_desc_name: "Шкаф, белый",
+        price: 100,
+        quantity: 0
+      )
+
+      scope = described_class.new("шкаф").call
+      expect(scope).to include(product)
+    end
+
     it "matches products with singular stem when query is plural (шкафы → шкаф)" do
       product = create(
         :product,

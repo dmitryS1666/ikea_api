@@ -13,6 +13,7 @@ class ProductTeaserSerializer
              :pricing_status,
              :pricing_errors,
              :customs_notice,
+             :quantity,
              :is_bestseller,
              :is_new,
              :is_recommended,
