@@ -10,18 +10,48 @@ Trestle.resource(:transactional_email_logs, model: TransactionalEmailLog, readon
          if: -> { current_user&.allowed_for_admin_resource?(:transactional_email_logs, :index) }
   end
 
-  collection do
-    TransactionalEmailLog.includes(:user, :order).recent_first
+  collection do |params|
+    scope = TransactionalEmailLog.includes(:user, :order).recent_first
+
+    template_key = params[:template_key].to_s
+    if TransactionalEmailLog::TEMPLATE_LABELS.key?(template_key)
+      scope = scope.where(template_key: template_key)
+    end
+
+    q = params[:q].to_s.strip
+    if q.present?
+      like = "%#{ActiveRecord::Base.sanitize_sql_like(q)}%"
+      conditions = [
+        "transactional_email_logs.to_email ILIKE :like",
+        "transactional_email_logs.to_name ILIKE :like",
+        "transactional_email_logs.subject ILIKE :like",
+        "orders.public_uid ILIKE :like"
+      ]
+      binds = { like: like }
+
+      if q.match?(/\A\d+\z/)
+        conditions << "transactional_email_logs.id = :exact_id"
+        conditions << "orders.id = :exact_id"
+        binds[:exact_id] = q.to_i
+      end
+
+      scope = scope.left_joins(:order).where(conditions.join(" OR "), binds)
+    end
+
+    scope
+  end
+
+  hook("resource.index.header") do
+    render partial: "trestle/transactional_email_logs/search_panel", locals: { admin: admin }
   end
 
   scopes do
-    scope :all, default: true
-    scope :queued, -> { TransactionalEmailLog.where(status: "queued") }
-    scope :sent, -> { TransactionalEmailLog.where(status: "sent") }
-    scope :delivered, -> { TransactionalEmailLog.where(status: "delivered") }
-    scope :opened, -> { TransactionalEmailLog.where(status: %w[opened clicked]) }
-    scope :failed, -> { TransactionalEmailLog.where(status: %w[failed undelivered soft_bounced hard_bounced spam]) }
-    scope :order_delivered, -> { TransactionalEmailLog.where(template_key: "order_delivered") }
+    scope :all, label: "Все", default: true
+    scope :queued, -> { TransactionalEmailLog.where(status: "queued") }, label: "В очереди"
+    scope :sent, -> { TransactionalEmailLog.where(status: "sent") }, label: "Отправлено"
+    scope :delivered, -> { TransactionalEmailLog.where(status: "delivered") }, label: "Доставлено"
+    scope :opened, -> { TransactionalEmailLog.where(status: %w[opened clicked]) }, label: "Открыто"
+    scope :failed, -> { TransactionalEmailLog.where(status: %w[failed undelivered soft_bounced hard_bounced spam]) }, label: "Ошибки"
   end
 
   table do
@@ -32,17 +62,16 @@ Trestle.resource(:transactional_email_logs, model: TransactionalEmailLog, readon
       if current_user&.can_view_personal_data?
         parts = [log.to_email]
         parts << log.to_name if log.to_name.present?
-        parts.join(" · ")
+        safe_join(parts, " · ")
       else
         "Скрыто"
       end
     end
     column :template_key, label: "Письмо" do |log|
-      log.template_label
+      status_tag(log.template_label, :primary)
     end
-    column :subject, label: "Тема"
-    column :preview_text, label: "Кратко" do |log|
-      truncate(log.preview_text.to_s, length: 90)
+    column :subject, label: "Тема" do |log|
+      content_tag(:span, log.subject, title: log.subject)
     end
     column :status, label: "Статус" do |log|
       status_tag(log.status_label, email_status_color(log.status))
@@ -74,9 +103,6 @@ Trestle.resource(:transactional_email_logs, model: TransactionalEmailLog, readon
       static_field :to_name, label: "Имя" do
         current_user&.can_view_personal_data? ? (log.to_name.presence || "—") : "Скрыто"
       end
-      static_field :preview_text, label: "Краткое содержание" do
-        content_tag(:p, log.preview_text.presence || "—")
-      end
       static_field :order, label: "Заказ" do
         if log.order
           link_to("№#{log.order.display_number}", "/admin/orders/#{log.order.id}")
@@ -89,6 +115,14 @@ Trestle.resource(:transactional_email_logs, model: TransactionalEmailLog, readon
           current_user&.can_view_personal_data? ? (log.user.username || log.user.id) : "Скрыто"
         else
           "—"
+        end
+      end
+    end
+
+    tab :preview, label: "Превью" do
+      row do
+        col(sm: 12) do
+          render partial: "trestle/transactional_email_logs/preview", locals: { log: log }
         end
       end
     end

@@ -1,0 +1,72 @@
+<% preview = TransactionalEmailLogs::Preview.call(log) %>
+<% recipient = current_user&.can_view_personal_data? ? [log.to_name.presence, log.to_email].compact.join(" · ") : "Скрыто" %>
+
+<style>
+  .email-log-preview { background: #eef1f4; border-radius: 12px; padding: 20px 16px 28px; }
+  .email-log-preview__sheet { max-width: 720px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 10px 28px rgba(20, 24, 33, 0.08); overflow: hidden; }
+  .email-log-preview__meta { margin: 0; padding: 16px 20px 8px; border-bottom: 1px solid #eceff3; }
+  .email-log-preview__meta > div { display: flex; gap: 12px; margin-bottom: 8px; }
+  .email-log-preview__meta dt { width: 52px; margin: 0; color: #6b7280; font-weight: 600; }
+  .email-log-preview__meta dd { margin: 0; color: #1f2933; word-break: break-word; }
+  .email-log-preview__note, .email-log-preview__empty { margin: 0; padding: 14px 20px; color: #4b5563; font-size: 13px; line-height: 1.45; }
+  .email-log-preview__note { background: #fff8e8; border-bottom: 1px solid #f3e4bf; }
+  .email-log-preview__frame { display: block; width: 100%; min-height: 960px; height: 960px; border: 0; background: #fff; }
+</style>
+
+<div class="email-log-preview">
+  <div class="email-log-preview__sheet">
+    <dl class="email-log-preview__meta">
+      <div>
+        <dt>Кому</dt>
+        <dd><%= recipient %></dd>
+      </div>
+      <div>
+        <dt>Тема</dt>
+        <dd><%= log.subject %></dd>
+      </div>
+    </dl>
+
+    <% if !current_user&.can_view_personal_data? %>
+      <p class="email-log-preview__empty">Содержимое письма скрыто.</p>
+    <% elsif preview.html.present? %>
+      <% if preview.source == :rebuilt %>
+        <p class="email-log-preview__note">Письмо собрано из текущего шаблона. HTML на момент отправки не сохранялся, поэтому вёрстка может чуть отличаться от того, что ушло клиенту.</p>
+      <% end %>
+      <%= tag.iframe(
+            srcdoc: preview.html,
+            class: "email-log-preview__frame",
+            sandbox: "allow-same-origin allow-popups allow-popups-to-escape-sandbox",
+            referrerpolicy: "no-referrer",
+            title: "Превью письма #{log.template_label}"
+          ) %>
+    <% else %>
+      <p class="email-log-preview__empty"><%= log.preview_text.presence || "Превью для этого письма собрать не удалось." %></p>
+    <% end %>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var frame = document.querySelector(".email-log-preview__frame");
+    if (!frame) return;
+
+    function fit() {
+      try {
+        var doc = frame.contentDocument;
+        if (!doc) return;
+        var height = Math.max(
+          doc.documentElement ? doc.documentElement.scrollHeight : 0,
+          doc.body ? doc.body.scrollHeight : 0
+        );
+        if (height > 200) frame.style.height = (height + 24) + "px";
+      } catch (e) {}
+    }
+
+    frame.addEventListener("load", fit);
+    document.querySelectorAll('a[href="#tab-preview"]').forEach(function (tab) {
+      tab.addEventListener("click", function () { window.setTimeout(fit, 50); });
+    });
+    window.setTimeout(fit, 50);
+    window.setTimeout(fit, 400);
+  })();
+</script>

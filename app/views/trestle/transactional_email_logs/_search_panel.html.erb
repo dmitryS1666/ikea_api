@@ -1,0 +1,41 @@
+<%
+  template_options = TransactionalEmailLog::TEMPLATE_LABELS.map { |key, label| [label, key] }.sort_by(&:first)
+  filters_active = params[:q].present? || params[:template_key].present?
+%>
+<div class="card mb-4 email-log-search">
+  <div class="card-body py-3">
+    <form class="search-form" action="<%= admin.path(:index) %>" method="get">
+      <% if params[:scope].present? %>
+        <input type="hidden" name="scope" value="<%= params[:scope] %>">
+      <% end %>
+      <div class="row g-2 align-items-center">
+        <div class="col-md-6">
+          <input type="search"
+                 name="q"
+                 class="form-control"
+                 value="<%= params[:q] %>"
+                 placeholder="Email, имя, тема или номер заказа"
+                 autocomplete="off" />
+        </div>
+        <div class="col-md-4">
+          <select name="template_key" class="form-select form-control">
+            <option value="">Все типы писем</option>
+            <% template_options.each do |label, value| %>
+              <option value="<%= value %>" <%= "selected" if params[:template_key].to_s == value %>><%= label %></option>
+            <% end %>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary flex-grow-1">Искать</button>
+            <% if filters_active %>
+              <%= link_to admin.path(:index, scope: params[:scope].presence), class: "btn btn-outline-secondary", title: "Сбросить фильтры" do %>
+                <i class="fa fa-times"></i>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

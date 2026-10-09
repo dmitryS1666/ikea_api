@@ -28,6 +28,7 @@ module TransactionalEmailLogs
         template_key: template_key,
         subject: subject,
         preview_text: preview_text,
+        html_body: html.presence,
         status: "queued",
         provider: "sendpulse",
         queued_at: Time.current,

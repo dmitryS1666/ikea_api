@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_07_180000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_09_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -610,11 +610,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_07_180000) do
     t.boolean "offer_agreement_consent", default: false, null: false
     t.boolean "customs_broker_consent", default: false, null: false
     t.datetime "abandoned_cart_email_sent_at"
-    t.datetime "order_delivered_email_sent_at"
     t.jsonb "pricing_snapshot", default: {}, null: false
     t.bigint "assigned_to_id"
     t.jsonb "pending_order_email_keys", default: [], null: false
     t.datetime "email_dispatch_locked_at"
+    t.datetime "order_delivered_email_sent_at"
     t.index ["assigned_to_id"], name: "index_orders_on_assigned_to_id"
     t.index ["crm_external_id"], name: "index_orders_on_crm_external_id"
     t.index ["order_delivered_email_sent_at"], name: "index_orders_on_pending_order_delivered_email", where: "(order_delivered_email_sent_at IS NULL)"
@@ -1049,6 +1049,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_07_180000) do
     t.jsonb "metadata", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "html_body"
     t.index ["created_at"], name: "index_transactional_email_logs_on_created_at"
     t.index ["order_id"], name: "index_transactional_email_logs_on_order_id"
     t.index ["provider_message_id"], name: "index_transactional_email_logs_on_provider_message_id"
