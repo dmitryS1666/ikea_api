@@ -12,10 +12,11 @@
 #     items_total_byn
 #     - discount_total_byn
 #     + local_delivery_total_byn
+#     + customs_total_byn
 #
 # items_total_byn / subtotal_new_byn are the turnkey goods amount BEFORE promo.
 # local_delivery_total_byn is 0 until Europost/courier/IKEYA last-mile is chosen.
-# Customs is shown separately and is not part of the amount paid now.
+# Customs is part of the amount paid now.
 class CartDisplayTotalsService
   class << self
     def for_summary(totals)
@@ -31,7 +32,7 @@ class CartDisplayTotalsService
       subtotal_new_byn = items_total_byn
       delivery_total_byn = local_delivery_total_byn
       total_byn = [
-        items_total_byn - discount_total_byn + local_delivery_total_byn,
+        items_total_byn - discount_total_byn + local_delivery_total_byn + customs_total_byn,
         0.0
       ].max.round(2)
 

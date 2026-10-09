@@ -67,7 +67,7 @@ RSpec.describe CheckoutService, "checkout delivery totals" do
   end
 
   describe ".checkout_total_amount" do
-    it "includes last-mile without customs or a second WC" do
+    it "includes last-mile and customs without a second WC" do
       pricing = build_pricing
       display = CartDisplayTotalsService.for_summary(pricing[:totals])
       method = 18.5
@@ -81,7 +81,8 @@ RSpec.describe CheckoutService, "checkout delivery totals" do
       expected = (
         display[:items_total_byn].to_f -
           display[:discount_total_byn].to_f +
-          method
+          method +
+          display[:customs_total_byn].to_f
       ).round(2)
       expect(total).to eq(expected)
     end

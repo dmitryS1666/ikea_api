@@ -79,7 +79,7 @@ module Api
         delivery_total_byn = method_delivery_byn
         customs_total_byn = display_totals[:customs_total_byn].to_f.round(2)
         order_total_byn = [
-          (subtotal_byn - discount_total_byn + delivery_total_byn),
+          (subtotal_byn - discount_total_byn + delivery_total_byn + customs_total_byn),
           0.0
         ].max.round(2)
 

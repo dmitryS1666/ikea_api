@@ -161,7 +161,7 @@ module EmailTemplates
 
       positive_money(totals[:final_total_byn]) ||
         positive_money(totals[:total_byn]) ||
-        [(items_total + delivery_total - discount), 0.0].max.round(2)
+        [(items_total + delivery_total + resolve_customs_total(totals) - discount), 0.0].max.round(2)
     end
 
     def resolve_customs_total(totals)

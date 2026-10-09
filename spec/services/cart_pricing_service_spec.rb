@@ -59,7 +59,8 @@ RSpec.describe CartPricingService do
     expect(pricing[:totals][:total_byn]).to eq(
       (
         pricing[:totals][:items_total_byn].to_f -
-          pricing[:totals][:discount_total_byn].to_f
+          pricing[:totals][:discount_total_byn].to_f +
+          pricing[:totals][:customs_total_byn].to_f
       ).round(2)
     )
   end
@@ -77,7 +78,7 @@ RSpec.describe CartPricingService do
     expect(item[:line_total_byn]).to eq(0.0)
     expect(item[:unit_discount_byn]).to eq(item[:unit_price_byn_before_discount])
     expect(pricing[:totals][:customs_total_byn].to_f).to be >= 0
-    expect(pricing[:totals][:total_byn]).to eq(0.0)
+    expect(pricing[:totals][:total_byn]).to eq(pricing[:totals][:customs_total_byn].to_f.round(2))
   end
 
   it "считает WC по весу одной единицы и умножает на quantity" do
@@ -119,7 +120,9 @@ RSpec.describe CartPricingService do
     item = pricing[:items].first
 
     expect(item[:line_total_byn]).to eq(item[:line_total_byn_checkout])
-    expect(pricing[:totals][:total_byn]).to eq(item[:line_total_byn].to_f.round(2))
+    expect(pricing[:totals][:total_byn]).to eq(
+      (item[:line_total_byn].to_f + pricing[:totals][:customs_total_byn].to_f).round(2)
+    )
   end
 
   it "uses packaging weight for customs cart weight and matches delivery options VGH" do
