@@ -17,7 +17,7 @@ module Api
 
       def draft
         draft_id = params[:draft_id].presence || params[:id].presence
-        @draft_order = current_user.orders.find_by(id: draft_id, checkout_draft: true)
+        @draft_order = Order.find_checkout_draft_for_account(current_user, draft_id)
 
         unless @draft_order
           return render json: { error: 'Черновик заказа не найден', code: 'draft_not_found' }, status: :not_found
@@ -63,7 +63,7 @@ module Api
       private
 
       def set_draft_order
-        @draft_order = current_user.orders.find_by(id: params[:id], checkout_draft: true)
+        @draft_order = Order.find_checkout_draft_for_account(current_user, params[:id])
         return if @draft_order
 
         render json: { error: 'Черновик заказа не найден', code: 'draft_not_found' }, status: :not_found

@@ -288,6 +288,17 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(body.dig("data", "attributes", "checkout_draft")).to eq(true)
   end
 
+  it "loads draft via GET /checkout/:public_uid (profile resume uses JSON:API id)" do
+    post "/api/v1/checkout", params: { draft: true }, headers: headers
+    order = Order.find(JSON.parse(response.body)["order_id"])
+
+    get "/api/v1/checkout/#{order.public_uid}", headers: headers
+    expect(response).to have_http_status(:ok)
+    body = JSON.parse(response.body)
+    expect(body.dig("data", "id")).to eq(order.public_uid)
+    expect(body.dig("data", "attributes", "checkout_draft")).to eq(true)
+  end
+
   it "loads draft via GET /checkout/draft fallback" do
     post "/api/v1/checkout", params: { draft: true }, headers: headers
     order_id = JSON.parse(response.body)["order_id"]
@@ -296,6 +307,38 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(response).to have_http_status(:ok)
     body = JSON.parse(response.body)
     expect(body.dig("data", "attributes", "checkout_draft")).to eq(true)
+  end
+
+  it "loads draft via GET /checkout/draft?draft_id=public_uid" do
+    post "/api/v1/checkout", params: { draft: true }, headers: headers
+    order = Order.find(JSON.parse(response.body)["order_id"])
+
+    get "/api/v1/checkout/draft", params: { draft_id: order.public_uid }, headers: headers
+    expect(response).to have_http_status(:ok)
+    expect(JSON.parse(response.body).dig("data", "attributes", "checkout_draft")).to eq(true)
+  end
+
+  it "cancels draft by public_uid, restores items to cart, and tolerates email log FK" do
+    post "/api/v1/checkout", params: { draft: true }, headers: headers
+    order = Order.find(JSON.parse(response.body)["order_id"])
+    sku = order.order_items.first.product_sku
+    TransactionalEmailLog.create!(
+      user: user,
+      order: order,
+      to_email: user.email,
+      template_key: "order_created",
+      subject: "test",
+      status: "queued",
+      queued_at: Time.current
+    )
+
+    expect(cart.reload.cart_items).to be_blank
+
+    delete "/api/v1/checkout/#{order.public_uid}", headers: headers
+    expect(response).to have_http_status(:no_content)
+    expect(Order.exists?(order.id)).to eq(false)
+    expect(cart.reload.cart_items.pluck(:product_sku, :quantity)).to eq([[sku, 1]])
+    expect(TransactionalEmailLog.where(order_id: order.id)).to be_blank
   end
 
   it "creates draft from explicit cart_token selected items and returns stable draft ids" do

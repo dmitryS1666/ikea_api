@@ -14,7 +14,7 @@ class CheckoutService
   end
 
   def self.update_draft(user:, order_id:, params:)
-    order = user.orders.find_by(id: order_id, checkout_draft: true)
+    order = Order.find_checkout_draft_for_account(user, order_id)
     return { error: 'Черновик заказа не найден', code: 'draft_not_found' } unless order
 
     items_check = CartSelectionService.validate_against_order!(order: order, params: params)
@@ -121,7 +121,7 @@ class CheckoutService
   end
 
   def self.finalize(user:, order_id:, params:)
-    order = user.orders.find_by(id: order_id, checkout_draft: true)
+    order = Order.find_checkout_draft_for_account(user, order_id)
     return { error: 'Черновик заказа не найден', code: 'draft_not_found' } unless order
 
     items_check = CartSelectionService.validate_against_order!(order: order, params: params)
@@ -268,16 +268,20 @@ class CheckoutService
   end
 
   def self.cancel_draft(user:, order_id:)
-    order = user.orders.find_by(id: order_id, checkout_draft: true)
+    order = Order.find_checkout_draft_for_account(user, order_id)
     return { error: 'Черновик заказа не найден', code: 'draft_not_found' } unless order
 
-    order.destroy!
+    Order.transaction do
+      restore_draft_items_to_cart!(user: user, order: order)
+      order.destroy!
+    end
+
     { success: true }
   end
 
   def self.complete_checkout(user:, params:)
-    if user.orders.exists?(checkout_draft: true)
-      draft = user.orders.find_by(checkout_draft: true)
+    if user.orders.active_checkout_drafts.exists?
+      draft = user.orders.active_checkout_drafts.first
       return {
         error: 'Сначала завершите или отмените оформление заказа в корзине',
         code: 'checkout_draft_exists',
@@ -477,7 +481,7 @@ class CheckoutService
     selections = cart_context[:selections]
     requested_selections = CartSelectionService.normalize_selections(cart: checkout_cart, selections: selections)
 
-    existing = user.orders.find_by(checkout_draft: true)
+    existing = user.orders.active_checkout_drafts.order(id: :desc).first
     if existing
       return refresh_or_reuse_draft(
         user: user,
@@ -1118,5 +1122,21 @@ class CheckoutService
 
     order&.persisted? ? order : nil
   end
+
+  def self.restore_draft_items_to_cart!(user:, order:)
+    cart = user.cart || Cart.create!(user: user)
+    order.order_items.find_each do |item|
+      sku = item.product_sku.to_s
+      next if sku.blank?
+
+      existing = cart.cart_items.find_by(product_sku: sku)
+      if existing
+        existing.update!(quantity: existing.quantity.to_i + item.quantity.to_i)
+      else
+        cart.cart_items.create!(product_sku: sku, quantity: item.quantity)
+      end
+    end
+  end
+  private_class_method :restore_draft_items_to_cart!
 
 end

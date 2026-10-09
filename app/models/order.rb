@@ -14,6 +14,7 @@ class Order < ApplicationRecord
   has_many :return_requests, dependent: :destroy
   has_many :reviews, dependent: :nullify
   has_many :consent_records, dependent: :nullify
+  has_many :transactional_email_logs, dependent: :nullify
   has_one :finance_entry, dependent: :destroy
   has_one :poland_track_export, dependent: :destroy
 
@@ -78,6 +79,7 @@ class Order < ApplicationRecord
   COURIER_TIMELINE_STATUSES = %w[handed_to_courier handed_to_courier_ikeya].freeze
 
   scope :purchased, -> { where(status: PURCHASED_STATUSES) }
+  scope :active_checkout_drafts, -> { where(checkout_draft: true).where.not(status: statuses[:cancelled]) }
   scope :expired_unpaid_for_autocancel, lambda { |cutoff_time = Time.current|
     where(status: PAYMENT_AUTOCANCEL_STATUSES, checkout_draft: false)
       .where.not(payment_expires_at: nil)
@@ -182,14 +184,27 @@ class Order < ApplicationRecord
 
   # ЛК: в URL можно передавать public_uid (6–8 цифр) или числовой id (как раньше).
   def self.find_for_account!(user, id_or_uid)
+    find_for_account(user, id_or_uid) || raise(ActiveRecord::RecordNotFound, "Couldn't find Order")
+  end
+
+  def self.find_for_account(user, id_or_uid)
+    return nil if user.blank? || id_or_uid.blank?
+
     s = id_or_uid.to_s.strip
-    order =
-      if s.match?(PUBLIC_UID_FORMAT)
-        user.orders.find_by(public_uid: s) || user.orders.find_by(id: s)
-      else
-        user.orders.find_by(id: s)
-      end
-    order || raise(ActiveRecord::RecordNotFound, "Couldn't find Order")
+    if s.match?(PUBLIC_UID_FORMAT)
+      user.orders.find_by(public_uid: s) || user.orders.find_by(id: s)
+    else
+      user.orders.find_by(id: s)
+    end
+  end
+
+  # Checkout draft resume из ЛК передаёт JSON:API id (= public_uid), из корзины — internal id.
+  def self.find_checkout_draft_for_account(user, id_or_uid)
+    order = find_for_account(user, id_or_uid)
+    return nil unless order&.checkout_draft?
+    return nil if order.cancelled?
+
+    order
   end
 
   def self.generate_unique_public_uid
