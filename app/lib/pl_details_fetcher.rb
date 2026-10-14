@@ -482,7 +482,13 @@ class PlDetailsFetcher
 
     all_images = extract_images(doc, product_data, schema_images)
 
-    result[:images] = all_images.presence || schema_images
+    if all_images.any?
+      result[:images] = all_images
+      result[:gallery_resolved] = true
+    else
+      result[:images] = schema_images
+      result[:gallery_resolved] = false
+    end
     
     # Videos
     result[:videos] = extract_videos(doc, product_data)
@@ -761,6 +767,7 @@ class PlDetailsFetcher
     
       base = keys.count { |k| h[k].present? }
       image_bonus = [Array(h[:images]).compact.reject(&:blank?).size, 8].min
+      image_bonus += 5 if h[:gallery_resolved]
     
       base + image_bonus
     end
@@ -4678,7 +4685,7 @@ end
   
     unless modal
       Rails.logger.info "PlDetailsFetcher.extract_images: gallery modal not found (.pipf-product-gallery-modal)"
-      return []
+      return hydration_gallery_urls(product_data)
     end
   
     pairs = []
@@ -4726,11 +4733,28 @@ end
       Rails.logger.warn(
         "PlDetailsFetcher.extract_images: scope_sku=#{@scope_sku} no scoped fallback gallery match and no images found"
       )
-      return []
+      return hydration_gallery_urls(product_data)
     end
   
-    Rails.logger.info "PlDetailsFetcher.extract_images: Extracted #{images.length} gallery images from fallback gallery container"
-    images
+    if images.any?
+      Rails.logger.info "PlDetailsFetcher.extract_images: Extracted #{images.length} gallery images from fallback gallery container"
+      return images
+    end
+
+    hydration_gallery_urls(product_data)
+  end
+
+  def hydration_gallery_urls(product_data)
+    target = normalize_product_token(@scope_sku) if @scope_sku.present?
+    return [] if target.blank? || product_data.blank?
+
+    urls = gallery_urls_for_item_from_product_data(product_data, target)
+    if urls.any?
+      Rails.logger.info(
+        "PlDetailsFetcher.extract_images: hydration gallery sku=#{target} images=#{urls.length}"
+      )
+    end
+    urls
   end
 
   def collect_gallery_candidate_urls_for_node(node, pairs)

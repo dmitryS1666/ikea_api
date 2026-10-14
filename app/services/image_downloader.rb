@@ -41,6 +41,7 @@ class ImageDownloader
 
       target_count = limit.presence || image_urls.size
       if healthy_local_images.size >= target_count
+        mirror_public_images!(healthy_local_images)
         changed ||= convert_local_images_to_webp(product)
 
         return build_sync_result(
@@ -295,6 +296,17 @@ class ImageDownloader
         end
 
       product.update_column(:local_images, value)
+    end
+
+    def mirror_public_images!(paths)
+      Array(paths).each do |path|
+        next unless ProductLocalImages.blob_ref?(path)
+
+        blob = ProductLocalImages.blob_from_ref(path)
+        ProductLocalImages.ensure_etalon_mirror!(blob) if blob
+      end
+    rescue StandardError => e
+      Rails.logger.warn("ImageDownloader: public mirror skipped: #{e.class} #{e.message}")
     end
 
     def convert_local_images_to_webp(product)

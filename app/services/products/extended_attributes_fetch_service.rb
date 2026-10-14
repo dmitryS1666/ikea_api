@@ -25,7 +25,7 @@ class Products::ExtendedAttributesFetchService
   # Любая витрина IKEA (pl, lt/ru, …) — один и тот же каталог фото; при смене scoped-галереи вычищаем все, иначе LT+PL копятся в кашу.
   REMOTE_IKEA_PRODUCT_GALLERY_URL = %r{\Ahttps?://www\.ikea\.com/[^/]+/[^/]+/images/products}i.freeze
 
-  def self.fetch_for_product(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false, skip_image_reconciliation: false, bundle_component: false, allow_headless: true)
+  def self.fetch_for_product(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false, skip_image_reconciliation: false, bundle_component: false, allow_headless: true, require_product_gallery: false)
     new.fetch(
       product,
       results_jsonl_row: results_jsonl_row,
@@ -35,15 +35,17 @@ class Products::ExtendedAttributesFetchService
       skip_document_download: skip_document_download,
       skip_image_reconciliation: skip_image_reconciliation,
       bundle_component: bundle_component,
-      allow_headless: allow_headless
+      allow_headless: allow_headless,
+      require_product_gallery: require_product_gallery
     )
   end
 
-  def fetch(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false, skip_image_reconciliation: false, bundle_component: false, allow_headless: true)
+  def fetch(product, results_jsonl_row: nil, force_ai_translation: false, fallback_pl_when_lt_missing: false, strip_listing_relations: false, skip_document_download: false, skip_image_reconciliation: false, bundle_component: false, allow_headless: true, require_product_gallery: false)
     @skip_document_download = skip_document_download
     @skip_image_reconciliation = skip_image_reconciliation
     @bundle_component = bundle_component
     @allow_headless = allow_headless
+    @require_product_gallery = require_product_gallery
     pl_url = pl_product_url(product)
     return { updated: false } if pl_url.blank?
 
@@ -233,14 +235,22 @@ class Products::ExtendedAttributesFetchService
         .uniq
   
     original = parse_json_array(product.images)
+    resolved = gallery_resolved?(pl_details)
+
+    # JSON-LD без DOM/hydration-галереи не заменяет уже сохранённые фото,
+    # когда актуализация явно ждёт полную галерею карточки.
+    if @require_product_gallery && !resolved
+      Rails.logger.warn(
+        "ExtendedAttributesFetchService: product gallery unresolved for sku=#{product.sku}; keeping images unchanged"
+      )
+      attributes.delete(:images)
+      return
+    end
   
     if pl_images.any?
       if pl_images != original || parse_json_array(attributes[:images]) != pl_images
         attributes[:images] = pl_images
-  
-        if product.respond_to?(:local_images) && Product.column_names.include?("local_images")
-          attributes[:local_images] = []
-        end
+        clear_local_images_for_reload!(product, attributes)
       end
   
       return
@@ -253,6 +263,13 @@ class Products::ExtendedAttributesFetchService
     )
   
     attributes.delete(:images)
+  end
+
+  def clear_local_images_for_reload!(product, attributes)
+    return unless product.respond_to?(:local_images)
+    return unless Product.column_names.include?("local_images")
+
+    attributes[:local_images] = []
   end
 
   MERGE_SEED_FIELDS = %i[
@@ -545,8 +562,10 @@ class Products::ExtendedAttributesFetchService
     reason =
       if pl_included_products_need_headless?(light)
         "included_products sheet"
-      else
+      elsif !pl_modal_fields_complete?(light)
         "incomplete modal"
+      else
+        "product gallery"
       end
     Rails.logger.info "ExtendedAttributesFetchService: #{reason} for #{url} -> headless"
 
@@ -798,7 +817,16 @@ class Products::ExtendedAttributesFetchService
   end
 
   def pl_fetch_needs_headless?(details)
-    !pl_modal_fields_complete?(details) || pl_included_products_need_headless?(details)
+    return true if !pl_modal_fields_complete?(details) || pl_included_products_need_headless?(details)
+
+    @require_product_gallery && !gallery_resolved?(details)
+  end
+
+  def gallery_resolved?(details)
+    return false if details.blank?
+
+    flag = details.key?(:gallery_resolved) ? details[:gallery_resolved] : details["gallery_resolved"]
+    ActiveModel::Type::Boolean.new.cast(flag)
   end
 
   # Модалка «Elementy w zestawie» / «Что входит в комплект» — только после клика (PlDetailsFetcher).
@@ -839,6 +867,19 @@ class Products::ExtendedAttributesFetchService
       combined = (headless_included + normalize_included_articles(light[:included_products])).compact.uniq
       merged[:included_products] = combined if combined.any?
     end
+
+    if gallery_resolved?(headless)
+      merged[:gallery_resolved] = true
+    elsif gallery_resolved?(light)
+      merged[:images] = Array(light[:images])
+      merged[:gallery_resolved] = true
+    else
+      merged[:gallery_resolved] = false
+      if Array(merged[:images]).compact.reject(&:blank?).empty? && Array(light[:images]).compact.reject(&:blank?).any?
+        merged[:images] = light[:images]
+      end
+    end
+
     merged
   end
 

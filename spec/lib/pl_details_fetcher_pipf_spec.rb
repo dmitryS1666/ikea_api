@@ -30,6 +30,28 @@ RSpec.describe PlDetailsFetcher do
       expect(result[:dimensions]).to include('74')
     end
 
+    it 'uses hydration gallery urls when the product gallery modal is absent' do
+      html = <<~HTML
+        <!DOCTYPE html>
+        <html><body>
+          <div class="js-product-pip" data-hydration-props='{"itemNo":"70582542","images":["https://www.ikea.com/pl/pl/images/products/one.jpg","https://www.ikea.com/pl/pl/images/products/two.webp"]}'></div>
+        </body></html>
+      HTML
+
+      result = described_class.parse_html(
+        html,
+        "https://www.ikea.com/pl/pl/p/sample-70582542/",
+        use_headless: false,
+        scope_sku: "70582542"
+      )
+
+      expect(result[:gallery_resolved]).to eq(true)
+      expect(result[:images]).to eq([
+        "https://www.ikea.com/pl/pl/images/products/one.jpg",
+        "https://www.ikea.com/pl/pl/images/products/two.webp"
+      ])
+    end
+
     it 'splits pipcom price module h1 into name and small_desc_name (overrides JSON-LD title)' do
       html = <<~HTML
         <!DOCTYPE html>

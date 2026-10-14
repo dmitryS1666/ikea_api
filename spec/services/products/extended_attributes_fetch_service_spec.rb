@@ -186,6 +186,51 @@ RSpec.describe Products::ExtendedAttributesFetchService do
       expect(attributes[:small_desc_name]).to eq("Шкаф с 5 полками, бежевый/оранжевый")
     end
 
+    it "retries headless for a missing product gallery when catalog refresh requires it" do
+      service.instance_variable_set(:@require_product_gallery, true)
+      light = {
+        materials: "Rama: Stal",
+        care_instructions: "Odkurzać",
+        images: ["https://www.ikea.com/pl/pl/images/products/schema.jpg"],
+        gallery_resolved: false
+      }
+      headless = light.merge(
+        images: [
+          "https://www.ikea.com/pl/pl/images/products/gallery-1.jpg",
+          "https://www.ikea.com/pl/pl/images/products/gallery-2.webp"
+        ],
+        gallery_resolved: true
+      )
+
+      expect(PlDetailsFetcher).to receive(:fetch).with(url, use_headless: false, scope_sku: nil).and_return(light)
+      expect(PlDetailsFetcher).to receive(:fetch).with(url, use_headless: true, scope_sku: nil).and_return(headless)
+
+      result = service.send(:fetch_details_with_optional_headless, url)
+
+      expect(result[:gallery_resolved]).to eq(true)
+      expect(result[:images]).to eq(headless[:images])
+    end
+
+    it "replaces stored gallery and clears local files when the PL gallery changed" do
+      product = build(
+        :product,
+        sku: "70582542",
+        images: ["https://www.ikea.com/pl/pl/images/products/old.jpg"],
+        local_images: ["as:old"]
+      )
+      attributes = {}
+      pl_details = {
+        images: ["https://www.ikea.com/pl/pl/images/products/new.jpg"],
+        gallery_resolved: true
+      }
+      service.instance_variable_set(:@require_product_gallery, true)
+
+      service.send(:reconcile_pl_scoped_product_images!, product, pl_details, attributes)
+
+      expect(attributes[:images]).to eq(["https://www.ikea.com/pl/pl/images/products/new.jpg"])
+      expect(attributes[:local_images]).to eq([])
+    end
+
     it "retries with headless when materials are missing" do
       incomplete = { materials: nil, care_instructions: "Odkurzać", included_sheet_needs_headless: false }
       headless = { materials: "Rama", care_instructions: "Odkurzać" }

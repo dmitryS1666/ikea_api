@@ -305,7 +305,8 @@ class RefreshCategoryFromLtJob < ApplicationJob
         results_jsonl_row: row,
         force_ai_translation: false,
         fallback_pl_when_lt_missing: true,
-        skip_document_download: true
+        skip_document_download: true,
+        require_product_gallery: true
       )
       
       if mutex
@@ -699,7 +700,8 @@ class RefreshCategoryFromLtJob < ApplicationJob
         other,
         force_ai_translation: false,
         fallback_pl_when_lt_missing: true,
-        skip_document_download: true
+        skip_document_download: true,
+        require_product_gallery: true
       )
 
       if ext[:updated]
