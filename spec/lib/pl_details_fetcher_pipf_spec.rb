@@ -30,6 +30,20 @@ RSpec.describe PlDetailsFetcher do
       expect(result[:dimensions]).to include('74')
     end
 
+    it 'keeps one product image per IKEA media asset' do
+      urls = [
+        "https://www.ikea.com/pl/pl/images/p/5377cfd10ff02e99/djungelskog-pluszak-orangutan/PE727369.jpg",
+        "https://www.ikea.com/pl/pl/images/products/djungelskog-pluszak-orangutan__0710167_pe727369_s5.jpg",
+        "https://www.ikea.com/pl/pl/images/p/735654dd2b4353da/djungelskog-pluszak-orangutan/PE908805.jpg",
+        "https://www.ikea.com/pl/pl/images/products/djungelskog-pluszak-orangutan__1208781_pe908805_s5.jpg"
+      ]
+
+      expect(described_class.dedupe_gallery_urls(urls)).to eq([
+        "https://www.ikea.com/pl/pl/images/products/djungelskog-pluszak-orangutan__0710167_pe727369_s5.jpg",
+        "https://www.ikea.com/pl/pl/images/products/djungelskog-pluszak-orangutan__1208781_pe908805_s5.jpg"
+      ])
+    end
+
     it 'uses hydration gallery urls when the product gallery modal is absent' do
       html = <<~HTML
         <!DOCTYPE html>

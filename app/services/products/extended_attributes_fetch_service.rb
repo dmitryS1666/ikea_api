@@ -227,12 +227,7 @@ class Products::ExtendedAttributesFetchService
     return if @skip_image_reconciliation
     return unless pl_details.key?(:images) && pl_details[:images].is_a?(Array)
   
-    pl_images =
-      pl_details[:images]
-        .map(&:to_s)
-        .map(&:strip)
-        .reject(&:blank?)
-        .uniq
+    pl_images = PlDetailsFetcher.dedupe_gallery_urls(pl_details[:images])
   
     original = parse_json_array(product.images)
     resolved = gallery_resolved?(pl_details)

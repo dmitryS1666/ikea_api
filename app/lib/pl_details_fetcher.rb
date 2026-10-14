@@ -108,6 +108,40 @@ class PlDetailsFetcher
     new(scope_sku: scope_sku).parse_html(html, url, use_headless: use_headless)
   end
 
+  # Один кадр IKEA часто приходит двумя URL: /images/p/.../PE123.jpg и
+  # /images/products/..._pe123_s5.jpg. Оставляем карточный _s5.
+  def self.dedupe_gallery_urls(urls)
+    ranked = []
+    Array(urls).each_with_index do |url, index|
+      normalized = url.to_s.strip
+      next if normalized.blank?
+
+      ranked << {
+        url: normalized,
+        key: gallery_asset_key(normalized) || normalized,
+        index: index,
+        score: gallery_url_score(normalized)
+      }
+    end
+
+    ranked.group_by { |row| row[:key] }.values.map do |group|
+      best = group.max_by { |row| [row[:score], -row[:index]] }
+      [group.map { |row| row[:index] }.min, best[:url]]
+    end.sort_by(&:first).map(&:last)
+  end
+
+  def self.gallery_asset_key(url)
+    match = url.to_s.match(/(?:^|[^a-z0-9])((?:pe|ph)\d{5,})/i)
+    match && match[1].downcase
+  end
+
+  def self.gallery_url_score(url)
+    score = url.to_s.include?("/images/products/") ? 20 : 0
+    size = url.to_s.match(/_s(\d+)\.(?:jpe?g|png|webp)\z/i)
+    score += size[1].to_i if size
+    score
+  end
+
   def initialize(scope_sku: nil)
     @scope_sku = scope_sku
   end
@@ -480,7 +514,8 @@ class PlDetailsFetcher
         .filter_map { |url| normalize_pipf_gallery_image_url(url) }
         .uniq
 
-    all_images = extract_images(doc, product_data, schema_images)
+    all_images = self.class.dedupe_gallery_urls(extract_images(doc, product_data, schema_images))
+    schema_images = self.class.dedupe_gallery_urls(schema_images)
 
     if all_images.any?
       result[:images] = all_images
