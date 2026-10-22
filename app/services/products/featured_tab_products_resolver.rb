@@ -30,7 +30,10 @@ module Products
         end
       end
 
-      products_by_sku = Product.with_available_stock.where(sku: ordered_skus).index_by { |product| product.sku.to_s }
+      products_by_sku = Product.with_available_stock
+                               .where(sku: ordered_skus)
+                               .includes(:category, :category_products)
+                               .index_by { |product| product.sku.to_s }
       ordered_products = ordered_skus.filter_map { |sku| products_by_sku[sku] }
 
       active_overrides = category_id_overrides.slice(*ordered_products.map { |product| product.sku.to_s })

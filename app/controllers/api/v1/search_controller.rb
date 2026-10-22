@@ -29,6 +29,7 @@ module Api
           favorite_skus: current_favorite_skus,
           active_promos: promos,
           promo_applicability: get_promo_applicability(display_products, promos),
+          variant_products_by_sku: Products::VariantProductsPreloader.call(display_products),
           rates: rates,
           calculator_settings: calculator_settings,
           search_context: true,

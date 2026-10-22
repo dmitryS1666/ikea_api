@@ -237,48 +237,46 @@ class ProductSerializer
   def self.customer_full_attributes_payload(product)
     full = product.full_attributes.is_a?(Hash) ? product.full_attributes.deep_stringify_keys : {}
     detailed_info = full["detailed_info"].is_a?(Hash) ? full["detailed_info"].deep_stringify_keys : {}
-    dimensions_map = full["dimensions_map"].is_a?(Hash) ? full["dimensions_map"].deep_stringify_keys : {}
-    measurements_modal = full["measurements_modal"]
     product_details_modal = full["product_details_modal"]
 
-    dimensions_map = dimensions_map.merge(dimensions_map_from_measurements_modal(measurements_modal))
-    if dimensions_map.except("packaging").blank?
-      dimensions_map = dimensions_map.merge(dimensions_map_from_product_column(product.dimensions))
-    end
-
-    description = ProductSerializer.build_description_block(full, detailed_info)
+    description = build_description_block(full, detailed_info)
     enrich_description_block_from_product!(description, product, product_details_modal)
 
-    size = ProductSerializer.build_size_block(dimensions_map, detailed_info["Информация об упаковке"])
-    enrich_size_block_from_measurements_modal!(size, measurements_modal, product)
-    size["packages"] = ProductSerializer.build_packages_for_customer_payload(size, measurements_modal)
-    normalize_size_block_ru!(size)
-
-    materials = ProductSerializer.build_materials_block(detailed_info["Материал и уход"])
+    materials = build_materials_block(detailed_info["Материал и уход"])
     enrich_materials_block_from_product!(materials, product, product_details_modal)
 
-    instructions = ProductSerializer.build_instructions_block(detailed_info["Сборка и документы"])
+    instructions = build_instructions_block(detailed_info["Сборка и документы"])
     enrich_instructions_block_from_product!(instructions, product, product_details_modal)
     instructions["files"] = dedupe_instruction_files(instructions["files"])
 
     payload = {
       "description" => description,
-      "size" => size,
+      "size" => build_customer_size_block(product, full),
       "materials" => materials,
       "instructions" => instructions
     }
 
-    override = full[Product::FULL_ATTRIBUTES_API_OVERRIDE_KEY]
-    if override.is_a?(Hash)
-      payload.deep_merge(override.deep_stringify_keys)
-    else
-      payload
-    end
+    apply_customer_attributes_override(payload, full)
   end
 
   # Только size/packages для веса упаковки и ВГХ (admin XLSX, без лишних колонок Product).
+  # Override витрины сюда не примешивается: выгрузка читает исходный блок размера.
   def self.customer_size_payload_for_product(product)
     full = product.full_attributes.is_a?(Hash) ? product.full_attributes.deep_stringify_keys : {}
+    { "size" => build_customer_size_block(product, full) }
+  end
+
+  # Тот же size, что у витринной карточки, включая customer override.
+  # Нужен расчёту цены: вес берётся только из упаковки, без description/materials/instructions.
+  def self.customer_weight_payload(product)
+    full = product.full_attributes.is_a?(Hash) ? product.full_attributes.deep_stringify_keys : {}
+    apply_customer_attributes_override(
+      { "size" => build_customer_size_block(product, full) },
+      full
+    )
+  end
+
+  def self.build_customer_size_block(product, full)
     detailed_info = full["detailed_info"].is_a?(Hash) ? full["detailed_info"].deep_stringify_keys : {}
     dimensions_map = full["dimensions_map"].is_a?(Hash) ? full["dimensions_map"].deep_stringify_keys : {}
     measurements_modal = full["measurements_modal"]
@@ -292,8 +290,14 @@ class ProductSerializer
     enrich_size_block_from_measurements_modal!(size, measurements_modal, product)
     size["packages"] = build_packages_for_customer_payload(size, measurements_modal)
     normalize_size_block_ru!(size)
+    size
+  end
 
-    { "size" => size }
+  def self.apply_customer_attributes_override(payload, full)
+    override = full[Product::FULL_ATTRIBUTES_API_OVERRIDE_KEY]
+    return payload unless override.is_a?(Hash)
+
+    payload.deep_merge(override.deep_stringify_keys)
   end
 
   def self.build_description_block(full, detailed_info)

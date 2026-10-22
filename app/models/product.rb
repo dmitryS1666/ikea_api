@@ -367,8 +367,9 @@ class Product < ApplicationRecord
     normalized_variants_for_api_full
   end
 
-  # Полный payload вариантов (карточка товара, откат листинга на полные variants).
-  def normalized_variants_for_api_full(preloaded_variants_by_sku: nil)
+  # Полный payload вариантов (карточка товара). Листинги вызывают с calculate_prices: false:
+  # состав, остаток и превью те же, цена варианта в teaser не входит.
+  def normalized_variants_for_api_full(preloaded_variants_by_sku: nil, calculate_prices: true)
     # Сначала пробуем использовать сохраненный тип из БД
     type = variant_type.presence || variant_group_type
     api_variants_payload = variants_payload_for_api
@@ -384,14 +385,18 @@ class Product < ApplicationRecord
         
         # variants_payload приходит с польской витрины, поэтому цену варианта
         # трактуем как PLN независимо от текущего URL товара.
-        pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
-        eur_rate = ExchangeRate.fetch_or_create('EUR')&.rate_per_unit
-        buffer =
-          begin
-            PriceCalculationService.exchange_rate_buffer
-          rescue Pricing::ConfigurationError
-            nil
-          end
+        # Курсы нужны только карточке товара: teaser цену варианта отбрасывает.
+        pln_rate = eur_rate = buffer = nil
+        if calculate_prices
+          pln_rate = ExchangeRate.fetch_or_create('PLN')&.rate_per_unit
+          eur_rate = ExchangeRate.fetch_or_create('EUR')&.rate_per_unit
+          buffer =
+            begin
+              PriceCalculationService.exchange_rate_buffer
+            rescue Pricing::ConfigurationError
+              nil
+            end
+        end
 
         variant_skus =
           data_to_process.flat_map do |vg|
@@ -480,29 +485,31 @@ class Product < ApplicationRecord
         
             item[:small_desc_name] = normalize_variant_small_desc_label(item[:small_desc_name] || incoming_small_desc)
 
-            original_price = variant_item_price(rec, item).to_f
+            if calculate_prices
+              original_price = variant_item_price(rec, item).to_f
 
-            if original_price > 0
-              breakdown = PriceCalculationService.for_product(
-                pricing_source,
-                pln_rate: pln_rate,
-                eur_rate: eur_rate,
-                buffer: buffer
-              )
-              if breakdown[:pricing_available]
-                item[:price_byn] = ActionController::Base.helpers.number_with_delimiter(
-                  Pricing::Money.to_f_round2(breakdown[:card_price_byn]),
-                  delimiter: " "
+              if original_price > 0
+                breakdown = PriceCalculationService.for_product(
+                  pricing_source,
+                  pln_rate: pln_rate,
+                  eur_rate: eur_rate,
+                  buffer: buffer
                 )
+                if breakdown[:pricing_available]
+                  item[:price_byn] = ActionController::Base.helpers.number_with_delimiter(
+                    Pricing::Money.to_f_round2(breakdown[:card_price_byn]),
+                    delimiter: " "
+                  )
+                else
+                  item[:price_byn] = nil
+                end
+                item[:pricing_available] = breakdown[:pricing_available]
+                item[:pricing_status] = breakdown[:pricing_status]
               else
                 item[:price_byn] = nil
+                item[:pricing_available] = false
+                item[:pricing_status] = "requires_clarification"
               end
-              item[:pricing_available] = breakdown[:pricing_available]
-              item[:pricing_status] = breakdown[:pricing_status]
-            else
-              item[:price_byn] = nil
-              item[:pricing_available] = false
-              item[:pricing_status] = "requires_clarification"
             end
         
             # В payload вариантов оставляем канонический SKU из БД/парсера.
@@ -619,10 +626,14 @@ class Product < ApplicationRecord
   end
 
   # Краткий payload для листингов: тот же контракт { type, data: [{ color|size, item }] },
-  # в item только sku, small_desc_name и одно превью.
+  # в item только sku, small_desc_name и одно превью. Цену варианта листинг не отдаёт,
+  # поэтому формулу витрины здесь не считаем — её считает только карточка товара.
   def normalized_variants_teaser_for_api(preloaded_variants_by_sku: nil)
     compact_variants_payload_for_teaser(
-      normalized_variants_for_api_full(preloaded_variants_by_sku: preloaded_variants_by_sku)
+      normalized_variants_for_api_full(
+        preloaded_variants_by_sku: preloaded_variants_by_sku,
+        calculate_prices: false
+      )
     )
   end
 

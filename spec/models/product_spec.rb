@@ -342,6 +342,8 @@ RSpec.describe Product, type: :model do
     end
 
     it "keeps contract shape with compact item fields" do
+      expect(PriceCalculationService).not_to receive(:for_product)
+
       out = product.normalized_variants_teaser_for_api
 
       expect(out).to be_a(Array)
@@ -351,11 +353,11 @@ RSpec.describe Product, type: :model do
 
       current_item = group[:data].first[:item]
       expect(current_item[:sku]).to eq("29545213")
-      expect(current_item.keys).to contain_exactly(:sku, :small_desc_name)
+      expect(current_item[:quantity]).to eq(5)
+      expect(current_item.keys).to contain_exactly(:sku, :small_desc_name, :quantity)
       expect(current_item).not_to have_key(:price)
       expect(current_item).not_to have_key(:price_byn)
       expect(current_item).not_to have_key(:name_ru)
-      expect(current_item).not_to have_key(:quantity)
 
       other_item = group[:data].find { |v| v.dig(:item, :sku) == "11111111" }[:item]
       expect(other_item[:images]).to eq(["/images/a.webp"])

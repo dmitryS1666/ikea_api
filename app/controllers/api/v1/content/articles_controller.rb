@@ -108,7 +108,8 @@ module Api
             active_promos: promos,
             promo_applicability: get_promo_applicability(products, promos),
             rates: rates,
-            calculator_settings: calculator_settings
+            calculator_settings: calculator_settings,
+            variant_products_by_sku: Products::VariantProductsPreloader.call(products)
           }
         end
 

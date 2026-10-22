@@ -95,4 +95,43 @@ RSpec.describe Products::WeightExtractor do
         .to eq(described_class.packaging_weight_kg_for_product(product))
     end
   end
+
+  describe "storefront weight source" do
+    it "берёт вес из size витринной карточки, включая override, и не зависит от описания" do
+      product = create(
+        :product,
+        weight: 1.0,
+        content: "Длинное описание, которое не должно влиять на вес",
+        full_attributes: {
+          "detailed_info" => {
+            "Описание" => ["Текст описания товара"],
+            "Материал и уход" => { "Материал" => "Дерево" },
+            "Сборка и документы" => { "Документы" => ["manual.pdf"] }
+          },
+          "dimensions_map" => {
+            "packaging" => {
+              "details" => [
+                { "weight" => "10 кг", "count" => 1 }
+              ]
+            }
+          },
+          "customer_full_attributes_override" => {
+            "size" => {
+              "packages" => [
+                { "measurements" => [{ "name" => "Вес", "measure" => "7.5 кг" }] }
+              ]
+            },
+            "description" => { "description" => ["Переопределённое описание"] }
+          }
+        }
+      )
+
+      full_weight = described_class.extract_packaging_kg(
+        ProductSerializer.customer_full_attributes_payload(product)
+      )
+
+      expect(described_class.packaging_weight_kg_for_product(product)).to eq(7.5)
+      expect(described_class.packaging_weight_kg_for_product(product)).to eq(full_weight)
+    end
+  end
 end

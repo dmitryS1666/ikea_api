@@ -13,7 +13,8 @@ module Api
         render json: ProductTeaserSerializer.new(products, {
           params: serialization_params.merge(
             active_promos: promos,
-            promo_applicability: get_promo_applicability(products, promos)
+            promo_applicability: get_promo_applicability(products, promos),
+            variant_products_by_sku: Products::VariantProductsPreloader.call(products)
           ),
           meta: {
             total: products.total_count,
@@ -60,7 +61,8 @@ module Api
             root_categories_only: true,
             category_id_overrides: category_id_overrides,
             active_promos: promos,
-            promo_applicability: get_promo_applicability(products, promos)
+            promo_applicability: get_promo_applicability(products, promos),
+            variant_products_by_sku: Products::VariantProductsPreloader.call(products)
           ),
           meta: {
             total: products.total_count,
@@ -81,7 +83,8 @@ module Api
             root_categories_only: true,
             category_id_overrides: category_id_overrides,
             active_promos: promos,
-            promo_applicability: get_promo_applicability(products, promos)
+            promo_applicability: get_promo_applicability(products, promos),
+            variant_products_by_sku: Products::VariantProductsPreloader.call(products)
           ),
           meta: {
             total: products.total_count,
@@ -102,7 +105,8 @@ module Api
             root_categories_only: true,
             category_id_overrides: category_id_overrides,
             active_promos: promos,
-            promo_applicability: get_promo_applicability(products, promos)
+            promo_applicability: get_promo_applicability(products, promos),
+            variant_products_by_sku: Products::VariantProductsPreloader.call(products)
           ),
           meta: {
             total: products.total_count,
@@ -123,7 +127,8 @@ module Api
             root_categories_only: true,
             category_id_overrides: category_id_overrides,
             active_promos: promos,
-            promo_applicability: get_promo_applicability(products, promos)
+            promo_applicability: get_promo_applicability(products, promos),
+            variant_products_by_sku: Products::VariantProductsPreloader.call(products)
           ),
           meta: {
             total: products.total_count,

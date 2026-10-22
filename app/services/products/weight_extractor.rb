@@ -69,9 +69,15 @@ module Products
 
       def packaging_weight_kg_for_product(product)
         return nil unless product.is_a?(Product)
+        if product.instance_variable_defined?(:@_packaging_weight_kg)
+          return product.instance_variable_get(:@_packaging_weight_kg)
+        end
 
-        payload = ProductSerializer.customer_full_attributes_payload(product)
-        extract_packaging_kg(payload)
+        # Вес витрины считается по тому же size, что и полная карточка (с override),
+        # но без сборки описания, материалов и инструкций.
+        weight = extract_packaging_kg(ProductSerializer.customer_weight_payload(product))
+        product.instance_variable_set(:@_packaging_weight_kg, weight)
+        weight
       rescue StandardError
         nil
       end
