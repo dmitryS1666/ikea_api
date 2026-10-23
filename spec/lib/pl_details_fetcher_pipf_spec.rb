@@ -250,5 +250,135 @@ RSpec.describe PlDetailsFetcher do
         { "name" => "Диаметр", "measure" => "8 см" }
       )
     end
+
+    it "reads the measurements tab when the packaging accordion has no modal rows" do
+      html = <<~HTML
+        <!DOCTYPE html><html><body>
+        <div class="pipf-measurements-tab">
+          <div class="pipf-measurements-tab__accordions">
+            <ul>
+              <li id="measurements-tab-measurements">
+                <span id="SEC_measurements-tab-measurements_title">Wymiary</span>
+                <ul>
+                  <li class="pipf-measurements-tab__measurement-row">
+                    <span class="pipf-measurements-tab__measurement-name">Długość</span>
+                    <span class="pipf-measurements-tab__measurement-value">50 cm</span>
+                  </li>
+                  <li class="pipf-measurements-tab__measurement-row">
+                    <span class="pipf-measurements-tab__measurement-name">Szerokość</span>
+                    <span class="pipf-measurements-tab__measurement-value">60 cm</span>
+                  </li>
+                  <li class="pipf-measurements-tab__measurement-row">
+                    <span class="pipf-measurements-tab__measurement-name">Waga wypełnienia</span>
+                    <span class="pipf-measurements-tab__measurement-value">860 g</span>
+                  </li>
+                  <li class="pipf-measurements-tab__measurement-row">
+                    <span class="pipf-measurements-tab__measurement-name">Waga</span>
+                    <span class="pipf-measurements-tab__measurement-value">1090 g</span>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+            <ul>
+              <li id="measurements-packaging">
+                <span id="SEC_measurements-packaging_title">Opakowanie</span>
+                <div class="pipf-measurements-tab__package">
+                  <h4 class="pipf-measurements-tab__package-name">1 × FJÄLLHAVRE</h4>
+                  <span class="pipf-measurements-tab__package-type">Poduszka, wysoka</span>
+                  <span class="pipf-product-identifier">
+                    <span class="pipf-product-identifier__value">906.299.30</span>
+                  </span>
+                  <div class="pipf-measurements-tab__package-measurement-card">
+                    <ul>
+                      <li class="pipf-measurements-tab__package-measurement-item">
+                        <span class="pipf-measurements-tab__package-measurement-label">Długość: </span>50 cm
+                      </li>
+                      <li class="pipf-measurements-tab__package-measurement-item">
+                        <span class="pipf-measurements-tab__package-measurement-label">Waga: </span>1.20 kg
+                      </li>
+                      <li class="pipf-measurements-tab__package-measurement-item">
+                        <span class="pipf-measurements-tab__package-measurement-label">Średnica: </span>15 cm
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+        </body></html>
+      HTML
+
+      result = described_class.parse_html(
+        html,
+        "https://www.ikea.com/pl/pl/p/fjaellhavre-poduszka-wysoka-90629930/",
+        use_headless: false,
+        scope_sku: "90629930"
+      )
+      snapshot = result[:measurements_modal]
+      packages = ProductSerializer.extract_packages_from_measurements_modal(snapshot)
+      product_rows = snapshot["product_measurements"].map { |row| [row["name"], row["measure"]] }
+
+      expect(snapshot["source"]).to include("dom_pipf_measurements_tab")
+      expect(result[:weight]).to eq(1.2)
+      expect(product_rows).to include(["Waga wypełnienia", "860 g"], ["Waga", "1090 g"])
+      expect(packages.first["article_number"]).to include("value" => "906.299.30")
+      expect(packages.first["measurements"]).to include(
+        { "name" => "Длина", "measure" => "50 см" },
+        { "name" => "Вес", "measure" => "1.20 кг" },
+        { "name" => "Диаметр", "measure" => "15 см" }
+      )
+      expect(Products::PackagingDimensionsStatus.package_measurements_have_box_dims?(packages.first)).to eq(true)
+    end
+
+    it "keeps a filled measurements modal and does not replace it with the tab" do
+      html = <<~HTML
+        <!DOCTYPE html><html><body>
+        <div class="pipf-measurements-modal">
+          <li class="pipf-measurements-modal__product-measurement-wrapper">
+            <span class="pipf-measurements-modal__product-measurement-name">Szerokość:</span> 10 cm
+          </li>
+          <div class="pipf-measurements-modal__package-container">
+            <h4 class="pipf-measurements-modal__package-header">BOX</h4>
+            <ul class="pipf-measurements-modal__package-measurement-container">
+              <li class="pipf-measurements-modal__package-measurement-wrapper">
+                <span class="pipf-measurements-modal__package-measurement-name">Waga:</span> 9.50 kg
+              </li>
+              <li class="pipf-measurements-modal__package-measurement-wrapper">
+                <span class="pipf-measurements-modal__package-measurement-name">Szerokość:</span> 10 cm
+              </li>
+              <li class="pipf-measurements-modal__package-measurement-wrapper">
+                <span class="pipf-measurements-modal__package-measurement-name">Wysokość:</span> 10 cm
+              </li>
+              <li class="pipf-measurements-modal__package-measurement-wrapper">
+                <span class="pipf-measurements-modal__package-measurement-name">Głębokość:</span> 10 cm
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="pipf-measurements-tab">
+          <div class="pipf-measurements-tab__package">
+            <div class="pipf-measurements-tab__package-measurement-card">
+              <li class="pipf-measurements-tab__package-measurement-item">
+                <span class="pipf-measurements-tab__package-measurement-label">Waga: </span>1.20 kg
+              </li>
+            </div>
+          </div>
+        </div>
+        </body></html>
+      HTML
+
+      result = described_class.parse_html(
+        html,
+        "https://www.ikea.com/pl/pl/p/sample-11111111/",
+        use_headless: false
+      )
+
+      expect(result[:measurements_modal]["source"]).to eq("dom_pipf_measurements_modal")
+      expect(result[:weight]).to eq(9.5)
+      expect(result[:measurements_modal]["product_measurements"]).to include(
+        { "name" => "Szerokość", "measure" => "10 cm" }
+      )
+    end
   end
 end

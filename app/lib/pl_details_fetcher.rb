@@ -3060,8 +3060,17 @@ end
   end
 
   def extract_measurements_modal_from_dom(doc)
+    snapshot = extract_legacy_measurements_modal_snapshot(doc)
+    snapshot = fill_measurements_snapshot_from_tab(snapshot, doc)
+    return { fields: {}, snapshot: {} } if measurements_dom_snapshot_blank?(snapshot)
+
+    fields = measurement_fields_from_dom_snapshot(snapshot)
+    { fields: fields, snapshot: snapshot.compact }
+  end
+
+  def extract_legacy_measurements_modal_snapshot(doc)
     modal = find_measurements_modal_root(doc)
-    return { fields: {}, snapshot: {} } unless modal
+    return nil unless modal
 
     snapshot = {
       "title" => normalize_text(modal.at_css(".pipf-measurements-modal__title, h2#pip-modal-header")&.text).presence,
@@ -3102,8 +3111,127 @@ end
       snapshot["packaging_title"] = normalize_text(t) if t.present?
     end
 
-    fields = measurement_fields_from_dom_snapshot(snapshot)
-    { fields: fields, snapshot: snapshot.compact }
+    snapshot.compact
+  end
+
+  def measurements_dom_snapshot_blank?(snapshot)
+    return true unless snapshot.is_a?(Hash)
+
+    Array(snapshot["product_measurements"]).empty? && Array(snapshot["packages"]).empty?
+  end
+
+  # Новая витрина IKEA кладёт размеры во вкладку pipf-measurements-tab.
+  # Старое модальное окно при этом может найтись по id measurements-packaging и быть пустым.
+  def fill_measurements_snapshot_from_tab(snapshot, doc)
+    tab = extract_measurements_tab_snapshot(doc)
+    return snapshot if tab.blank?
+
+    base = snapshot.is_a?(Hash) ? snapshot.dup : {}
+    filled = false
+
+    if Array(base["product_measurements"]).empty? && Array(tab["product_measurements"]).any?
+      base["product_measurements"] = tab["product_measurements"]
+      filled = true
+    end
+
+    if Array(base["packages"]).empty? && Array(tab["packages"]).any?
+      base["packages"] = tab["packages"]
+      base["number_of_packages"] ||= tab["number_of_packages"]
+      base["packaging_title"] ||= tab["packaging_title"]
+      filled = true
+    end
+
+    return snapshot unless filled
+
+    sources = [base["source"], tab["source"]].compact.reject(&:blank?).uniq
+    base["source"] = sources.join("+") if sources.any?
+    base["title"] ||= tab["title"]
+    base
+  end
+
+  def extract_measurements_tab_snapshot(doc)
+    return nil unless doc
+    return nil unless doc.at_css(
+      ".pipf-measurements-tab, .pipf-measurements-tab__measurement-row, .pipf-measurements-tab__package"
+    )
+
+    root = doc.at_css(".pipf-measurements-tab") || doc
+    product_measurements = root.css(".pipf-measurements-tab__measurement-row").filter_map do |row|
+      name = normalize_text(row.at_css(".pipf-measurements-tab__measurement-name")&.text).gsub(":", "").strip
+      value = normalize_text(row.at_css(".pipf-measurements-tab__measurement-value")&.text)
+      next if name.blank? && value.blank?
+
+      { "name" => name, "measure" => value }
+    end
+
+    package_nodes = root.css(".pipf-measurements-tab__package")
+    packages = package_nodes.each_with_index.flat_map do |pkg, pkg_index|
+      extract_measurements_tab_packages(pkg, pkg_index, package_nodes.size)
+    end
+
+    return nil if product_measurements.empty? && packages.empty?
+
+    {
+      "title" => normalize_text(root.at_css("#SEC_measurements-tab-measurements_title")&.text).presence,
+      "product_measurements" => product_measurements,
+      "packages" => packages,
+      "number_of_packages" => packages.size,
+      "packaging_title" => normalize_text(doc.at_css("#SEC_measurements-packaging_title")&.text).presence,
+      "source" => "dom_pipf_measurements_tab"
+    }.compact
+  end
+
+  def extract_measurements_tab_packages(pkg, pkg_index, package_count)
+    name = normalize_text(pkg.at_css("h4.pipf-measurements-tab__package-name")&.text)
+    type_name = normalize_text(pkg.at_css(".pipf-measurements-tab__package-type")&.text)
+    article_value = normalize_text(pkg.at_css(".pipf-product-identifier__value")&.text)
+    article_number =
+      if article_value.present?
+        { "label" => "Номер товара", "value" => article_value }
+      end
+
+    cards = pkg.css(".pipf-measurements-tab__package-measurement-card").to_a
+    nodes = cards.presence || [pkg]
+
+    nodes.each_with_index.filter_map do |node, idx|
+      measurements = extract_measurements_tab_package_measurements(node)
+      next if measurements.empty?
+
+      package_label =
+        if nodes.size > 1
+          "Paczka #{idx + 1}"
+        elsif package_count > 1
+          "Paczka #{pkg_index + 1}"
+        end
+
+      {
+        "name" => name.presence,
+        "type_name" => type_name.presence,
+        "article_number" => article_number,
+        "package_label" => package_label,
+        "measurements" => measurements
+      }.compact
+    end
+  end
+
+  def extract_measurements_tab_package_measurements(node)
+    node.css(".pipf-measurements-tab__package-measurement-item").filter_map do |li|
+      label_el = li.at_css(".pipf-measurements-tab__package-measurement-label")
+      raw_name = normalize_text(label_el&.text).gsub(":", "").strip
+      name = translate_measurement_label(raw_name)
+      value = normalize_text(
+        li.children
+          .reject { |child| child.element? && child == label_el }
+          .map(&:text)
+          .join(" ")
+      )
+      next if name.blank? || value.blank?
+
+      {
+        "name" => name,
+        "measure" => normalize_measurement_value(value)
+      }
+    end
   end
 
   def find_measurements_modal_root(doc)
