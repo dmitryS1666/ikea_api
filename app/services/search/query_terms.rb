@@ -4,6 +4,9 @@ module Search
   # Варианты поисковой строки (мн. число → ед.) для ILIKE по товарам и категориям.
   class QueryTerms
     MIN_STEM_LENGTH = 4
+    # 296.220.94 — один артикул IKEA (XXX.XXX.XX), а не три отдельных числа.
+    ARTICLE_NUMBER = /\A\s*s?\d{3}\s*[.\-]\s*\d{3}\s*[.\-]\s*\d{2}\s*\z/i
+    ARTICLE_NUMBER_TOKEN = /s?\d{3}[.\-]\d{3}[.\-]\d{2}/i
 
     def self.for(query)
       new(query).all
@@ -11,6 +14,14 @@ module Search
 
     def self.groups_for(query)
       new(query).groups
+    end
+
+    def self.article_number?(query)
+      query.to_s.match?(ARTICLE_NUMBER)
+    end
+
+    def self.normalized_article_number(query)
+      query.to_s.gsub(/\D/, "")
     end
 
     def initialize(query)
@@ -53,7 +64,13 @@ module Search
     end
 
     def tokens
-      @query.downcase.scan(/[[:alnum:]а-яё]+/i).uniq
+      if self.class.article_number?(@query)
+        return [self.class.normalized_article_number(@query)]
+      end
+
+      @query.downcase.scan(/#{ARTICLE_NUMBER_TOKEN}|[[:alnum:]а-яё]+/i).map { |token|
+        token.match?(ARTICLE_NUMBER_TOKEN) ? token.gsub(/\D/, "") : token
+      }.uniq
     end
 
     def normalize_terms(values)

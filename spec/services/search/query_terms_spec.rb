@@ -15,6 +15,21 @@ RSpec.describe Search::QueryTerms do
     expect(described_class.for("коврик")).to eq(%w[коврик])
   end
 
+  it "keeps a dotted IKEA article as one number" do
+    groups = described_class.groups_for("296.220.94")
+
+    expect(groups.size).to eq(1)
+    expect(groups.flatten).to eq(["29622094"])
+    expect(described_class.for("296.220.94")).not_to include("296", "220", "94")
+  end
+
+  it "keeps a dotted article intact inside a longer query" do
+    groups = described_class.groups_for("кухня 296.220.94")
+
+    expect(groups.map { |group| group.map(&:downcase) }).to include(["29622094"])
+    expect(groups.flatten).not_to include("296", "220", "94")
+  end
+
   it "builds independent term groups for multi-word queries" do
     groups = described_class.groups_for("Kallax стеллаж")
 

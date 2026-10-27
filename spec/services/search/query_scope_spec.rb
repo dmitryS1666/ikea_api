@@ -120,6 +120,59 @@ RSpec.describe Search::QueryScope do
       expect(query_scope.call.pluck(:id)).to eq(text_scope.pluck(:id))
     end
 
+    it "matches a dotted IKEA article only against the same sku" do
+      exact = create(
+        :product,
+        sku: "29622094",
+        name: "RASKOG",
+        name_ru: "РОСКОГ",
+        small_desc_name: "Тележка, бежевая",
+        price: 50,
+        quantity: 5
+      )
+      with_prefix = create(
+        :product,
+        sku: "s40629715",
+        name: "RASKOG",
+        name_ru: "РОСКОГ",
+        small_desc_name: "Тележка",
+        price: 40,
+        quantity: 5
+      )
+      lookalike = create(
+        :product,
+        sku: "29614942",
+        name: "KNOXHULT",
+        name_ru: "KNOXHULT",
+        small_desc_name: "Кухня, под дуб, 180x61x220 см",
+        price: 200,
+        quantity: 5
+      )
+
+      scope = described_class.new("296.220.94").call
+
+      expect(scope).to contain_exactly(exact)
+      expect(scope).not_to include(lookalike, with_prefix)
+
+      expect(described_class.new("s296.220.94").call).to contain_exactly(exact)
+      expect(described_class.new("406.297.15").call).to contain_exactly(with_prefix)
+      expect(described_class.new("296.149.42").call).to contain_exactly(lookalike)
+    end
+
+    it "matches a dotted sku stored with separators" do
+      product = create(
+        :product,
+        sku: "296.220.94",
+        name: "RASKOG",
+        name_ru: "РОСКОГ",
+        small_desc_name: "Тележка",
+        price: 50,
+        quantity: 5
+      )
+
+      expect(described_class.new("296.220.94").call).to contain_exactly(product)
+    end
+
     it "does not union an empty category branch into the SQL" do
       sql = described_class.new("00568144").call.to_sql
 

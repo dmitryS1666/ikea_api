@@ -40,6 +40,8 @@ module Search
     private
 
     def direct_text_scope
+      return article_sku_scope if article_digits.present?
+
       base = Product.all
       sku_query = normalized_sku_query(@query)
 
@@ -152,6 +154,20 @@ module Search
               .pluck(:ikea_id)
               .map(&:to_s)
               .uniq
+    end
+
+    def article_digits
+      return unless QueryTerms.article_number?(@query)
+
+      QueryTerms.normalized_article_number(@query).presence
+    end
+
+    # Сравниваем цифры артикула целиком, без точек и префикса s: 296.220.94 и s29622094 — один номер.
+    def article_sku_scope
+      Product.where(
+        "regexp_replace(sku, '[^0-9]', '', 'g') = :sku_term",
+        sku_term: article_digits
+      )
     end
 
     def normalized_sku_query(query)
