@@ -32,6 +32,27 @@ RSpec.describe Sitemaps::Builder do
     expect(urls).not_to include("https://ikeya.by/product/#{product.sku}")
   end
 
+  it "rewrites a www feed base url to the apex https origin" do
+    settings = instance_double(FeedSetting, base_url_root: "https://www.ikeya.by")
+
+    urls = locs(described_class.call(settings: settings))
+
+    expect(urls).to include("https://ikeya.by/")
+    expect(urls).to include("https://ikeya.by/catalog/")
+    expect(urls).to all(start_with("https://ikeya.by/"))
+    expect(urls.join).not_to include("www.ikeya.by")
+  end
+
+  it "does not publish an internal host or an http www origin" do
+    ["http://www.ikeya.by", "http://10.0.0.8:3001", "http://localhost:3000", ""].each do |base_url|
+      settings = instance_double(FeedSetting, base_url_root: base_url)
+      urls = locs(described_class.call(settings: settings))
+
+      expect(urls).to include("https://ikeya.by/catalog/")
+      expect(urls).to all(start_with("https://ikeya.by/"))
+    end
+  end
+
   it "skips out-of-stock products and non-indexable seo pages" do
     create(:product, sku: "s11111111", cached_slug: "gone", quantity: 0)
     create(:seo_catalog_page, :published, slug: "empty-page", products_count: 0, indexable: false)

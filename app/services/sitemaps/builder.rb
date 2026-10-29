@@ -18,11 +18,16 @@ module Sitemaps
       { path: "/help/how-to-order/", priority: 0.6, changefreq: "monthly" }
     ].freeze
 
+    # Публичный адрес витрины. Не берём его из Host и не оставляем www:
+    # в фидах базовый URL бывал https://www.ikeya.by, из-за этого sitemap
+    # расходился с canonical.
+    CANONICAL_ORIGIN = "https://ikeya.by"
+
     attr_reader :settings, :base_url
 
     def initialize(settings:)
       @settings = settings
-      @base_url = settings.base_url_root
+      @base_url = canonical_origin(settings.base_url_root)
       @seen_paths = {}
     end
 
@@ -143,6 +148,31 @@ module Sitemaps
         xml.changefreq(changefreq)
         xml.priority(priority)
       end
+    end
+
+    def canonical_origin(raw)
+      host = extract_host(raw)
+      return CANONICAL_ORIGIN if host.blank? || disallowed_sitemap_host?(host)
+
+      "https://#{host.delete_prefix("www.")}"
+    end
+
+    def extract_host(raw)
+      value = raw.to_s.strip
+      return "" if value.blank?
+
+      value = "https://#{value}" unless value.match?(%r{\A[a-z][a-z0-9+\-.]*://}i)
+      URI.parse(value).host.to_s.downcase.delete_suffix(".")
+    rescue URI::InvalidURIError
+      ""
+    end
+
+    def disallowed_sitemap_host?(host)
+      host == "localhost" ||
+        host.end_with?(".local") ||
+        host.end_with?(".internal") ||
+        host.include?(":") ||
+        host.match?(/\A\d{1,3}(\.\d{1,3}){3}\z/)
     end
 
     def normalize_path(path)
