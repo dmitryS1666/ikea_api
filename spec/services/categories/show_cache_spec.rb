@@ -72,6 +72,25 @@ RSpec.describe Categories::ShowCache do
     end
   end
 
+  describe "global category SEO" do
+    it "serves the updated title template after it is saved" do
+      create(
+        :global_seo_setting,
+        target_type: "category",
+        title_template: "{{name}} старый"
+      )
+
+      first = described_class.fetch(ikea_id: category.ikea_id, city: city, site_url: site_url)
+      expect(first.dig(:data, :attributes, :seo, :title)).to eq("Хранение старый")
+
+      GlobalSeoSetting.find_by!(target_type: "category").update!(title_template: "{{name}} новый")
+
+      expect(CategorySerializer).to receive(:new).once.and_call_original
+      second = described_class.fetch(ikea_id: category.ikea_id, city: city, site_url: site_url)
+      expect(second.dig(:data, :attributes, :seo, :title)).to eq("Хранение новый")
+    end
+  end
+
   describe ".bust!" do
     it "removes cached payload for the category" do
       category

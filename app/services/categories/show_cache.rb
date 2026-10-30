@@ -77,7 +77,8 @@ module Categories
       def cache_key(ikea_id:, city:, site_url:)
         pln_rate = ExchangeRate.fetch_or_create("PLN")&.rate_per_unit
         buffer = CalculatorSetting.get("exchange_rate_buffer")
-        fingerprint = Digest::SHA1.hexdigest([site_url, pln_rate, buffer].join("|"))[0, 12]
+        seo_version = GlobalSeoSetting.uncached { GlobalSeoSetting.maximum(:updated_at) }&.utc&.iso8601(6)
+        fingerprint = Digest::SHA1.hexdigest([site_url, pln_rate, buffer, seo_version].join("|"))[0, 12]
 
         [
           PREFIX,

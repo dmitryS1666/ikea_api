@@ -8,8 +8,7 @@ module SeoHelper
                   else nil
                   end
 
-    @global_settings ||= GlobalSeoSetting.all.index_by(&:target_type)
-    global = @global_settings[target_type]
+    global = GlobalSeoSetting.uncached { GlobalSeoSetting.find_by(target_type: target_type) }
     city_in = Seo::CityMapper.call(city_code)
 
     {
