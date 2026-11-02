@@ -286,4 +286,60 @@ RSpec.describe Delivery::ParcelPackingService do
     expect(result[:eligible_for_europost]).to be(true)
     expect(result[:parcels].all? { |p| p[:eligible_for_europost] }).to be(true)
   end
+
+  context "with Europost bulky defaults" do
+    before do
+      allow(CalculatorSetting).to receive(:get).and_call_original
+      allow(CalculatorSetting).to receive(:get).with("europost_max_weight_kg").and_return(nil)
+      allow(CalculatorSetting).to receive(:get).with("europost_max_volume_m3").and_return(nil)
+      allow(CalculatorSetting).to receive(:get).with("europost_max_dimension_cm").and_return(nil)
+      allow(CalculatorSetting).to receive(:get).with("europost_max_dimensions_sum_cm").and_return(nil)
+      allow(CalculatorSetting).to receive(:get).with("europost_max_side_dimensions_cm").and_return(nil)
+    end
+
+    it "exposes bulky legal-entity limits as code defaults" do
+      expect(described_class.europost_limits).to include(
+        max_weight_kg: 50.0,
+        max_volume_m3: 2.0,
+        max_dimension_cm: 250.0,
+        max_dimensions_sum_cm: 350.0
+      )
+    end
+
+    it "keeps multi-package sofa under 50 kg eligible for Europost courier pricing" do
+      # LILLEHEM 19471279 packaging: longest parcel 74×23×144 cm / 17.7 kg.
+      # Old standard limits (105 / 180) forced ikeya_delivery callback instead of price.
+      product = create(
+        :product,
+        weight: 45.4,
+        package_volume: nil,
+        package_dimensions: nil,
+        dimensions: "73 x 152 x 76 cm",
+        full_attributes: {
+          "dimensions_map" => {
+            "packaging" => {
+              "details" => [
+                { "width" => "74 см", "height" => "23 см", "length" => "144 см", "weight" => "17.70 кг", "count" => 1 },
+                { "width" => "15 см", "height" => "5 см", "length" => "23 см", "weight" => "1.16 кг", "count" => 1 },
+                { "width" => "54 см", "height" => "17 см", "length" => "76 см", "weight" => "6.00 кг", "count" => 4 },
+                { "width" => "38 см", "height" => "3 см", "length" => "57 см", "weight" => "0.90 кг", "count" => 1 },
+                { "width" => "25 см", "height" => "3 см", "length" => "37 см", "weight" => "0.41 кг", "count" => 4 }
+              ]
+            }
+          }
+        }
+      )
+      add_item(product, quantity: 1)
+
+      result = described_class.call(cart)
+
+      expect(result[:eligible_for_europost]).to be(true)
+      expect(result[:ineligible_reason]).to be_nil
+      expect(result[:parcels].size).to eq(11)
+      expect(result[:total_weight_kg]).to eq(45.4)
+      expect(result[:max_dimension_cm]).to eq(144.0)
+      expect(result[:max_dimensions_sum_cm]).to eq(241.0)
+      expect(result[:parcels].all? { |parcel| parcel[:eligible_for_europost] }).to be(true)
+    end
+  end
 end

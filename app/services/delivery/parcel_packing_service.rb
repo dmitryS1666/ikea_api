@@ -1,9 +1,12 @@
 class Delivery
   class ParcelPackingService
-    DEFAULT_MAX_WEIGHT_KG = 30.0
-    DEFAULT_MAX_VOLUME_M3 = 0.25
-    DEFAULT_MAX_DIMENSION_CM = 105.0
-    DEFAULT_MAX_DIMENSIONS_SUM_CM = 180.0
+    # Лимиты громоздких посылок Европочты для юрлиц (совпадают с текстом на checkout):
+    # вес до 50 кг, сторона до 250 см, сумма сторон до 350 см.
+    # Лимит 30 кг на конкретном ПВЗ фильтруется отдельно в DeliveryOptionsService.
+    DEFAULT_MAX_WEIGHT_KG = 50.0
+    DEFAULT_MAX_VOLUME_M3 = 2.0
+    DEFAULT_MAX_DIMENSION_CM = 250.0
+    DEFAULT_MAX_DIMENSIONS_SUM_CM = 350.0
 
     def self.call(cart)
       parcels = build_parcels(cart)

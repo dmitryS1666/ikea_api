@@ -234,6 +234,30 @@ class CalculatorSetting < ApplicationRecord
         description: "Legacy: бесплатный вес GLS для PolandDeliveryService (кг)."
       },
       {
+        key: "europost_max_weight_kg",
+        value: 50.0,
+        setting_type: "decimal",
+        description: "Макс. вес одной посылки для Europost courier/ПВЗ (кг). До 50 кг; ПВЗ с лимитом 30 кг отфильтруются отдельно."
+      },
+      {
+        key: "europost_max_volume_m3",
+        value: 2.0,
+        setting_type: "decimal",
+        description: "Мягкий верхний порог объёма одной посылки для Europost (м³). Европочта публикует лимиты по сторонам, не по м³."
+      },
+      {
+        key: "europost_max_dimension_cm",
+        value: 250.0,
+        setting_type: "decimal",
+        description: "Макс. сторона посылки Europost для юрлиц/громоздких (см)."
+      },
+      {
+        key: "europost_max_dimensions_sum_cm",
+        value: 350.0,
+        setting_type: "decimal",
+        description: "Макс. сумма трёх сторон посылки Europost для юрлиц/громоздких (см)."
+      },
+      {
         key: "default_delivery_days",
         value: 30,
         setting_type: "integer",
