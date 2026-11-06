@@ -57,6 +57,22 @@ RSpec.describe Seo::StructuredData::ProductBuilder do
     expect(offers["offers"].map { |offer| offer["url"] }).to all(eq(page_url))
   end
 
+  it "publishes absolute product image urls" do
+    product.update!(
+      local_images: ["/images/products/1d/15/b1/1d15b19ad57d4005d0adf399f21602adca354978.webp"]
+    )
+
+    payload = described_class.build(
+      product.reload,
+      site_url: "http://host.docker.internal:3001",
+      city_code: "minsk"
+    )
+
+    expect(payload["image"]).to eq(
+      ["https://ikeya.by/images/products/1d/15/b1/1d15b19ad57d4005d0adf399f21602adca354978.webp"]
+    )
+  end
+
   it "uses full product name in Product schema" do
     product.update!(name: "PAX", name_ru: "PAX", small_desc_name: "Гардероб, комбинация")
 

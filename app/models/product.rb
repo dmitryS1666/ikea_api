@@ -172,6 +172,7 @@ class Product < ApplicationRecord
   # Callbacks
   before_validation :lock_manual_ikea_delivery_if_edited
   before_save :assign_auto_ikea_delivery, if: :should_recalculate_ikea_delivery?
+  include ProductContentTimestamp
   after_save :maybe_sync_variant_sibling_links
   after_save :reset_variants_admin_form_flags
   after_commit :enqueue_filters_reindex, on: [:create, :update]
@@ -1012,12 +1013,15 @@ class Product < ApplicationRecord
     quote = IkeaDeliveryService.quote(self)
     return if quote.nil?
 
-    update_columns(
-      delivery_cost: quote[:cost_pln],
-      delivery_type: quote[:delivery_type],
-      delivery_name: quote[:delivery_name],
-      delivery_reason: quote[:delivery_reason]
-    )
+    attrs = {
+      "delivery_cost" => quote[:cost_pln],
+      "delivery_type" => quote[:delivery_type],
+      "delivery_name" => quote[:delivery_name],
+      "delivery_reason" => quote[:delivery_reason]
+    }
+    return if public_card_values_unchanged?(attrs)
+
+    update_columns(attrs)
   end
 
   private

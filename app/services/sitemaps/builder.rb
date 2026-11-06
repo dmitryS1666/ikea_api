@@ -117,7 +117,7 @@ module Sitemaps
           product_public_path(product),
           priority: 0.6,
           changefreq: "weekly",
-          lastmod: product.updated_at
+          lastmod: product.content_updated_at || product.created_at
         )
       end
     end

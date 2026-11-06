@@ -53,6 +53,22 @@ RSpec.describe Sitemaps::Builder do
     end
   end
 
+  it "uses the last real product card change for lastmod" do
+    product = create(:product, sku: "s90205097", name: "KALLAX", cached_slug: "kallax", quantity: 5)
+    product.update_columns(
+      updated_at: Time.zone.parse("2026-11-05 08:00"),
+      content_updated_at: Time.zone.parse("2026-09-23 08:00")
+    )
+
+    xml = described_class.call(settings: settings)
+    lastmod = Nokogiri::XML(xml).at_xpath(
+      "//xmlns:loc[text()='https://ikeya.by/product/kallax-90205097/']/following-sibling::xmlns:lastmod",
+      "xmlns" => "http://www.sitemaps.org/schemas/sitemap/0.9"
+    )&.text
+
+    expect(lastmod).to eq("2026-09-23")
+  end
+
   it "skips out-of-stock products and non-indexable seo pages" do
     create(:product, sku: "s11111111", cached_slug: "gone", quantity: 0)
     create(:seo_catalog_page, :published, slug: "empty-page", products_count: 0, indexable: false)

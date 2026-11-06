@@ -18,7 +18,7 @@ module Seo
 
         meta = SeoHelper.meta_for(product, city_code)
         price_byn = offer_price_byn
-        images = ProductLocalImages.expand_paths(product.local_images).first(10)
+        images = absolute_image_urls(ProductLocalImages.expand_paths(product.local_images).first(10))
 
         page_url = product_page_url
         payload = {
@@ -47,6 +47,28 @@ module Seo
       private
 
       attr_reader :product, :site_url, :city_code
+
+      def absolute_image_urls(paths)
+        origin = Seo::PublicSiteUrl.coerce(site_url)
+        Array(paths).filter_map { |path| absolute_image_url(path, origin) }.presence
+      end
+
+      def absolute_image_url(path, origin)
+        raw = path.to_s.strip
+        return nil if raw.blank?
+        return "#{origin}#{raw}" if raw.start_with?("/")
+        return "https:#{raw}" if raw.start_with?("//")
+
+        begin
+          uri = URI.parse(raw)
+        rescue URI::InvalidURIError
+          return "#{origin}/#{raw.delete_prefix("/")}"
+        end
+
+        return "#{origin}#{uri.path}#{uri.query ? "?#{uri.query}" : ""}" if uri.path.to_s.start_with?("/images/")
+
+        raw
+      end
 
       def product_page_url
         core = product.sku.to_s.sub(/\As/i, "")

@@ -70,6 +70,48 @@ RSpec.describe Products::PlPriceStockRefreshService do
     end
   end
 
+  describe ".refresh! without card changes" do
+    let(:category) { create(:category) }
+
+    it "keeps the previous timestamps when price and stock stay the same" do
+      product = create(
+        :product,
+        category: category,
+        sku: "30535109",
+        item_no: "30535109",
+        url: "https://www.ikea.com/pl/pl/p/-30535109/",
+        quantity: 999,
+        price: 10,
+        is_parcel: true,
+        delivery_cost: 20,
+        delivery_type: "gls_point",
+        delivery_name: "GLS",
+        delivery_reason: "parcel"
+      )
+      stamped = Time.zone.parse("2026-09-23 10:00")
+      product.update_columns(updated_at: stamped, content_updated_at: stamped)
+      allow(PlDetailsFetcher).to receive(:shelf_snapshot).and_return(
+        price: 10,
+        availability: { "status" => "HIGH_IN_STOCK" },
+        canonical_url: "https://www.ikea.com/pl/pl/p/-30535109/",
+        is_parcel: true
+      )
+      allow(IkeaDeliveryService).to receive(:quote).and_return(
+        delivery_type: "gls_point",
+        delivery_name: "GLS",
+        delivery_reason: "parcel",
+        cost_pln: BigDecimal("20")
+      )
+
+      result = described_class.refresh!(product)
+
+      product.reload
+      expect(result[:updated]).to be false
+      expect(product.updated_at).to eq(stamped)
+      expect(product.content_updated_at).to eq(stamped)
+    end
+  end
+
   describe ".http_not_found_error?" do
     it "returns true for fetcher-style 404 messages" do
       expect(described_class.http_not_found_error?(StandardError.new("HTTP error: 404 Not Found"))).to be true

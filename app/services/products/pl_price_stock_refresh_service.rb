@@ -2,7 +2,8 @@
 
 # Только польский сайт: цена в злотых (PLN) и наличие через PlDetailsFetcher.shelf_snapshot
 # (JSON-LD: при нескольких PLN-offer цена только при однозначном оффере или совпадении sku/mpn/url с артикулом страницы; иначе — цена из hydration).
-# обновление канонической ссылки на товар. В БД пишутся price, quantity, url, is_parcel (+ updated_at).
+# обновление канонической ссылки на товар. В БД пишутся price, quantity, url, is_parcel.
+# Если значения те же, строка не перезаписывается и дата карточки для sitemap не сдвигается.
 # is_parcel берётся со страницы (homeDelivery.isParcel). После записи флага пересчитывается delivery_cost.
 # Поле products.price — всегда в PLN для записей, обновлённых этим сервисом.
 # Если страница PL недоступна (нет URL, 404, пустой HTML/снимок) — quantity принудительно 0.
@@ -23,10 +24,7 @@ class Products::PlPriceStockRefreshService
 
     snap = shelf_snapshot_rescue_not_found(pl_url)
     if snap.blank? || (snap[:canonical_url].blank? && snap[:price].blank? && snap[:availability].blank?)
-      qty = normalized_quantity(nil)
-      changed = product.quantity != qty
-      product.update_columns(quantity: qty, updated_at: Time.current)
-      return { updated: changed, reason: :empty_snapshot }
+      return apply_quantity!(normalized_quantity(nil), reason: :empty_snapshot)
     end
 
     quantity = normalized_quantity(snap[:availability])
@@ -35,21 +33,20 @@ class Products::PlPriceStockRefreshService
 
     attrs = {
       quantity: quantity,
-      url: canonical,
-      updated_at: Time.current
+      url: canonical
     }
     attrs[:price] = price if price.present?
     parcel_flag = snap[:is_parcel]
     attrs[:is_parcel] = parcel_flag unless parcel_flag.nil?
 
-    price_changed = price.present? && product.price != price
+    price_changed = price.present? && !same_number?(product.price, price)
     parcel_changed = !parcel_flag.nil? && product.is_parcel != parcel_flag
     changed = product.quantity != quantity ||
       product.url.to_s != canonical ||
       price_changed ||
       parcel_changed
 
-    product.update_columns(attrs)
+    product.update_columns(attrs.merge(updated_at: Time.current)) if changed
     product.recalculate_ikea_delivery! unless parcel_flag.nil?
     { updated: changed, price_updated: price_changed, parcel_updated: parcel_changed }
   end
@@ -112,10 +109,21 @@ class Products::PlPriceStockRefreshService
   end
 
   def apply_not_found_on_pl!(reason:)
-    qty = normalized_quantity(nil)
+    apply_quantity!(normalized_quantity(nil), reason: reason)
+  end
+
+  def apply_quantity!(qty, reason:)
     changed = product.quantity != qty
-    product.update_columns(quantity: qty, updated_at: Time.current)
+    product.update_columns(quantity: qty, updated_at: Time.current) if changed
     { updated: changed, reason: reason }
+  end
+
+  def same_number?(current, incoming)
+    return false if current.nil? || incoming.nil?
+
+    current.to_d == incoming.to_d
+  rescue ArgumentError, TypeError
+    false
   end
 
   def normalized_quantity(availability)
