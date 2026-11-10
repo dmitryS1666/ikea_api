@@ -138,6 +138,7 @@ module Sitemaps
     def add_url(xml, path, priority: 0.5, changefreq: "monthly", lastmod: nil)
       normalized = normalize_path(path)
       return if normalized.blank?
+      return if internal_search_path?(normalized)
       return if @seen_paths[normalized]
 
       @seen_paths[normalized] = true
@@ -173,6 +174,11 @@ module Sitemaps
         host.end_with?(".internal") ||
         host.include?(":") ||
         host.match?(/\A\d{1,3}(\.\d{1,3}){3}\z/)
+    end
+
+    # Внутренний поиск (/search/, выдача, параметры) не индексируется и не попадает в карты.
+    def internal_search_path?(path)
+      path.start_with?("/search/")
     end
 
     def normalize_path(path)

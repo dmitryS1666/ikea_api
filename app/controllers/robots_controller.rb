@@ -4,6 +4,8 @@ class RobotsController < ApplicationController
   def show
     body = <<~ROBOTS
       User-agent: *
+      # Поиск закрыт через noindex. URL должен открываться, иначе робот не прочитает директиву.
+      Allow: /search
       Disallow: /
     ROBOTS
 

@@ -69,6 +69,24 @@ RSpec.describe Sitemaps::Builder do
     expect(lastmod).to eq("2026-09-23")
   end
 
+  it "omits internal search urls from every urlset entry" do
+    builder = described_class.new(settings: settings)
+    xml = Nokogiri::XML::Builder.new(encoding: "UTF-8") do |doc|
+      doc.urlset(xmlns: "http://www.sitemaps.org/schemas/sitemap/0.9") do
+        builder.send(:add_url, doc, "/search/")
+        builder.send(:add_url, doc, "/search")
+        builder.send(:add_url, doc, "/search?q=stol&page=2")
+        builder.send(:add_url, doc, "/search/?q=kovry&sort=cheapest")
+        builder.send(:add_url, doc, "/catalog/tekstil-i-kovry/")
+      end
+    end.to_xml
+
+    urls = locs(xml)
+
+    expect(urls).to eq(["https://ikeya.by/catalog/tekstil-i-kovry/"])
+    expect(urls).not_to include(a_string_including("/search"))
+  end
+
   it "skips out-of-stock products and non-indexable seo pages" do
     create(:product, sku: "s11111111", cached_slug: "gone", quantity: 0)
     create(:seo_catalog_page, :published, slug: "empty-page", products_count: 0, indexable: false)

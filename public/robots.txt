@@ -1,4 +1,26 @@
 User-agent: *
+# Внутренний поиск закрыт meta noindex. Адреса должны открываться, включая сортировку, фильтры и цену.
+Allow: /search$
+Allow: /search?
+Allow: /search/
+Allow: /search?*sort=
+Allow: /search/*?*sort=
+Allow: /search?*order=
+Allow: /search/*?*order=
+Allow: /search?*filter=
+Allow: /search/*?*filter=
+Allow: /search?*min_price=
+Allow: /search/*?*min_price=
+Allow: /search?*max_price=
+Allow: /search/*?*max_price=
+Allow: /search?*price_from=
+Allow: /search/*?*price_from=
+Allow: /search?*price_to=
+Allow: /search/*?*price_to=
+Allow: /search?*view=
+Allow: /search/*?*view=
+Allow: /search?*limit=
+Allow: /search/*?*limit=
 Disallow: /admin/
 Disallow: /api/
 Disallow: /cart/
