@@ -119,6 +119,24 @@ RSpec.describe 'Order Payment Timer', type: :request do
   end
 
   describe 'GET /api/v1/payment_links/:id' do
+    it 'sends the browser back to the cart instead of resubmitting WebPay' do
+      order = create(:order, user: user, payment_link_token: 'live-token', status: :processing)
+      allow(WebpayPaymentLinkService).to receive(:build_form).and_return(
+        WebpayPaymentLinkService::Result.new(
+          action: 'https://securesandbox.webpay.by/',
+          fields: { 'wsb_total' => '10.00' },
+          seed: 1
+        )
+      )
+
+      get "/api/v1/payment_links/#{order.id}", params: { token: 'live-token' }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include('back_forward')
+      expect(response.body).to include('https://ikeya.by/cart')
+      expect(response.body).not_to include('DOMContentLoaded')
+    end
+
     it 'expires payment link after 20 minutes' do
       order = create(:order, user: user, payment_link_token: 'expired-token')
       order.update!(payment_expires_at: 21.minutes.ago)

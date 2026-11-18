@@ -112,7 +112,50 @@ RSpec.describe "Checkout multi-step (draft) flow", type: :request do
     expect(order.status).to eq("processing")
     expect(order.payment_url).to be_present
     expect(WebpayPaymentLinkService).to have_received(:issue_link!).once
-    expect(user.reload.cart.cart_items).to be_empty
+    expect(user.reload.cart.cart_items).not_to be_empty
+  end
+
+  it "cancels the previous unpaid card order when the customer checks out again" do
+    post "/api/v1/checkout", params: { draft: true }, headers: headers
+    first = Order.find(JSON.parse(response.body)["order_id"])
+    patch "/api/v1/checkout/#{first.id}", params: {
+      delivery_type: "europost_pickup",
+      pickup_point_id: "70130010",
+      full_name: "User",
+      phone: "375291112233",
+      payment_method: "card"
+    }, headers: headers
+
+    post "/api/v1/checkout/#{first.id}/finalize", params: checkout_consents.merge(
+      full_name: "User",
+      phone: "375291112233",
+      delivery_type: "europost_pickup",
+      payment_method: "card",
+      pickup_point_id: "70130010"
+    ), headers: headers
+    expect(response).to have_http_status(:created)
+
+    post "/api/v1/checkout", params: { draft: true }, headers: headers
+    second = Order.find(JSON.parse(response.body)["order_id"])
+    patch "/api/v1/checkout/#{second.id}", params: {
+      delivery_type: "europost_pickup",
+      pickup_point_id: "70130010",
+      full_name: "User",
+      phone: "375291112233",
+      payment_method: "card"
+    }, headers: headers
+    post "/api/v1/checkout/#{second.id}/finalize", params: checkout_consents.merge(
+      full_name: "User",
+      phone: "375291112233",
+      delivery_type: "europost_pickup",
+      payment_method: "card",
+      pickup_point_id: "70130010"
+    ), headers: headers
+
+    expect(response).to have_http_status(:created)
+    expect(first.reload.status).to eq("cancelled")
+    expect(second.reload.status).to eq("processing")
+    expect(user.reload.cart.cart_items).not_to be_empty
   end
 
   it "returns delivery options based on draft order VGH" do

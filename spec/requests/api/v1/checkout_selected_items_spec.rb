@@ -114,7 +114,7 @@ RSpec.describe "Checkout with selected cart items", type: :request do
 
     expect(response).to have_http_status(:created)
     expect(order.reload.order_items.sum(:quantity)).to eq(1)
-    expect(user.cart.cart_items.find_by(product_sku: product_a.sku).quantity).to eq(1)
+    expect(user.cart.cart_items.find_by(product_sku: product_a.sku).quantity).to eq(2)
     expect(user.cart.cart_items.find_by(product_sku: product_b.sku).quantity).to eq(1)
   end
 end

@@ -252,11 +252,12 @@ class CheckoutService
     if order.reload.persisted? && !order.checkout_draft
       ConsentService.record_checkout_consents!(user: user, order: order, params: merged_params)
 
-      user_cart = user.cart
-      if user_cart
-        consume_selections = CartSelectionService.selections_from_order(order)
-        clear_cart_after_checkout!(cart: user_cart, selections: consume_selections)
-      end
+      release_cart_for_checkout!(
+        user: user,
+        order: order,
+        cart: user.cart,
+        selections: CartSelectionService.selections_from_order(order)
+      )
 
       WebpayPaymentLinkService.issue_link!(order)
       OrderEmailSnapshotService.capture!(order.reload, pricing: pricing, force: true)
@@ -444,7 +445,7 @@ class CheckoutService
           )
         end
 
-        clear_cart_after_checkout!(cart: cart, selections: selections)
+        release_cart_for_checkout!(user: user, order: order, cart: cart, selections: selections)
 
         if passport_changed
           UserPassportService.write!(user: user, passport_hash: passport_input)
@@ -945,6 +946,58 @@ class CheckoutService
     return { error: 'Корзина пуста', code: 'cart_empty' } if effective_cart.cart_items.blank?
 
     { cart: effective_cart, selections: selection[:selections] }
+  end
+
+  # Карточная оплата уходит на WebPay. Корзину держим до подтверждения платежа,
+  # чтобы «Назад» и второе окно показывали те же товары. Неоплаченный заказ
+  # остаётся в ожидании и снимается таймером. Повторное оформление отменяет
+  # предыдущий неоплаченный заказ, чтобы не осталось двух живых ссылок.
+  def self.release_cart_for_checkout!(user:, order:, cart:, selections:)
+    target = cart || user.cart
+    if keep_cart_until_payment?(order.payment_method) && target&.user_id == user.id
+      cancel_superseded_unpaid_orders!(user: user, except_order: order)
+      return
+    end
+
+    return unless target
+
+    clear_cart_after_checkout!(
+      cart: target,
+      selections: selections.presence || CartSelectionService.selections_from_order(order)
+    )
+  end
+
+  def self.keep_cart_until_payment?(payment_method)
+    payment_method.to_s == "card"
+  end
+
+  def self.cancel_superseded_unpaid_orders!(user:, except_order:)
+    user.orders
+        .where(checkout_draft: false, payment_method: "card", status: Order::PAYMENT_AUTOCANCEL_STATUSES)
+        .where.not(id: except_order.id)
+        .where(webpay_paid_at: nil)
+        .find_each do |other|
+      next if other.webpay_transaction_id.present?
+
+      other.status_changed_at = Time.current
+      other.status_change_source = "superseded_checkout"
+      other.update!(
+        status: :cancelled,
+        cancellation_reason: other.cancellation_reason.presence || "Оформлен другой заказ до оплаты"
+      )
+    end
+  end
+
+  def self.consume_cart_for_paid_order!(order)
+    return unless keep_cart_until_payment?(order.payment_method)
+
+    cart = order.user&.cart
+    return unless cart
+
+    clear_cart_after_checkout!(
+      cart: cart,
+      selections: CartSelectionService.selections_from_order(order)
+    )
   end
 
   def self.clear_cart_after_checkout!(cart:, selections:)

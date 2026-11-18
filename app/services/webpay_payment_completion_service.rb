@@ -164,6 +164,7 @@ class WebpayPaymentCompletionService
           webpay_transaction_id: tid,
           webpay_paid_at: Time.current
         )
+        CheckoutService.consume_cart_for_paid_order!(order)
         outcome = :paid
         sync_crm = true
         create_europost_shipment = [DeliveryTypeNormalizer::EUROPOST_PICKUP, DeliveryTypeNormalizer::COURIER]

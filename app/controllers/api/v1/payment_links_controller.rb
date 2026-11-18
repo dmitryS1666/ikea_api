@@ -9,15 +9,16 @@ module Api
         return render_expired if order.payment_expires_at.blank? || order.payment_expires_at < Time.current
 
         form = WebpayPaymentLinkService.build_form(order: order)
-        render body: build_payment_page_html(form), content_type: 'text/html'
+        render body: build_payment_page_html(form, cart_url: storefront_cart_url), content_type: 'text/html'
       end
 
       private
 
-      def build_payment_page_html(form)
+      def build_payment_page_html(form, cart_url:)
         fields_html = form.fields.map do |name, value|
           %(<input type="hidden" name="#{ERB::Util.html_escape(name)}" value="#{ERB::Util.html_escape(value)}" />)
         end.join("\n")
+        cart_url_json = cart_url.to_json
 
         <<~HTML
           <!DOCTYPE html>
@@ -34,13 +35,35 @@ module Api
                 <button type="submit">Перейти к оплате</button>
               </form>
               <script>
-                document.addEventListener('DOMContentLoaded', function () {
-                  document.getElementById('webpay-form')?.submit();
-                });
+                (function () {
+                  var cartUrl = #{cart_url_json};
+                  function isBackForward() {
+                    var nav = window.performance && performance.getEntriesByType
+                      ? performance.getEntriesByType('navigation')[0]
+                      : null;
+                    return !!(nav && nav.type === 'back_forward');
+                  }
+                  function returnToCart() {
+                    window.location.replace(cartUrl);
+                  }
+                  if (isBackForward()) {
+                    returnToCart();
+                    return;
+                  }
+                  window.addEventListener('pageshow', function (event) {
+                    if (event.persisted || isBackForward()) returnToCart();
+                  });
+                  var form = document.getElementById('webpay-form');
+                  if (form) form.submit();
+                })();
               </script>
             </body>
           </html>
         HTML
+      end
+
+      def storefront_cart_url
+        "#{Seo::PublicSiteUrl.resolve}/cart"
       end
 
       def order
